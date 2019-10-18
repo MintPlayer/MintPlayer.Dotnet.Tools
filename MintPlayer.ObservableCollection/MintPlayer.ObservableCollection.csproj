@@ -2,6 +2,16 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp3.0</TargetFramework>
+    <Description>Extended version of System.Collections.ObjectModel.ObservableCollection. This class allows you to:
+1) Use AddRange, invoking the CollectionChanged event only once
+2) Monitor properties of the items in the collection</Description>
+    <Company>MintPlayer</Company>
+    <Authors>Pieterjan De Clippel</Authors>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/MintPlayer/ObservableCollection</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/MintPlayer/ObservableCollection</RepositoryUrl>
+    <RepositoryType>Git</RepositoryType>
+    <PackageTags>ObservableCollection, AddRange, ItemPropertyChanged</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
