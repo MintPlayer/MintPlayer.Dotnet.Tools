@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.29411.108
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.ObservableCollection", "MintPlayer.ObservableCollection\MintPlayer.ObservableCollection.csproj", "{985C16EE-A15F-458C-BEA8-194EC96987C5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MintPlayer.ObservableCollection.Test", "MintPlayer.ObservableCollection.Test\MintPlayer.ObservableCollection.Test.csproj", "{129021AF-6377-4323-8F84-7C0596DF4A91}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.ObservableCollection.Test", "MintPlayer.ObservableCollection.Test\MintPlayer.ObservableCollection.Test.csproj", "{129021AF-6377-4323-8F84-7C0596DF4A91}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MintPlayer.ObservableCollection", "MintPlayer.ObservableCollection\MintPlayer.ObservableCollection.csproj", "{D70A86FA-F9B1-4377-8D75-5DA9F56E1D51}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +21,10 @@ Global
 		{129021AF-6377-4323-8F84-7C0596DF4A91}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{129021AF-6377-4323-8F84-7C0596DF4A91}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{129021AF-6377-4323-8F84-7C0596DF4A91}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D70A86FA-F9B1-4377-8D75-5DA9F56E1D51}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D70A86FA-F9B1-4377-8D75-5DA9F56E1D51}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D70A86FA-F9B1-4377-8D75-5DA9F56E1D51}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D70A86FA-F9B1-4377-8D75-5DA9F56E1D51}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
