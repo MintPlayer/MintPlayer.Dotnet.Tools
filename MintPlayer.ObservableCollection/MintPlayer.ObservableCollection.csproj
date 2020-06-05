@@ -1,7 +1,7 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFrameworks>netstandard2.0;netcoreapp3.1;net45</TargetFrameworks>
     <Description>Extended version of System.Collections.ObjectModel.ObservableCollection. This class allows you to:
     1) Use AddRange, invoking the CollectionChanged event only once
     2) Use RemoveRange, invoking the CollectionChanged event only once
@@ -17,7 +17,7 @@
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <Product>MintPlayer.ObservableCollection</Product>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
   </PropertyGroup>
 
 </Project>
