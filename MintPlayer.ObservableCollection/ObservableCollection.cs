@@ -8,21 +8,24 @@ namespace MintPlayer.ObservableCollection
 {
     public class ObservableCollection<T> : System.Collections.ObjectModel.ObservableCollection<T>
     {
+        #region Constructors
+        public ObservableCollection() : base()
+        {
+        }
+
+        public ObservableCollection(IEnumerable<T> items) : this()
+        {
+            InternalAddRange(items);
+        }
+        #endregion
+
         private bool isAddingOrRemovingRange = false;
 
+        #region Public methods
         public void AddRange(IEnumerable<T> items)
         {
-            try
-            {
-                isAddingOrRemovingRange = true;
-                foreach (var item in items)
-                    Add(item);
-            }
-            finally
-            {
-                isAddingOrRemovingRange = false;
-                OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, items.ToList()));
-            }
+            InternalAddRange(items);
+            OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, items.ToList()));
         }
 
         public void RemoveRange(IEnumerable<T> items)
@@ -39,6 +42,7 @@ namespace MintPlayer.ObservableCollection
                 OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, items.ToList()));
             }
         }
+        #endregion
 
         protected override void OnCollectionChanged(NotifyCollectionChangedEventArgs e)
         {
@@ -50,9 +54,8 @@ namespace MintPlayer.ObservableCollection
                 // Also only attach the PropertyChanged event handler when we're not into
                 // the process of adding a number of items one by one.
                 var itf = typeof(T).GetInterfaces();
-                var itf_arr = new Type[itf.Length];
-                itf.CopyTo(itf_arr, 0);
-                if (itf_arr.Contains(typeof(System.ComponentModel.INotifyPropertyChanged)))
+                
+                if (itf.Contains(typeof(System.ComponentModel.INotifyPropertyChanged)))
                 {
                     // First detach all event handlers
                     if (e.OldItems != null)
@@ -74,17 +77,33 @@ namespace MintPlayer.ObservableCollection
             }
         }
 
-        private void ObservableCollection_Item_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
-        {
-            OnItemPropertyChanged((T)sender, e.PropertyName);
-        }
-
         #region ItemPropertyChanged
         public event ItemPropertyChangedEventHandler<T> ItemPropertyChanged;
         protected void OnItemPropertyChanged(T item, string propertyName/*, object oldValue, object newValue*/)
         {
             if (ItemPropertyChanged != null)
                 ItemPropertyChanged(this, new Events.EventArgs.ItemPropertyChangedEventArgs<T>(item, propertyName/*, oldValue, newValue*/));
+        }
+        #endregion
+
+        #region Private methods
+        private void ObservableCollection_Item_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            OnItemPropertyChanged((T)sender, e.PropertyName);
+        }
+
+        private void InternalAddRange(IEnumerable<T> items)
+        {
+            try
+            {
+                isAddingOrRemovingRange = true;
+                foreach (var item in items)
+                    Add(item);
+            }
+            finally
+            {
+                isAddingOrRemovingRange = false;
+            }
         }
         #endregion
     }
