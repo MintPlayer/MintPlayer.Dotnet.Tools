@@ -1,4 +1,6 @@
 # MintPlayer.ObservableCollection
+[![NuGet Version](https://img.shields.io/nuget/v/MintPlayer.ObservableCollection.svg?style=flat)](https://www.nuget.org/packages/MintPlayer.ObservableCollection/)
+
 Extended version of System.Collections.ObjectModel.ObservableCollection. This class allows you to:
 1) Use AddRange, invoking the CollectionChanged event only once
 2) Monitor properties of the items in the collection
