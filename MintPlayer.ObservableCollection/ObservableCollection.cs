@@ -3,6 +3,7 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using MintPlayer.ObservableCollection.Events.EventHandlers;
+using System.ComponentModel;
 
 namespace MintPlayer.ObservableCollection
 {
@@ -19,12 +20,20 @@ namespace MintPlayer.ObservableCollection
         }
         #endregion
 
+        #region Private fields
+
         private bool isAddingOrRemovingRange = false;
+
+        #endregion
 
         #region Public methods
         public void AddRange(IEnumerable<T> items)
         {
+            CheckReentrancy();
+
             InternalAddRange(items);
+            OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));
+            OnPropertyChanged(new PropertyChangedEventArgs("Items[]"));
             OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, items.ToList()));
         }
 
@@ -32,6 +41,8 @@ namespace MintPlayer.ObservableCollection
         {
             try
             {
+                CheckReentrancy();
+
                 isAddingOrRemovingRange = true;
                 foreach (var item in items)
                     Remove(item);
@@ -39,6 +50,8 @@ namespace MintPlayer.ObservableCollection
             finally
             {
                 isAddingOrRemovingRange = false;
+                OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));
+                OnPropertyChanged(new PropertyChangedEventArgs("Items[]"));
                 OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, items.ToList()));
             }
         }
@@ -97,8 +110,7 @@ namespace MintPlayer.ObservableCollection
             try
             {
                 isAddingOrRemovingRange = true;
-                foreach (var item in items)
-                    Add(item);
+                ((List<T>)Items).InsertRange(Count, items);
             }
             finally
             {
