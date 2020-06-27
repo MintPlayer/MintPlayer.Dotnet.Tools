@@ -14,6 +14,7 @@ Install-Package MintPlayer.ObservableCollection
 ## WPF support
 Xamarin.Forms is by default able to deal with Range Operations. WPF however (both .NET Framework and .NET Core) is unable to deal with Range Operations. This ObservableCollection does in fact support range operations (AddRange, RemoveRange) for WPF too.
 
+A working example can be found in the [following repository](https://github.com/PieterjanDeClippel/WpfRangeOperations)
 ## Usage
 ### Example 1
 
