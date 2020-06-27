@@ -5,12 +5,13 @@
     <Description>Extended version of System.Collections.ObjectModel.ObservableCollection. This class allows you to:
     1) Use AddRange, invoking the CollectionChanged event only once
     2) Use RemoveRange, invoking the CollectionChanged event only once
-    3) Monitor properties of the items in the collection</Description>
+    3) Monitor properties of the items in the collection
+    4) Support for WPF</Description>
     <Company>MintPlayer</Company>
     <Authors>Pieterjan De Clippel</Authors>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/MintPlayer/ObservableCollection</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/MintPlayer/ObservableCollection</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.ObservableCollection</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/MintPlayer/MintPlayer.ObservableCollection</RepositoryUrl>
     <RepositoryType>Git</RepositoryType>
     <PackageTags>ObservableCollection, AddRange, RemoveRange, ItemPropertyChanged</PackageTags>
     <PackageId>MintPlayer.ObservableCollection</PackageId>
