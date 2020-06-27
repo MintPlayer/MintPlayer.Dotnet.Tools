@@ -10,6 +10,10 @@ https://www.nuget.org/packages/MintPlayer.ObservableCollection/
 Open the NuGet package manager and install the **MintPlayer.ObservableCollection** package in the project
 ### Package manager console
 Install-Package MintPlayer.ObservableCollection
+
+## WPF support
+Xamarin.Forms is by default able to deal with Range Operations. WPF however (both .NET Framework and .NET Core) is unable to deal with Range Operations. This ObservableCollection does in fact support range operations (AddRange, RemoveRange) for WPF too.
+
 ## Usage
 ### Example 1
 
@@ -104,6 +108,3 @@ Program.cs
     });
 
     collection[1].LastName = "Knibble";
-
-## WPF support
-Xamarin.Forms is by default able to deal with Range Operations. WPF however (both .NET Framework and .NET Core) is unable to deal with Range Operations. This ObservableCollection does in fact support range operations (AddRange, RemoveRange) for WPF too.
