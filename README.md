@@ -1,9 +1,8 @@
 # MintPlayer.ObservableCollection
-[![NuGet Version](https://img.shields.io/nuget/v/MintPlayer.ObservableCollection.svg?style=flat)](https://www.nuget.org/packages/MintPlayer.ObservableCollection/)
-
 Extended version of System.Collections.ObjectModel.ObservableCollection. This class allows you to:
 1) Use AddRange, invoking the CollectionChanged event only once
 2) Monitor properties of the items in the collection
+3) Be used within a WPF project.
 ## NuGet package
 https://www.nuget.org/packages/MintPlayer.ObservableCollection/
 ## Installation
@@ -105,3 +104,6 @@ Program.cs
     });
 
     collection[1].LastName = "Knibble";
+
+## WPF support
+Xamarin.Forms is by default able to deal with Range Operations. WPF however (both .NET Framework and .NET Core) is unable to deal with Range Operations. This ObservableCollection does in fact support range operations (AddRange, RemoveRange) for WPF too.
