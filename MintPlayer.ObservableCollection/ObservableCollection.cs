@@ -6,6 +6,7 @@ using MintPlayer.ObservableCollection.Events.EventHandlers;
 using System.ComponentModel;
 using System.Reflection;
 using System.Diagnostics;
+using System.Threading;
 
 namespace MintPlayer.ObservableCollection
 {
@@ -26,6 +27,7 @@ namespace MintPlayer.ObservableCollection
 
         private bool isAddingOrRemovingRange = false;
         [NonSerialized] private DeferredEventsCollection _deferredEvents;
+        private readonly SynchronizationContext synchronizationContext = SynchronizationContext.Current;
 
         #endregion
 
@@ -35,28 +37,25 @@ namespace MintPlayer.ObservableCollection
             CheckReentrancy();
 
             InternalAddRange(items);
-            OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));
-            OnPropertyChanged(new PropertyChangedEventArgs("Items[]"));
-            OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, items.ToList()));
+            RunOnMainThread(() =>
+            {
+                OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));
+                OnPropertyChanged(new PropertyChangedEventArgs("Items[]"));
+                OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, items.ToList()));
+            });
         }
 
         public void RemoveRange(IEnumerable<T> items)
         {
-            try
-            {
-                CheckReentrancy();
+            CheckReentrancy();
 
-                isAddingOrRemovingRange = true;
-                foreach (var item in items)
-                    Remove(item);
-            }
-            finally
+            InternalRemoveRange(items);
+            RunOnMainThread(() =>
             {
-                isAddingOrRemovingRange = false;
                 OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));
                 OnPropertyChanged(new PropertyChangedEventArgs("Items[]"));
                 OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, items.ToList()));
-            }
+            });
         }
         #endregion
 
@@ -140,7 +139,10 @@ namespace MintPlayer.ObservableCollection
         #region Private methods
         private void ObservableCollection_Item_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
-            OnItemPropertyChanged((T)sender, e.PropertyName);
+            RunOnMainThread(() =>
+            {
+                OnItemPropertyChanged((T)sender, e.PropertyName);
+            });
         }
 
         private void InternalAddRange(IEnumerable<T> items)
@@ -149,6 +151,20 @@ namespace MintPlayer.ObservableCollection
             {
                 isAddingOrRemovingRange = true;
                 ((List<T>)Items).InsertRange(Count, items);
+            }
+            finally
+            {
+                isAddingOrRemovingRange = false;
+            }
+        }
+
+        private void InternalRemoveRange(IEnumerable<T> items)
+        {
+            try
+            {
+                isAddingOrRemovingRange = true;
+                foreach (var item in items)
+                    Remove(item);
             }
             finally
             {
@@ -170,6 +186,18 @@ namespace MintPlayer.ObservableCollection
                 ?? Enumerable.Empty<NotifyCollectionChangedEventHandler>();
         }
 
+        private void RunOnMainThread(Action action)
+        {
+            if (synchronizationContext == SynchronizationContext.Current)
+            {
+                action();
+            }
+            else
+            {
+                synchronizationContext.Send(_ => action(), null);
+            }
+        }
+
         #endregion
 
         #region Private Types
@@ -187,8 +215,11 @@ namespace MintPlayer.ObservableCollection
             public void Dispose()
             {
                 _collection._deferredEvents = null;
-                foreach (var args in this)
-                    _collection.OnCollectionChanged(args);
+                _collection.RunOnMainThread(() =>
+                {
+                    foreach (var args in this)
+                        _collection.OnCollectionChanged(args);
+                });
             }
         }
         #endregion Private Types
