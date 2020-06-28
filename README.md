@@ -2,7 +2,8 @@
 Extended version of System.Collections.ObjectModel.ObservableCollection. This class allows you to:
 1) Use AddRange, invoking the CollectionChanged event only once
 2) Monitor properties of the items in the collection
-3) Be used within a WPF project.
+3) Be used within a WPF project
+4) Change the ObservableCollection from another Thread
 ## NuGet package
 https://www.nuget.org/packages/MintPlayer.ObservableCollection/
 ## Installation
