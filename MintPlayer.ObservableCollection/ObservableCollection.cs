@@ -37,9 +37,12 @@ namespace MintPlayer.ObservableCollection
             CheckReentrancy();
 
             InternalAddRange(items);
-            OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));
-            OnPropertyChanged(new PropertyChangedEventArgs("Item[]"));
-            OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, items.ToList()));
+            RunOnMainThread((param) =>
+            {
+                OnCountPropertyChanged();
+                OnIndexerPropertyChanged();
+                base.OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, param.items));
+            }, new { items = items.ToList() });
         }
 
         public void RemoveRange(IEnumerable<T> items)
@@ -47,9 +50,12 @@ namespace MintPlayer.ObservableCollection
             CheckReentrancy();
 
             InternalRemoveRange(items);
-            OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));
-            OnPropertyChanged(new PropertyChangedEventArgs("Item[]"));
-            OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, items.ToList()));
+            RunOnMainThread((param) =>
+            {
+                OnCountPropertyChanged();
+                OnIndexerPropertyChanged();
+                base.OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, param.items));
+            }, new { items = items.ToList() });
         }
         #endregion
 
@@ -70,58 +76,62 @@ namespace MintPlayer.ObservableCollection
             #endregion
         }
 
+        #region CollectionChanged + PropertyChanged events must be threadsafe
         protected override void OnCollectionChanged(NotifyCollectionChangedEventArgs e)
         {
-            RunOnMainThread((param) =>
+            if (!isAddingOrRemovingRange)
             {
-                if (!isAddingOrRemovingRange)
+                var _deferredEv = (ICollection<NotifyCollectionChangedEventArgs>)_deferredEvents;
+                if (_deferredEv == null)
                 {
-                    var _deferredEv = (ICollection<NotifyCollectionChangedEventArgs>)_deferredEvents;
-                    if (_deferredEv == null)
+                    foreach (var handler in GetHandlers())
                     {
-                        foreach (var handler in GetHandlers())
+                        var isCollectionView = IsCollectionView(handler.Target);
+                        if (IsRange(e) && isCollectionView)
                         {
-                            var isCollectionView = IsCollectionView(handler.Target);
-                            if (IsRange(param.e) && isCollectionView)
-                            {
-                                // Call the Refresh method if the target is a WPF CollectionView
-                                handler.Target.GetType().GetMethod("Refresh").Invoke(handler.Target, new object[0]);
-                            }
-                            else
-                            {
-                                handler(this, param.e);
-                            }
+                            // Call the Refresh method if the target is a WPF CollectionView
+                            RunOnMainThread(
+                                (param) => handler.Target.GetType().GetMethod("Refresh").Invoke(param.target, new object[0]),
+                                new { target = handler.Target }
+                            );
                         }
-                    }
-                    else
-                    {
-                        _deferredEv.Add(param.e);
-                    }
-
-                    // Also only attach the PropertyChanged event handler when we're not into
-                    // the process of adding a number of items one by one.
-
-                    if (typeof(T).GetInterfaces().Contains(typeof(INotifyPropertyChanged)))
-                    {
-                        // First detach all event handlers
-                        if (param.e.OldItems != null)
+                        else
                         {
-                            foreach (var item in param.e.OldItems)
-                            {
-                                ((INotifyPropertyChanged)item).PropertyChanged -= ObservableCollection_Item_PropertyChanged;
-                            }
-                        }
-                        // Then attach all event handlers
-                        if (param.e.NewItems != null)
-                        {
-                            foreach (var item in param.e.NewItems)
-                            {
-                                ((INotifyPropertyChanged)item).PropertyChanged += ObservableCollection_Item_PropertyChanged;
-                            }
+                            RunOnMainThread(
+                                (param) => handler(this, param.e),
+                                new { e }
+                            );
                         }
                     }
                 }
-            }, new { e });
+                else
+                {
+                    _deferredEv.Add(e);
+                }
+
+                // Also only attach the PropertyChanged event handler when we're not into
+                // the process of adding a number of items one by one.
+
+                if (typeof(T).GetInterfaces().Contains(typeof(INotifyPropertyChanged)))
+                {
+                    // First detach all event handlers
+                    if (e.OldItems != null)
+                    {
+                        foreach (var item in e.OldItems)
+                        {
+                            ((INotifyPropertyChanged)item).PropertyChanged -= ObservableCollection_Item_PropertyChanged;
+                        }
+                    }
+                    // Then attach all event handlers
+                    if (e.NewItems != null)
+                    {
+                        foreach (var item in e.NewItems)
+                        {
+                            ((INotifyPropertyChanged)item).PropertyChanged += ObservableCollection_Item_PropertyChanged;
+                        }
+                    }
+                }
+            }
         }
 
         protected override void OnPropertyChanged(PropertyChangedEventArgs e)
@@ -131,12 +141,17 @@ namespace MintPlayer.ObservableCollection
                 e
             );
         }
+        #endregion
 
         #region Events
         public event ItemPropertyChangedEventHandler<T> ItemPropertyChanged;
         #endregion
 
         #region Private methods
+        private void OnCountPropertyChanged() => base.OnPropertyChanged(EventArgsCache.CountPropertyChangedEventArgs);
+
+        private void OnIndexerPropertyChanged() => base.OnPropertyChanged(EventArgsCache.IndexerPropertyChangedEventArgs);
+
         private void ObservableCollection_Item_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             RunOnMainThread(
