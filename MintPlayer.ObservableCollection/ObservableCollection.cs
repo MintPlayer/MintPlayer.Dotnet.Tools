@@ -76,7 +76,7 @@ namespace MintPlayer.ObservableCollection
             #endregion
         }
 
-        #region CollectionChanged + PropertyChanged events must be threadsafe
+        #region Make CollectionChanged + PropertyChanged + ItemPropertyChanged events threadsafe
         protected override void OnCollectionChanged(NotifyCollectionChangedEventArgs e)
         {
             if (!isAddingOrRemovingRange)
@@ -141,16 +141,6 @@ namespace MintPlayer.ObservableCollection
                 e
             );
         }
-        #endregion
-
-        #region Events
-        public event ItemPropertyChangedEventHandler<T> ItemPropertyChanged;
-        #endregion
-
-        #region Private methods
-        private void OnCountPropertyChanged() => base.OnPropertyChanged(EventArgsCache.CountPropertyChangedEventArgs);
-
-        private void OnIndexerPropertyChanged() => base.OnPropertyChanged(EventArgsCache.IndexerPropertyChangedEventArgs);
 
         private void ObservableCollection_Item_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
@@ -159,22 +149,58 @@ namespace MintPlayer.ObservableCollection
                 {
                     if (ItemPropertyChanged != null)
                     {
-                        if (ItemPropertyChanged != null)
-                        {
-                            ItemPropertyChanged(
+                        ItemPropertyChanged(
+                            (T)param.sender,
+                            new Events.EventArgs.ItemPropertyChangedEventArgs<T>(
                                 (T)param.sender,
-                                new Events.EventArgs.ItemPropertyChangedEventArgs<T>(
-                                    (T)param.sender,
-                                    param.e.PropertyName
-                                )
-                            );
-                        }
+                                param.e.PropertyName
+                            )
+                        );
                     }
                 },
                 new { sender, e }
             );
         }
+        #endregion
 
+        #region Events
+        public event ItemPropertyChangedEventHandler<T> ItemPropertyChanged;
+        #endregion
+
+        #region Private methods
+
+        #region Notifications
+        private void OnCountPropertyChanged() => base.OnPropertyChanged(EventArgsCache.CountPropertyChangedEventArgs);
+
+        private void OnIndexerPropertyChanged() => base.OnPropertyChanged(EventArgsCache.IndexerPropertyChangedEventArgs);
+        #endregion
+        #region Make base methods threadsafe
+        protected override void InsertItem(int index, T item)
+        {
+            RunOnMainThread((param) => base.InsertItem(param.index, param.item), new { index, item });
+        }
+
+        protected override void ClearItems()
+        {
+            RunOnMainThread<object>((param) => base.ClearItems(), null);
+        }
+
+        protected override void MoveItem(int oldIndex, int newIndex)
+        {
+            RunOnMainThread((param) => base.MoveItem(param.oldIndex, param.newIndex), new { oldIndex, newIndex });
+        }
+
+        protected override void RemoveItem(int index)
+        {
+            RunOnMainThread((param) => base.RemoveItem(param), index);
+        }
+
+        protected override void SetItem(int index, T item)
+        {
+            RunOnMainThread((param) => base.SetItem(param.index, param.item), new { index, item });
+        }
+        #endregion
+        #region Support range operations
         private void InternalAddRange(IEnumerable<T> items)
         {
             try
@@ -194,7 +220,8 @@ namespace MintPlayer.ObservableCollection
             {
                 isAddingOrRemovingRange = true;
                 foreach (var item in items)
-                    Remove(item);
+                    if (Items.Contains(item))
+                        Remove(item);
             }
             finally
             {
@@ -215,8 +242,9 @@ namespace MintPlayer.ObservableCollection
                 @event?.GetInvocationList().Cast<NotifyCollectionChangedEventHandler>().Distinct()
                 ?? Enumerable.Empty<NotifyCollectionChangedEventHandler>();
         }
+        #endregion
 
-        private void RunOnMainThread<TState>(Action<TState> action, TState state) where TState : class
+        private void RunOnMainThread<TState>(Action<TState> action, TState state)
         {
             if (synchronizationContext == SynchronizationContext.Current)
             {
@@ -227,6 +255,7 @@ namespace MintPlayer.ObservableCollection
                 synchronizationContext.Send(new SendOrPostCallback((param) => action((TState)param)), state);
             }
         }
+
         #endregion
 
         #region Private Types
