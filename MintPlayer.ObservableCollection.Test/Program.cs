@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Threading;
 using MintPlayer.ObservableCollection.Test.Extensions;
 
 namespace MintPlayer.ObservableCollection.Test
@@ -39,22 +40,28 @@ namespace MintPlayer.ObservableCollection.Test
                 Console.WriteLine($"Item property changed: {e.PropertyName}");
             };
 
-            var person1 = new Person { FirstName = "John", LastName = "Doe" };
-            var person2 = new Person { FirstName = "Jimmy", LastName = "Fallon" };
-            var person3 = new Person { FirstName = "Michael", LastName = "Douglas" };
+            new Thread(new ThreadStart(() =>
+            {
+                var person1 = new Person { FirstName = "John", LastName = "Doe" };
+                var person2 = new Person { FirstName = "Jimmy", LastName = "Fallon" };
+                var person3 = new Person { FirstName = "Michael", LastName = "Douglas" };
 
-            // Add 3 items at once
-            collection.AddRange(new[] {
-                person1,
-                person2,
-                person3
-            });
+                // Add 3 items at once
+                collection.AddRange(new[] {
+                    person1,
+                    person2,
+                    person3
+                });
 
-            // Change an item property
-            collection[1].LastName = "Knibble";
+                // Change an item property
+                collection[1].LastName = "Knibble";
 
-            // Remove 2 items at once
-            collection.RemoveRange(new[] { person1, person3 });
+                // Replace item
+                collection[1] = new Person { FirstName = "Sim", LastName = "Salabim" };
+
+                // Remove 2 items at once
+                collection.RemoveRange(new[] { person1, person3 });
+            })).Start();
         }
 
         //private static void Demo1()
