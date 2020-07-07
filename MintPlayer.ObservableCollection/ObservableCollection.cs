@@ -31,6 +31,33 @@ namespace MintPlayer.ObservableCollection
 
         #endregion
 
+        #region Override core-methods for thread safety
+        protected override void InsertItem(int index, T item)
+        {
+            RunOnMainThread(() => base.InsertItem(index, item));
+        }
+
+        protected override void RemoveItem(int index)
+        {
+            RunOnMainThread(() => base.RemoveItem(index));
+        }
+
+        protected override void ClearItems()
+        {
+            RunOnMainThread(() => base.ClearItems());
+        }
+
+        protected override void MoveItem(int oldIndex, int newIndex)
+        {
+            RunOnMainThread(() => base.MoveItem(oldIndex, newIndex));
+        }
+        
+        protected override void SetItem(int index, T item)
+        {
+            RunOnMainThread(() => base.SetItem(index, item));
+        }
+        #endregion
+
         #region Public methods
         public void AddRange(IEnumerable<T> items)
         {
@@ -40,7 +67,7 @@ namespace MintPlayer.ObservableCollection
             RunOnMainThread(() =>
             {
                 OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));
-                OnPropertyChanged(new PropertyChangedEventArgs("Items[]"));
+                OnPropertyChanged(new PropertyChangedEventArgs("Item[]"));
                 OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, items.ToList()));
             });
         }
@@ -53,7 +80,7 @@ namespace MintPlayer.ObservableCollection
             RunOnMainThread(() =>
             {
                 OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));
-                OnPropertyChanged(new PropertyChangedEventArgs("Items[]"));
+                OnPropertyChanged(new PropertyChangedEventArgs("Item[]"));
                 OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, items.ToList()));
             });
         }
