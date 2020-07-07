@@ -36,12 +36,12 @@ namespace MintPlayer.ObservableCollection
         {
             CheckReentrancy();
 
-            InternalAddRange(items);
             RunOnMainThread((param) =>
             {
+                InternalAddRange(items);
                 OnCountPropertyChanged();
                 OnIndexerPropertyChanged();
-                base.OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, param.items));
+                OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, param.items));
             }, new { items = items.ToList() });
         }
 
@@ -49,12 +49,12 @@ namespace MintPlayer.ObservableCollection
         {
             CheckReentrancy();
 
-            InternalRemoveRange(items);
             RunOnMainThread((param) =>
             {
+                InternalRemoveRange(items);
                 OnCountPropertyChanged();
                 OnIndexerPropertyChanged();
-                base.OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, param.items));
+                OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, param.items));
             }, new { items = items.ToList() });
         }
         #endregion
