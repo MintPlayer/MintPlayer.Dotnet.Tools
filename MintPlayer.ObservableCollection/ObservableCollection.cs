@@ -209,7 +209,7 @@ namespace MintPlayer.ObservableCollection
             }
             else
             {
-                synchronizationContext.Send(new SendOrPostCallback((Action<object>)action), state);
+                synchronizationContext.Send(new SendOrPostCallback((param) => action((TState)param)), state);
             }
         }
         #endregion
