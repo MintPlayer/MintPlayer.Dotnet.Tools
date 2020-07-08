@@ -26,7 +26,7 @@ namespace MintPlayer.ObservableCollection
         #region Private fields
 
         private bool isAddingOrRemovingRange = false;
-        [NonSerialized] private DeferredEventsCollection _deferredEvents;
+        [NonSerialized] private DeferredEventsCollection deferredEvents;
         private readonly SynchronizationContext synchronizationContext = SynchronizationContext.Current;
 
         #endregion
@@ -81,7 +81,7 @@ namespace MintPlayer.ObservableCollection
         {
             if (!isAddingOrRemovingRange)
             {
-                var _deferredEv = (ICollection<NotifyCollectionChangedEventArgs>)_deferredEvents;
+                var _deferredEv = (ICollection<NotifyCollectionChangedEventArgs>)deferredEvents;
                 if (_deferredEv == null)
                 {
                     foreach (var handler in GetHandlers())
@@ -261,22 +261,22 @@ namespace MintPlayer.ObservableCollection
         #region Private Types
         sealed class DeferredEventsCollection : List<NotifyCollectionChangedEventArgs>, IDisposable
         {
-            readonly ObservableCollection<T> _collection;
+            readonly ObservableCollection<T> collection;
             public DeferredEventsCollection(ObservableCollection<T> collection)
             {
                 Debug.Assert(collection != null);
-                Debug.Assert(collection._deferredEvents == null);
-                _collection = collection;
-                _collection._deferredEvents = this;
+                Debug.Assert(collection.deferredEvents == null);
+                this.collection = collection;
+                this.collection.deferredEvents = this;
             }
 
             public void Dispose()
             {
-                _collection._deferredEvents = null;
-                _collection.RunOnMainThread((param) =>
+                collection.deferredEvents = null;
+                collection.RunOnMainThread((param) =>
                 {
                     foreach (var args in this)
-                        _collection.OnCollectionChanged(args);
+                        collection.OnCollectionChanged(args);
                 }, new { });
             }
         }
