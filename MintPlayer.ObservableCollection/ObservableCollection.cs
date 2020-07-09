@@ -48,7 +48,7 @@ namespace MintPlayer.ObservableCollection
 
             RunOnMainThread((param) =>
             {
-                InternalAddRange(items);
+                InternalAddRange(param.items);
                 OnCountPropertyChanged();
                 OnIndexerPropertyChanged();
                 OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, param.items));
@@ -61,7 +61,7 @@ namespace MintPlayer.ObservableCollection
 
             RunOnMainThread((param) =>
             {
-                InternalRemoveRange(items);
+                InternalRemoveRange(param.items);
                 OnCountPropertyChanged();
                 OnIndexerPropertyChanged();
                 OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, param.items));
@@ -147,8 +147,8 @@ namespace MintPlayer.ObservableCollection
         protected override void OnPropertyChanged(PropertyChangedEventArgs e)
         {
             RunOnMainThread(
-                (param) => base.OnPropertyChanged(param),
-                e
+                (param) => base.OnPropertyChanged(param.e),
+                new { e }
             );
         }
 
