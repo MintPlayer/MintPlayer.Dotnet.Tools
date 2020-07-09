@@ -1,4 +1,14 @@
-﻿using System;
+﻿/**
+ * 
+ * Goto Github -> settings -> Developer settings -> Personal access tokens
+ * Create a new token with following scopes: write:packages, read:packages, delete:packages.
+ * This will automatically add the repo scope.
+ * dotnet nuget add source --username PieterjanDeClippel --password <api-key> --name github https://nuget.pkg.github.com/MintPlayer/index.json
+ * dotnet nuget push --source github bin\Release\MintPlayer.ObservableCollection.1.2.0.nupkg
+ * 
+ **/
+
+using System;
 using System.Linq;
 using System.Collections.Generic;
 using System.Collections.Specialized;
