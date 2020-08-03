@@ -1,10 +1,20 @@
+#language: csharp
+#mono: latest
+#dotnet: 3.1.302
+#before_install:
+# - sudo apt-get update
+#install:
+# - dotnet restore
+#script:
+# - dotnet build ./MintPlayer.ObservableCollection/MintPlayer.ObservableCollection.csproj --configuration Release
+#sudo: required
+
 language: csharp
 mono: latest
-dotnet: 3.1.302
-before_install:
- - sudo apt-get update
+dotnet: 3.1.200
+
 install:
- - dotnet restore
+# - choco install dotnetcore-sdk
+  - msbuild /t:Restore
 script:
- - dotnet build ./MintPlayer.ObservableCollection/MintPlayer.ObservableCollection.csproj --configuration Release
-sudo: required
+ - msbuild ./MintPlayer.ObservableCollection/MintPlayer.ObservableCollection.csproj /t:Build /p:Configuration=Release
