@@ -11,8 +11,6 @@ Extended version of System.Collections.ObjectModel.ObservableCollection. This cl
 2) Monitor properties of the items in the collection
 3) Be used within a WPF project
 4) Change the ObservableCollection from another Thread
-## NuGet package
-https://www.nuget.org/packages/MintPlayer.ObservableCollection/
 ## Installation
 ### NuGet package manager
 Open the NuGet package manager and install the **MintPlayer.ObservableCollection** package in the project

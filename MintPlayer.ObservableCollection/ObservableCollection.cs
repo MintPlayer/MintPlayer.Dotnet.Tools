@@ -23,7 +23,7 @@ namespace MintPlayer.ObservableCollection
     public class ObservableCollection<T> : System.Collections.ObjectModel.ObservableCollection<T>
     {
         #region Constructors
-        public ObservableCollection() : base()
+        public ObservableCollection()
         {
         }
 
@@ -35,7 +35,7 @@ namespace MintPlayer.ObservableCollection
 
         #region Private fields
 
-        private bool isAddingOrRemovingRange = false;
+        private bool isAddingOrRemovingRange;
         [NonSerialized] private DeferredEventsCollection deferredEvents;
         private readonly SynchronizationContext synchronizationContext = SynchronizationContext.Current;
 
@@ -230,8 +230,12 @@ namespace MintPlayer.ObservableCollection
             {
                 isAddingOrRemovingRange = true;
                 foreach (var item in items)
+                {
                     if (Items.Contains(item))
+                    {
                         Remove(item);
+                    }
+                }
             }
             finally
             {
@@ -262,7 +266,7 @@ namespace MintPlayer.ObservableCollection
             }
             else
             {
-                synchronizationContext.Send(new SendOrPostCallback((param) => action((TState)param)), state);
+                synchronizationContext.Send((param) => action((TState)param), state);
             }
         }
 
@@ -283,11 +287,16 @@ namespace MintPlayer.ObservableCollection
             public void Dispose()
             {
                 collection.deferredEvents = null;
-                collection.RunOnMainThread((param) =>
-                {
-                    foreach (var args in this)
-                        collection.OnCollectionChanged(args);
-                }, new { });
+                collection.RunOnMainThread(
+                    (param) =>
+                    {
+                        foreach (var args in this)
+                        {
+                            collection.OnCollectionChanged(args);
+                        }
+                    },
+                    new { }
+                );
             }
         }
         #endregion Private Types

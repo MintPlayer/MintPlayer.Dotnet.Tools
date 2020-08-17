@@ -5,19 +5,16 @@ using MintPlayer.ObservableCollection.Test.Extensions;
 
 namespace MintPlayer.ObservableCollection.Test
 {
-    class Program
+    static class Program
     {
         static void Main(string[] args)
         {
             Demo2();
-
             Console.ReadKey();
         }
 
         private static void Demo2()
         {
-
-
             var collection = new ObservableCollection<Person>();
             collection.CollectionChanged += (sender, e) =>
             {
