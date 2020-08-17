@@ -3,6 +3,7 @@
 [![NuGet](https://img.shields.io/nuget/dt/MintPlayer.ObservableCollection.svg?style=flat)](https://www.nuget.org/packages/MintPlayer.ObservableCollection)
 [![Build Status](https://travis-ci.org/MintPlayer/MintPlayer.ObservableCollection.svg?branch=master)](https://travis-ci.org/MintPlayer/MintPlayer.ObservableCollection)
 ![.NET Core](https://github.com/MintPlayer/MintPlayer.ObservableCollection/workflows/.NET%20Core/badge.svg)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](https://opensource.org/licenses/Apache-2.0)
 
 Extended version of System.Collections.ObjectModel.ObservableCollection. This class allows you to:
 1) Use AddRange, invoking the CollectionChanged event only once
