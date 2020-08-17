@@ -1,4 +1,5 @@
 # MintPlayer.ObservableCollection
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/db8d61e702624302968b20e9746f7447)](https://app.codacy.com/gh/MintPlayer/MintPlayer.ObservableCollection?utm_source=github.com&utm_medium=referral&utm_content=MintPlayer/MintPlayer.ObservableCollection&utm_campaign=Badge_Grade_Dashboard)
 [![NuGet Version](https://img.shields.io/nuget/v/MintPlayer.ObservableCollection.svg?style=flat)](https://www.nuget.org/packages/MintPlayer.ObservableCollection)
 [![NuGet](https://img.shields.io/nuget/dt/MintPlayer.ObservableCollection.svg?style=flat)](https://www.nuget.org/packages/MintPlayer.ObservableCollection)
 [![Build Status](https://travis-ci.org/MintPlayer/MintPlayer.ObservableCollection.svg?branch=master)](https://travis-ci.org/MintPlayer/MintPlayer.ObservableCollection)
