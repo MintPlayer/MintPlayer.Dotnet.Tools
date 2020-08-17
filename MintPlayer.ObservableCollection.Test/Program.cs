@@ -9,8 +9,36 @@ namespace MintPlayer.ObservableCollection.Test
     {
         static void Main(string[] args)
         {
+            Demo1();
             Demo2();
             Console.ReadKey();
+        }
+
+        private static void Demo1()
+        {
+            var collection = new ObservableCollection<string>();
+            collection.CollectionChanged += (sender, e) =>
+            {
+                Console.WriteLine($"Collection changed:");
+                if (!e.NewItems.IsNullOrEmpty())
+                {
+                    var newItemsArray = new string[e.NewItems.Count];
+                    e.NewItems.CopyTo(newItemsArray, 0);
+                    Console.WriteLine($"- items added: {string.Join(", ", newItemsArray)}");
+                }
+                if (!e.OldItems.IsNullOrEmpty())
+                {
+                    var oldItemsArray = new string[e.OldItems.Count];
+                    e.OldItems.CopyTo(oldItemsArray, 0);
+                    Console.WriteLine($"- items removed: {string.Join(", ", oldItemsArray)}");
+                }
+            };
+
+            collection.Add("Michael");
+            collection.Enabled = false;
+            collection.Add("Junior");
+            collection.Enabled = true;
+            collection.Add("Jackson");
         }
 
         private static void Demo2()
@@ -60,32 +88,5 @@ namespace MintPlayer.ObservableCollection.Test
                 collection.RemoveRange(new[] { person1, person3 });
             })).Start();
         }
-
-        //private static void Demo1()
-        //{
-        //    var collection = new ObservableCollection<string>();
-        //    collection.CollectionChanged += (sender, e) =>
-        //    {
-        //        Console.WriteLine($"Collection changed:");
-        //        if (!e.NewItems.IsNullOrEmpty())
-        //        {
-        //            var newItemsArray = new string[e.NewItems.Count];
-        //            e.NewItems.CopyTo(newItemsArray, 0);
-        //            Console.WriteLine($"- items added: {string.Join(", ", newItemsArray)}");
-        //        }
-        //        if (!e.OldItems.IsNullOrEmpty())
-        //        {
-        //            var oldItemsArray = new string[e.OldItems.Count];
-        //            e.OldItems.CopyTo(oldItemsArray, 0);
-        //            Console.WriteLine($"- items removed: {string.Join(", ", oldItemsArray)}");
-        //        }
-        //    };
-
-        //    collection.Add("Michael");
-        //    //collection.Enabled = false;
-        //    collection.Add("Junior");
-        //    //collection.Enabled = true;
-        //    collection.Add("Jackson");
-        //}
     }
 }
