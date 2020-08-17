@@ -4,6 +4,7 @@
 [![Build Status](https://travis-ci.org/MintPlayer/MintPlayer.ObservableCollection.svg?branch=master)](https://travis-ci.org/MintPlayer/MintPlayer.ObservableCollection)
 ![.NET Core](https://github.com/MintPlayer/MintPlayer.ObservableCollection/workflows/.NET%20Core/badge.svg)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/db8d61e702624302968b20e9746f7447)](https://app.codacy.com/gh/MintPlayer/MintPlayer.ObservableCollection?utm_source=github.com&utm_medium=referral&utm_content=MintPlayer/MintPlayer.ObservableCollection&utm_campaign=Badge_Grade_Dashboard)
 
 Extended version of System.Collections.ObjectModel.ObservableCollection. This class allows you to:
 1) Use AddRange, invoking the CollectionChanged event only once
