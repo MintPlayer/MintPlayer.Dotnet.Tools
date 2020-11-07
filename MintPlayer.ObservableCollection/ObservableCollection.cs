@@ -17,6 +17,7 @@ using System.ComponentModel;
 using System.Reflection;
 using System.Diagnostics;
 using System.Threading;
+using MintPlayer.ObservableCollection.Exceptions;
 
 namespace MintPlayer.ObservableCollection
 {
@@ -87,6 +88,11 @@ namespace MintPlayer.ObservableCollection
 
         private bool IsCollectionView(object target)
         {
+            if (target == null)
+            {
+                throw new TargetNullException();
+            }
+
             #region Build a type tree
             var typeTree = new List<Type>();
             var curType = target.GetType();
@@ -109,23 +115,33 @@ namespace MintPlayer.ObservableCollection
                 var _deferredEv = (ICollection<NotifyCollectionChangedEventArgs>)deferredEvents;
                 if (_deferredEv == null)
                 {
-                    foreach (var handler in GetHandlers())
+                    var handlers = GetHandlers();
+                    foreach (var handler in handlers)
                     {
-                        var isCollectionView = IsCollectionView(handler.Target);
-                        if (IsRange(e) && isCollectionView)
+                        try
                         {
-                            // Call the Refresh method if the target is a WPF CollectionView
-                            RunOnMainThread(
-                                (param) => handler.Target.GetType().GetMethod("Refresh").Invoke(param.target, new object[0]),
-                                new { target = handler.Target }
-                            );
+                            var isCollectionView = IsCollectionView(handler.Target);
+                            var isRange = IsRange(e);
+                            if (isRange && isCollectionView)
+                            {
+                                // Call the Refresh method if the target is a WPF CollectionView
+                                RunOnMainThread(
+                                    (param) => handler.Target.GetType().GetMethod("Refresh").Invoke(param.target, new object[0]),
+                                    new { target = handler.Target }
+                                );
+                            }
+                            else if (Enabled)
+                            {
+                                RunOnMainThread(
+                                    (param) => handler(this, param.e),
+                                    new { e }
+                                );
+                            }
                         }
-                        else if (Enabled)
+                        catch (TargetNullException ex)
                         {
-                            RunOnMainThread(
-                                (param) => handler(this, param.e),
-                                new { e }
-                            );
+                            Debug.WriteLine($"The target of EventHandler {handler.Method.Name} is null.");
+                            Console.WriteLine($"The target of EventHandler {handler.Method.Name} is null.");
                         }
                     }
                 }
@@ -288,9 +304,11 @@ namespace MintPlayer.ObservableCollection
         {
             var info = typeof(System.Collections.ObjectModel.ObservableCollection<T>).GetField(nameof(CollectionChanged), BindingFlags.Instance | BindingFlags.NonPublic);
             var @event = (MulticastDelegate)info.GetValue(this);
-            return
+            var result =
                 @event?.GetInvocationList().Cast<NotifyCollectionChangedEventHandler>().Distinct()
                 ?? Enumerable.Empty<NotifyCollectionChangedEventHandler>();
+
+            return result;
         }
 
         #endregion Support range operations
