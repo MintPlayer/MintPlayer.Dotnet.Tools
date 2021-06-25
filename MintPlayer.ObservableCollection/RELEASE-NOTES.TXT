@@ -1,0 +1,2 @@
+﻿v1.3.0
+- Added null check for SynchronizationContext

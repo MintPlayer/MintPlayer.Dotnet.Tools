@@ -317,7 +317,7 @@ namespace MintPlayer.ObservableCollection
 
         private void RunOnMainThread<TState>(Action<TState> action, TState state)
         {
-            if (synchronizationContext == SynchronizationContext.Current)
+            if ((synchronizationContext == null) || (synchronizationContext == SynchronizationContext.Current))
             {
                 action(state);
             }
