@@ -9,8 +9,9 @@ namespace MintPlayer.ObservableCollection.Test
     {
         static void Main(string[] args)
         {
-            Demo1();
-            Demo2();
+            //Demo1();
+            //Demo2();
+            Demo3();
             Console.ReadKey();
         }
 
@@ -87,6 +88,18 @@ namespace MintPlayer.ObservableCollection.Test
                 // Remove 2 items at once
                 collection.RemoveRange(new[] { person1, person3 });
             })).Start();
+        }
+
+        private static void Demo3()
+        {
+            var col = new ObservableCollection<Person>();
+            var people = new[] {
+                new Person { FirstName = "Pieterjan", LastName = "De Clippel" },
+                new Person { FirstName = "Sam", LastName = "Hunt" },
+                new Person { FirstName = "Michael", LastName = "Jefferson" },
+                new Person { FirstName = "Bill", LastName = "Belichick" },
+            };
+            col.AddRange(people);
         }
     }
 }
