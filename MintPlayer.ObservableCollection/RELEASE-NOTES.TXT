@@ -1,2 +1,4 @@
 ﻿v1.3.0
 - Added null check for SynchronizationContext
+v1.4.0
+- Implement fix for adding/removing an empty list from the ObservableCollection in a WPF project

@@ -297,7 +297,7 @@ namespace MintPlayer.ObservableCollection
 
         private bool IsRange(NotifyCollectionChangedEventArgs e)
         {
-            return e.NewItems?.Count > 1 || e.OldItems?.Count > 1;
+            return e.NewItems?.Count != 1 || e.OldItems?.Count != 1;
         }
 
         private IEnumerable<NotifyCollectionChangedEventHandler> GetHandlers()
