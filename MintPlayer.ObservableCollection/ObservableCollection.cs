@@ -110,65 +110,72 @@ namespace MintPlayer.ObservableCollection
 
         protected override void OnCollectionChanged(NotifyCollectionChangedEventArgs e)
         {
-            if (!isAddingOrRemovingRange)
+            // If there's only one item being added/removed, there's no need to do anything special.
+            if (!IsRange(e))
             {
-                var _deferredEv = (ICollection<NotifyCollectionChangedEventArgs>)deferredEvents;
-                if (_deferredEv == null)
+                base.OnCollectionChanged(e);
+            }
+            else
+            {
+                if (!isAddingOrRemovingRange)
                 {
-                    var handlers = GetHandlers();
-                    foreach (var handler in handlers)
+                    var _deferredEv = (ICollection<NotifyCollectionChangedEventArgs>)deferredEvents;
+                    if (_deferredEv == null)
                     {
-                        try
+                        var handlers = GetHandlers();
+                        foreach (var handler in handlers)
                         {
-                            var isCollectionView = IsCollectionView(handler.Target);
-                            var isRange = IsRange(e);
-                            if (isRange && isCollectionView)
+                            try
                             {
-                                // Call the Refresh method if the target is a WPF CollectionView
-                                RunOnMainThread(
-                                    (param) => handler.Target.GetType().GetMethod("Refresh").Invoke(param.target, new object[0]),
-                                    new { target = handler.Target }
-                                );
+                                var isCollectionView = IsCollectionView(handler.Target);
+                                if (isCollectionView)
+                                {
+                                    // Call the Refresh method if the target is a WPF CollectionView
+                                    RunOnMainThread(
+                                        (param) => handler.Target.GetType().GetMethod("Refresh").Invoke(param.target, new object[0]),
+                                        new { target = handler.Target }
+                                    );
+                                }
+                                else if (Enabled)
+                                {
+                                    RunOnMainThread(
+                                        (param) => handler(this, param.e),
+                                        new { e }
+                                    );
+                                }
                             }
-                            else if (Enabled)
+                            catch (TargetNullException ex)
                             {
-                                RunOnMainThread(
-                                    (param) => handler(this, param.e),
-                                    new { e }
-                                );
+                                Debug.WriteLine($"The target of EventHandler {handler.Method.Name} is null.");
+                                Console.WriteLine($"The target of EventHandler {handler.Method.Name} is null.");
                             }
-                        }
-                        catch (TargetNullException ex)
-                        {
-                            Debug.WriteLine($"The target of EventHandler {handler.Method.Name} is null.");
-                            Console.WriteLine($"The target of EventHandler {handler.Method.Name} is null.");
                         }
                     }
-                }
-                else
-                {
-                    _deferredEv.Add(e);
-                }
-
-                // Also only attach the PropertyChanged event handler when we're not into
-                // the process of adding a number of items one by one.
-
-                if (typeof(T).GetInterfaces().Contains(typeof(INotifyPropertyChanged)))
-                {
-                    // First detach all event handlers
-                    if (e.OldItems != null)
+                    else
                     {
-                        foreach (var item in e.OldItems)
-                        {
-                            ((INotifyPropertyChanged)item).PropertyChanged -= ObservableCollection_Item_PropertyChanged;
-                        }
+                        _deferredEv.Add(e);
                     }
-                    // Then attach all event handlers
-                    if (e.NewItems != null)
+
+                    // Also only attach the PropertyChanged event handler when we're not into
+                    // the process of adding a number of items one by one.
+
+                    if (typeof(T).GetInterfaces().Contains(typeof(INotifyPropertyChanged)))
                     {
-                        foreach (var item in e.NewItems)
+                        // First detach all event handlers
+                        if (e.OldItems != null)
                         {
-                            ((INotifyPropertyChanged)item).PropertyChanged += ObservableCollection_Item_PropertyChanged;
+                            foreach (var item in e.OldItems)
+                            {
+                                ((INotifyPropertyChanged)item).PropertyChanged -= ObservableCollection_Item_PropertyChanged;
+                            }
+                        }
+                        // Then attach all event handlers
+                        if (e.NewItems != null)
+                        {
+                            foreach (var item in e.NewItems)
+                            {
+                                ((INotifyPropertyChanged)item).PropertyChanged += ObservableCollection_Item_PropertyChanged;
+                            }
                         }
                     }
                 }
@@ -297,7 +304,18 @@ namespace MintPlayer.ObservableCollection
 
         private bool IsRange(NotifyCollectionChangedEventArgs e)
         {
-            return e.NewItems?.Count != 1 || e.OldItems?.Count != 1;
+            var totalChanged = 0;
+
+            if (e.NewItems != null)
+            {
+                totalChanged += e.NewItems.Count;
+            }
+            if (e.OldItems != null)
+            {
+                totalChanged += e.OldItems.Count;
+            }
+
+            return totalChanged != 1;
         }
 
         private IEnumerable<NotifyCollectionChangedEventHandler> GetHandlers()
