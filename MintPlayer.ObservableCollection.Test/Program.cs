@@ -10,8 +10,8 @@ namespace MintPlayer.ObservableCollection.Test
         static void Main(string[] args)
         {
             //Demo1();
-            //Demo2();
-            Demo3();
+            Demo2();
+            //Demo3();
             Console.ReadKey();
         }
 
