@@ -21,7 +21,7 @@
 		<IncludeSymbols>true</IncludeSymbols>
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 		<Product>MintPlayer.ObservableCollection</Product>
-		<Version>6.0.1</Version>
+		<Version>6.0.2</Version>
 	</PropertyGroup>
 
 	<Target Name="PreparePackageReleaseNotesFromFile" BeforeTargets="GenerateNuspec">
