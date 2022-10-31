@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net6.0</TargetFrameworks>
+		<TargetFrameworks>net7.0</TargetFrameworks>
 		<Description>
 			Extended version of System.Collections.ObjectModel.ObservableCollection. This class allows you to:
 			1) Use AddRange, invoking the CollectionChanged event only once
@@ -21,7 +21,7 @@
 		<IncludeSymbols>true</IncludeSymbols>
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 		<Product>MintPlayer.ObservableCollection</Product>
-		<Version>6.0.2</Version>
+		<Version>7.0.0-preview.1</Version>
 	</PropertyGroup>
 
 	<Target Name="PreparePackageReleaseNotesFromFile" BeforeTargets="GenerateNuspec">
