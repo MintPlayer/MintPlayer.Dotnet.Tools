@@ -1,16 +1,23 @@
 # MintPlayer.ObservableCollection
-[![NuGet Version](https://img.shields.io/nuget/v/MintPlayer.ObservableCollection.svg?style=flat)](https://www.nuget.org/packages/MintPlayer.ObservableCollection)
-[![NuGet](https://img.shields.io/nuget/dt/MintPlayer.ObservableCollection.svg?style=flat)](https://www.nuget.org/packages/MintPlayer.ObservableCollection)
-[![Build Status](https://travis-ci.org/MintPlayer/MintPlayer.ObservableCollection.svg?branch=master)](https://travis-ci.org/MintPlayer/MintPlayer.ObservableCollection)
-![.NET Core](https://github.com/MintPlayer/MintPlayer.ObservableCollection/workflows/.NET%20Core/badge.svg)
-[![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Codacy Badge](https://api.codacy.com/project/badge/Grade/db8d61e702624302968b20e9746f7447)](https://app.codacy.com/gh/MintPlayer/MintPlayer.ObservableCollection?utm_source=github.com&utm_medium=referral&utm_content=MintPlayer/MintPlayer.ObservableCollection&utm_campaign=Badge_Grade_Dashboard)
 
 Extended version of System.Collections.ObjectModel.ObservableCollection. This class allows you to:
 1) Use AddRange, invoking the CollectionChanged event only once
 2) Monitor properties of the items in the collection
 3) Be used within a WPF project
 4) Change the ObservableCollection from another Thread
+
+## Version info
+
+| License                                                                                                               | Build status                                                                                                | Code coverage | Code quality                                                                                                                                                                                                                                                                                             |
+|-----------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------|---------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](https://opensource.org/licenses/Apache-2.0) | ![.NET Core](https://github.com/MintPlayer/MintPlayer.ObservableCollection/workflows/.NET%20Core/badge.svg) |               | [![Codacy Badge](https://api.codacy.com/project/badge/Grade/db8d61e702624302968b20e9746f7447)](https://app.codacy.com/gh/MintPlayer/MintPlayer.ObservableCollection?utm_source=github.com&utm_medium=referral&utm_content=MintPlayer/MintPlayer.ObservableCollection&utm_campaign=Badge_Grade_Dashboard) |
+
+| Package                         | Release                                                                                                                                                           | Preview                                                                                                                                                              | Downloads |
+|---------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------|
+| MintPlayer.ObservableCollection | [![NuGet Version](https://img.shields.io/nuget/v/MintPlayer.ObservableCollection.svg?style=flat)](https://www.nuget.org/packages/MintPlayer.ObservableCollection) | [![NuGet Version](https://img.shields.io/nuget/vpre/MintPlayer.ObservableCollection.svg?style=flat)](https://www.nuget.org/packages/MintPlayer.ObservableCollection) | [![NuGet](https://img.shields.io/nuget/dt/MintPlayer.ObservableCollection.svg?style=flat)](https://www.nuget.org/packages/MintPlayer.ObservableCollection) |
+
+
+
 ## Installation
 ### NuGet package manager
 Open the NuGet package manager and install the **MintPlayer.ObservableCollection** package in the project
