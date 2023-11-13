@@ -12,12 +12,12 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
       
     - name: Setup .NET Core
-      uses: actions/setup-dotnet@v2.1.0
+      uses: actions/setup-dotnet@v3.2.0
       with:
-        dotnet-version: 6.0.401
+        dotnet-version: 7.0.400
         # Authenticates packages to push to GPR
         source-url: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
       env:
@@ -34,3 +34,13 @@ jobs:
     - name: Test
       run: dotnet test --no-restore --verbosity normal
     
+    - name: Pack
+      run: dotnet pack --no-build --configuration Release
+      
+    - name: PushNuget
+      run: dotnet nuget push **/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.PUBLISH_TO_NUGET_ORG }} --skip-duplicate
+      
+    - name: PushGithub
+      run: nuget.exe push "**/*.nupkg" -NoSymbols -SkipDuplicate
+      env:
+        NUGET_AUTH_TOKEN: ${{ github.token }}

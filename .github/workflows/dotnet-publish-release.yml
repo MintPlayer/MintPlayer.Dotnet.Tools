@@ -13,38 +13,38 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
       
-    - name: Setup .NET Core
-      uses: actions/setup-dotnet@v2.1.0
-      with:
-        dotnet-version: 6.0.401
-        # Authenticates packages to push to GPR
-        source-url: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
-      env:
-        NUGET_AUTH_TOKEN: '%NUGET_AUTH_TOKEN%'
+    # - name: Setup .NET Core
+    #   uses: actions/setup-dotnet@v3.2.0
+    #   with:
+    #     dotnet-version: 6.0.401
+    #     # Authenticates packages to push to GPR
+    #     source-url: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+    #   env:
+    #     NUGET_AUTH_TOKEN: '%NUGET_AUTH_TOKEN%'
     
-    - name: Setup MSBuild
-      uses: microsoft/setup-msbuild@v1
+    # - name: Setup MSBuild
+    #   uses: microsoft/setup-msbuild@v1
     
-    - name: Install dependencies
-      run: dotnet restore
-      env:
-        NUGET_AUTH_TOKEN: ${{ github.token }}
+    # - name: Install dependencies
+    #   run: dotnet restore
+    #   env:
+    #     NUGET_AUTH_TOKEN: ${{ github.token }}
         
-    - name: Build
-      run: dotnet build --configuration Release --no-restore
+    # - name: Build
+    #   run: dotnet build --configuration Release --no-restore
       
-    - name: Test
-      run: dotnet test --no-restore --verbosity normal
+    # - name: Test
+    #   run: dotnet test --no-restore --verbosity normal
       
-    - name: Pack
-      run: dotnet pack --no-build --configuration Release
+    # - name: Pack
+    #   run: dotnet pack --no-build --configuration Release
       
-    - name: PushNuget
-      run: dotnet nuget push **/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.PUBLISH_TO_NUGET_ORG }} --skip-duplicate
+    # - name: PushNuget
+    #   run: dotnet nuget push **/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.PUBLISH_TO_NUGET_ORG }} --skip-duplicate
       
-    - name: PushGithub
-      run: nuget.exe push "**/*.nupkg" -NoSymbols -SkipDuplicate
-      env:
-        NUGET_AUTH_TOKEN: ${{ github.token }}
+    # - name: PushGithub
+    #   run: nuget.exe push "**/*.nupkg" -NoSymbols -SkipDuplicate
+    #   env:
+    #     NUGET_AUTH_TOKEN: ${{ github.token }}
