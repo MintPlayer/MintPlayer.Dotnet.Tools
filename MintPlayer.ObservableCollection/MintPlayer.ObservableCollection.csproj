@@ -1,14 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net7.0</TargetFrameworks>
+		<TargetFrameworks>net8.0</TargetFrameworks>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<OutputType>Library</OutputType>
 
 		<IsPackable>true</IsPackable>
 		<PackageId>MintPlayer.ObservableCollection</PackageId>
-		<Version>7.0.0</Version>
+		<Version>8.0.0</Version>
 		<Description>
 			Extended version of System.Collections.ObjectModel.ObservableCollection. This class allows you to:
 			1) Use AddRange, invoking the CollectionChanged event only once
