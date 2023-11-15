@@ -8,26 +8,29 @@ public static class ServiceCollectionExtensions
     {
         return services.AddScoped<IMapper<TSource, TTarget>, DefaultMapper<TSource, TTarget>>((provider) =>
         {
-            return ActivatorUtilities.CreateInstance<DefaultMapper<TSource, TTarget>>(provider, transform);
+            return ActivatorUtilities.CreateInstance<DefaultMapper<TSource, TTarget>>(provider, transform, provider);
         });
     }
 
-    public static IServiceCollection AddMapper<TSource, TTarget>(this IServiceCollection services, IMapper<TSource, TTarget> mapper)
+    public static IServiceCollection AddMapper<TSource, TTarget>(this IServiceCollection services, Func<TSource, IServiceProvider, Task<TTarget>> transform)
     {
-        return services.AddScoped<IMapper<TSource, TTarget>>((provider) => mapper);
+        return services.AddScoped<IMapper<TSource, TTarget>, DefaultMapper<TSource, TTarget>>((provider) =>
+        {
+            return ActivatorUtilities.CreateInstance<DefaultMapper<TSource, TTarget>>(provider, transform, provider);
+        });
     }
 
-    //public static IServiceCollection AddMapper<TMapper>(this IServiceCollection services)
-    //    where TMapper : IMapper
+    //public static IServiceCollection AddMapper<TSource, TTarget>(this IServiceCollection services, IMapper<TSource, TTarget> mapper)
     //{
-    //    return services.AddMapper()
+    //    return services.AddScoped<IMapper<TSource, TTarget>>((provider) => mapper);
     //}
 
     public static IServiceCollection AddMapper<TMapper>(this IServiceCollection services)
     {
         var mapperType = typeof(TMapper);
+        var i = typeof(TMapper).GetInterfaces();
         var ifaces = typeof(TMapper).GetInterfaces()
-            .Where(iface => iface.BaseType == typeof(IMapper<,>))
+            .Where(iface => typeof(IMapper<,>) == iface.GetGenericTypeDefinition())
             .Select(iface => new
             {
                 Interface = iface,
@@ -35,20 +38,23 @@ public static class ServiceCollectionExtensions
             })
             .ToList();
 
-        if (ifaces.Count != 2)
+        if ((ifaces.Count == 0) || (ifaces.Count > 2))
         {
-            throw new InvalidOperationException("AddMapper<TMapper> expects TMapper to implement IMapper<,> twice, with alternating type arguments");
+            throw new InvalidOperationException("AddMapper<TMapper> expects TMapper to implement IMapper<,> once, or twice with alternating type arguments");
         }
 
-        if ((ifaces[0].TypeArguments[0] != ifaces[1].TypeArguments[1]) || (ifaces[0].TypeArguments[1] != ifaces[1].TypeArguments[0]))
+        if (ifaces.Count == 2 && ((ifaces[0].TypeArguments[0] != ifaces[1].TypeArguments[1]) || (ifaces[0].TypeArguments[1] != ifaces[1].TypeArguments[0])))
         {
-            throw new InvalidOperationException("AddMapper<TMapper> expects TMapper to implement IMapper<,> twice, with alternating type arguments");
+            throw new InvalidOperationException("When IMapper<,> is implemented twice, AddMapper<TMapper> expects alternating type arguments");
         }
 
-        typeof(ServiceCollectionExtensions)
+        var dm = typeof(ServiceCollectionExtensions)
             .GetMethod(nameof(AddMapper), System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!
-            .MakeGenericMethod(typeof(TMapper), ifaces[0].TypeArguments[0], ifaces[0].TypeArguments[1])
-            .Invoke(null, [services]);
+            .MakeGenericMethod(typeof(TMapper), ifaces[0].TypeArguments[0], ifaces[0].TypeArguments[1]);
+
+        // We only have to call the method once,
+        // The method registers both IMappers
+        var res = dm.Invoke(null, [services]);
 
         return services;
     }
@@ -70,45 +76,52 @@ public static class ServiceCollectionExtensions
             });
     }
 
-    public static IMapper<TSource, TTarget> GetMapper<TSource, TTarget>(this IServiceProvider services)
+    public static IMapperSource<TSource> Mapper<TSource>(this IServiceProvider services, TSource source)
     {
-        return services.GetRequiredService<IMapper<TSource, TTarget>>();
-    }
-
-    //public static async Task<TTarget> Map<TSource, TTarget>(this IServiceProvider services, TSource source)
-    //{
-    //    var result = await services.GetMapper<TSource, TTarget>().Map(source);
-    //    return result;
-    //}
-
-    public static async Task<TTarget> Mapper<TSource>(this IServiceProvider services, TSource source)
-    {
-        var result = await services.GetMapper<TSource, TTarget>().Map(source);
-        return result;
+        return new MapperSource<TSource>(source, services);
     }
 }
 
-public class MapperSource<TSource>
+public interface IMapperSource<TSource>
 {
-    public MapperSource(TSource source)
+    Task<TTarget> MapTo<TTarget>();
+}
+
+internal class MapperSource<TSource> : IMapperSource<TSource>
+{
+    private readonly TSource source;
+    private readonly IServiceProvider services;
+    public MapperSource(TSource source, IServiceProvider services)
     {
-        Source = source;
+        this.source = source;
+        this.services = services;
     }
 
-    public TSource Source { get; }
+    public async Task<TTarget> MapTo<TTarget>()
+    {
+        var result = await services.GetRequiredService<IMapper<TSource, TTarget>>().Map(source);
+        return result;
+    }
 }
 
 internal class DefaultMapper<TSource, TTarget> : IMapper<TSource, TTarget>
 {
     private readonly Func<TSource, Task<TTarget>> transform;
-    public DefaultMapper(Func<TSource, Task<TTarget>> transform)
+    private readonly IServiceProvider serviceProvider;
+    public DefaultMapper(Func<TSource, Task<TTarget>> transform, IServiceProvider serviceProvider)
     {
         this.transform = transform;
+        this.serviceProvider = serviceProvider;
+    }
+    public DefaultMapper(Func<TSource, IServiceProvider, Task<TTarget>> transform, IServiceProvider serviceProvider)
+    {
+        this.transform = transform;
+        this.serviceProvider = serviceProvider;
     }
 
     public async Task<TTarget> Map(TSource source)
     {
-        var result = await transform(source);
+        var result = await transform(source, serviceProvider);
         return result;
     }
 }

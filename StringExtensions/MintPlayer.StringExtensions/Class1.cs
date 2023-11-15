@@ -6,5 +6,5 @@
 // https://github.com/MintPlayer/MintPlayer.Random => RandomString
 public class Class1
 {
-    IMapper b;
+    //IMapper b;
 }
