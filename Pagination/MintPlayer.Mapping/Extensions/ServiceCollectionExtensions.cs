@@ -106,11 +106,11 @@ internal class MapperSource<TSource> : IMapperSource<TSource>
 
 internal class DefaultMapper<TSource, TTarget> : IMapper<TSource, TTarget>
 {
-    private readonly Func<TSource, Task<TTarget>> transform;
+    private readonly Func<TSource, IServiceProvider, Task<TTarget>> transform;
     private readonly IServiceProvider serviceProvider;
     public DefaultMapper(Func<TSource, Task<TTarget>> transform, IServiceProvider serviceProvider)
     {
-        this.transform = transform;
+        this.transform = async (source, provider) => await transform(source);
         this.serviceProvider = serviceProvider;
     }
     public DefaultMapper(Func<TSource, IServiceProvider, Task<TTarget>> transform, IServiceProvider serviceProvider)

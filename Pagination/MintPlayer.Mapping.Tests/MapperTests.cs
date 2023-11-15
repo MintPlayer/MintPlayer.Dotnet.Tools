@@ -19,8 +19,10 @@ class PersonDTO
 
 class PersonMapper : IMapper<PersonDTO, Person>, IMapper<Person, PersonDTO>
 {
-    public PersonMapper()
+    private readonly IServiceProvider serviceProvider;
+    public PersonMapper(IServiceProvider serviceProvider)
     {
+        this.serviceProvider = serviceProvider;
     }
 
     public Task<Person> Map(PersonDTO source)
@@ -49,7 +51,8 @@ public class MapperTests
     private IServiceProvider Setup2FunctionalMappers()
     {
         return new ServiceCollection()
-            .AddMapper<Person, PersonDTO>(async (entity) =>
+            // "provider" parameter is optional
+            .AddMapper<Person, PersonDTO>(async (entity, provider) =>
             {
                 return new PersonDTO
                 {
@@ -58,7 +61,7 @@ public class MapperTests
                     LastName = entity.LastName
                 };
             })
-            .AddMapper<PersonDTO, Person>(async (dto) =>
+            .AddMapper<PersonDTO, Person>(async (dto, provider) =>
             {
                 return new Person
                 {
