@@ -19,6 +19,21 @@ public static class Casing
         return new string(a);
     }
 
+    /// <summary>Makes the first character of a string lower-case.</summary>
+    /// <param name="str">Input string</param>
+    /// <returns>String with an lower-case first character.</returns>
+    public static string LcFirst(this string str)
+    {
+        if (string.IsNullOrEmpty(str))
+        {
+            return string.Empty;
+        }
+
+        char[] a = str.ToCharArray();
+        a[0] = char.ToLowerInvariant(a[0]);
+        return new string(a);
+    }
+
     #region Helper methods to extract the words from strings
     private static IEnumerable<string> WordsFromSnake(string str) => WordsFromSeparator(str, '_');
     private static IEnumerable<string> WordsFromKebab(string str) => WordsFromSeparator(str, '-');
