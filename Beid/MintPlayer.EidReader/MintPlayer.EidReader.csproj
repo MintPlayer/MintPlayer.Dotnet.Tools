@@ -5,7 +5,8 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<OutputType>Library</OutputType>
-
+		<PublishAot>true</PublishAot>
+		
 		<IsPackable>true</IsPackable>
 		<Version>8.1.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
