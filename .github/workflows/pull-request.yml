@@ -17,9 +17,9 @@ jobs:
     # In a pull request we must make sure both the angular/dotnet library build.
 
     - name: Setup .NET Core
-      uses: actions/setup-dotnet@v3.2.0
+      uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 8.0.100
+        dotnet-version: 8.0.102
         # Authenticates packages to push to GPR
         source-url: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
       env:
