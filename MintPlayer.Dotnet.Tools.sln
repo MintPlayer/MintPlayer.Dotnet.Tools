@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.29411.108
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MintPlayer.ObservableCollection.Test", "MintPlayer.ObservableCollection.Test\MintPlayer.ObservableCollection.Test.csproj", "{129021AF-6377-4323-8F84-7C0596DF4A91}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MintPlayer.ObservableCollection.Test", "ObservableCollection\MintPlayer.ObservableCollection.Test\MintPlayer.ObservableCollection.Test.csproj", "{129021AF-6377-4323-8F84-7C0596DF4A91}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MintPlayer.ObservableCollection", "MintPlayer.ObservableCollection\MintPlayer.ObservableCollection.csproj", "{D70A86FA-F9B1-4377-8D75-5DA9F56E1D51}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MintPlayer.ObservableCollection", "ObservableCollection\MintPlayer.ObservableCollection\MintPlayer.ObservableCollection.csproj", "{D70A86FA-F9B1-4377-8D75-5DA9F56E1D51}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
