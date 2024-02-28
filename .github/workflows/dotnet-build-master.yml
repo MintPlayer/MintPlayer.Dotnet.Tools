@@ -1,14 +1,23 @@
-name: dotnet-build-master
+name: publish-release
 
 on:
   push:
-    branches: [ master ]
+    branches:
+      - 'master'
+      # - 'release/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   build:
-
-    name: dotnet-build-master
-    runs-on: windows-latest
+    name: publish-release
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout
@@ -33,14 +42,15 @@ jobs:
       
     - name: Test
       run: dotnet test --no-restore --verbosity normal
-    
+
     - name: Pack
-      run: dotnet pack --no-build --configuration Release
-      
+      run: dotnet pack --no-build --configuration Release /p:ContinuousIntegrationBuild=true
+
     - name: PushNuget
       run: dotnet nuget push **/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.PUBLISH_TO_NUGET_ORG }} --skip-duplicate
-      
+
     - name: PushGithub
-      run: nuget.exe push "**/*.nupkg" -NoSymbols -SkipDuplicate
+      run: dotnet nuget push **/*.nupkg --no-symbols --skip-duplicate
       env:
         NUGET_AUTH_TOKEN: ${{ github.token }}
+    

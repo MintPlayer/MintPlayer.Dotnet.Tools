@@ -9,7 +9,7 @@ jobs:
   build:
 
     name: dotnet-publish-release
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout
