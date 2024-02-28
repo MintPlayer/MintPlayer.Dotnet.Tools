@@ -12,8 +12,8 @@
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>StringBuilder extension methods for indentation capabilities</Description>
-		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.DotNet.Tools/StringBuilder/MintPlayer.StringBuilder.Extensions</PackageProjectUrl>
-		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.DotNet.Tools</RepositoryUrl>
+		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/StringBuilder/MintPlayer.StringBuilder.Extensions</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<PackageId>MintPlayer.StringBuilder.Extensions</PackageId>
 		<PackageTags>StringBuilder, Indentation</PackageTags>

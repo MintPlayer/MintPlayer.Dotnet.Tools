@@ -12,8 +12,8 @@
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package allows you to find the season for a certain date</Description>
-		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.DotNet.Tools/SeasonChecker/MintPlayer.SeasonChecker</PackageProjectUrl>
-		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.DotNet.Tools</RepositoryUrl>
+		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/SeasonChecker/MintPlayer.SeasonChecker</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<PackageId>MintPlayer.SeasonChecker</PackageId>
 		<PackageTags>Season, DateTime</PackageTags>

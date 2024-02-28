@@ -12,8 +12,8 @@
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>Implementation of the Belgian eID-reader</Description>
-		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.DotNet.Tools/Beid/MintPlayer.EidReader</PackageProjectUrl>
-		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.DotNet.Tools</RepositoryUrl>
+		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/Beid/MintPlayer.EidReader</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<PackageId>MintPlayer.EidReader</PackageId>
 		<PackageTags>BEID, Belgium, EID-reader</PackageTags>

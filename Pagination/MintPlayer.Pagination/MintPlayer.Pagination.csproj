@@ -12,8 +12,8 @@
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>Helper library for pagination</Description>
-		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.DotNet.Tools/Pagination/MintPlayer.Pagination</PackageProjectUrl>
-		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.DotNet.Tools</RepositoryUrl>
+		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/Pagination/MintPlayer.Pagination</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<PackageId>MintPlayer.Pagination</PackageId>
 		<PackageTags>Pagination</PackageTags>

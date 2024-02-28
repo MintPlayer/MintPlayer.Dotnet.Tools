@@ -12,8 +12,8 @@
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains a method that picks a random entry from a list.</Description>
-		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.DotNet.Tools/EnumerableExtensions/MintPlayer.EnumerableExtensions</PackageProjectUrl>
-		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.DotNet.Tools</RepositoryUrl>
+		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/EnumerableExtensions/MintPlayer.EnumerableExtensions</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<PackageId>MintPlayer.Extensions.OrderBy</PackageId>
 		<PackageTags>Random list item</PackageTags>

@@ -24,8 +24,8 @@
 		<Company>MintPlayer</Company>
 		<Authors>Pieterjan De Clippel</Authors>
 		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.DotNet.Tools/ObservableCollection/MintPlayer.ObservableCollection</PackageProjectUrl>
-		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.DotNet.Tools</RepositoryUrl>
+		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/ObservableCollection/MintPlayer.ObservableCollection</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
 		<PackageTags>ObservableCollection, AddRange, RemoveRange, ItemPropertyChanged</PackageTags>
 		<Product>MintPlayer.ObservableCollection</Product>
 		
