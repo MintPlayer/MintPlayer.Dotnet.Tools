@@ -6,15 +6,15 @@ Console.WriteLine("Hello, World!");
 var worker = new EidWorker();
 var cts = new CancellationTokenSource();
 
-worker.ReaderAttached += (sender, e) => Console.WriteLine("Reader attached: {0}", e.ReaderName);
-worker.ReaderDetached += (sender, e) => Console.WriteLine("Reader detached: {0}", e.ReaderName);
+worker.ReaderAttached += (sender, e) => Console.WriteLine($"Reader attached: {e.ReaderName}");
+worker.ReaderDetached += (sender, e) => Console.WriteLine($"Reader detached: {e.ReaderName}");
 worker.CardInsert += (sender, e) =>
 {
     e.Card.Open();
 
     if (e.Card is EidCard eid)
         Console.WriteLine($"""
-            Card inserted:
+            Card inserted into reader: {e.ReaderName}
             {eid.Identity.FirstNames} {eid.Identity.Surname}
             {eid.Identity.NationalNr}
             {eid.Identity.Gender}
@@ -24,9 +24,9 @@ worker.CardInsert += (sender, e) =>
             {eid.Identity.Nationality}
             """);
     else
-        Console.WriteLine("Card inserted");
+        Console.WriteLine($"Card inserted into reader: {e.ReaderName}");
 };
-worker.CardRemoved += (sender, e) => Console.WriteLine("Card removed from reader: {0}", e.ReaderName);
+worker.CardRemoved += (sender, e) => Console.WriteLine($"Card removed from reader: {e.ReaderName}");
 
 await worker.Run(MintPlayer.EidReader.Native.Enums.EReaderScope.System, cts);
 

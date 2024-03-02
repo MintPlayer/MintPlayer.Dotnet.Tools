@@ -2,8 +2,5 @@
 
 public class NoCardException : ReaderException
 {
-    public NoCardException(String msg) : base(msg)
-    {
-
-    }
+    public NoCardException(string msg) : base(msg) { }
 }

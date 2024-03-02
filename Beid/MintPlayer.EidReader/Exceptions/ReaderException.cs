@@ -2,8 +2,5 @@
 
 public class ReaderException : Exception
 {
-    public ReaderException(String msg) : base(msg)
-    {
-
-    }
+    public ReaderException(string msg) : base(msg) { }
 }

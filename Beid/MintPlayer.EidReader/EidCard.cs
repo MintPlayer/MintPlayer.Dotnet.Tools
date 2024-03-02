@@ -47,10 +47,7 @@ public class EidCard : Card
     }
 
     internal EidCard(CardContextSafeHandler context, String readerName, byte[] atr) 
-        : base(context, readerName, atr)
-    {
-        
-    }
+        : base(context, readerName, atr) { }
 
     internal byte[] ReadRaw(EEidFile file) => ReadBinary(fileSelectors[file]);
 
@@ -69,5 +66,4 @@ public class EidCard : Card
     public Address Address => new Address(ReadRaw(EEidFile.Address));
 
     public Identity Identity => new Identity(ReadRaw(EEidFile.Id));
-
 }

@@ -8,7 +8,6 @@ namespace MintPlayer.EidReader;
 public class Card : IDisposable
 {
     private static readonly byte[] CMD_READ_BINARY = { 0x00, 0xB0, 0x00, 0x00, 0x00 };
-
     private static readonly byte[] CMD_SELECT_FILE = { 0x00, 0xA4, 0x08, 0x0C, 0x00 };
 
     private readonly CardContextSafeHandler context;
