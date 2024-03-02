@@ -2,8 +2,6 @@
 using MintPlayer.EidReader.Native;
 using MintPlayer.EidReader.Native.Enums;
 using MintPlayer.EidReader.Native.Structs;
-using System.Xml;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace MintPlayer.EidReader;
 
@@ -11,19 +9,16 @@ public class EidWorker
 {
     public async Task Run(EReaderScope scope, CancellationTokenSource cancellationToken)
     {
-        int numberOfReaders = 0;
+        var numberOfReaders = 0;
         var context = CreateCardContext(scope);
-        //var readerStateList = new List<SCARD_READERSTATE>();
-        //var readerStateArray = RecomputeReaderStateArray(readerStateList);
         SCARD_READERSTATE[] readerStateArray = [
-            new SCARD_READERSTATE() { szReader = @"\\?PnP?\Notification", dwCurrentState = EReaderState.SCARD_STATE_UNKNOWN }
+            new() { szReader = @"\\?PnP?\Notification", dwCurrentState = EReaderState.SCARD_STATE_UNKNOWN }
         ];
 
         while (true)
         {
             if (cancellationToken.IsCancellationRequested) break;
             await Task.Delay(1000);
-
 
             // Detect new/old readers
             var getNumberOfReadersStatus = WinSCard.SCardListReaders(context, null, null, ref numberOfReaders);
@@ -32,7 +27,6 @@ public class EidWorker
                 case 0:
                     var readers = new char[numberOfReaders];
                     var getReaderPointersStatus = WinSCard.SCardListReaders(context, null, readers, ref numberOfReaders);
-                    //Console.WriteLine("readers: {0}", new string(readers));
                     var currentlyConnected = new string(readers).Split('\0', StringSplitOptions.RemoveEmptyEntries);
                     var alreadyConnected = readerStateArray.SkipLast(1).Select(r => r.szReader).ToList();
 
@@ -54,17 +48,6 @@ public class EidWorker
                             ReaderAttached?.Invoke(this, new ReaderAttachedEventArgs { ReaderName = newReader });
                     }
 
-                    //// Update the list
-                    //Readers.AddRange(newReaders.Select(r => new ConnectedReader { ReaderName = r }));
-                    //foreach (var r in Readers.Where(x => oldReaders.Contains(x.ReaderName)).ToList())
-                    //    Readers.Remove(r);
-                    ////readerStateList.AddRange(newReaders.Select(r => new SCARD_READERSTATE { szReader = r, dwEventState =  }))
-
-                    //// If readers were attached/detached, update the structs array.
-                    //if (oldReaders.Any() || newReaders.Any())
-                    //    readerStateArray = readerStateList.ToArray();
-
-
                     break;
                 case 0x8010001E:
                     // Service stopped
@@ -79,10 +62,6 @@ public class EidWorker
                     foreach (var oldReader in previouslyConnected1)
                         ReaderDetached?.Invoke(this, new ReaderDetachedEventArgs { ReaderName = oldReader.szReader });
 
-                    //// If readers were attached/detached, update the structs array.
-                    //if (previouslyConnected1.Any())
-                    //    readerStateArray = readerStateList.ToArray();
-
                     break;
                 case 0x8010002E:
                     // No readers
@@ -94,15 +73,10 @@ public class EidWorker
                     foreach (var oldReader in previouslyConnected2)
                         ReaderDetached?.Invoke(this, new ReaderDetachedEventArgs { ReaderName = oldReader.szReader });
 
-                    //// If readers were attached/detached, update the structs array.
-                    //if (previouslyConnected2.Any())
-                    //    readerStateArray = readerStateList.ToArray();
-
                     break;
                 default:
                     throw new InvalidOperationException("Failed to list readers (length): 0x" + getNumberOfReadersStatus.ToString("X"));
             }
-
 
             // Read the new states from the readers
             for (int i = 0; i < readerStateArray.Length; i++)
@@ -116,7 +90,6 @@ public class EidWorker
                 case 0:
                     break;
                 default:
-                    //todo:logging ("Failed to update the status: 0x" + retVal.ToString("X"))
                     throw new Exception("Failed to update the status");
             }
 
@@ -155,8 +128,6 @@ public class EidWorker
         return EidCard.IsEid(atr) ? new EidCard(context, readerstate.szReader, atr) : new Card(context, readerstate.szReader, atr);
     }
 
-    //private List<ConnectedReader> Readers = new List<ConnectedReader>();
-
     public delegate void ReaderAttachedHandler(object sender, ReaderAttachedEventArgs e);
     public event ReaderAttachedHandler? ReaderAttached;
     public delegate void ReaderDetachedHandler(object sender, ReaderDetachedEventArgs e);
@@ -184,11 +155,6 @@ public class EidWorker
                 throw new InvalidOperationException();
         }
     }
-
-    //private SCARD_READERSTATE[] RecomputeReaderStateArray(List<SCARD_READERSTATE> list)
-    //{
-    //    return list.Concat([new SCARD_READERSTATE() { szReader = @"\\?PnP?\Notification", dwEventState = (EReaderState)(list.Count << 16) }]).ToArray();
-    //}
 
     private void DisposeCardContext(CardContextSafeHandler context)
     {
