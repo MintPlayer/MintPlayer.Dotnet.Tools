@@ -47,7 +47,7 @@ namespace DemoWebApp
             {
                 k.ConfigureHttpsDefaults(http =>
                 {
-                    http.ClientCertificateMode = Microsoft.AspNetCore.Server.Kestrel.Https.ClientCertificateMode.AllowCertificate;
+                    http.ClientCertificateMode = Microsoft.AspNetCore.Server.Kestrel.Https.ClientCertificateMode.RequireCertificate;
                     http.AllowAnyClientCertificate();
                 });
             });
@@ -67,7 +67,7 @@ namespace DemoWebApp
             app.UseDeveloperExceptionPage();
 
             app.UseAuthentication();
-            app.UseRouting();
+            //app.UseRouting();
             app.UseAuthorization();
             //app.UseEndpoints();
 
