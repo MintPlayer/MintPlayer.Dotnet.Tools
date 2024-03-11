@@ -32,7 +32,14 @@ namespace DemoWebApp
                 .AddCertificate(o =>
                 {
                     o.AllowedCertificateTypes = CertificateTypes.All;
+                    //o.ChainTrustValidationMode = System.Security.Cryptography.X509Certificates.X509ChainTrustMode.System;
+                    o.ChainTrustValidationMode = System.Security.Cryptography.X509Certificates.X509ChainTrustMode.CustomRootTrust;
                     o.RevocationMode = System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck;
+                    o.CustomTrustStore = new System.Security.Cryptography.X509Certificates.X509Certificate2Collection
+                    {
+
+                    };
+
                     o.Events = new CertificateAuthenticationEvents
                     {
                         OnChallenge = async (context) =>
@@ -64,6 +71,8 @@ namespace DemoWebApp
                     .Build();
             });
 
+            builder.Services.AddControllersWithViews();
+
             builder.Services.AddDbContext<EidContext>();
 
             builder.Services.AddIdentity<User, Role>()
@@ -76,6 +85,7 @@ namespace DemoWebApp
                 {
                     http.ClientCertificateMode = Microsoft.AspNetCore.Server.Kestrel.Https.ClientCertificateMode.RequireCertificate;
                     http.AllowAnyClientCertificate();
+                    http.CheckCertificateRevocation = false;
                 });
             });
             builder.WebHost.UseKestrelHttpsConfiguration();
@@ -101,14 +111,24 @@ namespace DemoWebApp
             app.UseDeveloperExceptionPage();
 
             app.UseAuthentication();
-            //app.UseRouting();
+            app.UseRouting();
             app.UseAuthorization();
-            //app.UseEndpoints();
+            app.UseEndpoints(endpoints =>
+            {
+                endpoints.MapControllerRoute(
+                    name: "default",
+                    pattern: "{controller}/{action=Index}/{id?}");
+            });
 
             app.UseEidAuthentication();
 
             var todosApi = app.MapGroup("/todos");
-            todosApi.MapGet("/", () => sampleTodos);
+            todosApi.MapGet("/", async (c) =>
+            {
+                var cert = c.Connection.ClientCertificate;
+                await c.Response.WriteAsJsonAsync(sampleTodos);
+                //return sampleTodos;
+            });
             todosApi.MapGet("/{id}", (int id) =>
                 sampleTodos.FirstOrDefault(a => a.Id == id) is { } todo
                     ? Results.Ok(todo)
