@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.Authentication;
 using System.Security.Claims;
 using System.Net;
+using Org.BouncyCastle.Asn1.X509;
 
 namespace DemoWebApp
 {
@@ -65,10 +66,6 @@ namespace DemoWebApp
                         }
                     };
                 });
-                //.AddScheme<EidAuthenticationOptions, EidAuthenticationHandler>("Eid", o =>
-                //{
-                //    var x = o.Events;
-                //});
 
             //builder.Services.AddAuthorization(o =>
             //{
@@ -78,7 +75,7 @@ namespace DemoWebApp
             //        .Build();
             //});
 
-            builder.Services.AddControllersWithViews();
+            builder.Services.AddControllersWithViews().AddNewtonsoftJson();
 
             builder.Services.AddDbContext<EidContext>();
 
@@ -121,9 +118,6 @@ namespace DemoWebApp
             app.UseAuthorization();
             app.UseEndpoints(endpoints =>
             {
-                //endpoints.MapControllerRoute(
-                //    name: "default",
-                //    pattern: "{controller}/{action=Index}/{id?}");
                 endpoints.MapControllers();
             });
 
@@ -133,8 +127,8 @@ namespace DemoWebApp
             todosApi.MapGet("/", async (c) =>
             {
                 var cert = c.Connection.ClientCertificate;
-                await c.Response.WriteAsJsonAsync(sampleTodos);
-                //return sampleTodos;
+                var result = new PersonInfo(cert!);
+                await c.Response.WriteAsJsonAsync(result);
             });
             todosApi.MapGet("/{id}", (int id) =>
                 sampleTodos.FirstOrDefault(a => a.Id == id) is { } todo
@@ -173,14 +167,40 @@ namespace DemoWebApp
             {
                 return Results.Ok();
             });
-            
+
             app.Run();
         }
+    }
+
+    public class PersonInfo
+    {
+        public PersonInfo(System.Security.Cryptography.X509Certificates.X509Certificate certificate)
+        {
+            var bcCert = Org.BouncyCastle.Security.DotNetUtilities.FromX509Certificate(certificate);
+            FirstNames = bcCert.SubjectDN.GetValueList(X509Name.GivenName)[0]?.ToString() ?? string.Empty;
+            LastName = bcCert.SubjectDN.GetValueList(X509Name.Surname)[0]?.ToString() ?? string.Empty;
+            NationalNumber = bcCert.SubjectDN.GetValueList(X509Name.SerialNumber)[0]?.ToString() ?? string.Empty;
+            Country = bcCert.SubjectDN.GetValueList(X509Name.C)[0]?.ToString() ?? string.Empty;
+            //PostalAddress = bcCert.SubjectDN.GetValueList(X509Name.PostalAddress)[0]?.ToString() ?? string.Empty;
+            PostalCode = bcCert.SubjectDN.GetValueList(X509Name.PostalCode)[0]?.ToString() ?? string.Empty;
+            Street = bcCert.SubjectDN.GetValueList(X509Name.Street)[0]?.ToString() ?? string.Empty;
+            TelephoneNumber = bcCert.SubjectDN.GetValueList(X509Name.TelephoneNumber)[0]?.ToString() ?? string.Empty;
+        }
+
+        public string FirstNames { get; private set; }
+        public string LastName { get; private set; }
+        public string NationalNumber { get; private set; }
+        public string Country { get; private set; }
+        public string PostalAddress { get; private set; }
+        public string PostalCode { get; private set; }
+        public string Street { get; private set; }
+        public string TelephoneNumber { get; private set; }
     }
 
     public record Todo(int Id, string? Title, DateOnly? DueBy = null, bool IsComplete = false);
 
     [JsonSerializable(typeof(Todo[]))]
+    [JsonSerializable(typeof(PersonInfo))]
     internal partial class AppJsonSerializerContext : JsonSerializerContext
     {
 
