@@ -14,28 +14,30 @@ public class EidCard : Card
 
     private static readonly Dictionary<EEidFile, byte[]> fileSelectors = new Dictionary<EEidFile, byte[]>();
 
-    static EidCard() {
-        fileSelectors.Add(EEidFile.AuthCert, new byte[] { 0x3F, 0x00, 0xDF, 0x00, 0x50, 0x38});
-        fileSelectors.Add(EEidFile.SignCert, new byte[] { 0x3F, 0x00, 0xDF, 0x00, 0x50, 0x39 });
-        fileSelectors.Add(EEidFile.CaCert, new byte[] { 0x3F, 0x00, 0xDF, 0x00, 0x50, 0x3A });
-        fileSelectors.Add(EEidFile.RootCert, new byte[] { 0x3F, 0x00, 0xDF, 0x00, 0x50, 0x3B });
-        fileSelectors.Add(EEidFile.RrnCert, new byte[] { 0x3F, 0x00, 0xDF, 0x00, 0x50, 0x3C });
+    static EidCard()
+    {
+        fileSelectors.Add(EEidFile.AuthCert, [0x3F, 0x00, 0xDF, 0x00, 0x50, 0x38]);
+        fileSelectors.Add(EEidFile.SignCert, [0x3F, 0x00, 0xDF, 0x00, 0x50, 0x39]);
+        fileSelectors.Add(EEidFile.CaCert, [0x3F, 0x00, 0xDF, 0x00, 0x50, 0x3A]);
+        fileSelectors.Add(EEidFile.RootCert, [0x3F, 0x00, 0xDF, 0x00, 0x50, 0x3B]);
+        fileSelectors.Add(EEidFile.RrnCert, [0x3F, 0x00, 0xDF, 0x00, 0x50, 0x3C]);
 
-        fileSelectors.Add(EEidFile.Id, new byte[] { 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x31 });
-        fileSelectors.Add(EEidFile.IdSig, new byte[] { 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x32 });
-        fileSelectors.Add(EEidFile.Address, new byte[] { 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x33 });
-        fileSelectors.Add(EEidFile.AddressSig, new byte[] { 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x34 });
-        fileSelectors.Add(EEidFile.Picture, new byte[] { 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x35 });
+        fileSelectors.Add(EEidFile.Id, [0x3F, 0x00, 0xDF, 0x01, 0x40, 0x31]);
+        fileSelectors.Add(EEidFile.IdSig, [0x3F, 0x00, 0xDF, 0x01, 0x40, 0x32]);
+        fileSelectors.Add(EEidFile.Address, [0x3F, 0x00, 0xDF, 0x01, 0x40, 0x33]);
+        fileSelectors.Add(EEidFile.AddressSig, [0x3F, 0x00, 0xDF, 0x01, 0x40, 0x34]);
+        fileSelectors.Add(EEidFile.Picture, [0x3F, 0x00, 0xDF, 0x01, 0x40, 0x35]);
     }
 
     public static bool IsEid(byte[] atr)
     {
-        if (atr.Length == ATR_VAL.Length) {
+        if (atr.Length == ATR_VAL.Length)
+        {
             int i = 0;
             while (i < atr.Length && (atr[i] & ATR_MASK[i]) == ATR_VAL[i]) { i++; }
             if (i == atr.Length) return true;
         }
-        
+
         if (atr.Length == ATR18_VAL.Length)
         {
             int i = 0;
@@ -46,7 +48,7 @@ public class EidCard : Card
         return false;
     }
 
-    internal EidCard(CardContextSafeHandler context, String readerName, byte[] atr) 
+    internal EidCard(CardContextSafeHandler context, String readerName, byte[] atr)
         : base(context, readerName, atr) { }
 
     internal byte[] ReadRaw(EEidFile file) => ReadBinary(fileSelectors[file]);
