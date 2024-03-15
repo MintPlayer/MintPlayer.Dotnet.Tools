@@ -70,13 +70,13 @@ namespace DemoWebApp
                 //    var x = o.Events;
                 //});
 
-            builder.Services.AddAuthorization(o =>
-            {
-                o.DefaultPolicy = new AuthorizationPolicyBuilder()
-                    .AddAuthenticationSchemes(CertificateAuthenticationDefaults.AuthenticationScheme)
-                    .RequireAuthenticatedUser()
-                    .Build();
-            });
+            //builder.Services.AddAuthorization(o =>
+            //{
+            //    o.DefaultPolicy = new AuthorizationPolicyBuilder()
+            //        .AddAuthenticationSchemes(CertificateAuthenticationDefaults.AuthenticationScheme)
+            //        .RequireAuthenticatedUser()
+            //        .Build();
+            //});
 
             builder.Services.AddControllersWithViews();
 
@@ -90,6 +90,8 @@ namespace DemoWebApp
             {
                 k.ConfigureHttpsDefaults(http =>
                 {
+                    // Fixes ERR_SSL_CLIENT_AUTH_SIGNATURE_FAILED
+                    http.SslProtocols = System.Security.Authentication.SslProtocols.Tls12;
                     http.ClientCertificateValidation = (_, __, ___) =>
                     {
                         return true;
@@ -126,13 +128,6 @@ namespace DemoWebApp
             });
 
             //app.UseEidAuthentication();
-
-            app.Use(async (context, next) =>
-            {
-                var cert = context.Connection.ClientCertificate;
-
-                await next();
-            });
 
             var todosApi = app.MapGroup("/todos");
             todosApi.MapGet("/", async (c) =>
