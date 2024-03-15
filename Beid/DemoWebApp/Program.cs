@@ -182,19 +182,19 @@ namespace DemoWebApp
             NationalNumber = bcCert.SubjectDN.GetValueList(X509Name.SerialNumber)[0]?.ToString() ?? string.Empty;
             Country = bcCert.SubjectDN.GetValueList(X509Name.C)[0]?.ToString() ?? string.Empty;
             //PostalAddress = bcCert.SubjectDN.GetValueList(X509Name.PostalAddress)[0]?.ToString() ?? string.Empty;
-            PostalCode = bcCert.SubjectDN.GetValueList(X509Name.PostalCode)[0]?.ToString() ?? string.Empty;
-            Street = bcCert.SubjectDN.GetValueList(X509Name.Street)[0]?.ToString() ?? string.Empty;
-            TelephoneNumber = bcCert.SubjectDN.GetValueList(X509Name.TelephoneNumber)[0]?.ToString() ?? string.Empty;
+            //PostalCode = bcCert.SubjectDN.GetValueList(X509Name.PostalCode)[0]?.ToString() ?? string.Empty;
+            //Street = bcCert.SubjectDN.GetValueList(X509Name.Street)[0]?.ToString() ?? string.Empty;
+            //TelephoneNumber = bcCert.SubjectDN.GetValueList(X509Name.TelephoneNumber)[0]?.ToString() ?? string.Empty;
         }
 
         public string FirstNames { get; private set; }
         public string LastName { get; private set; }
         public string NationalNumber { get; private set; }
         public string Country { get; private set; }
-        public string PostalAddress { get; private set; }
-        public string PostalCode { get; private set; }
-        public string Street { get; private set; }
-        public string TelephoneNumber { get; private set; }
+        //public string PostalAddress { get; private set; }
+        //public string PostalCode { get; private set; }
+        //public string Street { get; private set; }
+        //public string TelephoneNumber { get; private set; }
     }
 
     public record Todo(int Id, string? Title, DateOnly? DueBy = null, bool IsComplete = false);
