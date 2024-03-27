@@ -77,24 +77,24 @@ jobs:
       with:
         milliseconds: 5000
 
-    - name: UploadApplication
-      uses: tomasbkk/action-ftp-upload@v1.0
-      with:
-        host: ${{ secrets.FTP_SERVER }}
-        user: ${{ secrets.FTP_USERNAME }}
-        password: ${{ secrets.FTP_PASSWORD }}
-        src: Beid/DemoWebApp/bin/Release/net8.0/win-x64/publish
-        dest: /
-
-    # - name: Upload application
-    #   uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+    # - name: UploadApplication
+    #   uses: tomasbkk/action-ftp-upload@v1.0
     #   with:
-    #     server: ${{ secrets.FTP_SERVER }}
-    #     username: ${{ secrets.FTP_USERNAME }}
+    #     host: ${{ secrets.FTP_SERVER }}
+    #     user: ${{ secrets.FTP_USERNAME }}
     #     password: ${{ secrets.FTP_PASSWORD }}
-    #     local-dir: ./Beid/DemoWebApp/bin/Release/net8.0/publish/
-    #     server-dir: ./
-    #     exclude: |
-    #       app_offline.htm
-    #       appsettings.*.json
+    #     src: ./Beid/DemoWebApp/bin/Release/net8.0/win-x64/publish
+    #     dest: ./
+
+    - name: Upload application
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+      with:
+        server: ${{ secrets.FTP_SERVER }}
+        username: ${{ secrets.FTP_USERNAME }}
+        password: ${{ secrets.FTP_PASSWORD }}
+        local-dir: ./Beid/DemoWebApp/bin/Release/net8.0/win-x64/publish/
+        server-dir: ./
+        exclude: |
+          app_offline.htm
+          appsettings.*.json
     
