@@ -46,6 +46,9 @@ jobs:
     - name: Pack
       run: dotnet pack --no-build --configuration Release /p:ContinuousIntegrationBuild=true
 
+    - name: Publish web app
+      run: dotnet publish Beid/DemoWebApp/DemoWebApp.csproj --configuration Release /p:PublishProfile=FolderProfile.pubxml
+      
     - name: PushNuget
       run: dotnet nuget push **/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.PUBLISH_TO_NUGET_ORG }} --skip-duplicate
 
@@ -68,3 +71,30 @@ jobs:
         password: ${{ secrets.FTP_PASSWORD }}
         src: tmp/app_offline.htm
         dest: app_offline.htm
+
+    - name: Delay
+      uses: MintPlayer/github-actions/delay@v3
+      with:
+        milliseconds: 5000
+
+    - name: UploadApplication
+      uses: tomasbkk/action-ftp-upload@v1.0
+      with:
+        host: ${{ secrets.FTP_SERVER }}
+        user: ${{ secrets.FTP_USERNAME }}
+        password: ${{ secrets.FTP_PASSWORD }}
+        src: Beid/DemoWebApp/bin/Release/net8.0/win-x64/publish
+        dest: /
+
+    # - name: Upload application
+    #   uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+    #   with:
+    #     server: ${{ secrets.FTP_SERVER }}
+    #     username: ${{ secrets.FTP_USERNAME }}
+    #     password: ${{ secrets.FTP_PASSWORD }}
+    #     local-dir: ./Beid/DemoWebApp/bin/Release/net8.0/publish/
+    #     server-dir: ./
+    #     exclude: |
+    #       app_offline.htm
+    #       appsettings.*.json
+    
