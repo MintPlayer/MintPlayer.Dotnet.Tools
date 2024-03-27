@@ -32,11 +32,16 @@ public class Card : IDisposable
 
     public void Open(Boolean exclusive = false)
     {
-        uint retVal = WinSCard.SCardConnect(context, ReaderName, exclusive ? ECardShareMode.SCARD_SHARE_EXCLUSIVE : ECardShareMode.SCARD_SHARE_SHARED, ECardProtocols.SCARD_PROTOCOL_T0 | ECardProtocols.SCARD_PROTOCOL_T1, out handler, out protocol);
-        if (retVal == 0x80100069L) throw new NoCardException("Not card was found in the reader");
-        if (retVal == 0x8010000BL) throw new ReaderException("The card is being accessed from a different context");
-        if (retVal == 0x80100009L) throw new ReaderException("The specified reader does not exist");
-        if (retVal != 0) throw new InvalidOperationException("Failed to open card reader: 0x" + retVal.ToString("X"));
+        var retVal = (long)WinSCard.SCardConnect(context, ReaderName, exclusive ? ECardShareMode.SCARD_SHARE_EXCLUSIVE : ECardShareMode.SCARD_SHARE_SHARED, ECardProtocols.SCARD_PROTOCOL_T0 | ECardProtocols.SCARD_PROTOCOL_T1, out handler, out protocol);
+        switch (retVal)
+        {
+            case 0: return;
+            case 0x80100069L: throw new NoCardException("Not card was found in the reader");
+            case 0x8010000BL: throw new ReaderException("The card is being accessed from a different context");
+            case 0x80100009L: throw new ReaderException("The specified reader does not exist");
+            case 0x80100066L: throw new ReaderException("Most likely the card was inserted upside-down into the reader");
+            default: throw new InvalidOperationException("Failed to open card reader: 0x" + retVal.ToString("X"));
+        }
     }
 
     public byte[] ReadBinary(byte[] file)

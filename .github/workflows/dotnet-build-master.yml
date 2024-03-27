@@ -54,3 +54,17 @@ jobs:
       env:
         NUGET_AUTH_TOKEN: ${{ github.token }}
     
+    - name: CreateAppOffline
+      run: |
+        mkdir -p tmp
+        echo > tmp/app_offline.htm
+
+    - name: UploadAppOffline
+      # uses: genietim/ftp-action@v4.0.1
+      uses: tomasbkk/action-ftp-upload@v1.0
+      with:
+        host: ${{ secrets.FTP_SERVER }}
+        user: ${{ secrets.FTP_USERNAME }}
+        password: ${{ secrets.FTP_PASSWORD }}
+        src: tmp/app_offline.htm
+        dest: app_offline.htm
