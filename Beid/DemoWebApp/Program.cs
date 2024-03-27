@@ -108,7 +108,8 @@ namespace DemoWebApp
                 new(5, "Clean the car", DateOnly.FromDateTime(DateTime.Now.AddDays(2)))
             };
 
-            app.UseExceptionHandler(@"/Test.txt");
+            //app.UseExceptionHandler(@"/Test.txt");
+            app.UseDeveloperExceptionPage();
             app.UseHttpsRedirection();
             app.UseStatusCodePages();
             app.UseDeveloperExceptionPage();
@@ -122,6 +123,8 @@ namespace DemoWebApp
             });
 
             //app.UseEidAuthentication();
+
+            app.MapGet("/", () => "Hello");
 
             var todosApi = app.MapGroup("/todos");
             todosApi.MapGet("/", async (c) =>
