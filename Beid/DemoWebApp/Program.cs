@@ -97,7 +97,6 @@ namespace DemoWebApp
                     http.ClientCertificateMode = Microsoft.AspNetCore.Server.Kestrel.Https.ClientCertificateMode.RequireCertificate;
                 });
             });
-            builder.WebHost.UseIISIntegration()
             builder.WebHost.UseKestrelHttpsConfiguration();
 
             var app = builder.Build();
