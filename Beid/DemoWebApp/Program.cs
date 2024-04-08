@@ -188,8 +188,12 @@ namespace DemoWebApp
             //PostalCode = bcCert.SubjectDN.GetValueList(X509Name.PostalCode)[0]?.ToString() ?? string.Empty;
             //Street = bcCert.SubjectDN.GetValueList(X509Name.Street)[0]?.ToString() ?? string.Empty;
             //TelephoneNumber = bcCert.SubjectDN.GetValueList(X509Name.TelephoneNumber)[0]?.ToString() ?? string.Empty;
+            NotBefore = bcCert.NotBefore;
+            NotAfter = bcCert.NotAfter;
         }
 
+        public DateTime NotBefore { get; private set; }
+        public DateTime NotAfter { get; private set; }
         public string FirstNames { get; private set; }
         public string LastName { get; private set; }
         public string NationalNumber { get; private set; }
