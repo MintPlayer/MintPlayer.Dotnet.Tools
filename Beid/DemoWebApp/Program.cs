@@ -19,6 +19,7 @@ namespace DemoWebApp
         public static void Main(string[] args)
         {
             ServicePointManager.ServerCertificateValidationCallback = (_, __, ___, ____) => true;
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
 
             var builder = WebApplication.CreateSlimBuilder(args);
 
@@ -96,6 +97,7 @@ namespace DemoWebApp
                     http.ClientCertificateMode = Microsoft.AspNetCore.Server.Kestrel.Https.ClientCertificateMode.RequireCertificate;
                 });
             });
+            builder.WebHost.UseIISIntegration()
             builder.WebHost.UseKestrelHttpsConfiguration();
 
             var app = builder.Build();
