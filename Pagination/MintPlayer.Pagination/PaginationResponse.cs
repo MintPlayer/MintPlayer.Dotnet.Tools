@@ -1,5 +1,8 @@
-﻿namespace MintPlayer.Pagination;
+﻿using System.Runtime.Serialization;
 
+namespace MintPlayer.Pagination;
+
+[DataContract]
 public class PaginationResponse<TDto>
 {
     public PaginationResponse(PaginationRequest<TDto> request, int totalRecords, IEnumerable<TDto> data)
@@ -14,6 +17,7 @@ public class PaginationResponse<TDto>
 
     #region Data
     private List<TDto> data;
+    [DataMember]
     public List<TDto> Data
     {
         get => data;
@@ -23,6 +27,7 @@ public class PaginationResponse<TDto>
     #region Page
     private int page;
     /// <summary>Current page to load, readonly.</summary>
+    [DataMember]
     public int Page
     {
         get => page;
@@ -32,6 +37,7 @@ public class PaginationResponse<TDto>
     #region PerPage
     private int perPage;
     /// <summary>Number of items per page, readonly.</summary>
+    [DataMember]
     public int PerPage
     {
         get => perPage;
@@ -41,6 +47,7 @@ public class PaginationResponse<TDto>
     #region TotalRecords
     private int totalRecords;
     /// <summary>Total number of records, readonly.</summary>
+    [DataMember]
     public int TotalRecords
     {
         get => totalRecords;
@@ -49,6 +56,7 @@ public class PaginationResponse<TDto>
     #endregion
     #region TotalPages
     /// <summary>Total number of pages, readonly.</summary>
+    [DataMember]
     public int TotalPages
     {
         get => (totalRecords - 1) / perPage + 1;
