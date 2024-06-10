@@ -1,0 +1,40 @@
+﻿{
+  "$schema": "https://json.schemastore.org/task.json",
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "shell",
+      "command": "sass",
+      "args": [
+        "--watch",
+        "App/wwwroot/web-components/**"
+      ],
+      "group": "build",
+      "label": "watch-sass"
+    },
+    {
+      "type": "typescript",
+      "tsconfig": "App/tsconfig.json",
+      "option": "watch",
+      "problemMatcher": [
+        "$tsc-watch"
+      ],
+      "group": "build",
+      "label": "ts-web-components",
+      "dependsOn": [
+        "watch-sass"
+      ]
+    },
+    {
+      "type": "npm",
+      "script": "dev",
+      "group": "build",
+      "problemMatcher": [],
+      "label": "npm: watch",
+      "detail": "rollup -c -w",
+      "dependsOn": [
+        "ts-web-components"
+      ]
+    }
+  ]
+}
