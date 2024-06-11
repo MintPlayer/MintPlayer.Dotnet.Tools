@@ -99,8 +99,8 @@ public class Program
                 http.ClientCertificateMode = Microsoft.AspNetCore.Server.Kestrel.Https.ClientCertificateMode.RequireCertificate;
             });
         });
-        //builder.WebHost.UseKestrelHttpsConfiguration();
-        builder.WebHost.UseKestrel();
+        builder.WebHost.UseKestrelHttpsConfiguration();
+        //builder.WebHost.UseKestrel();
 
         var app = builder.Build();
 
