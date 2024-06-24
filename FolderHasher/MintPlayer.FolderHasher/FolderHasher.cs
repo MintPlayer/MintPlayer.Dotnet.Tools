@@ -2,37 +2,54 @@
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace MintPlayer.FolderHasher;
 
 internal class FolderHasher : IFolderHasher
 {
-    public async Task<string> GetFolderHashAsync(string folder)
+    public async Task<string> GetFolderHashAsync(string folder, IEnumerable<string> ignoreFolders, HashAlgorithm algorithm)
     {
+        var ignoreRegex = ignoreFolders.Select(f => new Regex($@"\b{f}\b")).ToArray();
+
         // assuming you want to include nested folders
-        var files = Directory.GetFiles(folder, "*", SearchOption.AllDirectories)
-                             .OrderBy(p => p)
-                             .ToList();
+        var files = await Task.WhenAll(
+            Directory.GetFiles(folder, "*", SearchOption.AllDirectories)
+                .Where(f => !ignoreRegex.Any(rgx => rgx.IsMatch(f)))
+                .OrderBy(p => p)
+                .Select(async f => new { ContentBytes = await File.ReadAllBytesAsync(f), Path = f })
+        );
 
-        var sha = SHA256.Create();
-
-        for (var i = 0; i < files.Count; i++)
+        foreach (var file in files)
         {
-            var file = files[i];
-
             // hash path
-            var relativePath = file.Substring(folder.Length + 1);
+            var relativePath = file.Path.Substring(folder.Length + 1);
             var pathBytes = Encoding.UTF8.GetBytes(relativePath.ToLower());
-            sha.TransformBlock(pathBytes, 0, pathBytes.Length, pathBytes, 0);
+            algorithm.TransformBlock(pathBytes, 0, pathBytes.Length, pathBytes, 0);
 
             // hash contents
-            var contentBytes = await File.ReadAllBytesAsync(file);
-            if (i == files.Count - 1)
-                sha.TransformFinalBlock(contentBytes, 0, contentBytes.Length);
+            var contentBytes = file.ContentBytes;
+            if (ReferenceEquals(file, files[files.Length - 1]))
+                algorithm.TransformFinalBlock(contentBytes, 0, contentBytes.Length);
             else
-                sha.TransformBlock(contentBytes, 0, contentBytes.Length, contentBytes, 0);
+                algorithm.TransformBlock(contentBytes, 0, contentBytes.Length, contentBytes, 0);
         }
 
-        return BitConverter.ToString(sha.Hash).Replace("-", "").ToLower();
+        if (algorithm.Hash == null)
+            throw new InvalidOperationException("Could not determine folder hash");
+
+        return BitConverter.ToString(algorithm.Hash).Replace("-", "").ToLower();
+    }
+
+    public async Task<string> GetFolderHashAsync(string folder)
+    {
+        var hash = await GetFolderHashAsync(folder, new string[0], SHA256.Create());
+        return hash;
+    }
+
+    public async Task<string> GetFolderHashAsync(string folder, IEnumerable<string> ignoreFolders)
+    {
+        var hash = await GetFolderHashAsync(folder, ignoreFolders, SHA256.Create());
+        return hash;
     }
 }

@@ -57,6 +57,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.FolderHasher", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.FolderHasher.Abstractions", "FolderHasher\MintPlayer.FolderHasher.Abstractions\MintPlayer.FolderHasher.Abstractions.csproj", "{22663A80-0813-47D0-AC10-E891CBC3A2BA}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.FolderHasher.Test", "FolderHasher\MintPlayer.FolderHasher.Test\MintPlayer.FolderHasher.Test.csproj", "{7B98D37E-ACB4-452E-A078-7AD99A347C95}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -135,6 +137,10 @@ Global
 		{22663A80-0813-47D0-AC10-E891CBC3A2BA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{22663A80-0813-47D0-AC10-E891CBC3A2BA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{22663A80-0813-47D0-AC10-E891CBC3A2BA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7B98D37E-ACB4-452E-A078-7AD99A347C95}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7B98D37E-ACB4-452E-A078-7AD99A347C95}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7B98D37E-ACB4-452E-A078-7AD99A347C95}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7B98D37E-ACB4-452E-A078-7AD99A347C95}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -158,6 +164,7 @@ Global
 		{8205168B-E516-4E06-8EC7-6C61C565CCD9} = {C5FE5E74-C82B-4597-8A6C-1347F2B309FE}
 		{C0A76EBE-CB21-49CD-8BD1-E5333B772ACF} = {4B15A9C0-0127-4CFA-B40B-E0E95CAAEA4B}
 		{22663A80-0813-47D0-AC10-E891CBC3A2BA} = {4B15A9C0-0127-4CFA-B40B-E0E95CAAEA4B}
+		{7B98D37E-ACB4-452E-A078-7AD99A347C95} = {4B15A9C0-0127-4CFA-B40B-E0E95CAAEA4B}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D5378D43-9246-4355-8C4B-880DB15B07DA}
