@@ -21,7 +21,7 @@ internal class FolderHasher : IFolderHasher
             var file = files[i];
 
             // hash path
-            var relativePath = file.Substring(path.Length + 1);
+            var relativePath = file.Substring(folder.Length + 1);
             var pathBytes = Encoding.UTF8.GetBytes(relativePath.ToLower());
             sha.TransformBlock(pathBytes, 0, pathBytes.Length, pathBytes, 0);
 
