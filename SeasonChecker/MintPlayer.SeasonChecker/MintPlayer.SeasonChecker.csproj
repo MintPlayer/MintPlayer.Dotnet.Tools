@@ -8,7 +8,7 @@
 		<PublishAot>true</PublishAot>
 
 		<IsPackable>true</IsPackable>
-		<Version>8.1.0</Version>
+		<Version>8.1.1</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package allows you to find the season for a certain date</Description>
@@ -27,13 +27,6 @@
 	<PropertyGroup Condition="'$(Configuration)'=='Release'">
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 	</PropertyGroup>
-
-	<ItemGroup>
-		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1">
-			<PrivateAssets>all</PrivateAssets>
-			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-		</PackageReference>
-	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\MintPlayer.SeasonChecker.Abstractions\MintPlayer.SeasonChecker.Abstractions.csproj" />
