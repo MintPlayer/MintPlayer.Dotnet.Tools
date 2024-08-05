@@ -128,14 +128,10 @@ public class EidWorker
         return EidCard.IsEid(atr) ? new EidCard(context, readerstate.szReader, atr) : new Card(context, readerstate.szReader, atr);
     }
 
-    public delegate void ReaderAttachedHandler(object sender, ReaderAttachedEventArgs e);
-    public event ReaderAttachedHandler? ReaderAttached;
-    public delegate void ReaderDetachedHandler(object sender, ReaderDetachedEventArgs e);
-    public event ReaderDetachedHandler? ReaderDetached;
-    public delegate void CardInsertEventHandler(object sender, CardInsertEventArgs e);
-    public event CardInsertEventHandler? CardInsert;
-    public delegate void CardRemovedEventHandler(object sender, CardRemovedEventArgs e);
-    public event CardRemovedEventHandler? CardRemoved;
+    public event EventHandler<ReaderAttachedEventArgs>? ReaderAttached;
+    public event EventHandler<ReaderDetachedEventArgs>? ReaderDetached;
+    public event EventHandler<CardInsertEventArgs>? CardInsert;
+    public event EventHandler<CardRemovedEventArgs>? CardRemoved;
 
     private CardContextSafeHandler CreateCardContext(EReaderScope scope)
     {
