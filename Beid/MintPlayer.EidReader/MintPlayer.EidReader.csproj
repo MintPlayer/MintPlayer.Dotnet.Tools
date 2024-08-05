@@ -28,13 +28,6 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1">
-			<PrivateAssets>all</PrivateAssets>
-			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-		</PackageReference>
-	</ItemGroup>
-
-	<ItemGroup>
 		<ProjectReference Include="..\MintPlayer.EidReader.Core\MintPlayer.EidReader.Core.csproj" />
 		<ProjectReference Include="..\MintPlayer.EidReader.Native\MintPlayer.EidReader.Native.csproj" />
 	</ItemGroup>
