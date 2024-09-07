@@ -15,7 +15,7 @@
 		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/EnumerableExtensions/MintPlayer.EnumerableExtensions</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
-		<PackageId>MintPlayer.Extensions.OrderBy</PackageId>
+		<PackageId>MintPlayer.EnumerableExtensions</PackageId>
 		<PackageTags>Random list item</PackageTags>
 		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
 		<IncludeSymbols>true</IncludeSymbols>
