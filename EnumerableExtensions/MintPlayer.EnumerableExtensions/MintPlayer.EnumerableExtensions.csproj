@@ -8,7 +8,7 @@
 		<PublishAot>true</PublishAot>
 
 		<IsPackable>true</IsPackable>
-		<Version>8.2.0</Version>
+		<Version>8.3.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains a method that picks a random entry from a list.</Description>
