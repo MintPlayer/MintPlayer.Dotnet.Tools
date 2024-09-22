@@ -52,4 +52,8 @@
 		<None Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 	</ItemGroup>
 
+	<ItemGroup>
+	  <ProjectReference Include="..\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj" />
+	</ItemGroup>
+
 </Project>
