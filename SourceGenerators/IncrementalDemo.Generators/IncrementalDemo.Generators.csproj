@@ -28,12 +28,6 @@
 		<RoslynVersion></RoslynVersion>
 		<!-- <RoslynVersion>roslyn4.0</RoslynVersion> -->
 		<BaseOutputPath>bin\$(RoslynVersion)\</BaseOutputPath>
-		<!--Metadata-->
-		<Authors>2sky NV</Authors>
-		<Description>Source generators package for Vidyano applications - https://www.vidyano.com/</Description>
-		<PackageProjectUrl>https://www.vidyano.com/</PackageProjectUrl>
-		<PackageIcon>Vidyano.png</PackageIcon>
-		<PackageTags>vidyano;sourcegenerator</PackageTags>
 	</PropertyGroup>
 	<!--<ItemGroup>
 		<Compile Update="**\*.*.cs">
