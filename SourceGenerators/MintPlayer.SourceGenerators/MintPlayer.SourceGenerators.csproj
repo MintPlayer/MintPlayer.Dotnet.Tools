@@ -28,7 +28,7 @@
 	</PropertyGroup>
 
 	<PropertyGroup>
-		<Version>1.1.1</Version>
+		<Version>1.1.2</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains several source generators</Description>

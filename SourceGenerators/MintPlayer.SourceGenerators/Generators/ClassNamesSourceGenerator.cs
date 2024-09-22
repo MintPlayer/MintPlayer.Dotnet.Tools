@@ -4,6 +4,8 @@ using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.Tools.ValueComparers;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Linq;
 using System.Text;
 
 namespace MintPlayer.SourceGenerators.Generators
@@ -56,8 +58,19 @@ namespace MintPlayer.SourceGenerators.Generators
                 // only call once
                 .Select(static (p, ct) => new Producers.ClassNamesProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!));
 
+            var classNameListSourceProvider = classNamesProvider
+                .WithComparer(ValueComparers.ClassDeclarationValueComparer.Instance)
+                // Group whatever you want
+                .Collect()
+
+                .Combine(config)
+                // only call once
+                .Select(static (p, ct) => new Producers.ClassNameListProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!));
+
             // Combine all Source Providers
-            var sourceProvider = classNamesSourceProvider;
+            var sourceProvider = classNamesSourceProvider
+                .Combine(classNameListSourceProvider)
+                .SelectMany(static (p, _) => new Producer[] { p.Left, p.Right });
 
             // Generate Code
             context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
