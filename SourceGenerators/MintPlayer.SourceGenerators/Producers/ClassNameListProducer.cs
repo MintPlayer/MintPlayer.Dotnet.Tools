@@ -7,10 +7,10 @@ using System.Threading;
 
 namespace MintPlayer.SourceGenerators.Producers
 {
-    public class ClassNamesProducer : Producer
+    public class ClassNameListProducer : Producer
     {
         private readonly IEnumerable<Models.ClassDeclaration> declarations;
-        public ClassNamesProducer(IEnumerable<Models.ClassDeclaration> declarations, string rootNamespace) : base(rootNamespace)
+        public ClassNameListProducer(IEnumerable<Models.ClassDeclaration> declarations, string rootNamespace) : base(rootNamespace)
         {
             this.declarations = declarations;
         }
@@ -22,18 +22,14 @@ namespace MintPlayer.SourceGenerators.Producers
             source.AppendLine();
             source.AppendLine($"namespace {RootNamespace};");
 
-            source.AppendLine("public static class ClassNames");
+            source.AppendLine("public static class ClassNameList");
             source.AppendLine("{");
-
-            foreach (var declaration in declarations)
-            {
-                source.AppendLine($"    public const string {declaration.Name} = \"{declaration.Name}\";");
-            }
-
+            var list = string.Join(", ", declarations.Select(d => $"\"{d.Name}\""));
+            source.AppendLine($"    public static string[] List => [{list}];");
             source.AppendLine("}");
 
             var sourceText = source.ToString();
-            var fileName = $"ClassNames.g.cs";
+            var fileName = $"ClassNameList.g.cs";
 
             return new ProducedSource { FileName = fileName, Source = sourceText };
         }
