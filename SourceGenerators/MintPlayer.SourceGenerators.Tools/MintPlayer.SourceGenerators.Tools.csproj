@@ -6,7 +6,7 @@
 	</PropertyGroup>
 
 	<PropertyGroup>
-		<Version>1.0.5</Version>
+		<Version>1.1.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains useful tools for building source generators</Description>
@@ -27,11 +27,4 @@
 		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" />
 	</ItemGroup>
 
-	<ItemGroup>
-	  <None Update="MintPlayer.SourceGenerators.dll">
-	    <PackagePath>analyzers/dotnet/cs</PackagePath>
-	    <Visible>false</Visible>
-	    <Pack>true</Pack>
-	  </None>
-	</ItemGroup>
 </Project>
