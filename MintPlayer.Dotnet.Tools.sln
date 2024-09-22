@@ -61,7 +61,15 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MintPlayer.FolderHasher.Tes
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "GraphQL", "GraphQL", "{1648ABC5-147D-45A6-B5EA-A2DF6116838C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.GraphQL.Tools", "GraphQL\MintPlayer.GraphQL.Tools\MintPlayer.GraphQL.Tools.csproj", "{6C95D546-CE6D-495D-957B-B9E5756F2E93}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MintPlayer.GraphQL.Tools", "GraphQL\MintPlayer.GraphQL.Tools\MintPlayer.GraphQL.Tools.csproj", "{6C95D546-CE6D-495D-957B-B9E5756F2E93}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SourceGenerators", "SourceGenerators", "{CA85E619-5EC1-480A-8C84-5EC3EB3F8D9A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.SourceGenerators.Tools", "SourceGenerators\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj", "{F52167CD-6F8B-4A4A-9B81-F9F444964EDE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.SourceGenerators.Debug", "SourceGenerators\MintPlayer.SourceGenerators.Debug\MintPlayer.SourceGenerators.Debug.csproj", "{B1053CAF-3860-4572-8C18-04C06503F66D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.SourceGenerators", "SourceGenerators\MintPlayer.SourceGenerators\MintPlayer.SourceGenerators.csproj", "{4E9B7652-C96F-4D4C-84D4-A9F6F623378A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -149,6 +157,18 @@ Global
 		{6C95D546-CE6D-495D-957B-B9E5756F2E93}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6C95D546-CE6D-495D-957B-B9E5756F2E93}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6C95D546-CE6D-495D-957B-B9E5756F2E93}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F52167CD-6F8B-4A4A-9B81-F9F444964EDE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F52167CD-6F8B-4A4A-9B81-F9F444964EDE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F52167CD-6F8B-4A4A-9B81-F9F444964EDE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F52167CD-6F8B-4A4A-9B81-F9F444964EDE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B1053CAF-3860-4572-8C18-04C06503F66D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B1053CAF-3860-4572-8C18-04C06503F66D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B1053CAF-3860-4572-8C18-04C06503F66D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B1053CAF-3860-4572-8C18-04C06503F66D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4E9B7652-C96F-4D4C-84D4-A9F6F623378A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4E9B7652-C96F-4D4C-84D4-A9F6F623378A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4E9B7652-C96F-4D4C-84D4-A9F6F623378A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4E9B7652-C96F-4D4C-84D4-A9F6F623378A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -174,6 +194,9 @@ Global
 		{22663A80-0813-47D0-AC10-E891CBC3A2BA} = {4B15A9C0-0127-4CFA-B40B-E0E95CAAEA4B}
 		{7B98D37E-ACB4-452E-A078-7AD99A347C95} = {4B15A9C0-0127-4CFA-B40B-E0E95CAAEA4B}
 		{6C95D546-CE6D-495D-957B-B9E5756F2E93} = {1648ABC5-147D-45A6-B5EA-A2DF6116838C}
+		{F52167CD-6F8B-4A4A-9B81-F9F444964EDE} = {CA85E619-5EC1-480A-8C84-5EC3EB3F8D9A}
+		{B1053CAF-3860-4572-8C18-04C06503F66D} = {CA85E619-5EC1-480A-8C84-5EC3EB3F8D9A}
+		{4E9B7652-C96F-4D4C-84D4-A9F6F623378A} = {CA85E619-5EC1-480A-8C84-5EC3EB3F8D9A}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D5378D43-9246-4355-8C4B-880DB15B07DA}

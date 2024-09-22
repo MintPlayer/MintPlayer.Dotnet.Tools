@@ -1,11 +1,13 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net8.0</TargetFramework>
+		<!--<TargetFramework>net8.0</TargetFramework>-->
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<LangVersion>12</LangVersion>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<OutputType>Library</OutputType>
-		<PublishAot>true</PublishAot>
+		<!--<PublishAot>true</PublishAot>-->
 
 		<IsPackable>true</IsPackable>
 		<Version>8.3.0</Version>
