@@ -20,10 +20,10 @@
 		<IncludeBuildOutput>false</IncludeBuildOutput>
 		<IsRoslynComponent>true</IsRoslynComponent>
 		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-		<SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+		<!--<SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>-->
 		<RoslynVersion></RoslynVersion>
 		<!-- <RoslynVersion>roslyn4.0</RoslynVersion> -->
-		<BaseOutputPath>bin\$(RoslynVersion)\</BaseOutputPath>
+		<!--<BaseOutputPath>bin\$(RoslynVersion)\</BaseOutputPath>-->
 	</PropertyGroup>
 
 	<PropertyGroup>
