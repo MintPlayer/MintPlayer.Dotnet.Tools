@@ -65,9 +65,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MintPlayer.GraphQL.Tools", 
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SourceGenerators", "SourceGenerators", "{C65054D9-CAD1-4124-B474-D03C178D9D78}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "IncrementalDemo.Generators", "SourceGenerators\IncrementalDemo.Generators\IncrementalDemo.Generators.csproj", "{5443B482-6AE1-451F-A9DE-A57250226D72}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MintPlayer.SourceGenerators", "SourceGenerators\MintPlayer.SourceGenerators\MintPlayer.SourceGenerators.csproj", "{5443B482-6AE1-451F-A9DE-A57250226D72}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "IncrementalDemo.Debug", "SourceGenerators\IncrementalDemo.Debug\IncrementalDemo.Debug.csproj", "{0B0FAF67-B255-44D9-9D9B-D4E9CD9E7D2B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MintPlayer.SourceGenerators.Debug", "SourceGenerators\MintPlayer.SourceGenerators.Debug\MintPlayer.SourceGenerators.Debug.csproj", "{0B0FAF67-B255-44D9-9D9B-D4E9CD9E7D2B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

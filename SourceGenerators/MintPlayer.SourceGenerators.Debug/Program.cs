@@ -1,4 +1,4 @@
-﻿namespace IncrementalDemo.Debug;
+﻿namespace MintPlayer.SourceGenerators.Debug;
 
 internal class Program
 {

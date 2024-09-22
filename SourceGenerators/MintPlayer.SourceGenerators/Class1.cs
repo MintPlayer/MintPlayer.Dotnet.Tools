@@ -11,7 +11,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 
-namespace IncrementalDemo.Generators;
+namespace MintPlayer.SourceGenerators;
 
 [Generator(LanguageNames.CSharp)]
 public class ClassNamesSourceGenerator : IIncrementalGenerator

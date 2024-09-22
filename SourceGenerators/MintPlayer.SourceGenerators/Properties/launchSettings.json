@@ -2,7 +2,7 @@
   "profiles": {
     "Debug Source Generators": {
       "commandName": "DebugRoslynComponent",
-      "targetProject": "..\\IncrementalDemo.Debug\\IncrementalDemo.Debug.csproj"
+      "targetProject": "..\\MintPlayer.SourceGenerators.Debug\\MintPlayer.SourceGenerators.Debug.csproj"
     }
   }
 }
