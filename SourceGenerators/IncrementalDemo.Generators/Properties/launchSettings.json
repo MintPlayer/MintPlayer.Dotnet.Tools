@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Debug Source Generators": {
+      "commandName": "DebugRoslynComponent",
+      "targetProject": "..\\IncrementalDemo.Debug\\IncrementalDemo.Debug.csproj"
+    }
+  }
+}
