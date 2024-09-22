@@ -16,11 +16,7 @@
 		<!--<TargetFramework>net8.0</TargetFramework>-->
 		<!-- Cannot use Collection Expressions from C#12. Use C#11 instead -->
 		<LangVersion>11</LangVersion>
-		<Version>2.12.0</Version>
 		<Nullable>enable</Nullable>
-		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-		<DebugType>embedded</DebugType>
-		<WarningsAsErrors>CS8600;CS8602;CS8604;CS8618;CS8625;CS8765</WarningsAsErrors>
 		<IncludeBuildOutput>false</IncludeBuildOutput>
 		<IsRoslynComponent>true</IsRoslynComponent>
 		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
@@ -29,6 +25,23 @@
 		<!-- <RoslynVersion>roslyn4.0</RoslynVersion> -->
 		<BaseOutputPath>bin\$(RoslynVersion)\</BaseOutputPath>
 	</PropertyGroup>
+
+	<PropertyGroup>
+		<Version>1.0.0</Version>
+		<Authors>Pieterjan De Clippel</Authors>
+		<Company>MintPlayer</Company>
+		<Description>This package contains several source generators</Description>
+		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/SourceGenerators/MintPlayer.SourceGenerators</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageId>MintPlayer.SourceGenerators</PackageId>
+		<PackageTags>SourceGenerators</PackageTags>
+		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<DebugType>embedded</DebugType>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+	</PropertyGroup>
+	
 	<!--<ItemGroup>
 		<Compile Update="**\*.*.cs">
 			<DependentUpon>$([System.Text.RegularExpressions.Regex]::Replace(%(Filename), '(?:.(?![.]))+$', %(Extension)))</DependentUpon>
