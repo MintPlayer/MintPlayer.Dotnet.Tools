@@ -2,28 +2,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPaths</GetTargetPathDependsOn>
-	</PropertyGroup>
-
-	<Target Name="GetDependencyTargetPaths">
-		<ItemGroup>
-			<TargetPathWithTargetPlatformMoniker Include="$(PKGNewtonsoft_Json)\lib\netstandard2.0\Newtonsoft.Json.dll" IncludeRuntimeDependency="false" />
-		</ItemGroup>
-	</Target>
-
-	<PropertyGroup>
 		<TargetFramework>netstandard2.0</TargetFramework>
-		<!--<TargetFramework>net8.0</TargetFramework>-->
-		<!-- Cannot use Collection Expressions from C#12. Use C#11 instead -->
 		<LangVersion>11</LangVersion>
 		<Nullable>enable</Nullable>
-		<IncludeBuildOutput>false</IncludeBuildOutput>
-		<IsRoslynComponent>true</IsRoslynComponent>
-		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-		<SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
-		<RoslynVersion></RoslynVersion>
-		<!-- <RoslynVersion>roslyn4.0</RoslynVersion> -->
-		<BaseOutputPath>bin\$(RoslynVersion)\</BaseOutputPath>
 	</PropertyGroup>
 
 	<PropertyGroup>
