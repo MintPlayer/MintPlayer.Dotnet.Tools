@@ -12,8 +12,8 @@
 	</Target>
 
 	<PropertyGroup>
-		<!--<TargetFramework>netstandard2.0</TargetFramework>-->
-		<TargetFramework>net8.0</TargetFramework>
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<!--<TargetFramework>net8.0</TargetFramework>-->
 		<!-- Cannot use Collection Expressions from C#12. Use C#11 instead -->
 		<LangVersion>11</LangVersion>
 		<Version>2.12.0</Version>
