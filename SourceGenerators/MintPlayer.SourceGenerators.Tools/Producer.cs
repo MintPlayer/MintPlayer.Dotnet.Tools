@@ -26,7 +26,7 @@ namespace MintPlayer.SourceGenerators.Tools
 
         public string RootNamespace { get; }
 
-        protected abstract ProducedSource ProduceSource(CancellationToken cancellationToken);
+        protected abstract ProducedSource? ProduceSource(CancellationToken cancellationToken);
 
         public void Produce(SourceProductionContext context)
         {

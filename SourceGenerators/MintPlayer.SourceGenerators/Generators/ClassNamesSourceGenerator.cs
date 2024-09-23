@@ -74,6 +74,33 @@ namespace MintPlayer.SourceGenerators.Generators
 
             // Generate Code
             context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
+            //context.RegisterSourceOutput(static (c, g) => g?.Produce(c), classNamesSourceProvider, classNameListSourceProvider);
         }
+    }
+
+    public static partial class Ext
+    {
+        [GenericMethod(Count = 5, Transformer = typeof(GenericMethodTransformer))]
+        public static void RegisterSourceOutput(this IncrementalGeneratorInitializationContext context, Action<SourceProductionContext, Producer> action)
+        {
+        }
+
+        //    public static void RegisterSourceOutput<T1, T2>(this IncrementalGeneratorInitializationContext context, Action<SourceProductionContext, Producer> action, IncrementalValueProvider<T1> p1, IncrementalValueProvider<T2> p2)
+        //    {
+
+        //    }
+        //    public static void RegisterSourceOutput<T1, T2, T3>(this IncrementalGeneratorInitializationContext context, Action<SourceProductionContext, Producer> action, IncrementalValueProvider<T1> p1, IncrementalValueProvider<T2> p2, IncrementalValueProvider<T3> p3)
+        //    {
+
+        //    }
+    }
+
+    public class GenericMethodTransformer : IGenericMethodTransformer
+    {
+        public string Transform(string name) => $"IncrementalValueProvider<{name}>";
+    }
+    public interface IGenericMethodTransformer
+    {
+        string Transform(string name);
     }
 }
