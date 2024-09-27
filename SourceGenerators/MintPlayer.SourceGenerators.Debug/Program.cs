@@ -31,7 +31,7 @@ namespace MintPlayer.SourceGenerators.Debug1
 
     public partial class Class1
     {
-        [GenericMethod(Count = 5)]
+        //[GenericMethod(Count = 5)]
         private static void SomeGenericMethod(params object[] parameters)
         {
             var parameterString = string.Join(", ", parameters);
