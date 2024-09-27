@@ -30,7 +30,7 @@ namespace MintPlayer.SourceGenerators.Generators
                 })
                 .WithComparer(SettingsValueComparer.Instance);
 
-            var classNamesProvider = context.SyntaxProvider
+            var classDeclarationsProvider = context.SyntaxProvider
                 .CreateSyntaxProvider(
                     static (node, ct) =>
                     {
@@ -52,11 +52,11 @@ namespace MintPlayer.SourceGenerators.Generators
                 .WithComparer(ValueComparers.ClassDeclarationValueComparer.Instance)
                 .Collect();
 
-            var classNamesSourceProvider = classNamesProvider
+            var classNamesSourceProvider = classDeclarationsProvider
                 .Combine(config)
                 .Select(static (p, ct) => new Producers.ClassNamesProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!));
 
-            var classNameListSourceProvider = classNamesProvider
+            var classNameListSourceProvider = classDeclarationsProvider
                 .Combine(config)
                 .Select(static (p, ct) => new Producers.ClassNameListProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!));
 
