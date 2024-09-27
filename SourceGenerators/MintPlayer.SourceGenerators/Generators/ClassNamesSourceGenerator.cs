@@ -30,41 +30,34 @@ namespace MintPlayer.SourceGenerators.Generators
                 })
                 .WithComparer(SettingsValueComparer.Instance);
 
-            var classNamesProvider = context.SyntaxProvider.CreateSyntaxProvider(
-                static (node, ct) =>
-                {
-                    return node is ClassDeclarationSyntax { } classDeclaration;
-                },
-                static (context, ct) =>
-                {
-                    if (context.Node is ClassDeclarationSyntax classDeclaration &&
-                        context.SemanticModel.GetDeclaredSymbol(classDeclaration, ct) is INamedTypeSymbol symbol)
+            var classNamesProvider = context.SyntaxProvider
+                .CreateSyntaxProvider(
+                    static (node, ct) =>
                     {
-                        return new Models.ClassDeclaration { Name = symbol.Name };
-                    }
-                    else
+                        return node is ClassDeclarationSyntax { } classDeclaration;
+                    },
+                    static (context, ct) =>
                     {
-                        return default;
+                        if (context.Node is ClassDeclarationSyntax classDeclaration &&
+                            context.SemanticModel.GetDeclaredSymbol(classDeclaration, ct) is INamedTypeSymbol symbol)
+                        {
+                            return new Models.ClassDeclaration { Name = symbol.Name };
+                        }
+                        else
+                        {
+                            return default;
+                        }
                     }
-                }
-            );
+                )
+                .WithComparer(ValueComparers.ClassDeclarationValueComparer.Instance)
+                .Collect();
 
             var classNamesSourceProvider = classNamesProvider
-                .WithComparer(ValueComparers.ClassDeclarationValueComparer.Instance)
-                // Group whatever you want
-                .Collect()
-
                 .Combine(config)
-                // only call once
                 .Select(static (p, ct) => new Producers.ClassNamesProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!));
 
             var classNameListSourceProvider = classNamesProvider
-                .WithComparer(ValueComparers.ClassDeclarationValueComparer.Instance)
-                // Group whatever you want
-                .Collect()
-
                 .Combine(config)
-                // only call once
                 .Select(static (p, ct) => new Producers.ClassNameListProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!));
 
             // Combine all Source Providers
@@ -74,7 +67,6 @@ namespace MintPlayer.SourceGenerators.Generators
 
             // Generate Code
             context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
-            //context.RegisterSourceOutput(static (c, g) => g?.Produce(c), classNamesSourceProvider, classNameListSourceProvider);
         }
     }
 
