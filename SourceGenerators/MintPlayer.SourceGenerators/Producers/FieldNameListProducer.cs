@@ -20,7 +20,6 @@ namespace MintPlayer.SourceGenerators.Producers
             var source = new StringBuilder();
             source.AppendLine(Header);
             source.AppendLine();
-            source.AppendLine($"namespace {RootNamespace};");
 
             foreach (var declaration in declarations.GroupBy(d => d.Namespace))
             {
@@ -34,7 +33,7 @@ namespace MintPlayer.SourceGenerators.Producers
                     source.AppendLine("        {");
                     foreach (var s in classDeclaration)
                     {
-                        source.AppendLine($"            this.{s.Name} = {s.Name}");
+                        source.AppendLine($"            this.{s.Name} = {s.Name};");
                     }
                     source.AppendLine("        }");
                     source.AppendLine("    }");

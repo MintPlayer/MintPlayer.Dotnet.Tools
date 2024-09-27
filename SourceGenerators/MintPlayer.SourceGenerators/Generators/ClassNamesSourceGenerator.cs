@@ -79,7 +79,7 @@ namespace MintPlayer.SourceGenerators.Generators
                                                 globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
                                                 typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
                                             )),
-                                            ClassName = symbol.Name,
+                                            ClassName = classSymbol.Name,
                                             Name = symbol.Name,
                                             FullyQualifiedTypeName = symbol.Type.ToDisplayString(new SymbolDisplayFormat(
                                                 globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
