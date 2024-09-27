@@ -7,7 +7,7 @@ using System.Threading;
 
 namespace MintPlayer.SourceGenerators.Producers
 {
-    internal class ClassNameListProducer : Producer
+    public class ClassNameListProducer : Producer
     {
         private readonly IEnumerable<Models.ClassDeclaration> declarations;
         public ClassNameListProducer(IEnumerable<Models.ClassDeclaration> declarations, string rootNamespace) : base(rootNamespace)

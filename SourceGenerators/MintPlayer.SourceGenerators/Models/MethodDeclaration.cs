@@ -6,7 +6,7 @@ using System.Text;
 
 namespace MintPlayer.SourceGenerators.Models
 {
-    internal class MethodDeclaration
+    public class MethodDeclaration
     {
         public string? MethodName { get; set; }
         public string? ClassName { get; set; }

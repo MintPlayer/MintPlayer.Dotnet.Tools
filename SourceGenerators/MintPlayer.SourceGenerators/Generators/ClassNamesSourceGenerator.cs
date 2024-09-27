@@ -12,7 +12,7 @@ using System.Text;
 namespace MintPlayer.SourceGenerators.Generators
 {
     [Generator(LanguageNames.CSharp)]
-    internal class ClassNamesSourceGenerator : IIncrementalGenerator
+    public class ClassNamesSourceGenerator : IIncrementalGenerator
     {
         public ClassNamesSourceGenerator()
         {

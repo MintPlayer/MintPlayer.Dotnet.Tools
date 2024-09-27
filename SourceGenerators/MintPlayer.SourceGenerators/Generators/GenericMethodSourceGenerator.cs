@@ -11,7 +11,7 @@ using Microsoft.CodeAnalysis.CSharp;
 namespace MintPlayer.SourceGenerators.Generators
 {
     [Generator(LanguageNames.CSharp)]
-    internal class GenericMethodSourceGenerator : IIncrementalGenerator
+    public class GenericMethodSourceGenerator : IIncrementalGenerator
     {
         public GenericMethodSourceGenerator()
         {

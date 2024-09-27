@@ -28,7 +28,7 @@
 	</PropertyGroup>
 
 	<PropertyGroup>
-		<Version>1.3.0</Version>
+		<Version>1.3.1</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains several source generators</Description>
@@ -65,7 +65,7 @@
 		<None Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="false" />-->
 
 		<!-- Assets for this project-->
-		<None Include="$(MSBuildThisFileDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
+		<None Include="$(MSBuildThisFileDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 		<!--<None Include="$(MSBuildThisFileDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).pdb" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />-->
 
 		<!-- Newtonsoft.Json -->
@@ -76,6 +76,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<ProjectReference Include="..\MintPlayer.SourceGenerators.Attributes\MintPlayer.SourceGenerators.Attributes.csproj" />
 		<ProjectReference Include="..\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj" PrivateAssets="all" /> <!--  GeneratePathProperty="true" -->
 	</ItemGroup>
 
