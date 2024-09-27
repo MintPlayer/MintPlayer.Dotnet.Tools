@@ -39,8 +39,8 @@
 		<PackageTags>SourceGenerators</PackageTags>
 		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
 		<!--<DebugType>embedded</DebugType>-->
-		<IncludeSymbols>true</IncludeSymbols>
-		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<IncludeSymbols>false</IncludeSymbols>
+		<!--<SymbolPackageFormat>snupkg</SymbolPackageFormat>-->
 		<!--<AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>-->
 	</PropertyGroup>
 
