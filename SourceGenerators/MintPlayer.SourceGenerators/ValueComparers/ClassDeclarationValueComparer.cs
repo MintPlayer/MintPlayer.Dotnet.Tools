@@ -6,7 +6,7 @@ using System.Text;
 
 namespace MintPlayer.SourceGenerators.ValueComparers
 {
-    internal class ClassDeclarationValueComparer : ValueComparer<ClassDeclaration>
+    public class ClassDeclarationValueComparer : ValueComparer<ClassDeclaration>
     {
         protected override bool AreEqual(ClassDeclaration x, ClassDeclaration y)
         {

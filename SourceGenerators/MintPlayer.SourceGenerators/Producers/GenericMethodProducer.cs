@@ -10,7 +10,7 @@ using System.Xml.Linq;
 
 namespace MintPlayer.SourceGenerators.Producers
 {
-    internal class GenericMethodProducer : Producer
+    public class GenericMethodProducer : Producer
     {
         public GenericMethodProducer(Models.GenericMethodDeclaration method, string rootNamespace) : base(rootNamespace)
         {
