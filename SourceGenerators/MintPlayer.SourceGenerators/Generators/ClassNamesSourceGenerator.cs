@@ -1,4 +1,5 @@
 ﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.Tools.ValueComparers;
@@ -16,7 +17,7 @@ namespace MintPlayer.SourceGenerators.Generators
         public ClassNamesSourceGenerator()
         {
         }
-            
+
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
             var config = context.AnalyzerConfigOptionsProvider
@@ -30,51 +31,109 @@ namespace MintPlayer.SourceGenerators.Generators
                 })
                 .WithComparer(SettingsValueComparer.Instance);
 
-            var classNamesProvider = context.SyntaxProvider.CreateSyntaxProvider(
-                static (node, ct) =>
-                {
-                    return node is ClassDeclarationSyntax { } classDeclaration;
-                },
-                static (context, ct) =>
-                {
-                    if (context.Node is ClassDeclarationSyntax classDeclaration &&
-                        context.SemanticModel.GetDeclaredSymbol(classDeclaration, ct) is INamedTypeSymbol symbol)
+            var classDeclarationsProvider = context.SyntaxProvider
+                .CreateSyntaxProvider(
+                    static (node, ct) =>
                     {
-                        return new Models.ClassDeclaration { Name = symbol.Name };
+                        return node is ClassDeclarationSyntax { } classDeclaration;
+                    },
+                    static (context, ct) =>
+                    {
+                        if (context.Node is ClassDeclarationSyntax classDeclaration &&
+                            context.SemanticModel.GetDeclaredSymbol(classDeclaration, ct) is INamedTypeSymbol symbol)
+                        {
+                            return new Models.ClassDeclaration
+                            {
+                                Name = symbol.Name,
+                            };
+                        }
+                        else
+                        {
+                            return default;
+                        }
                     }
-                    else
+                )
+                .WithComparer(ValueComparers.ClassDeclarationValueComparer.Instance)
+                .Collect();
+
+            var fieldDeclarationsProvider = context.SyntaxProvider
+                .CreateSyntaxProvider(
+                    static (node, ct) => node is FieldDeclarationSyntax { AttributeLists.Count: > 0 } fieldDeclaration
+                        && fieldDeclaration.Modifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.ReadOnlyKeyword),
+                    static (context2, ct) =>
                     {
+                        if (context2.Node is FieldDeclarationSyntax fieldDeclaration &&
+                            fieldDeclaration.Declaration.Variables.Count == 1 &&
+                            context2.SemanticModel.GetDeclaredSymbol(fieldDeclaration.Declaration.Variables[0], ct) is IFieldSymbol symbol)
+                        {
+                            if (fieldDeclaration.Parent is ClassDeclarationSyntax classDeclaration)
+                            {
+                                var classSymbol = context2.SemanticModel.GetDeclaredSymbol(classDeclaration);
+                                switch (classDeclaration.Parent)
+                                {
+                                    case NamespaceDeclarationSyntax namespaceDeclaration:
+                                        return new Models.FieldDeclaration
+                                        {
+                                            Namespace = namespaceDeclaration.Name.ToString(),
+                                            FullyQualifiedClassName = classSymbol.ToDisplayString(new SymbolDisplayFormat(
+                                                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                                                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
+                                            )),
+                                            ClassName = symbol.Name,
+                                            Name = symbol.Name,
+                                            FullyQualifiedTypeName = symbol.Type.ToDisplayString(new SymbolDisplayFormat(
+                                                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                                                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
+                                            )),
+                                            Type = symbol.Type.Name,
+                                        };
+                                    case FileScopedNamespaceDeclarationSyntax fileScopedNamespaceDeclaration:
+                                        return new Models.FieldDeclaration
+                                        {
+                                            Namespace = fileScopedNamespaceDeclaration.Name.ToString(),
+                                            FullyQualifiedClassName = classSymbol.ToDisplayString(new SymbolDisplayFormat(
+                                                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                                                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
+                                            )),
+                                            ClassName = classSymbol.Name,
+                                            Name = symbol.Name,
+                                            FullyQualifiedTypeName = symbol.Type.ToDisplayString(new SymbolDisplayFormat(
+                                                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                                                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
+                                            )),
+                                            Type = symbol.Type.Name,
+                                        };
+                                }
+
+                            }
+                        }
+                     
                         return default;
                     }
-                }
-            );
+                )
+                .Collect();
 
-            var classNamesSourceProvider = classNamesProvider
-                .WithComparer(ValueComparers.ClassDeclarationValueComparer.Instance)
-                // Group whatever you want
-                .Collect()
-
+            var classNamesSourceProvider = classDeclarationsProvider
                 .Combine(config)
-                // only call once
                 .Select(static (p, ct) => new Producers.ClassNamesProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!));
 
-            var classNameListSourceProvider = classNamesProvider
-                .WithComparer(ValueComparers.ClassDeclarationValueComparer.Instance)
-                // Group whatever you want
-                .Collect()
-
+            var classNameListSourceProvider = classDeclarationsProvider
                 .Combine(config)
-                // only call once
                 .Select(static (p, ct) => new Producers.ClassNameListProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!));
+
+            var fieldDeclarationSourceProvider = fieldDeclarationsProvider
+                .Combine(config)
+                .Select(static (p, ct) => new Producers.FieldNameListProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!));
 
             // Combine all Source Providers
             var sourceProvider = classNamesSourceProvider
                 .Combine(classNameListSourceProvider)
+                .SelectMany(static (p, _) => new Producer[] { p.Left, p.Right })
+                .Combine(fieldDeclarationSourceProvider)
                 .SelectMany(static (p, _) => new Producer[] { p.Left, p.Right });
 
             // Generate Code
             context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
-            //context.RegisterSourceOutput(static (c, g) => g?.Produce(c), classNamesSourceProvider, classNameListSourceProvider);
         }
     }
 
