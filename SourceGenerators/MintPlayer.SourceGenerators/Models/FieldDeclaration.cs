@@ -4,7 +4,7 @@ using System.Text;
 
 namespace MintPlayer.SourceGenerators.Models
 {
-    public class FieldDeclaration
+    internal class FieldDeclaration
     {
         public string? Name { get; set; }
         public string? FullyQualifiedClassName { get; set; }

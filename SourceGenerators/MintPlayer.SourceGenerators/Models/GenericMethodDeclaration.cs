@@ -4,7 +4,7 @@ using System.Text;
 
 namespace MintPlayer.SourceGenerators.Models
 {
-    public class GenericMethodDeclaration
+    internal class GenericMethodDeclaration
     {
         public MethodDeclaration? Method { get; set; }
         public int Count { get; set; }

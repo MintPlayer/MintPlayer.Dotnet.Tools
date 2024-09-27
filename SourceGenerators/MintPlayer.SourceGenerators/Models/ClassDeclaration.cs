@@ -7,7 +7,7 @@ using System.Text;
 namespace MintPlayer.SourceGenerators.Models
 {
     [ValueComparer(typeof(ClassDeclarationValueComparer))]
-    public class ClassDeclaration
+    internal class ClassDeclaration
     {
         public string? Name { get; set; }
     }
