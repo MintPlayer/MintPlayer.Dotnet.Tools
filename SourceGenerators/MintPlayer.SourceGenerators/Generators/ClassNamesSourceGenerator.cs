@@ -127,6 +127,7 @@ namespace MintPlayer.SourceGenerators.Generators
                         return default;
                     }
                 )
+                .WithComparer(ValueComparers.FieldDeclarationComparer.Instance)
                 .Collect();
 
             var classNamesSourceProvider = classDeclarationsProvider

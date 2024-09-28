@@ -34,7 +34,7 @@ namespace MintPlayer.SourceGenerators.Tools
             var result = ProduceSource(context.CancellationToken);
             if (result is { FileName: not null, Source: not null } producedSource)
             {
-                if (producedSource.FileName == "Classes.g.cs") Debugger.Break();
+                if (producedSource.FileName == "FieldNameList.g.cs") Debugger.Break();
                 context.AddSource(producedSource.FileName, SourceText.From(producedSource.Source, Encoding.UTF8));
             }
         }

@@ -51,7 +51,7 @@ namespace MintPlayer.SourceGenerators.Producers
 
 
             var sourceText = source.ToString();
-            var fileName = $"Classes.g.cs";
+            var fileName = $"FieldNameList.g.cs";
 
             return new ProducedSource { FileName = fileName, Source = sourceText };
         }

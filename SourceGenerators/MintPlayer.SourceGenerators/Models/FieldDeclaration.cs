@@ -1,9 +1,12 @@
-﻿using System;
+﻿using MintPlayer.SourceGenerators.Tools;
+using MintPlayer.SourceGenerators.ValueComparers;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
 namespace MintPlayer.SourceGenerators.Models
 {
+    [ValueComparer(typeof(FieldDeclarationComparer))]
     public class FieldDeclaration
     {
         public string? Name { get; set; }
