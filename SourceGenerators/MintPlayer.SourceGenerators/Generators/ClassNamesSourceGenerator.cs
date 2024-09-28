@@ -145,10 +145,10 @@ namespace MintPlayer.SourceGenerators.Generators
             // Combine all Source Providers
             var sourceProvider = classNamesSourceProvider
                 .Combine(fieldDeclarationSourceProvider)
-                .SelectMany(static (p, _) => new Producer[] { p.Left }.OfType<Producer>().Concat(new Producer[] { p.Right }.OfType<Producer>()))
+                .SelectMany(static (p, _) => new Producer[] { p.Left }.Concat(new Producer[] { p.Right }))
                 .Collect()
                 .Combine(classNameListSourceProvider)
-                .SelectMany(static (p, _) => p.Left.OfType<Producer>().Concat(new Producer[] { p.Right }.OfType<Producer>()));
+                .SelectMany(static (p, _) => p.Left.Concat(new Producer[] { p.Right }));
 
             // Generate Code
             context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
