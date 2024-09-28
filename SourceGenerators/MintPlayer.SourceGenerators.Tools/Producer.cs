@@ -1,11 +1,11 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
+using System.Diagnostics;
 using System.Text;
 using System.Threading;
 
 namespace MintPlayer.SourceGenerators.Tools
 {
-
     public abstract class Producer
     {
         protected Producer(string rootNamespace)
@@ -34,6 +34,7 @@ namespace MintPlayer.SourceGenerators.Tools
             var result = ProduceSource(context.CancellationToken);
             if (result is { FileName: not null, Source: not null } producedSource)
             {
+                if (producedSource.FileName == "Classes.g.cs") Debugger.Break();
                 context.AddSource(producedSource.FileName, SourceText.From(producedSource.Source, Encoding.UTF8));
             }
         }
