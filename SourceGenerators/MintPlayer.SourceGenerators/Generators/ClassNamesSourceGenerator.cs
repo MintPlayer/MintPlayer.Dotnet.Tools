@@ -145,7 +145,7 @@ namespace MintPlayer.SourceGenerators.Generators
             // Combine all Source Providers
             var sourceProvider = classNamesSourceProvider
                 .Combine(fieldDeclarationSourceProvider)
-                .SelectMany(static (p, _) => new Producer[] { p.Left }.Concat(new Producer[] { p.Right }))
+                .SelectMany(static (p, _) => new Producer[] { p.Left, p.Right })
                 .Collect()
                 .Combine(classNameListSourceProvider)
                 .SelectMany(static (p, _) => p.Left.Concat(new Producer[] { p.Right }));
