@@ -35,6 +35,8 @@ namespace MintPlayer.SourceGenerators.Tools
             if (result is { FileName: not null, Source: not null } producedSource)
             {
                 if (producedSource.FileName == "FieldNameList.g.cs") Debugger.Break();
+                if (producedSource.FileName == "ClassNames.g.cs") Debugger.Break();
+                if (producedSource.FileName == "ClassNameList.g.cs") Debugger.Break();
                 try
                 {
                     context.AddSource(producedSource.FileName, SourceText.From(producedSource.Source, Encoding.UTF8));
