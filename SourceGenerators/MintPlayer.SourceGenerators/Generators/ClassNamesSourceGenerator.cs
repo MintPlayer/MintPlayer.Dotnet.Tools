@@ -103,6 +103,22 @@ namespace MintPlayer.SourceGenerators.Generators
                                             )),
                                             Type = symbol.Type.Name,
                                         };
+                                    default:
+                                        return new Models.FieldDeclaration
+                                        {
+                                            Namespace = null,
+                                            FullyQualifiedClassName = classSymbol.ToDisplayString(new SymbolDisplayFormat(
+                                                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                                                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
+                                            )),
+                                            ClassName = classSymbol.Name,
+                                            Name = symbol.Name,
+                                            FullyQualifiedTypeName = symbol.Type.ToDisplayString(new SymbolDisplayFormat(
+                                                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                                                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
+                                            )),
+                                            Type = symbol.Type.Name,
+                                        };
                                 }
 
                             }

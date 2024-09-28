@@ -23,8 +23,12 @@ namespace MintPlayer.SourceGenerators.Producers
 
             foreach (var declaration in declarations.GroupBy(d => d.Namespace))
             {
-                source.AppendLine($"public namespace {declaration.Key}");
-                source.AppendLine("{");
+                if (declaration.Key != null)
+                {
+                    source.AppendLine($"public namespace {declaration.Key}");
+                    source.AppendLine("{");
+                }
+
                 foreach (var classDeclaration in declaration.GroupBy(d => d.ClassName))
                 {
                     source.AppendLine($"    public partial class {classDeclaration.Key}");
@@ -38,7 +42,11 @@ namespace MintPlayer.SourceGenerators.Producers
                     source.AppendLine("        }");
                     source.AppendLine("    }");
                 }
-                source.AppendLine("}");
+
+                if (declaration.Key != null)
+                {
+                    source.AppendLine("}");
+                }
             }
 
 
