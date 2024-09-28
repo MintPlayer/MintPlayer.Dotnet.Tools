@@ -4,8 +4,15 @@ using MintPlayer.SourceGenerators.Attributes;
 
 Console.WriteLine("Hello, World!");
 
-public partial class Class1
+public class BaseClass
 {
+    public BaseClass(string message, int count) { }
+}
+
+public partial class Class1 : BaseClass
+{
+    public Class1() : base("", 0) { }
+
     [Inject] private readonly ITestService1 testService1;
     [Inject] private readonly ITestService2 testService2;
 }

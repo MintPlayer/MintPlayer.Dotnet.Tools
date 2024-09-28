@@ -75,55 +75,141 @@ namespace MintPlayer.SourceGenerators.Generators
                                         return new Models.FieldDeclaration
                                         {
                                             Namespace = namespaceDeclaration.Name.ToString(),
-                                            FullyQualifiedClassName = classSymbol.ToDisplayString(new SymbolDisplayFormat(
-                                                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                            )),
-                                            ClassName = classSymbol.Name,
-                                            Name = symbol.Name,
-                                            FullyQualifiedTypeName = symbol.Type.ToDisplayString(new SymbolDisplayFormat(
-                                                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                            )),
-                                            Type = symbol.Type.Name,
+                                            Class = new Models.ClassInformation
+                                            {
+                                                Name = classSymbol.Name,
+                                                FullyQualifiedName = classSymbol.ToDisplayString(new SymbolDisplayFormat(
+                                                    globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                                                    typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
+                                                )),
+                                                BaseType = new Models.TypeInformation
+                                                {
+                                                    Name = classSymbol.BaseType.Name, //.Constructors[0].Parameters
+                                                    FullyQualifiedName = classSymbol.BaseType.ToDisplayString(new SymbolDisplayFormat(
+                                                        globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                                                        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
+                                                    )),
+                                                    Constructors = classSymbol.BaseType.Constructors.Select(ctor => new Models.ConstructorInformation
+                                                    {
+                                                        Parameters = ctor.Parameters.Select(p => new Models.ParameterInformation
+                                                        {
+                                                            Name = p.Name,
+                                                            Type = new Models.TypeInformation
+                                                            {
+                                                                Name = p.Type.Name,
+                                                                FullyQualifiedName = p.Type.ToDisplayString(new SymbolDisplayFormat(
+                                                                    globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                                                                    typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
+                                                                )),
+                                                            }
+                                                        }).ToArray()
+                                                    }).ToArray()
+                                                }
+                                            },
+                                            FieldName = symbol.Name,
+                                            FieldType = new Models.TypeInformation
+                                            {
+                                                Name = symbol.Type.Name,
+                                                FullyQualifiedName = symbol.Type.ToDisplayString(new SymbolDisplayFormat(
+                                                    globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                                                    typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
+                                                )),
+                                            }
                                         };
                                     case FileScopedNamespaceDeclarationSyntax fileScopedNamespaceDeclaration:
                                         return new Models.FieldDeclaration
                                         {
                                             Namespace = fileScopedNamespaceDeclaration.Name.ToString(),
-                                            FullyQualifiedClassName = classSymbol.ToDisplayString(new SymbolDisplayFormat(
-                                                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                            )),
-                                            ClassName = classSymbol.Name,
-                                            Name = symbol.Name,
-                                            FullyQualifiedTypeName = symbol.Type.ToDisplayString(new SymbolDisplayFormat(
-                                                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                            )),
-                                            Type = symbol.Type.Name,
+                                            Class = new Models.ClassInformation
+                                            {
+                                                Name = classSymbol.Name,
+                                                FullyQualifiedName = classSymbol.ToDisplayString(new SymbolDisplayFormat(
+                                                    globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                                                    typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
+                                                )),
+                                                BaseType = new Models.TypeInformation
+                                                {
+                                                    Name = classSymbol.BaseType.Name, //.Constructors[0].Parameters
+                                                    FullyQualifiedName = classSymbol.BaseType.ToDisplayString(new SymbolDisplayFormat(
+                                                        globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                                                        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
+                                                    )),
+                                                    Constructors = classSymbol.BaseType.Constructors.Select(ctor => new Models.ConstructorInformation
+                                                    {
+                                                        Parameters = ctor.Parameters.Select(p => new Models.ParameterInformation
+                                                        {
+                                                            Name = p.Name,
+                                                            Type = new Models.TypeInformation
+                                                            {
+                                                                Name = p.Type.Name,
+                                                                FullyQualifiedName = p.Type.ToDisplayString(new SymbolDisplayFormat(
+                                                                    globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                                                                    typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
+                                                                )),
+                                                            }
+                                                        }).ToArray()
+                                                    }).ToArray()
+                                                }
+                                            },
+                                            FieldName = symbol.Name,
+                                            FieldType = new Models.TypeInformation
+                                            {
+                                                Name = symbol.Type.Name,
+                                                FullyQualifiedName = symbol.Type.ToDisplayString(new SymbolDisplayFormat(
+                                                    globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                                                    typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
+                                                )),
+                                            }
                                         };
                                     default:
                                         return new Models.FieldDeclaration
                                         {
                                             Namespace = null,
-                                            FullyQualifiedClassName = classSymbol.ToDisplayString(new SymbolDisplayFormat(
-                                                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                            )),
-                                            ClassName = classSymbol.Name,
-                                            Name = symbol.Name,
-                                            FullyQualifiedTypeName = symbol.Type.ToDisplayString(new SymbolDisplayFormat(
-                                                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                            )),
-                                            Type = symbol.Type.Name,
+                                            Class = new Models.ClassInformation
+                                            {
+                                                Name = classSymbol.Name,
+                                                FullyQualifiedName = classSymbol.ToDisplayString(new SymbolDisplayFormat(
+                                                    globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                                                    typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
+                                                )),
+                                                BaseType = new Models.TypeInformation
+                                                {
+                                                    Name = classSymbol.BaseType.Name, //.Constructors[0].Parameters
+                                                    FullyQualifiedName = classSymbol.BaseType.ToDisplayString(new SymbolDisplayFormat(
+                                                        globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                                                        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
+                                                    )),
+                                                    Constructors = classSymbol.BaseType.Constructors.Select(ctor => new Models.ConstructorInformation
+                                                    {
+                                                        Parameters = ctor.Parameters.Select(p => new Models.ParameterInformation
+                                                        {
+                                                            Name = p.Name,
+                                                            Type = new Models.TypeInformation
+                                                            {
+                                                                Name = p.Type.Name,
+                                                                FullyQualifiedName = p.Type.ToDisplayString(new SymbolDisplayFormat(
+                                                                    globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                                                                    typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
+                                                                )),
+                                                            }
+                                                        }).ToArray()
+                                                    }).ToArray()
+                                                }
+                                            },
+                                            FieldName = symbol.Name,
+                                            FieldType = new Models.TypeInformation
+                                            {
+                                                Name = symbol.Type.Name,
+                                                FullyQualifiedName = symbol.Type.ToDisplayString(new SymbolDisplayFormat(
+                                                    globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                                                    typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
+                                                )),
+                                            }
                                         };
-                                }
 
+                                }
                             }
                         }
-                     
                         return default;
                     }
                 )

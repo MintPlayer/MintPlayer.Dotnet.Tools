@@ -21,29 +21,45 @@ namespace MintPlayer.SourceGenerators.Producers
             source.AppendLine(Header);
             source.AppendLine();
 
-            foreach (var declaration in declarations.GroupBy(d => d.Namespace))
+            foreach (var namespaceGrouping in declarations.GroupBy(d => d.Namespace))
             {
-                if (declaration.Key != null)
+                if (namespaceGrouping.Key != null)
                 {
-                    source.AppendLine($"public namespace {declaration.Key}");
+                    source.AppendLine($"public namespace {namespaceGrouping.Key}");
                     source.AppendLine("{");
                 }
 
-                foreach (var classDeclaration in declaration.GroupBy(d => d.ClassName))
+                //foreach (var classGrouping in namespaceGrouping.GroupBy(d => d.Class)) // new { d.Class.Name, d.Class.FullyQualifiedName }
+                foreach (var classGrouping in (from d in namespaceGrouping group d by d.Class.FullyQualifiedName into g select new { FullyQualifiedClassName = g.Key, Class = g.First().Class?.Name, Fields = g.ToArray(), BaseType = g.First().Class.BaseType })) // new { d.Class.Name, d.Class.FullyQualifiedName }
                 {
-                    source.AppendLine($"    public partial class {classDeclaration.Key}");
+                    source.AppendLine($"    public partial class {classGrouping.Class}");
                     source.AppendLine("    {");
-                    source.AppendLine($"        public {classDeclaration.Key}({string.Join(", ", classDeclaration.Select(s => $"{s.FullyQualifiedTypeName} {s.Name}"))})");
-                    source.AppendLine("        {");
-                    foreach (var s in classDeclaration)
+                    if (classGrouping.BaseType is { } baseType
+                        && baseType.Constructors is { } ctors)
                     {
-                        source.AppendLine($"            this.{s.Name} = {s.Name};");
+                        var allParams = ctors.Length > 0 ?
+                            ctors[0].Parameters.Select(p => new { TypeName = p.Type.FullyQualifiedName, Name = p.Name }).ToArray()
+                            : new [];
+
+                        source.AppendLine($"        public {classGrouping.Class}({string.Join(", ", classGrouping.Fields.Select(s => $"{s.FieldType.FullyQualifiedName} {s.FieldName}"))})");
+                        if (ctors.Length > 0)
+                        {
+                            var joined = string.Join(", ", ctors[0].Parameters.Select(p => $"{p.Type.FullyQualifiedName} {p.Name}"));
+                            var paramNames = string.Join(", ", ctors[0].Parameters.Select(p => p.Name));
+                            source.AppendLine($"            : base({paramNames})");
+                        }
+
+                        source.AppendLine("        {");
+                        foreach (var s in classGrouping.Fields)
+                        {
+                            source.AppendLine($"            this.{s.FieldName} = {s.FieldName};");
+                        }
+                        source.AppendLine("        }");
                     }
-                    source.AppendLine("        }");
                     source.AppendLine("    }");
                 }
 
-                if (declaration.Key != null)
+                if (namespaceGrouping.Key != null)
                 {
                     source.AppendLine("}");
                 }
