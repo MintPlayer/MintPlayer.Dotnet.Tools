@@ -13,8 +13,6 @@ public class BaseClass
 
 public partial class Class1 : BaseClass
 {
-    public Class1() : base("", 0) { }
-
     [Inject] private readonly ITestService1 testService1;
     [Inject] private readonly ITestService2 testService2;
 }
