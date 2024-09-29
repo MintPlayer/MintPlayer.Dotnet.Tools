@@ -70,109 +70,38 @@ namespace MintPlayer.SourceGenerators.Generators
                             if (fieldDeclaration.Parent is ClassDeclarationSyntax classDeclaration)
                             {
                                 var classSymbol = context2.SemanticModel.GetDeclaredSymbol(classDeclaration);
-                                //switch (classDeclaration.Parent)
-                                //{
-                                //    case NamespaceDeclarationSyntax namespaceDeclaration:
-                                //        return new Models.FieldDeclaration
-                                //        {
-                                //            Namespace = namespaceDeclaration.Name.ToString(),
-                                //            Class = new Models.ClassInformation
-                                //            {
-                                //                Name = classSymbol.Name,
-                                //                FullyQualifiedName = classSymbol.ToFullyQualifiedName(),
-                                //                BaseType = new Models.TypeInformation
-                                //                {
-                                //                    Name = classSymbol.BaseType.Name, //.Constructors[0].Parameters
-                                //                    FullyQualifiedName = classSymbol.BaseType.ToFullyQualifiedName(),
-                                //                    Constructors = classSymbol.BaseType.Constructors.Select(ctor => new Models.ConstructorInformation
-                                //                    {
-                                //                        Parameters = ctor.Parameters.Select(p => new Models.ParameterInformation
-                                //                        {
-                                //                            Name = p.Name,
-                                //                            Type = new Models.TypeInformation
-                                //                            {
-                                //                                Name = p.Type.Name,
-                                //                                FullyQualifiedName = p.Type.ToFullyQualifiedName(),
-                                //                            }
-                                //                        }).ToArray()
-                                //                    }).ToArray()
-                                //                }
-                                //            },
-                                //            FieldName = symbol.Name,
-                                //            FieldType = new Models.TypeInformation
-                                //            {
-                                //                Name = symbol.Type.Name,
-                                //                FullyQualifiedName = symbol.Type.ToFullyQualifiedName(),
-                                //            }
-                                //        };
-                                //    case FileScopedNamespaceDeclarationSyntax fileScopedNamespaceDeclaration:
-                                //        return new Models.FieldDeclaration
-                                //        {
-                                //            Namespace = fileScopedNamespaceDeclaration.Name.ToString(),
-                                //            Class = new Models.ClassInformation
-                                //            {
-                                //                Name = classSymbol.Name,
-                                //                FullyQualifiedName = classSymbol.ToFullyQualifiedName(),
-                                //                BaseType = new Models.TypeInformation
-                                //                {
-                                //                    Name = classSymbol.BaseType.Name, //.Constructors[0].Parameters
-                                //                    FullyQualifiedName = classSymbol.BaseType.ToFullyQualifiedName(),
-                                //                    Constructors = classSymbol.BaseType.Constructors.Select(ctor => new Models.ConstructorInformation
-                                //                    {
-                                //                        Parameters = ctor.Parameters.Select(p => new Models.ParameterInformation
-                                //                        {
-                                //                            Name = p.Name,
-                                //                            Type = new Models.TypeInformation
-                                //                            {
-                                //                                Name = p.Type.Name,
-                                //                                FullyQualifiedName = p.Type.ToFullyQualifiedName(),
-                                //                            }
-                                //                        }).ToArray()
-                                //                    }).ToArray()
-                                //                }
-                                //            },
-                                //            FieldName = symbol.Name,
-                                //            FieldType = new Models.TypeInformation
-                                //            {
-                                //                Name = symbol.Type.Name,
-                                //                FullyQualifiedName = symbol.Type.ToFullyQualifiedName(),
-                                //            }
-                                //        };
-                                //    default:
-                                        return new Models.FieldDeclaration
+                                return new Models.FieldDeclaration
+                                {
+                                    Namespace = classDeclaration.Parent is BaseNamespaceDeclarationSyntax stx ? stx.Name.ToString() : null,
+                                    Class = new Models.ClassInformation
+                                    {
+                                        Name = classSymbol.Name,
+                                        FullyQualifiedName = classSymbol.ToFullyQualifiedName(),
+                                        BaseType = new Models.TypeInformation
                                         {
-                                            Namespace = classDeclaration.Parent is BaseNamespaceDeclarationSyntax stx ? stx.Name.ToString() : null,
-                                            Class = new Models.ClassInformation
+                                            Name = classSymbol.BaseType.Name, //.Constructors[0].Parameters
+                                            FullyQualifiedName = classSymbol.BaseType.ToFullyQualifiedName(),
+                                            Constructors = classSymbol.BaseType.Constructors.Select(ctor => new Models.ConstructorInformation
                                             {
-                                                Name = classSymbol.Name,
-                                                FullyQualifiedName = classSymbol.ToFullyQualifiedName(),
-                                                BaseType = new Models.TypeInformation
+                                                Parameters = ctor.Parameters.Select(p => new Models.ParameterInformation
                                                 {
-                                                    Name = classSymbol.BaseType.Name, //.Constructors[0].Parameters
-                                                    FullyQualifiedName = classSymbol.BaseType.ToFullyQualifiedName(),
-                                                    Constructors = classSymbol.BaseType.Constructors.Select(ctor => new Models.ConstructorInformation
+                                                    Name = p.Name,
+                                                    Type = new Models.TypeInformation
                                                     {
-                                                        Parameters = ctor.Parameters.Select(p => new Models.ParameterInformation
-                                                        {
-                                                            Name = p.Name,
-                                                            Type = new Models.TypeInformation
-                                                            {
-                                                                Name = p.Type.Name,
-                                                                FullyQualifiedName = p.Type.ToFullyQualifiedName(),
-                                                            }
-                                                        }).ToArray()
-                                                    }).ToArray()
-                                                }
-                                            },
-                                            FieldName = symbol.Name,
-                                            FieldType = new Models.TypeInformation
-                                            {
-                                                Name = symbol.Type.Name,
-                                                FullyQualifiedName = symbol.Type.ToFullyQualifiedName(),
-                                            }
-                                        };
-
-                            //    }
+                                                        Name = p.Type.Name,
+                                                        FullyQualifiedName = p.Type.ToFullyQualifiedName(),
+                                                    }
+                                                }).ToArray()
+                                            }).ToArray()
+                                        }
+                                    },
+                                    FieldName = symbol.Name,
+                                    FieldType = new Models.TypeInformation
+                                    {
+                                        Name = symbol.Type.Name,
+                                        FullyQualifiedName = symbol.Type.ToFullyQualifiedName(),
+                                    }
+                                };
                             }
                         }
                         return default;
