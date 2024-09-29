@@ -1,6 +1,7 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using MintPlayer.SourceGenerators.Extensions;
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.Tools.ValueComparers;
 using System;
@@ -78,17 +79,11 @@ namespace MintPlayer.SourceGenerators.Generators
                                             Class = new Models.ClassInformation
                                             {
                                                 Name = classSymbol.Name,
-                                                FullyQualifiedName = classSymbol.ToDisplayString(new SymbolDisplayFormat(
-                                                    globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                    typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                                )),
+                                                FullyQualifiedName = classSymbol.ToFullyQualifiedName(),
                                                 BaseType = new Models.TypeInformation
                                                 {
                                                     Name = classSymbol.BaseType.Name, //.Constructors[0].Parameters
-                                                    FullyQualifiedName = classSymbol.BaseType.ToDisplayString(new SymbolDisplayFormat(
-                                                        globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                                    )),
+                                                    FullyQualifiedName = classSymbol.BaseType.ToFullyQualifiedName(),
                                                     Constructors = classSymbol.BaseType.Constructors.Select(ctor => new Models.ConstructorInformation
                                                     {
                                                         Parameters = ctor.Parameters.Select(p => new Models.ParameterInformation
@@ -97,10 +92,7 @@ namespace MintPlayer.SourceGenerators.Generators
                                                             Type = new Models.TypeInformation
                                                             {
                                                                 Name = p.Type.Name,
-                                                                FullyQualifiedName = p.Type.ToDisplayString(new SymbolDisplayFormat(
-                                                                    globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                                    typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                                                )),
+                                                                FullyQualifiedName = p.Type.ToFullyQualifiedName(),
                                                             }
                                                         }).ToArray()
                                                     }).ToArray()
@@ -110,10 +102,7 @@ namespace MintPlayer.SourceGenerators.Generators
                                             FieldType = new Models.TypeInformation
                                             {
                                                 Name = symbol.Type.Name,
-                                                FullyQualifiedName = symbol.Type.ToDisplayString(new SymbolDisplayFormat(
-                                                    globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                    typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                                )),
+                                                FullyQualifiedName = symbol.Type.ToFullyQualifiedName(),
                                             }
                                         };
                                     case FileScopedNamespaceDeclarationSyntax fileScopedNamespaceDeclaration:
@@ -123,17 +112,11 @@ namespace MintPlayer.SourceGenerators.Generators
                                             Class = new Models.ClassInformation
                                             {
                                                 Name = classSymbol.Name,
-                                                FullyQualifiedName = classSymbol.ToDisplayString(new SymbolDisplayFormat(
-                                                    globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                    typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                                )),
+                                                FullyQualifiedName = classSymbol.ToFullyQualifiedName(),
                                                 BaseType = new Models.TypeInformation
                                                 {
                                                     Name = classSymbol.BaseType.Name, //.Constructors[0].Parameters
-                                                    FullyQualifiedName = classSymbol.BaseType.ToDisplayString(new SymbolDisplayFormat(
-                                                        globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                                    )),
+                                                    FullyQualifiedName = classSymbol.BaseType.ToFullyQualifiedName(),
                                                     Constructors = classSymbol.BaseType.Constructors.Select(ctor => new Models.ConstructorInformation
                                                     {
                                                         Parameters = ctor.Parameters.Select(p => new Models.ParameterInformation
@@ -142,10 +125,7 @@ namespace MintPlayer.SourceGenerators.Generators
                                                             Type = new Models.TypeInformation
                                                             {
                                                                 Name = p.Type.Name,
-                                                                FullyQualifiedName = p.Type.ToDisplayString(new SymbolDisplayFormat(
-                                                                    globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                                    typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                                                )),
+                                                                FullyQualifiedName = p.Type.ToFullyQualifiedName(),
                                                             }
                                                         }).ToArray()
                                                     }).ToArray()
@@ -155,10 +135,7 @@ namespace MintPlayer.SourceGenerators.Generators
                                             FieldType = new Models.TypeInformation
                                             {
                                                 Name = symbol.Type.Name,
-                                                FullyQualifiedName = symbol.Type.ToDisplayString(new SymbolDisplayFormat(
-                                                    globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                    typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                                )),
+                                                FullyQualifiedName = symbol.Type.ToFullyQualifiedName(),
                                             }
                                         };
                                     default:
@@ -168,17 +145,11 @@ namespace MintPlayer.SourceGenerators.Generators
                                             Class = new Models.ClassInformation
                                             {
                                                 Name = classSymbol.Name,
-                                                FullyQualifiedName = classSymbol.ToDisplayString(new SymbolDisplayFormat(
-                                                    globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                    typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                                )),
+                                                FullyQualifiedName = classSymbol.ToFullyQualifiedName(),
                                                 BaseType = new Models.TypeInformation
                                                 {
                                                     Name = classSymbol.BaseType.Name, //.Constructors[0].Parameters
-                                                    FullyQualifiedName = classSymbol.BaseType.ToDisplayString(new SymbolDisplayFormat(
-                                                        globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                                    )),
+                                                    FullyQualifiedName = classSymbol.BaseType.ToFullyQualifiedName(),
                                                     Constructors = classSymbol.BaseType.Constructors.Select(ctor => new Models.ConstructorInformation
                                                     {
                                                         Parameters = ctor.Parameters.Select(p => new Models.ParameterInformation
@@ -187,10 +158,7 @@ namespace MintPlayer.SourceGenerators.Generators
                                                             Type = new Models.TypeInformation
                                                             {
                                                                 Name = p.Type.Name,
-                                                                FullyQualifiedName = p.Type.ToDisplayString(new SymbolDisplayFormat(
-                                                                    globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                                    typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                                                )),
+                                                                FullyQualifiedName = p.Type.ToFullyQualifiedName(),
                                                             }
                                                         }).ToArray()
                                                     }).ToArray()
@@ -200,10 +168,7 @@ namespace MintPlayer.SourceGenerators.Generators
                                             FieldType = new Models.TypeInformation
                                             {
                                                 Name = symbol.Type.Name,
-                                                FullyQualifiedName = symbol.Type.ToDisplayString(new SymbolDisplayFormat(
-                                                    globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                    typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                                )),
+                                                FullyQualifiedName = symbol.Type.ToFullyQualifiedName(),
                                             }
                                         };
 
