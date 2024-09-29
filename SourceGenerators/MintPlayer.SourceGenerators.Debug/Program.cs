@@ -9,6 +9,8 @@ public class BaseClass
     public BaseClass(string message, int count) { }
 }
 
+// TODO: what if class1 derives from class2?
+
 public partial class Class1 : BaseClass
 {
     public Class1() : base("", 0) { }

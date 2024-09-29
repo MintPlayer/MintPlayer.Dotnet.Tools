@@ -38,10 +38,11 @@ namespace MintPlayer.SourceGenerators.Producers
                         && baseType.Constructors is { } ctors)
                     {
                         var allParams = ctors.Length > 0 ?
-                            ctors[0].Parameters.Select(p => new { TypeName = p.Type.FullyQualifiedName, Name = p.Name }).ToArray()
-                            : new [];
+                            ctors[0].Parameters.Select(p => new Models.FieldDeclaration { FieldType = new Models.TypeInformation { FullyQualifiedName = p.Type.FullyQualifiedName }, FieldName = p.Name }).ToArray()
+                            : new Models.FieldDeclaration[0];
 
-                        source.AppendLine($"        public {classGrouping.Class}({string.Join(", ", classGrouping.Fields.Select(s => $"{s.FieldType.FullyQualifiedName} {s.FieldName}"))})");
+
+                        source.AppendLine($"        public {classGrouping.Class}({string.Join(", ", classGrouping.Fields.Concat(allParams).Select(s => $"{s.FieldType.FullyQualifiedName} {s.FieldName}"))})");
                         if (ctors.Length > 0)
                         {
                             var joined = string.Join(", ", ctors[0].Parameters.Select(p => $"{p.Type.FullyQualifiedName} {p.Name}"));
@@ -70,6 +71,12 @@ namespace MintPlayer.SourceGenerators.Producers
             var fileName = $"FieldNameList.g.cs";
 
             return new ProducedSource { FileName = fileName, Source = sourceText };
+        }
+
+        class ConstructorParameter
+        {
+            public string? TypeName { get; set; }
+            public string? Name { get; set; }
         }
     }
 }
