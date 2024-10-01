@@ -17,62 +17,63 @@ namespace MintPlayer.SourceGenerators.Producers
             this.declarations = declarations;
         }
 
-        protected override ProducedSource? ProduceSource(CancellationToken cancellationToken)
+        protected override ProducedSource? ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
         {
-            var source = new StringBuilder();
-            source.AppendLine(Header);
-            source.AppendLine();
+            writer.WriteLine(Header);
+            writer.WriteLine();
 
             foreach (var namespaceGrouping in declarations.GroupBy(d => d.Namespace))
             {
                 if (namespaceGrouping.Key != null)
                 {
-                    source.AppendLine($"public namespace {namespaceGrouping.Key}");
-                    source.AppendLine("{");
+                    writer.WriteLine($"public namespace {namespaceGrouping.Key}");
+                    writer.WriteLine("{");
+                    writer.Indent++;
                 }
 
                 //foreach (var classGrouping in namespaceGrouping.GroupBy(d => d.Class)) // new { d.Class.Name, d.Class.FullyQualifiedName }
                 foreach (var classGrouping in (from d in namespaceGrouping group d by d.Class.FullyQualifiedName into g select new { FullyQualifiedClassName = g.Key, Class = g.First().Class?.Name, Fields = g.ToArray(), BaseType = g.First().Class.BaseType })) // new { d.Class.Name, d.Class.FullyQualifiedName }
                 {
-                    source.AppendLine($"    public partial class {classGrouping.Class}");
-                    source.AppendLine("    {");
+                    writer.WriteLine($"public partial class {classGrouping.Class}");
+                    writer.WriteLine("{");
                     if (classGrouping.BaseType is { } baseType
                         && baseType.Constructors is { } ctors)
                     {
+                        writer.Indent++;
                         var allParams = ctors.Length > 0 ?
                             ctors[0].Parameters.Select(p => new Models.FieldDeclaration { FieldType = new Models.TypeInformation { FullyQualifiedName = p.Type.FullyQualifiedName }, FieldName = p.Name })
                             : Enumerable.Empty<Models.FieldDeclaration>();
 
 
-                        source.AppendLine($"        public {classGrouping.Class}({string.Join(", ", classGrouping.Fields.Concat(allParams).Select(s => $"{s.FieldType.FullyQualifiedName} {s.FieldName}"))})");
+                        writer.WriteLine($"public {classGrouping.Class}({string.Join(", ", classGrouping.Fields.Concat(allParams).Select(s => $"{s.FieldType.FullyQualifiedName} {s.FieldName}"))})");
                         if (ctors.Length > 0)
                         {
                             var joined = string.Join(", ", ctors[0].Parameters.Select(p => $"{p.Type.FullyQualifiedName} {p.Name}"));
                             var paramNames = string.Join(", ", ctors[0].Parameters.Select(p => p.Name));
-                            source.AppendLine($"            : base({paramNames})");
+                            writer.WriteLine($" : base({paramNames})");
                         }
 
-                        source.AppendLine("        {");
+                        writer.WriteLine("{");
+                        writer.Indent++;
                         foreach (var s in classGrouping.Fields)
                         {
-                            source.AppendLine($"            this.{s.FieldName} = {s.FieldName};");
+                            writer.WriteLine($"this.{s.FieldName} = {s.FieldName};");
                         }
-                        source.AppendLine("        }");
+                        writer.Indent--;
+                        writer.WriteLine("}");
+                        writer.Indent--;
                     }
-                    source.AppendLine("    }");
+                    writer.WriteLine("}");
                 }
 
                 if (namespaceGrouping.Key != null)
                 {
-                    source.AppendLine("}");
+                    writer.Indent--;
+                    writer.WriteLine("}");
                 }
             }
 
-
-            var sourceText = source.ToString();
-            var fileName = $"FieldNameList.g.cs";
-
-            return new ProducedSource { FileName = fileName, Source = sourceText };
+            return new ProducedSource { FileName = "FieldNameList.g.cs" };
         }
 
         class ConstructorParameter

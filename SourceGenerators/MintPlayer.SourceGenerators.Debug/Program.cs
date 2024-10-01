@@ -2,7 +2,13 @@
 using Microsoft.Extensions.DependencyInjection;
 using MintPlayer.SourceGenerators.Attributes;
 
+[assembly: RegisterExtension("AddTestServices")]
+
 Console.WriteLine("Hello, World!");
+var services = new ServiceCollection()
+    .BuildServiceProvider();
+
+ActivatorUtilities.CreateInstance(services, typeof(Class1), "", 5);
 
 public class BaseClass
 {

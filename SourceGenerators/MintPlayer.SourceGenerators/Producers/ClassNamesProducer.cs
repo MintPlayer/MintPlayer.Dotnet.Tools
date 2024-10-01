@@ -1,5 +1,6 @@
 ﻿using MintPlayer.SourceGenerators.Tools;
 using System;
+using System.CodeDom.Compiler;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -15,27 +16,30 @@ namespace MintPlayer.SourceGenerators.Producers
             this.declarations = declarations;
         }
 
-        protected override ProducedSource ProduceSource(CancellationToken cancellationToken)
+        protected override ProducedSource ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
         {
-            var source = new StringBuilder();
-            source.AppendLine(Header);
-            source.AppendLine();
-            source.AppendLine($"namespace {RootNamespace};");
+            writer.WriteLine(Header);
+            writer.WriteLine();
+            writer.WriteLine($"namespace {RootNamespace}");
+            writer.WriteLine("{");
 
-            source.AppendLine("public static class ClassNames");
-            source.AppendLine("{");
+            writer.Indent++;
+            writer.WriteLine("public static class ClassNames");
+            writer.WriteLine("{");
 
+            writer.Indent++;
             foreach (var declaration in declarations)
             {
-                source.AppendLine($"    public const string {declaration.Name} = \"{declaration.Name}\";");
+                writer.WriteLine($"public const string {declaration.Name} = \"{declaration.Name}\";");
             }
 
-            source.AppendLine("}");
+            writer.Indent--;
+            writer.WriteLine("}");
+            writer.Indent--;
+            writer.WriteLine("}");
 
-            var sourceText = source.ToString();
-            var fileName = $"ClassNames.g.cs";
 
-            return new ProducedSource { FileName = fileName, Source = sourceText };
+            return new ProducedSource { FileName = "ClassNames.g.cs" };
         }
     }
 }

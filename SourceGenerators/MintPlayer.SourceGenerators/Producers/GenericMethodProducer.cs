@@ -2,6 +2,7 @@
 using MintPlayer.SourceGenerators.Models;
 using MintPlayer.SourceGenerators.Tools;
 using System;
+using System.CodeDom.Compiler;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -19,56 +20,60 @@ namespace MintPlayer.SourceGenerators.Producers
 
         public GenericMethodDeclaration Method { get; }
 
-        protected override ProducedSource? ProduceSource(CancellationToken cancellationToken)
+        protected override ProducedSource? ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
         {
             if (Method.Method.ClassModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PartialKeyword) && Method.Method.MethodModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PrivateKeyword))
             {
-                var source = new StringBuilder();
-                source.AppendLine(Header);
-                source.AppendLine();
-                source.AppendLine($"namespace {RootNamespace};");
+                writer.WriteLine(Header);
+                writer.WriteLine();
+                writer.WriteLine($"namespace {RootNamespace}");
+                writer.WriteLine("{");
+                writer.Indent++;
 
-                source.Append("public ");
-                if (Method.Method.ClassModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.StaticKeyword)) source.Append("static ");
-                source.Append("partial ");
-                source.Append($"class {Method.Method.ClassName}");
-                source.AppendLine();
+                writer.Write("public ");
+                if (Method.Method.ClassModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.StaticKeyword)) writer.Write("static ");
+                writer.Write("partial ");
+                writer.Write($"class {Method.Method.ClassName}");
+                writer.WriteLine();
 
-                source.AppendLine("{");
+                writer.WriteLine("{");
 
+                writer.Indent++;
                 for (int i = 1; i < Method.Count + 1; i++)
                 {
-                    source.Append("    public ");
-                    if (Method.Method.MethodModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.StaticKeyword)) source.Append("static ");
-                    if (Method.Method.MethodModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PartialKeyword)) source.Append("partial ");
-                    source.Append($"void {Method.Method.MethodName}<");
-                    source.Append(string.Join(", ", Enumerable.Range(1, i).Select(i => $"T{i}")));
-                    source.Append(">(");
+                    writer.Write("public ");
+                    if (Method.Method.MethodModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.StaticKeyword)) writer.Write("static ");
+                    if (Method.Method.MethodModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PartialKeyword)) writer.Write("partial ");
+                    writer.Write($"void {Method.Method.MethodName}<");
+                    writer.Write(string.Join(", ", Enumerable.Range(1, i).Select(i => $"T{i}")));
+                    writer.Write(">(");
 
-                    source.Append(string.Join(", ", Enumerable.Range(1, i)
+                    writer.Write(string.Join(", ", Enumerable.Range(1, i)
                         .Select(i => new { Type = $"T{i}", Name = $"t{i}" })
                         .Select(i => $"{i.Type} {i.Name}")));
-                    source.Append(")");
-                    source.AppendLine();
+                    writer.Write(")");
+                    writer.WriteLine();
 
-                    source.AppendLine("    {");
+                    writer.WriteLine("{");
+                    writer.Indent++;
                     if (Method.Method.MethodModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.StaticKeyword) || Method.Method.ClassModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.StaticKeyword))
-                        source.Append($"        {Method.Method.ClassName}.{Method.Method.MethodName}([");
+                        writer.Write($"{Method.Method.ClassName}.{Method.Method.MethodName}([");
                     else
-                        source.Append($"        this.{Method.Method.MethodName}([");
-                    source.Append(string.Join(", ", Enumerable.Range(1, i)
+                        writer.Write($"this.{Method.Method.MethodName}([");
+                    writer.Write(string.Join(", ", Enumerable.Range(1, i)
                         .Select(i => $"t{i}")));
-                    source.Append("]);");
-                    source.AppendLine();
-                    source.AppendLine("    }");
+                    writer.Write("]);");
+                    writer.WriteLine();
+                    writer.Indent--;
+                    writer.WriteLine("}");
                 }
 
-                source.AppendLine("}");
+                writer.Indent--;
+                writer.WriteLine("}");
+                writer.Indent--;
+                writer.WriteLine("}");
 
-                var sourceText = source.ToString();
-                var fileName = $"GenericMethods.g.cs";
-
-                return new ProducedSource { FileName = fileName, Source = sourceText };
+                return new ProducedSource { FileName = "GenericMethods.g.cs" };
             }
             else
             {

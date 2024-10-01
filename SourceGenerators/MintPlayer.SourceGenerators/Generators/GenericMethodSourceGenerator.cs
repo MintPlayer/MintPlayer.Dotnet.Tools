@@ -42,7 +42,6 @@ namespace MintPlayer.SourceGenerators.Generators
                         var x = context.SemanticModel.GetDeclaredSymbol(methodDeclaration, ct);
                         if (x is IMethodSymbol symbol)
                         {
-                            var attr = symbol.GetAttributes();
                             var classDeclaration = (ClassDeclarationSyntax)methodDeclaration.Parent;
                             var classSymbol = context.SemanticModel.GetDeclaredSymbol(classDeclaration, ct);
 
