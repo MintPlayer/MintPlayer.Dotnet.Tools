@@ -1,6 +1,8 @@
 ﻿using MintPlayer.SourceGenerators.Tools;
 using System;
+using System.CodeDom.Compiler;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -38,8 +40,8 @@ namespace MintPlayer.SourceGenerators.Producers
                         && baseType.Constructors is { } ctors)
                     {
                         var allParams = ctors.Length > 0 ?
-                            ctors[0].Parameters.Select(p => new Models.FieldDeclaration { FieldType = new Models.TypeInformation { FullyQualifiedName = p.Type.FullyQualifiedName }, FieldName = p.Name }).ToArray()
-                            : new Models.FieldDeclaration[0];
+                            ctors[0].Parameters.Select(p => new Models.FieldDeclaration { FieldType = new Models.TypeInformation { FullyQualifiedName = p.Type.FullyQualifiedName }, FieldName = p.Name })
+                            : Enumerable.Empty<Models.FieldDeclaration>();
 
 
                         source.AppendLine($"        public {classGrouping.Class}({string.Join(", ", classGrouping.Fields.Concat(allParams).Select(s => $"{s.FieldType.FullyQualifiedName} {s.FieldName}"))})");

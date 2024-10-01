@@ -57,6 +57,7 @@ namespace MintPlayer.SourceGenerators.Generators
                 .WithComparer(ValueComparers.ClassDeclarationValueComparer.Instance)
                 .Collect();
 
+            // Provides fields with their class and base-class
             var fieldDeclarationsProvider = context.SyntaxProvider
                 .CreateSyntaxProvider(
                     static (node, ct) => node is FieldDeclarationSyntax { AttributeLists.Count: > 0 } fieldDeclaration
@@ -67,7 +68,8 @@ namespace MintPlayer.SourceGenerators.Generators
                             fieldDeclaration.Declaration.Variables.Count == 1 &&
                             context2.SemanticModel.GetDeclaredSymbol(fieldDeclaration.Declaration.Variables[0], ct) is IFieldSymbol symbol)
                         {
-                            if (fieldDeclaration.Parent is ClassDeclarationSyntax classDeclaration)
+                            if (fieldDeclaration.Parent is ClassDeclarationSyntax classDeclaration &&
+                                classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword))
                             {
                                 var classSymbol = context2.SemanticModel.GetDeclaredSymbol(classDeclaration);
                                 return new Models.FieldDeclaration
@@ -109,6 +111,16 @@ namespace MintPlayer.SourceGenerators.Generators
                 )
                 .WithComparer(ValueComparers.FieldDeclarationComparer.Instance)
                 .Collect();
+
+            //var classesWithFieldsProvider = fieldDeclarationsProvider
+            //    .Select((fields, ct) =>
+            //    {
+            //        return fields.GroupBy(f => f.Class.FullyQualifiedName)
+            //            .Select(classGrouping => new Models.ClassInformation
+            //            {
+            //                Name = classGrouping.Key
+            //            })
+            //    });
 
             var classNamesSourceProvider = classDeclarationsProvider
                 .Combine(config)
