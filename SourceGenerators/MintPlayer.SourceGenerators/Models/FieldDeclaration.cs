@@ -14,6 +14,7 @@ namespace MintPlayer.SourceGenerators.Models
         public ClassInformation? Class { get; set; }
         public string? Namespace { get; set; }
         public TypeInformation? FieldType { get; set; }
+        public bool IsReadonly { get; set; }
     }
 
     [ValueComparer(typeof(ClassInformationComparer))]
