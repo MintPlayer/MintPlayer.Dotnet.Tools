@@ -1,5 +1,6 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
+using System.CodeDom.Compiler;
 using System.Diagnostics;
 using System.Text;
 using System.Threading;
@@ -26,7 +27,7 @@ namespace MintPlayer.SourceGenerators.Tools
 
         public string RootNamespace { get; }
 
-        protected abstract ProducedSource? ProduceSource(CancellationToken cancellationToken);
+        protected abstract ProducedSource? ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken);
 
         public void Produce(SourceProductionContext context)
         {

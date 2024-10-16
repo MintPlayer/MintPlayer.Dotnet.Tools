@@ -2,6 +2,7 @@
 using MintPlayer.SourceGenerators.Models;
 using MintPlayer.SourceGenerators.Tools;
 using System;
+using System.CodeDom.Compiler;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -19,7 +20,7 @@ namespace MintPlayer.SourceGenerators.Producers
 
         public GenericMethodDeclaration Method { get; }
 
-        protected override ProducedSource? ProduceSource(CancellationToken cancellationToken)
+        protected override ProducedSource? ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
         {
             if (Method.Method.ClassModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PartialKeyword) && Method.Method.MethodModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PrivateKeyword))
             {

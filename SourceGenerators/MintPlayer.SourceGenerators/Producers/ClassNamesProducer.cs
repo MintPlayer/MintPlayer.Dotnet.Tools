@@ -1,5 +1,6 @@
 ﻿using MintPlayer.SourceGenerators.Tools;
 using System;
+using System.CodeDom.Compiler;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -15,7 +16,7 @@ namespace MintPlayer.SourceGenerators.Producers
             this.declarations = declarations;
         }
 
-        protected override ProducedSource ProduceSource(CancellationToken cancellationToken)
+        protected override ProducedSource ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
         {
             var source = new StringBuilder();
             source.AppendLine(Header);
