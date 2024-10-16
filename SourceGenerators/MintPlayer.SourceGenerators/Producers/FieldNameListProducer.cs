@@ -18,43 +18,44 @@ namespace MintPlayer.SourceGenerators.Producers
 
         protected override ProducedSource? ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
         {
-            var source = new StringBuilder();
-            source.AppendLine(Header);
-            source.AppendLine();
+            writer.WriteLine(Header);
+            writer.WriteLine();
 
             foreach (var declaration in declarations.GroupBy(d => d.Namespace))
             {
                 if (declaration.Key != null)
                 {
-                    source.AppendLine($"public namespace {declaration.Key}");
-                    source.AppendLine("{");
+                    writer.WriteLine($"public namespace {declaration.Key}");
+                    writer.WriteLine("{");
+                    writer.Indent++;
                 }
 
                 foreach (var classDeclaration in declaration.GroupBy(d => d.ClassName))
                 {
-                    source.AppendLine($"    public partial class {classDeclaration.Key}");
-                    source.AppendLine("    {");
-                    source.AppendLine($"        public {classDeclaration.Key}({string.Join(", ", classDeclaration.Select(s => $"{s.FullyQualifiedTypeName} {s.Name}"))})");
-                    source.AppendLine("        {");
+                    writer.WriteLine($"public partial class {classDeclaration.Key}");
+                    writer.WriteLine("{");
+                    writer.Indent++;
+                    writer.WriteLine($"public {classDeclaration.Key}({string.Join(", ", classDeclaration.Select(s => $"{s.FullyQualifiedTypeName} {s.Name}"))})");
+                    writer.WriteLine("{");
+                    writer.Indent++;
                     foreach (var s in classDeclaration)
                     {
-                        source.AppendLine($"            this.{s.Name} = {s.Name};");
+                        writer.WriteLine($"this.{s.Name} = {s.Name};");
                     }
-                    source.AppendLine("        }");
-                    source.AppendLine("    }");
+                    writer.Indent--;
+                    writer.WriteLine("}");
+                    writer.Indent--;
+                    writer.WriteLine("}");
                 }
 
                 if (declaration.Key != null)
                 {
-                    source.AppendLine("}");
+                    writer.Indent--;
+                    writer.WriteLine("}");
                 }
             }
 
-
-            var sourceText = source.ToString();
-            var fileName = $"FieldNameList.g.cs";
-
-            return new ProducedSource { FileName = fileName, Source = sourceText };
+            return new ProducedSource { FileName = "FieldNameList.g.cs" };
         }
     }
 }

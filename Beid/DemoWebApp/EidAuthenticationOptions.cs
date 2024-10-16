@@ -7,5 +7,5 @@ public class EidAuthenticationOptions : AuthenticationSchemeOptions
     //public EidAuthenticationOptions()
     //    : base("Eid") { }
 
-    public string SignInAsAuthenticationType { get; set; }
+    public string? SignInAsAuthenticationType { get; set; }
 }

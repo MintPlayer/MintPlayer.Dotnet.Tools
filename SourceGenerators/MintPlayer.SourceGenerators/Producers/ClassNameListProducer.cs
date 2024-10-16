@@ -18,21 +18,19 @@ namespace MintPlayer.SourceGenerators.Producers
 
         protected override ProducedSource ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
         {
-            var source = new StringBuilder();
-            source.AppendLine(Header);
-            source.AppendLine();
-            source.AppendLine($"namespace {RootNamespace};");
+            writer.WriteLine(Header);
+            writer.WriteLine();
+            writer.WriteLine($"namespace {RootNamespace};");
 
-            source.AppendLine("public static class ClassNameList");
-            source.AppendLine("{");
+            writer.WriteLine("public static class ClassNameList");
+            writer.WriteLine("{");
+            writer.Indent++;
             var list = string.Join(", ", declarations.Select(d => $"\"{d.Name}\""));
-            source.AppendLine($"    public static string[] List => [{list}];");
-            source.AppendLine("}");
+            writer.WriteLine($"public static string[] List => [{list}];");
+            writer.Indent--;
+            writer.WriteLine("}");
 
-            var sourceText = source.ToString();
-            var fileName = $"ClassNameList.g.cs";
-
-            return new ProducedSource { FileName = fileName, Source = sourceText };
+            return new ProducedSource { FileName = "ClassNameList.g.cs" };
         }
     }
 }

@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis.Text;
 using System.CodeDom.Compiler;
 using System.Diagnostics;
+using System.IO;
 using System.Text;
 using System.Threading;
 
@@ -32,15 +33,18 @@ namespace MintPlayer.SourceGenerators.Tools
         public void Produce(SourceProductionContext context)
         {
             context.CancellationToken.ThrowIfCancellationRequested();
-            var result = ProduceSource(context.CancellationToken);
-            if (result is { FileName: not null, Source: not null } producedSource)
+            using var textWriter = new StringWriter();
+            using var writer = new IndentedTextWriter(textWriter);
+            var result = ProduceSource(writer, context.CancellationToken);
+            if (result is { FileName: not null } producedSource)
             {
                 if (producedSource.FileName == "FieldNameList.g.cs") Debugger.Break();
                 if (producedSource.FileName == "ClassNames.g.cs") Debugger.Break();
                 if (producedSource.FileName == "ClassNameList.g.cs") Debugger.Break();
                 try
                 {
-                    context.AddSource(producedSource.FileName, SourceText.From(producedSource.Source, Encoding.UTF8));
+                    var code = textWriter.ToString();
+                    context.AddSource(producedSource.FileName, SourceText.From(code, Encoding.UTF8));
                 }
                 catch (System.Exception)
                 {
