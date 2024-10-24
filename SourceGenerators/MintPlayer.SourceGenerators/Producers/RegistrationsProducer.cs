@@ -23,6 +23,8 @@ namespace MintPlayer.SourceGenerators.Producers
         {
             writer.WriteLine(Header);
             writer.WriteLine();
+            writer.WriteLine($"using Microsoft.Extensions.DependencyInjection;");
+            writer.WriteLine();
             writer.WriteLine($"namespace {RootNamespace}");
             writer.WriteLine("{");
             writer.Indent++;
