@@ -10,7 +10,7 @@ namespace MintPlayer.SourceGenerators.ValueComparers
     {
         protected override bool AreEqual(ServiceRegistration x, ServiceRegistration y)
         {
-            //if (!IsEquals(x.Lifetime, y.Lifetime)) return false;
+            if (!IsEquals(x.Lifetime, y.Lifetime)) return false;
             if (!IsEquals(x.ServiceTypeName, y.ServiceTypeName)) return false;
             if (!IsEquals(x.ImplementationTypeName, y.ImplementationTypeName)) return false;
 
