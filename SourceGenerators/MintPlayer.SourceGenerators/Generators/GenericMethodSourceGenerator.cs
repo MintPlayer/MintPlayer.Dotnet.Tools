@@ -50,9 +50,14 @@ namespace MintPlayer.SourceGenerators.Generators
                                 .Select(a => new
                                 {
                                     Attribute = a,
-                                    Type = context.SemanticModel.GetTypeInfo(a, ct).ConvertedType
+                                    Type = context.SemanticModel.GetTypeInfo(a, ct).ConvertedType,
                                 })
                                 .FirstOrDefault(a => a.Type.Equals(context.SemanticModel.Compilation.GetTypeByMetadataName(typeof(GenericMethodAttribute).FullName)));
+
+                            if (attributeSyntax.Attribute.ArgumentList.Arguments[0].Expression is LiteralExpressionSyntax literal)
+                            {
+                                var res = literal.ToFullString();
+                            }
 
                             if (int.TryParse(attributeSyntax.Attribute.ArgumentList.Arguments[0].Expression.ToFullString(), out var countValue))
                             {

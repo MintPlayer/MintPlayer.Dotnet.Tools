@@ -8,7 +8,7 @@ namespace MintPlayer.SourceGenerators.Attributes
     [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
     public class RegisterAttribute : Attribute
     {
-        public RegisterAttribute(Type interfaceType, ServiceLifetime lifetime)
+        public RegisterAttribute(Type interfaceType, ServiceLifetime lifetime, string moduleName)
         {
             
         }
