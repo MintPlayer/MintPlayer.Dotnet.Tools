@@ -5,7 +5,8 @@ using System.Text;
 
 namespace MintPlayer.SourceGenerators.Attributes
 {
-    [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
+    // For now don't allow multiple registrations of the same service
+    [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
     public class RegisterAttribute : Attribute
     {
         public RegisterAttribute(Type interfaceType, ServiceLifetime lifetime, string methodNameHint = "") { }
