@@ -47,11 +47,14 @@ namespace MintPlayer.SourceGenerators.Generators
 
                                 if (attr is null) return default;
 
+                                if (attr.ConstructorArguments[0].Value is not INamedTypeSymbol interfaceSymbol) return default;
+
+                                // Verify that the class implements the interface
+                                if (namedTypeSymbol.AllInterfaces.All(i => i != interfaceSymbol)) return default;
+
                                 return new ServiceRegistration
                                 {
-                                    ServiceTypeName = attr.ConstructorArguments[0].Value is INamedTypeSymbol symbol
-                                        ? symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
-                                        : null,
+                                    ServiceTypeName = interfaceSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                     ImplementationTypeName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                     Lifetime = (ServiceLifetime)attr.ConstructorArguments[1].Value!,
                                     MethodNameHint = (string?)attr.ConstructorArguments[2].Value ?? string.Empty,
