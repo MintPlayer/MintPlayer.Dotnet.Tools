@@ -10,8 +10,9 @@ public partial class Class1
     [Inject] private readonly ITestService2 testService2;
 }
 
-public interface ITestService1 { }
-[Register(typeof(ITestService1), ServiceLifetime.Scoped)]
+public interface IBaseTestService1 { }
+public interface ITestService1 : IBaseTestService1 { }
+[Register(typeof(IBaseTestService1), ServiceLifetime.Scoped)]
 public class TestService1 : ITestService1 { }
 
 public interface ITestService2 { }
