@@ -1,4 +1,4 @@
-﻿
+﻿//using Hello;
 using MintPlayer.SourceGenerators.Attributes;
 
 public partial class Class2
