@@ -19,7 +19,7 @@ public interface ITestService2 { }
 public class TestService2 : ITestService2 { }
 
 public interface ITestService3 { }
-[Register(typeof(ITestService3), ServiceLifetime.Singleton)]
+[Register(typeof(ITestService3), ServiceLifetime.Singleton, "CoreData")]
 public class TestService3 : ITestService3 { }
 
 public interface ITestService4 { }

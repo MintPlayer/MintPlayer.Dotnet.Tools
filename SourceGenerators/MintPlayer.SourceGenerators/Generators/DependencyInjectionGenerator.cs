@@ -50,10 +50,11 @@ namespace MintPlayer.SourceGenerators.Generators
                                 return new ServiceRegistration
                                 {
                                     ServiceTypeName = attr.ConstructorArguments[0].Value is INamedTypeSymbol symbol
-                                                ? symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
-                                                : null,
+                                        ? symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                                        : null,
                                     ImplementationTypeName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                     Lifetime = (ServiceLifetime)attr.ConstructorArguments[1].Value!,
+                                    MethodNameHint = (string?)attr.ConstructorArguments[2].Value ?? string.Empty,
                                 };
                             }
                         }

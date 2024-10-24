@@ -10,5 +10,6 @@ namespace MintPlayer.SourceGenerators.Models
         public string? ServiceTypeName { get; set; }
         public string? ImplementationTypeName { get; set; }
         public ServiceLifetime Lifetime { get; set; }
+        public string MethodNameHint { get; set; } = string.Empty;
     }
 }

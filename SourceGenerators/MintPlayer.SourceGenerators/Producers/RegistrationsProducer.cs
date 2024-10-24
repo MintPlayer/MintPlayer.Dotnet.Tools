@@ -1,8 +1,10 @@
-﻿using MintPlayer.SourceGenerators.Models;
+﻿using MintPlayer.SourceGenerators.Extensions;
+using MintPlayer.SourceGenerators.Models;
 using MintPlayer.SourceGenerators.Tools;
 using System;
 using System.CodeDom.Compiler;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Threading;
@@ -25,29 +27,49 @@ namespace MintPlayer.SourceGenerators.Producers
             writer.WriteLine("{");
             writer.Indent++;
 
-            writer.WriteLine($"public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection AddServices(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)");
+            writer.WriteLine("public class DependencyInjectionExtensionMethods");
             writer.WriteLine("{");
             writer.Indent++;
 
-            writer.WriteLine("return services");
-            writer.Indent++;
-            foreach (var svc in serviceRegistrations)
+            foreach (var methodGroup in serviceRegistrations.Where(sr => sr is not null).GroupBy(sr => sr.MethodNameHint))
             {
-                if (svc is null) continue;
-                switch (svc.Lifetime)
+                var methodName = methodGroup.Key.NullIfEmpty() ?? "Services";
+                methodName = methodName.StartsWith("Add") ? methodName : $"Add{methodName}";
+                writer.WriteLine($"public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection {methodName}(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)");
+                writer.WriteLine("{");
+                writer.Indent++;
+
+                writer.WriteLine("return services");
+                writer.Indent++;
+
+                var currentIndex = 0;
+                var total = methodGroup.Count();
+                foreach (var svc in methodGroup)
                 {
-                    case Microsoft.Extensions.DependencyInjection.ServiceLifetime.Singleton:
-                        writer.WriteLine($".AddSingleton<{svc.ServiceTypeName}, {svc.ImplementationTypeName}>()");
-                        break;
-                    case Microsoft.Extensions.DependencyInjection.ServiceLifetime.Scoped:
-                        writer.WriteLine($".AddScoped<{svc.ServiceTypeName}, {svc.ImplementationTypeName}>()");
-                        break;
-                    case Microsoft.Extensions.DependencyInjection.ServiceLifetime.Transient:
-                        writer.WriteLine($".AddTransient<{svc.ServiceTypeName}, {svc.ImplementationTypeName}>()");
-                        break;
+                    switch (svc.Lifetime)
+                    {
+                        case Microsoft.Extensions.DependencyInjection.ServiceLifetime.Singleton:
+                            writer.Write($".AddSingleton<{svc.ServiceTypeName}, {svc.ImplementationTypeName}>()");
+                            break;
+                        case Microsoft.Extensions.DependencyInjection.ServiceLifetime.Scoped:
+                            writer.Write($".AddScoped<{svc.ServiceTypeName}, {svc.ImplementationTypeName}>()");
+                            break;
+                        case Microsoft.Extensions.DependencyInjection.ServiceLifetime.Transient:
+                            writer.Write($".AddTransient<{svc.ServiceTypeName}, {svc.ImplementationTypeName}>()");
+                            break;
+                    }
+
+                    if (++currentIndex == total)
+                        writer.Write(";");
+
+                    writer.WriteLine();
                 }
+
+                writer.Indent--;
+
+                writer.Indent--;
+                writer.WriteLine("}");
             }
-            writer.Indent--;
 
             writer.Indent--;
             writer.WriteLine("}");
