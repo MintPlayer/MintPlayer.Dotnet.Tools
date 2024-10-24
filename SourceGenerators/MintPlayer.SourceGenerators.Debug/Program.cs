@@ -4,12 +4,6 @@ using MintPlayer.SourceGenerators.Attributes;
 
 Console.WriteLine("Hello, World!");
 
-public partial class Class1
-{
-    [Inject] private readonly ITestService1 testService1;
-    [Inject] private readonly ITestService2 testService2;
-}
-
 public interface IBaseTestService1 { }
 public interface ITestService1 : IBaseTestService1 { }
 [Register(typeof(IBaseTestService1), ServiceLifetime.Scoped)]
@@ -19,9 +13,15 @@ public interface ITestService2 { }
 [Register(typeof(ITestService2), ServiceLifetime.Transient)]
 public class TestService2 : ITestService2 { }
 
-public interface ITestService3 { }
+public interface ITestService3
+{
+    string GetMessage();
+}
 [Register(typeof(ITestService3), ServiceLifetime.Singleton, "CoreData")]
-public class TestService3 : ITestService3 { }
+public class TestService3 : ITestService3
+{
+    public string GetMessage() => "Hello world";
+}
 
 public interface ITestService4 { }
 [Register(typeof(ITestService4), ServiceLifetime.Scoped)]

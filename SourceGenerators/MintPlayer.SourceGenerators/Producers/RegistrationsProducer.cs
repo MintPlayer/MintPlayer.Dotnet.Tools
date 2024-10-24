@@ -27,7 +27,7 @@ namespace MintPlayer.SourceGenerators.Producers
             writer.WriteLine("{");
             writer.Indent++;
 
-            writer.WriteLine("public class DependencyInjectionExtensionMethods");
+            writer.WriteLine("public static class DependencyInjectionExtensionMethods");
             writer.WriteLine("{");
             writer.Indent++;
 
