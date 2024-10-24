@@ -25,7 +25,7 @@ namespace MintPlayer.SourceGenerators.Producers
             {
                 if (declaration.Key != null)
                 {
-                    writer.WriteLine($"public namespace {declaration.Key}");
+                    writer.WriteLine($"namespace {declaration.Key}");
                     writer.WriteLine("{");
                     writer.Indent++;
                 }
@@ -36,6 +36,9 @@ namespace MintPlayer.SourceGenerators.Producers
                     writer.WriteLine("{");
                     writer.Indent++;
                     writer.WriteLine($"public {classDeclaration.Key}({string.Join(", ", classDeclaration.Select(s => $"{s.FullyQualifiedTypeName} {s.Name}"))})");
+                    writer.Indent++;
+                    writer.WriteLine(": base()");
+                    writer.Indent--;
                     writer.WriteLine("{");
                     writer.Indent++;
                     foreach (var s in classDeclaration)
