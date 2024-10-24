@@ -25,7 +25,7 @@ namespace MintPlayer.SourceGenerators.Producers
             {
                 if (declaration.Key != null)
                 {
-                    writer.WriteLine($"public namespace {declaration.Key}");
+                    writer.WriteLine($"namespace {declaration.Key}");
                     writer.WriteLine("{");
                     writer.Indent++;
                 }
