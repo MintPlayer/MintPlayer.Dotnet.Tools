@@ -15,5 +15,11 @@ namespace MintPlayer.SourceGenerators.Models
         public string? Namespace { get; set; }
         public string? FullyQualifiedTypeName { get; set; }
         public string? Type { get; set; }
+        public Attribute[] Attributes { get; set; } = new Attribute[0];
+    }
+
+    public class Attribute
+    {
+        public string? AttributeType { get; set; }
     }
 }
