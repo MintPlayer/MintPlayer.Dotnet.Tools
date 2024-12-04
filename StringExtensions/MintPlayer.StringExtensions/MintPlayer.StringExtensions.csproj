@@ -8,7 +8,7 @@
 		<PublishAot>true</PublishAot>
 
 		<IsPackable>true</IsPackable>
-		<Version>9.0.0</Version>
+		<Version>9.1.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>Generate random strings, string casing extensions, string.Format with placeholder tags</Description>
