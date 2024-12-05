@@ -12,11 +12,13 @@ internal interface IGithubPackageRegistry : IFeedSupportsDotnetSDK, IFeedSupport
 internal class GithubPackageRegistry : IGithubPackageRegistry
 {
     private readonly string organization;
+    private readonly string token;
     private SourceCacheContext? cache;
     private FindPackageByIdResource? nugetPackageFinder;
-    public GithubPackageRegistry(string organization)
+    public GithubPackageRegistry(string organization, string token)
     {
         this.organization = organization;
+        this.token = token;
     }
 
     // https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-nuget-registry
@@ -39,7 +41,7 @@ internal class GithubPackageRegistry : IGithubPackageRegistry
     public async Task InitializeFeed()
     {
         var feed = new PackageSource(NugetFeedUrl, "github.com");
-        feed.Credentials = new PackageSourceCredential("github.com", "MintPlayer", "", true, null); // goto github.com/settings/tokens
+        //feed.Credentials = new PackageSourceCredential("github.com", organization, token, true, null); // goto github.com/settings/tokens
         var repository = Repository.Factory.GetCoreV3(feed);
         nugetPackageFinder = await repository.GetResourceAsync<FindPackageByIdResource>();
         cache = new SourceCacheContext();
