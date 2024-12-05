@@ -1,6 +1,8 @@
-﻿namespace MintPlayer.Verz.Sdk.Nodejs.Abstractions;
+﻿using MintPlayer.Verz.Abstractions;
 
-public interface IFeedSupportsNodejsSDK
+namespace MintPlayer.Verz.Sdk.Nodejs.Abstractions;
+
+public interface IFeedSupportsNodejsSDK : IPackageRegistry
 {
     string NpmFeed { get; }
 }
