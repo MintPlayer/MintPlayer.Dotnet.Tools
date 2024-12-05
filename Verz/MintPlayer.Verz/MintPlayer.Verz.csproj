@@ -13,6 +13,7 @@
 	<PropertyGroup>
 		<PackAsTool>true</PackAsTool>
 		<ToolCommandName>verz</ToolCommandName>
+		<UserSecretsId>1d1306ff-f7b1-4dab-bea1-99d2d582db9f</UserSecretsId>
 	</PropertyGroup>
 
 	<ItemGroup>

@@ -1,11 +1,14 @@
 ﻿// dotnet tool install --global MintPlayer.Verz
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Hosting.Internal;
 using MintPlayer.Verz;
 
-var app = new HostBuilder()
-    .ConfigureServices(services =>
+var app = Host.CreateDefaultBuilder()
+    .ConfigureAppConfiguration((context, config) => { })
+    .ConfigureServices((context, services) =>
     {
         services.AddSingleton<IApp, App>();
         services.AddSingleton<IHelper, App>();
@@ -13,15 +16,11 @@ var app = new HostBuilder()
         services
             //.AddNugetOrgRegistry()
             .AddNpmjsComRegistry()
-            .AddGithubPackageRegistry("MintPlayer");
+            .AddGithubPackageRegistry("MintPlayer", context.Configuration.GetValue<string>("GithubPAT")!)
+            ;
         services
             .AddDotnetSDK()
             .AddNodejsSDK();
-
-        //services.AddSingleton<IAllDotnetPackageSources>((provider) =>
-        //{
-
-        //})
     })
     .Build();
 
