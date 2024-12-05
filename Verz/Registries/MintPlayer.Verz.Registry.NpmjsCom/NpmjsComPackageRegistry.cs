@@ -8,4 +8,9 @@ internal interface INpmjsComPackageRegistry : IPackageRegistry, IFeedSupportsNod
 internal class NpmjsComPackageRegistry : INpmjsComPackageRegistry
 {
     public string NpmFeed => "https://registry.npmjs.org";
+
+    public Task<IEnumerable<string>> GetPackageVersions(string packageId)
+    {
+        return Task.FromResult<IEnumerable<string>>([]);
+    }
 }

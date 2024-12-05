@@ -2,5 +2,5 @@
 
 public interface IDevelopmentSdk
 {
-
+    Task<string> GetPackageById(string packageId);
 }

@@ -1,6 +1,9 @@
-﻿namespace MintPlayer.Verz.Sdk.Dotnet.Abstractions;
+﻿using MintPlayer.Verz.Abstractions;
 
-public interface IFeedSupportsDotnetSDK
+namespace MintPlayer.Verz.Sdk.Dotnet.Abstractions;
+
+public interface IFeedSupportsDotnetSDK : IPackageRegistry
 {
-    string NugetFeed { get; }
+    string NugetFeedUrl { get; }
+    Task InitializeFeed();
 }

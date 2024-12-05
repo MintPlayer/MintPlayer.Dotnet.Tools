@@ -12,6 +12,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\..\MintPlayer.Verz.Abstractions\MintPlayer.Verz.Abstractions.csproj" />
+		<ProjectReference Include="..\MintPlayer.Verz.Sdk.Dotnet.Abstractions\MintPlayer.Verz.Sdk.Dotnet.Abstractions.csproj" />
 	</ItemGroup>
 
 </Project>

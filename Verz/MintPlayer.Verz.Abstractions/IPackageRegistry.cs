@@ -2,5 +2,5 @@
 
 public interface IPackageRegistry
 {
-
+    Task<IEnumerable<string>> GetPackageVersions(string packageId);
 }
