@@ -23,7 +23,11 @@ internal class App : IApp, IHelper
 
     public async Task Run(string[] args)
     {
-        const string packageName = "Microsoft.Extensions.DependencyInjection";
+        //const string packageName = "Microsoft.Extensions.DependencyInjection";
+        //var result = await Task.WhenAll(dotnetFeeds.Select(f => f.GetPackageVersions(packageName)));
+        //var allVersions = result.SelectMany(x => x).Distinct().ToArray();
+
+        const string packageName = "MintPlayer.AspNetCore.SpaServices.Prerendering";
         var result = await Task.WhenAll(dotnetFeeds.Select(f => f.GetPackageVersions(packageName)));
         var allVersions = result.SelectMany(x => x).Distinct().ToArray();
 

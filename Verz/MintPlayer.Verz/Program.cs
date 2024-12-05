@@ -11,7 +11,7 @@ var app = new HostBuilder()
         services.AddSingleton<IHelper, App>();
 
         services
-            .AddNugetOrgRegistry()
+            //.AddNugetOrgRegistry()
             .AddNpmjsComRegistry()
             .AddGithubPackageRegistry("MintPlayer");
         services

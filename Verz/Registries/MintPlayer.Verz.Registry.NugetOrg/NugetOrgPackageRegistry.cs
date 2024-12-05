@@ -10,18 +10,17 @@ internal interface INugetOrgPackageRegistry : IFeedSupportsDotnetSDK { }
 
 internal class NugetOrgPackageRegistry : INugetOrgPackageRegistry
 {
-    private FindPackageByIdResource? packageFinder;
+    private FindPackageByIdResource? nugetPackageFinder;
     private SourceCacheContext? cache;
 
     public string NugetFeedUrl => "https://api.nuget.org/v3/index.json";
 
     public async Task<IEnumerable<string>> GetPackageVersions(string packageId)
     {
-        if (packageFinder == null)
+        if (nugetPackageFinder == null)
             await InitializeFeed();
-            //throw new InvalidOperationException($"Did you forget to call {nameof(InitializeFeed)}?");
 
-        var packageVersions = await packageFinder.GetAllVersionsAsync(packageId, cache, NuGet.Common.NullLogger.Instance, CancellationToken.None);
+        var packageVersions = await nugetPackageFinder.GetAllVersionsAsync(packageId, cache, NuGet.Common.NullLogger.Instance, CancellationToken.None);
         return packageVersions.Select(v => string.IsNullOrEmpty(v.Release)
             ? v.ToString()
             : $"{v.Version}-{v.Release}");
@@ -31,7 +30,7 @@ internal class NugetOrgPackageRegistry : INugetOrgPackageRegistry
     {
         var feed = new PackageSource(NugetFeedUrl, "nuget.org");
         var repository = Repository.Factory.GetCoreV3(feed);
-        packageFinder = await repository.GetResourceAsync<FindPackageByIdResource>();
+        nugetPackageFinder = await repository.GetResourceAsync<FindPackageByIdResource>();
         cache = new SourceCacheContext();
     }
 }

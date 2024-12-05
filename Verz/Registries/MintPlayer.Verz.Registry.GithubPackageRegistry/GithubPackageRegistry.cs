@@ -1,14 +1,19 @@
 ﻿using MintPlayer.Verz.Abstractions;
 using MintPlayer.Verz.Sdk.Dotnet.Abstractions;
 using MintPlayer.Verz.Sdk.Nodejs.Abstractions;
+using NuGet.Configuration;
+using NuGet.Protocol;
+using NuGet.Protocol.Core.Types;
 
 namespace MintPlayer.Verz.Registry.GithubPackageRegistry;
 
-internal interface IGithubPackageRegistry : IPackageRegistry, IFeedSupportsDotnetSDK, IFeedSupportsNodejsSDK { }
+internal interface IGithubPackageRegistry : IFeedSupportsDotnetSDK, IFeedSupportsNodejsSDK { }
 
 internal class GithubPackageRegistry : IGithubPackageRegistry
 {
     private readonly string organization;
+    private SourceCacheContext? cache;
+    private FindPackageByIdResource? nugetPackageFinder;
     public GithubPackageRegistry(string organization)
     {
         this.organization = organization;
@@ -20,13 +25,23 @@ internal class GithubPackageRegistry : IGithubPackageRegistry
     // https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry
     public string NpmFeed => "https://npm.pkg.github.com";
 
-    public Task<IEnumerable<string>> GetPackageVersions(string packageId)
+    public async Task<IEnumerable<string>> GetPackageVersions(string packageId)
     {
-        return Task.FromResult<IEnumerable<string>>(new string[0]);
+        if (nugetPackageFinder == null)
+            await InitializeFeed();
+
+        var packageVersions = await nugetPackageFinder.GetAllVersionsAsync(packageId, cache, NuGet.Common.NullLogger.Instance, CancellationToken.None);
+        return packageVersions.Select(v => string.IsNullOrEmpty(v.Release)
+            ? v.ToString()
+            : $"{v.Version}-{v.Release}");
     }
 
-    public Task InitializeFeed()
+    public async Task InitializeFeed()
     {
-        return Task.CompletedTask;
+        var feed = new PackageSource(NugetFeedUrl, "github.com");
+        feed.Credentials = new PackageSourceCredential("github.com", "MintPlayer", "", true, null); // goto github.com/settings/tokens
+        var repository = Repository.Factory.GetCoreV3(feed);
+        nugetPackageFinder = await repository.GetResourceAsync<FindPackageByIdResource>();
+        cache = new SourceCacheContext();
     }
 }
