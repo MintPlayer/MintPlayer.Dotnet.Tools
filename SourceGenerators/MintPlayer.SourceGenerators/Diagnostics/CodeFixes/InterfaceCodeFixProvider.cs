@@ -57,7 +57,7 @@ namespace MintPlayer.SourceGenerators.Diagnostics.CodeFixes
             var interfaceMembers = interfaceSymbol.GetMembers();
 
             var missingMembers = classMembers
-                .Where(cm => !interfaceMembers.Any(im => im.Name == cm.Name))
+                .Where(cm => !interfaceMembers.Any(im => im.Name == cm.Name) && cm.CanBeReferencedByName)
                 .Select(cm => CreateInterfaceMember(cm));
 
             // Find the interface declaration in the syntax tree
