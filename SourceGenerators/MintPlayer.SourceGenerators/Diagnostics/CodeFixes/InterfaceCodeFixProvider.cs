@@ -1,7 +1,9 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
@@ -36,12 +38,65 @@ namespace MintPlayer.SourceGenerators.Diagnostics.CodeFixes
                     equivalenceKey: "AddMissingMembers"),
                 diagnostic);
         }
-
-        private Task<Document> AddMissingMembersToInterface(Document document, ClassDeclarationSyntax classDecl, CancellationToken cancellationToken)
+        private async Task<Document> AddMissingMembersToInterface(Document document, ClassDeclarationSyntax classDecl, CancellationToken cancellationToken)
         {
             // Implement logic to update the interface here
             // Use Roslyn's SyntaxFactory to create the new interface members
-            return Task.FromResult(document);
+
+            var root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
+            var semanticModel = await document.GetSemanticModelAsync(cancellationToken).ConfigureAwait(false);
+
+            // Locate the implemented interface
+            var classSymbol = semanticModel?.GetDeclaredSymbol(classDecl, cancellationToken) as INamedTypeSymbol;
+            var interfaceSymbol = classSymbol?.Interfaces.FirstOrDefault();
+            if (interfaceSymbol == null)
+                return document;
+
+            // Determine missing members
+            var classMembers = classSymbol?.GetMembers().Where(m => m.DeclaredAccessibility == Accessibility.Public);
+            var interfaceMembers = interfaceSymbol.GetMembers();
+
+            var missingMembers = classMembers
+                .Where(cm => !interfaceMembers.Any(im => im.Name == cm.Name))
+                .Select(cm => CreateInterfaceMember(cm));
+
+            // Find the interface declaration in the syntax tree
+            var interfaceNode = root.DescendantNodes()
+                .OfType<InterfaceDeclarationSyntax>()
+                .FirstOrDefault(i => semanticModel.GetDeclaredSymbol(i, cancellationToken)?.Equals(interfaceSymbol) == true);
+
+            if (interfaceNode == null)
+                return document;
+
+            // Add missing members to the interface
+            var updatedInterfaceNode = interfaceNode.AddMembers(missingMembers.ToArray());
+            var updatedRoot = root.ReplaceNode(interfaceNode, updatedInterfaceNode);
+
+            return document.WithSyntaxRoot(updatedRoot);
+        }
+
+        private MemberDeclarationSyntax CreateInterfaceMember(ISymbol member)
+        {
+            return member switch
+            {
+                IMethodSymbol methodSymbol => SyntaxFactory.MethodDeclaration(
+                    SyntaxFactory.ParseTypeName(methodSymbol.ReturnType.ToDisplayString()),
+                    methodSymbol.Name)
+                    .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                    .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)),
+
+                IPropertySymbol propertySymbol => SyntaxFactory.PropertyDeclaration(
+                    SyntaxFactory.ParseTypeName(propertySymbol.Type.ToDisplayString()),
+                    propertySymbol.Name)
+                    .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                    .AddAccessorListAccessors(
+                        SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration)
+                            .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)),
+                        SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration)
+                            .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken))),
+
+                _ => throw new NotImplementedException("Member type not supported")
+            };
         }
     }
 }
