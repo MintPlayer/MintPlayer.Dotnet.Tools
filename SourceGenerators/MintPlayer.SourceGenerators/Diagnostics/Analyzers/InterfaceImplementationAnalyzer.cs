@@ -39,8 +39,11 @@ namespace MintPlayer.SourceGenerators.Diagnostics.Analyzers
                     if (!interfaceMembers.Any(im => im.Name == member.Name) && !member.IsImplicitlyDeclared)
                     {
                         // Report diagnostic for missing member
-                        var diagnostic = Diagnostic.Create(DiagnosticRules.MissingInterfaceMemberRule, member.Locations[0], member.Name, iface.Name);
+                        var syntaxNode = member.DeclaringSyntaxReferences.First().GetSyntax(context.CancellationToken);
+                        //var diagnostic = Diagnostic.Create(DiagnosticRules.MissingInterfaceMemberRule, member.Locations[0], member.Name, iface.Name);
+                        var diagnostic = Diagnostic.Create(DiagnosticRules.MissingInterfaceMemberRule, syntaxNode.GetLocation(), member.Name, iface.Name);
                         context.ReportDiagnostic(diagnostic);
+
                     }
                 }
             }
