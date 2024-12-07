@@ -22,19 +22,20 @@ namespace MintPlayer.SourceGenerators.Diagnostics.CodeFixes
 
         public override async Task RegisterCodeFixesAsync(CodeFixContext context)
         {
-            var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
+            var classSyntaxRoot = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
             var diagnostic = context.Diagnostics.First();
             var diagnosticSpan = diagnostic.Location.SourceSpan;
 
             // Locate the class declaration
-            var classDecl = root?.FindToken(diagnosticSpan.Start).Parent?.AncestorsAndSelf().OfType<ClassDeclarationSyntax>().First();
+            var classDecl = classSyntaxRoot?.FindToken(diagnosticSpan.Start).Parent?.AncestorsAndSelf().OfType<ClassDeclarationSyntax>().First();
             if (classDecl == null)
                 return;
 
             context.RegisterCodeFix(
                 CodeAction.Create(
                     title: "Add missing members to interface",
-                    createChangedDocument: c => AddMissingMembersToInterface(context.Document, classDecl, c),
+                    //createChangedDocument: c => AddMissingMembersToInterface(context.Document, classDecl, c),
+                    createChangedSolution: ct => AddMissingMembersToInterfaceAcrossProjects(context, classDecl, ct),
                     //createChangedSolution: async (c) =>
                     //{
                     //    var semanticModel = await context.Document.GetSemanticModelAsync(c).ConfigureAwait(false);
@@ -88,19 +89,29 @@ namespace MintPlayer.SourceGenerators.Diagnostics.CodeFixes
         //}
 
 
-        private async Task<Document> AddMissingMembersToInterface(Document document, ClassDeclarationSyntax classDecl, CancellationToken cancellationToken)
+        private async Task<Solution> AddMissingMembersToInterfaceAcrossProjects(CodeFixContext cfContext, ClassDeclarationSyntax classDeclaration, CancellationToken cancellationToken)
         {
-            // Implement logic to update the interface here
-            // Use Roslyn's SyntaxFactory to create the new interface members
+            var solution = cfContext.Document.Project.Solution;
+            var classDocument = cfContext.Document;
+            var classProject = classDocument.Project;
 
-            var root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
-            var semanticModel = await document.GetSemanticModelAsync(cancellationToken).ConfigureAwait(false);
+            var classSyntaxRoot = await classDocument.GetSyntaxRootAsync();
+            var classSemanticModel = await classDocument.GetSemanticModelAsync();
 
-            // Locate the implemented interface
-            var classSymbol = semanticModel?.GetDeclaredSymbol(classDecl, cancellationToken) as INamedTypeSymbol;
+            var classSymbol = classSemanticModel.GetDeclaredSymbol(classDeclaration);
             var interfaceSymbol = classSymbol?.Interfaces.FirstOrDefault();
-            if (interfaceSymbol == null)
-                return document;
+            if (interfaceSymbol == null) return solution;
+
+            // Need to get the InterfaceDocument here, instead of altering the ClassDocument
+            var interfaceDocument = solution.GetDocument(interfaceSymbol.Locations[0].SourceTree);
+            if (interfaceDocument == null) return solution;
+
+            var interfaceSyntaxRoot = await interfaceDocument.GetSyntaxRootAsync();
+            if (interfaceSyntaxRoot == null) return solution;
+
+            var interfaceSemanticModel = await interfaceDocument.GetSemanticModelAsync();
+            if (interfaceSemanticModel == null) return solution;
+
 
             // Determine missing members
             var classMembers = classSymbol?.GetMembers().Where(m => m.DeclaredAccessibility == Accessibility.Public);
@@ -111,19 +122,61 @@ namespace MintPlayer.SourceGenerators.Diagnostics.CodeFixes
                 .Select(cm => CreateInterfaceMember(cm));
 
             // Find the interface declaration in the syntax tree
-            var interfaceNode = root.DescendantNodes()
+            var interfaceNode = interfaceSyntaxRoot.DescendantNodes()
                 .OfType<InterfaceDeclarationSyntax>()
-                .FirstOrDefault(i => semanticModel.GetDeclaredSymbol(i, cancellationToken)?.Equals(interfaceSymbol) == true);
+                .FirstOrDefault(i => SymbolEqualityComparer.Default.Equals(interfaceSemanticModel.GetDeclaredSymbol(i, cancellationToken), interfaceSymbol));
 
             if (interfaceNode == null)
-                return document;
+                return solution;
 
             // Add missing members to the interface
             var updatedInterfaceNode = interfaceNode.AddMembers(missingMembers.ToArray());
-            var updatedRoot = root.ReplaceNode(interfaceNode, updatedInterfaceNode);
+            var updatedRoot = interfaceSyntaxRoot.ReplaceNode(interfaceNode, updatedInterfaceNode);
 
-            return document.WithSyntaxRoot(updatedRoot);
+            return solution
+                .WithDocumentSyntaxRoot(interfaceDocument.Id, updatedRoot);
         }
+
+        //private async Task<Document> AddMissingMembersToInterface(CodeFixContext cfContext, Document document, ClassDeclarationSyntax classDecl, CancellationToken cancellationToken)
+        //{
+        //    // Implement logic to update the interface here
+        //    // Use Roslyn's SyntaxFactory to create the new interface members
+
+        //    var root = await document.GetSyntaxRootAsync(cancellationToken);
+        //    var semanticModel = await document.GetSemanticModelAsync(cancellationToken);
+
+        //    // Locate the implemented interface
+        //    var classSymbol = semanticModel?.GetDeclaredSymbol(classDecl, cancellationToken);
+        //    var interfaceSymbol = classSymbol?.Interfaces.FirstOrDefault();
+        //    if (interfaceSymbol == null)
+        //        return document;
+
+            
+
+        //    //interfaceSymbol.Locations[0].SourceTree.
+
+        //    // Determine missing members
+        //    var classMembers = classSymbol?.GetMembers().Where(m => m.DeclaredAccessibility == Accessibility.Public);
+        //    var interfaceMembers = interfaceSymbol.GetMembers();
+
+        //    var missingMembers = classMembers
+        //        .Where(cm => !interfaceMembers.Any(im => im.Name == cm.Name) && cm.CanBeReferencedByName)
+        //        .Select(cm => CreateInterfaceMember(cm));
+
+        //    // Find the interface declaration in the syntax tree
+        //    var interfaceNode = root.DescendantNodes()
+        //        .OfType<InterfaceDeclarationSyntax>()
+        //        .FirstOrDefault(i => semanticModel.GetDeclaredSymbol(i, cancellationToken)?.Equals(interfaceSymbol) == true);
+
+        //    if (interfaceNode == null)
+        //        return document;
+
+        //    // Add missing members to the interface
+        //    var updatedInterfaceNode = interfaceNode.AddMembers(missingMembers.ToArray());
+        //    var updatedRoot = root.ReplaceNode(interfaceNode, updatedInterfaceNode);
+
+        //    return document.WithSyntaxRoot(updatedRoot);
+        //}
 
         private MemberDeclarationSyntax CreateInterfaceMember(ISymbol member)
         {
