@@ -4,6 +4,7 @@ using MintPlayer.Verz.Sdk.Nodejs.Abstractions;
 using NuGet.Configuration;
 using NuGet.Protocol;
 using NuGet.Protocol.Core.Types;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MintPlayer.Verz.Registry.GithubPackageRegistry;
 
@@ -38,10 +39,11 @@ internal class GithubPackageRegistry : IGithubPackageRegistry
             : $"{v.Version}-{v.Release}");
     }
 
+    [MemberNotNull(nameof(nugetPackageFinder))]
     public async Task InitializeFeed()
     {
         var feed = new PackageSource(NugetFeedUrl, "github.com");
-        //feed.Credentials = new PackageSourceCredential("github.com", organization, token, true, null); // goto github.com/settings/tokens
+        feed.Credentials = new PackageSourceCredential("github.com", organization, token, true, null); // goto github.com/settings/tokens
         var repository = Repository.Factory.GetCoreV3(feed);
         nugetPackageFinder = await repository.GetResourceAsync<FindPackageByIdResource>();
         cache = new SourceCacheContext();
