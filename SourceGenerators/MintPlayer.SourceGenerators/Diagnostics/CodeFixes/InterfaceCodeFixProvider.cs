@@ -34,60 +34,10 @@ namespace MintPlayer.SourceGenerators.Diagnostics.CodeFixes
             context.RegisterCodeFix(
                 CodeAction.Create(
                     title: "Add missing members to interface",
-                    //createChangedDocument: c => AddMissingMembersToInterface(context.Document, classDecl, c),
                     createChangedSolution: ct => AddMissingMembersToInterfaceAcrossProjects(context, classDecl, ct),
-                    //createChangedSolution: async (c) =>
-                    //{
-                    //    var semanticModel = await context.Document.GetSemanticModelAsync(c).ConfigureAwait(false);
-                    //    var classSymbol = semanticModel.GetDeclaredSymbol(classDecl, c);
-                    //    var interfaceSymbol = classSymbol.Interfaces.First(); // Adjust as necessary
-
-                    //    // Collect missing members
-                    //    var missingMembers = classSymbol.GetMembers()
-                    //        .Where(m => !interfaceSymbol.GetMembers().Any(im => im.Name == m.Name));
-
-                    //    // Update the interface in its project
-                    //    var updatedDocument = await UpdateExternalInterfaceAsync(
-                    //        context.Document.Project.Solution,
-                    //        interfaceSymbol,
-                    //        missingMembers,
-                    //        c);
-
-                    //    return updatedDocument?.Project.Solution ?? context.Document.Project.Solution;
-                    //},
                     equivalenceKey: "AddMissingMembers"),
                 diagnostic);
         }
-
-        //private async Task<Document> UpdateExternalInterfaceAsync(Solution solution, INamedTypeSymbol interfaceSymbol, IEnumerable<ISymbol> missingMembers, CancellationToken cancellationToken)
-        //{
-        //    // Locate the document containing the interface
-        //    var document = solution.GetDocument(interfaceSymbol.Locations.First().SourceTree);
-        //    if (document == null)
-        //        return null;
-
-        //    // Get the syntax root and semantic model of the document
-        //    var root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
-        //    var semanticModel = await document.GetSemanticModelAsync(cancellationToken).ConfigureAwait(false);
-
-        //    // Find the interface declaration
-        //    var interfaceDecl = root.DescendantNodes()
-        //        .OfType<InterfaceDeclarationSyntax>()
-        //        .FirstOrDefault(i => semanticModel.GetDeclaredSymbol(i, cancellationToken)?.Equals(interfaceSymbol) == true);
-
-        //    if (interfaceDecl == null)
-        //        return null;
-
-        //    // Create new members
-        //    var newMembers = missingMembers.Select(CreateInterfaceMember).ToArray();
-
-        //    // Update the interface
-        //    var updatedInterfaceDecl = interfaceDecl.AddMembers(newMembers);
-        //    var updatedRoot = root.ReplaceNode(interfaceDecl, updatedInterfaceDecl);
-
-        //    return document.WithSyntaxRoot(updatedRoot);
-        //}
-
 
         private async Task<Solution> AddMissingMembersToInterfaceAcrossProjects(CodeFixContext cfContext, ClassDeclarationSyntax classDeclaration, CancellationToken cancellationToken)
         {
@@ -95,23 +45,22 @@ namespace MintPlayer.SourceGenerators.Diagnostics.CodeFixes
             var classDocument = cfContext.Document;
             var classProject = classDocument.Project;
 
-            var classSyntaxRoot = await classDocument.GetSyntaxRootAsync();
-            var classSemanticModel = await classDocument.GetSemanticModelAsync();
+            var classSyntaxRoot = await classDocument.GetSyntaxRootAsync(cancellationToken);
+            var classSemanticModel = await classDocument.GetSemanticModelAsync(cancellationToken);
 
-            var classSymbol = classSemanticModel.GetDeclaredSymbol(classDeclaration);
+            var classSymbol = classSemanticModel.GetDeclaredSymbol(classDeclaration, cancellationToken);
             var interfaceSymbol = classSymbol?.Interfaces.FirstOrDefault();
             if (interfaceSymbol == null) return solution;
 
-            // Need to get the InterfaceDocument here, instead of altering the ClassDocument
-            var interfaceDocument = solution.GetDocument(interfaceSymbol.Locations[0].SourceTree);
+            var interfaceFirstLocation = interfaceSymbol.Locations[0];
+            var interfaceDocument = solution.Projects
+                .SelectMany(p => p.Documents)
+                .FirstOrDefault(d => d.FilePath == interfaceFirstLocation.SourceTree?.FilePath);
             if (interfaceDocument == null) return solution;
 
-            var interfaceSyntaxRoot = await interfaceDocument.GetSyntaxRootAsync();
-            if (interfaceSyntaxRoot == null) return solution;
-
-            var interfaceSemanticModel = await interfaceDocument.GetSemanticModelAsync();
-            if (interfaceSemanticModel == null) return solution;
-
+            var interfaceSyntaxRoot = await interfaceDocument.GetSyntaxRootAsync(cancellationToken);
+            var interfaceSemanticModel = await interfaceDocument.GetSemanticModelAsync(cancellationToken);
+            if (interfaceSyntaxRoot == null || interfaceSemanticModel == null) return solution;
 
             // Determine missing members
             var classMembers = classSymbol?.GetMembers().Where(m => m.DeclaredAccessibility == Accessibility.Public);
@@ -125,9 +74,7 @@ namespace MintPlayer.SourceGenerators.Diagnostics.CodeFixes
             var interfaceNode = interfaceSyntaxRoot.DescendantNodes()
                 .OfType<InterfaceDeclarationSyntax>()
                 .FirstOrDefault(i => SymbolEqualityComparer.Default.Equals(interfaceSemanticModel.GetDeclaredSymbol(i, cancellationToken), interfaceSymbol));
-
-            if (interfaceNode == null)
-                return solution;
+            if (interfaceNode == null) return solution;
 
             // Add missing members to the interface
             var updatedInterfaceNode = interfaceNode.AddMembers(missingMembers.ToArray());
@@ -136,47 +83,6 @@ namespace MintPlayer.SourceGenerators.Diagnostics.CodeFixes
             return solution
                 .WithDocumentSyntaxRoot(interfaceDocument.Id, updatedRoot);
         }
-
-        //private async Task<Document> AddMissingMembersToInterface(CodeFixContext cfContext, Document document, ClassDeclarationSyntax classDecl, CancellationToken cancellationToken)
-        //{
-        //    // Implement logic to update the interface here
-        //    // Use Roslyn's SyntaxFactory to create the new interface members
-
-        //    var root = await document.GetSyntaxRootAsync(cancellationToken);
-        //    var semanticModel = await document.GetSemanticModelAsync(cancellationToken);
-
-        //    // Locate the implemented interface
-        //    var classSymbol = semanticModel?.GetDeclaredSymbol(classDecl, cancellationToken);
-        //    var interfaceSymbol = classSymbol?.Interfaces.FirstOrDefault();
-        //    if (interfaceSymbol == null)
-        //        return document;
-
-            
-
-        //    //interfaceSymbol.Locations[0].SourceTree.
-
-        //    // Determine missing members
-        //    var classMembers = classSymbol?.GetMembers().Where(m => m.DeclaredAccessibility == Accessibility.Public);
-        //    var interfaceMembers = interfaceSymbol.GetMembers();
-
-        //    var missingMembers = classMembers
-        //        .Where(cm => !interfaceMembers.Any(im => im.Name == cm.Name) && cm.CanBeReferencedByName)
-        //        .Select(cm => CreateInterfaceMember(cm));
-
-        //    // Find the interface declaration in the syntax tree
-        //    var interfaceNode = root.DescendantNodes()
-        //        .OfType<InterfaceDeclarationSyntax>()
-        //        .FirstOrDefault(i => semanticModel.GetDeclaredSymbol(i, cancellationToken)?.Equals(interfaceSymbol) == true);
-
-        //    if (interfaceNode == null)
-        //        return document;
-
-        //    // Add missing members to the interface
-        //    var updatedInterfaceNode = interfaceNode.AddMembers(missingMembers.ToArray());
-        //    var updatedRoot = root.ReplaceNode(interfaceNode, updatedInterfaceNode);
-
-        //    return document.WithSyntaxRoot(updatedRoot);
-        //}
 
         private MemberDeclarationSyntax CreateInterfaceMember(ISymbol member)
         {
