@@ -18,7 +18,7 @@ namespace MintPlayer.SourceGenerators.Diagnostics.Analyzers
             context.RegisterSymbolAction(AnalyzeSymbol, SymbolKind.NamedType);
         }
 
-        private void AnalyzeSymbol(SymbolAnalysisContext context)
+        private static void AnalyzeSymbol(SymbolAnalysisContext context)
         {
             var namedTypeSymbol = (INamedTypeSymbol)context.Symbol;
 
@@ -43,6 +43,7 @@ namespace MintPlayer.SourceGenerators.Diagnostics.Analyzers
                         //var diagnostic = Diagnostic.Create(DiagnosticRules.MissingInterfaceMemberRule, member.Locations[0], member.Name, iface.Name);
                         var diagnostic = Diagnostic.Create(DiagnosticRules.MissingInterfaceMemberRule, syntaxNode.GetLocation(), member.Name, iface.Name);
                         context.ReportDiagnostic(diagnostic);
+
                     }
                 }
             }
