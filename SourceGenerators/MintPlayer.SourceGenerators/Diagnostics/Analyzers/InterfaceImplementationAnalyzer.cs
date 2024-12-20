@@ -24,7 +24,7 @@ namespace MintPlayer.SourceGenerators.Diagnostics.Analyzers
 
             // Check if the class implements an interface
             var implementedInterfaces = namedTypeSymbol.Interfaces;
-            if (!implementedInterfaces.Any())
+            if (!implementedInterfaces.Any() || namedTypeSymbol.TypeKind != TypeKind.Class)
                 return;
 
             foreach (var iface in implementedInterfaces)
@@ -45,7 +45,6 @@ namespace MintPlayer.SourceGenerators.Diagnostics.Analyzers
                         //var diagnostic = Diagnostic.Create(DiagnosticRules.MissingInterfaceMemberRule, member.Locations[0], member.Name, iface.Name);
                         var diagnostic = Diagnostic.Create(DiagnosticRules.MissingInterfaceMemberRule, syntaxNode.GetLocation(), member.Name, iface.Name);
                         context.ReportDiagnostic(diagnostic);
-
                     }
                 }
             }
