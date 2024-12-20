@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using MintPlayer.SourceGenerators.Attributes;
 using System;
 using System.Collections.Immutable;
 using System.Linq;
@@ -68,6 +69,7 @@ namespace MintPlayer.SourceGenerators.Diagnostics.CodeFixes
 
             var missingMembers = classMembers
                 .Where(cm => !interfaceMembers.Any(im => im.Name == cm.Name) && cm.CanBeReferencedByName)
+                .Where(cm => cm.GetAttributes().All(attr => attr.AttributeClass?.Name != nameof(NoInterfaceMemberAttribute)))
                 .Select(cm => CreateInterfaceMember(cm));
 
             // Find the interface declaration in the syntax tree

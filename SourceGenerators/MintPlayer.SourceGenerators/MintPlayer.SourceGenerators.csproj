@@ -18,7 +18,7 @@
 		<TargetFramework>netstandard2.0</TargetFramework>
 		<!--<TargetFramework>net9.0</TargetFramework>-->
 		<!-- Cannot use Collection Expressions from C#12. Use C#11 instead -->
-		<LangVersion>11</LangVersion>
+		<LangVersion>12</LangVersion>
 		<Nullable>enable</Nullable>
 		<IncludeBuildOutput>false</IncludeBuildOutput>
 		<IsRoslynComponent>true</IsRoslynComponent>
@@ -30,7 +30,7 @@
 	</PropertyGroup>
 
 	<PropertyGroup>
-		<Version>3.1.0</Version>
+		<Version>3.2.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains several source generators</Description>
