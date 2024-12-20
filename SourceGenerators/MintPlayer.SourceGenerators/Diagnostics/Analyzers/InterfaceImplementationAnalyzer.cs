@@ -40,9 +40,17 @@ namespace MintPlayer.SourceGenerators.Diagnostics.Analyzers
                 {
                     if (!interfaceMembers.Any(im => im.Name == member.Name) && !member.IsImplicitlyDeclared)
                     {
-                        if (member is not IMethodSymbol method) continue;
-                        if (method.MethodKind is MethodKind.PropertyGet or MethodKind.PropertySet or MethodKind.EventAdd or MethodKind.EventRemove) continue;
+                        //if (member is not IMethodSymbol method) continue;
+                        //if (method.MethodKind is MethodKind.PropertyGet or MethodKind.PropertySet or MethodKind.EventAdd or MethodKind.EventRemove) continue;
 
+                        if (member is IMethodSymbol method)
+                        {
+                            // We don't need to process the Xxx_get and Xxx_set methods
+                            if (method.MethodKind is MethodKind.PropertyGet or MethodKind.PropertySet) continue;
+
+                            // Try to ignore events
+                            if (method.Kind == SymbolKind.Event) continue;
+                        }
 
                         // Report diagnostic for missing member
                         var syntaxNode = member.DeclaringSyntaxReferences.First().GetSyntax(context.CancellationToken);
