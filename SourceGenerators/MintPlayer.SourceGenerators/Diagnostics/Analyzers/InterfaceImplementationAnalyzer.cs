@@ -1,5 +1,6 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
+using MintPlayer.SourceGenerators.Attributes;
 using System.Collections.Immutable;
 using System.Linq;
 
@@ -32,13 +33,16 @@ namespace MintPlayer.SourceGenerators.Diagnostics.Analyzers
                 // Get members of the interface
                 var interfaceMembers = iface.GetMembers();
                 var classMembers = namedTypeSymbol.GetMembers()
-                    .Where(m => m.DeclaredAccessibility == Accessibility.Public);
+                    .Where(m => m.DeclaredAccessibility == Accessibility.Public)
+                    .Where(m => m.GetAttributes().All(attr => attr.AttributeClass?.Name != nameof(NoInterfaceMemberAttribute)));
 
                 foreach (var member in classMembers)
                 {
                     if (!interfaceMembers.Any(im => im.Name == member.Name) && !member.IsImplicitlyDeclared)
                     {
-                        if (member is IMethodSymbol method && method.MethodKind is MethodKind.PropertyGet or MethodKind.PropertySet) continue;
+                        if (member is not IMethodSymbol method) continue;
+                        if (method.MethodKind is MethodKind.PropertyGet or MethodKind.PropertySet or MethodKind.EventAdd or MethodKind.EventRemove) continue;
+
 
                         // Report diagnostic for missing member
                         var syntaxNode = member.DeclaringSyntaxReferences.First().GetSyntax(context.CancellationToken);
