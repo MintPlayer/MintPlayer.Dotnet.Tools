@@ -48,7 +48,7 @@ public class EidCard : Card
         return false;
     }
 
-    internal EidCard(CardContextSafeHandler context, String readerName, byte[] atr)
+    internal EidCard(CardContextSafeHandler context, string readerName, byte[] atr)
         : base(context, readerName, atr) { }
 
     internal byte[] ReadRaw(EEidFile file) => ReadBinary(fileSelectors[file]);

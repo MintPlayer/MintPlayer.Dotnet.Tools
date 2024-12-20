@@ -25,6 +25,9 @@ worker.CardInsert += (sender, e) =>
                 {eid.Identity.DateOfBirth:dd/MM/yyyy}
                 {eid.Identity.LocationOfBirth}
                 {eid.Identity.Nationality}
+
+                {eid.Address.StreetAndNumber}
+                {eid.Address.Zip} {eid.Address.Municipality}
                 """);
             //CspParameters csp = new CspParameters(1, "", "",);
         }
