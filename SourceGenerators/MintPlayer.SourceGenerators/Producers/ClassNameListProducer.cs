@@ -26,7 +26,7 @@ namespace MintPlayer.SourceGenerators.Producers
             writer.WriteLine("{");
             writer.Indent++;
             var list = string.Join(", ", declarations.Select(d => $"\"{d.Name}\""));
-            writer.WriteLine($"public static string[] List => [{list}];");
+            writer.WriteLine($$"""public static string[] List => new[] { {{list}} };""");
             writer.Indent--;
             writer.WriteLine("}");
 
