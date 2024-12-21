@@ -13,25 +13,14 @@ using Microsoft.Extensions.DependencyInjection;
 namespace MintPlayer.SourceGenerators.Generators
 {
     [Generator(LanguageNames.CSharp)]
-    public class DependencyInjectionGenerator : IIncrementalGenerator
+    public class DependencyInjectionGenerator : IncrementalGenerator
     {
         public DependencyInjectionGenerator()
         {
         }
 
-        public void Initialize(IncrementalGeneratorInitializationContext context)
+        public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
         {
-            var config = context.AnalyzerConfigOptionsProvider
-                .Select(static (p, ct) =>
-                {
-                    p.GlobalOptions.TryGetValue("build_property.rootnamespace", out var rootNamespace);
-                    return new Settings
-                    {
-                        RootNamespace = rootNamespace,
-                    };
-                })
-                .WithComparer(SettingsValueComparer.Instance);
-
             var classesWithRegisterAttributeProvider = context.SyntaxProvider
                 .CreateSyntaxProvider(
                     static (node, ct) => node is ClassDeclarationSyntax,
@@ -69,7 +58,7 @@ namespace MintPlayer.SourceGenerators.Generators
                 .Collect();
 
             var registerAttributeSourceProvider = classesWithRegisterAttributeProvider
-                .Combine(config)
+                .Combine(settingsProvider)
                 .Select(static (p, ct) => new Producers.RegistrationsProducer(p.Left, p.Right.RootNamespace!));
 
             // Combine all source providers
