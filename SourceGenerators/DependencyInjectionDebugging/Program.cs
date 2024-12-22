@@ -2,41 +2,47 @@
 
 namespace DependencyInjectionDebugging;
 
-Console.WriteLine("Hello, World!");
-
-
-public partial class CustomerController
+public static class Program
 {
-    [Inject] private readonly ICustomerService customerService;
-    [Inject] private readonly IProductService productService;
+    public static void Main(string[] args)
+    {
+        Console.WriteLine("Hello, World!");
+    }
 }
 
-public partial class HttpWithBaseUrlService
-{
-    [Inject] private readonly HttpClient httpClient;
-}
 
-public partial class ApiServiceBase : HttpWithBaseUrlService
-{
-    [Inject] private readonly ITestService testService;
-}
+//public partial class CustomerController
+//{
+//    [Inject] private readonly ICustomerService customerService;
+//    [Inject] private readonly IProductService productService;
+//}
 
-public interface ITestService { }
+//public partial class HttpWithBaseUrlService
+//{
+//    [Inject] private readonly HttpClient httpClient;
+//}
 
-public interface ICustomerService { }
+//public partial class ApiServiceBase : HttpWithBaseUrlService
+//{
+//    [Inject] private readonly ITestService testService;
+//}
 
-public interface IProductService { }
+//public interface ITestService { }
 
-public interface ICustomerRepository { }
+//public interface ICustomerService { }
 
-public interface IProductRepository { }
+//public interface IProductService { }
 
-public partial class CustomerService : ApiServiceBase, ICustomerService
-{
-    [Inject] private readonly ICustomerRepository customerRepository;
-}
+//public interface ICustomerRepository { }
 
-public partial class ProductService : ApiServiceBase, IProductService
-{
-    [Inject] private readonly IProductRepository productRepository;
-}
+//public interface IProductRepository { }
+
+//public partial class CustomerService : ApiServiceBase, ICustomerService
+//{
+//    [Inject] private readonly ICustomerRepository customerRepository;
+//}
+
+//public partial class ProductService : ApiServiceBase, IProductService
+//{
+//    [Inject] private readonly IProductRepository productRepository;
+//}
