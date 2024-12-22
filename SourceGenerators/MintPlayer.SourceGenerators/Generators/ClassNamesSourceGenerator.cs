@@ -12,25 +12,10 @@ using System.Text;
 namespace MintPlayer.SourceGenerators.Generators
 {
     [Generator(LanguageNames.CSharp)]
-    public class ClassNamesSourceGenerator : IIncrementalGenerator
+    public class ClassNamesSourceGenerator : IncrementalGenerator
     {
-        public ClassNamesSourceGenerator()
+        public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
         {
-        }
-
-        public void Initialize(IncrementalGeneratorInitializationContext context)
-        {
-            var config = context.AnalyzerConfigOptionsProvider
-                .Select(static (p, ct) =>
-                {
-                    p.GlobalOptions.TryGetValue("build_property.rootnamespace", out var rootNamespace);
-                    return new Settings
-                    {
-                        RootNamespace = rootNamespace,
-                    };
-                })
-                .WithComparer(SettingsValueComparer.Instance);
-
             var classDeclarationsProvider = context.SyntaxProvider
                 .CreateSyntaxProvider(
                     static (node, ct) =>
@@ -131,15 +116,15 @@ namespace MintPlayer.SourceGenerators.Generators
                 .Collect();
 
             var classNamesSourceProvider = classDeclarationsProvider
-                .Combine(config)
+                .Combine(settingsProvider)
                 .Select(static (p, ct) => new Producers.ClassNamesProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!));
 
             var classNameListSourceProvider = classDeclarationsProvider
-                .Combine(config)
+                .Combine(settingsProvider)
                 .Select(static (p, ct) => new Producers.ClassNameListProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!));
 
             var fieldDeclarationSourceProvider = fieldDeclarationsProvider
-                .Combine(config)
+                .Combine(settingsProvider)
                 .Select(static (p, ct) => new Producers.FieldNameListProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!));
 
             // Combine all Source Providers
