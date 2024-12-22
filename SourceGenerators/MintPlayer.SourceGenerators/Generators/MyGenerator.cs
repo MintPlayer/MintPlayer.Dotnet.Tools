@@ -7,101 +7,110 @@ using System.Text;
 
 namespace MintPlayer.SourceGenerators.Generators
 {
-    [Generator(LanguageNames.CSharp)]
+    [Generator]
     public class InjectSourceGenerator : ISourceGenerator
     {
         public void Initialize(GeneratorInitializationContext context)
         {
-#pragma warning disable RS1035 // Do not use APIs banned for analyzers
             context.RegisterForSyntaxNotifications(() => new InjectSyntaxReceiver());
-#pragma warning restore RS1035 // Do not use APIs banned for analyzers
         }
 
         public void Execute(GeneratorExecutionContext context)
         {
-#pragma warning disable RS1035 // Do not use APIs banned for analyzers
             if (context.SyntaxReceiver is not InjectSyntaxReceiver receiver)
                 return;
-#pragma warning restore RS1035 // Do not use APIs banned for analyzers
 
             foreach (var classDeclaration in receiver.CandidateClasses)
             {
-                // Generate code for each class with [Inject] attributes
-#pragma warning disable RS1035 // Do not use APIs banned for analyzers
                 var semanticModel = context.Compilation.GetSemanticModel(classDeclaration.SyntaxTree);
-#pragma warning restore RS1035 // Do not use APIs banned for analyzers
-                var source = GenerateConstructorForClass(classDeclaration, semanticModel);
+                var source = GenerateConstructorForClass(classDeclaration, semanticModel, context.Compilation);
                 if (!string.IsNullOrEmpty(source))
                 {
-#pragma warning disable RS1035 // Do not use APIs banned for analyzers
                     context.AddSource($"{classDeclaration.Identifier.Text}_Inject.g.cs", source);
-#pragma warning restore RS1035 // Do not use APIs banned for analyzers
                 }
             }
         }
 
-        private string GenerateConstructorForClass(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
+        private string GenerateConstructorForClass(
+            ClassDeclarationSyntax classDeclaration,
+            SemanticModel semanticModel,
+            Compilation compilation)
         {
             var namespaceName = GetNamespace(classDeclaration);
             var className = classDeclaration.Identifier.Text;
 
-            // Find all fields with [Inject]
-            var injectFields = classDeclaration.Members
+            // Get dependencies for the current class
+            var injectFields = GetInjectFields(classDeclaration, semanticModel);
+
+            // Traverse the inheritance hierarchy to collect dependencies from base classes
+            var baseDependencies = new List<(string Type, string Name)>();
+            var currentType = semanticModel.GetDeclaredSymbol(classDeclaration);
+
+            if (currentType is INamedTypeSymbol currentTypeSymbol)
+            {
+                while (currentTypeSymbol?.BaseType != null && currentTypeSymbol.BaseType.SpecialType != SpecialType.System_Object)
+                {
+                    var baseTypeSyntax = currentTypeSymbol.BaseType.DeclaringSyntaxReferences
+                        .FirstOrDefault()?.GetSyntax() as ClassDeclarationSyntax;
+
+                    if (baseTypeSyntax != null)
+                    {
+                        baseDependencies.AddRange(GetInjectFields(baseTypeSyntax, compilation.GetSemanticModel(baseTypeSyntax.SyntaxTree)));
+                    }
+                    currentTypeSymbol = currentTypeSymbol.BaseType;
+                }
+
+                // Combine all dependencies
+                var constructorParams = injectFields
+                    .Concat(baseDependencies)
+                    .Select(dep => $"{dep.Type} {dep.Name}")
+                    .Distinct()
+                    .ToList();
+
+                if (!constructorParams.Any())
+                    return string.Empty;
+
+                var assignments = injectFields.Select(dep => $"this.{dep.Name} = {dep.Name};");
+                var baseConstructorArgs = baseDependencies.Select(dep => dep.Name).Distinct();
+
+                var sb = new StringBuilder();
+                sb.AppendLine($"namespace {namespaceName}");
+                sb.AppendLine("{");
+                sb.AppendLine($"    public partial class {className}");
+                sb.AppendLine("    {");
+                sb.AppendLine($"        public {className}({string.Join(", ", constructorParams)})");
+                sb.AppendLine(baseConstructorArgs.Any() ? $"            : base({string.Join(", ", baseConstructorArgs)})" : "");
+                sb.AppendLine("        {");
+                foreach (var assignment in assignments)
+                {
+                    sb.AppendLine($"            {assignment}");
+                }
+                sb.AppendLine("        }");
+                sb.AppendLine("    }");
+                sb.AppendLine("}");
+
+                return sb.ToString();
+            }
+            else
+            {
+                return string.Empty;
+            }
+        }
+
+        private List<(string Type, string Name)> GetInjectFields(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
+        {
+            return classDeclaration.Members
                 .OfType<FieldDeclarationSyntax>()
                 .Where(field => field.AttributeLists
                     .SelectMany(attrs => attrs.Attributes)
                     .Any(attr => semanticModel.GetTypeInfo(attr).Type?.Name == "InjectAttribute"))
+                .Select(field =>
+                {
+                    var type = field.Declaration.Type.ToString();
+                    var name = field.Declaration.Variables.First().Identifier.Text;
+                    return (type, name);
+                })
                 .ToList();
-
-            if (!injectFields.Any())
-                return string.Empty;
-
-            var constructorParams = new List<string>();
-            var assignments = new List<string>();
-
-            foreach (var field in injectFields)
-            {
-                var type = field.Declaration.Type.ToString();
-                var name = field.Declaration.Variables.First().Identifier.Text;
-
-                constructorParams.Add($"{type} {name}");
-                assignments.Add($"this.{name} = {name};");
-            }
-
-            var baseConstructorParams = FindBaseConstructorParams(classDeclaration, semanticModel);
-
-            var sb = new StringBuilder();
-            sb.AppendLine($"namespace {namespaceName}");
-            sb.AppendLine("{");
-            sb.AppendLine($"    public partial class {className}");
-            sb.AppendLine("    {");
-            sb.AppendLine($"        public {className}({string.Join(", ", constructorParams.Concat(baseConstructorParams))})");
-            sb.AppendLine(baseConstructorParams.Any() ? $"            : base({string.Join(", ", baseConstructorParams)})" : "");
-            sb.AppendLine("        {");
-            foreach (var assignment in assignments)
-            {
-                sb.AppendLine($"            {assignment}");
-            }
-            sb.AppendLine("        }");
-            sb.AppendLine("    }");
-            sb.AppendLine("}");
-
-            return sb.ToString();
-        }
-
-        private IEnumerable<string> FindBaseConstructorParams(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
-        {
-            var baseType = classDeclaration.BaseList?.Types.FirstOrDefault();
-            if (baseType == null)
-                return Enumerable.Empty<string>();
-
-            var baseSymbol = semanticModel.GetSymbolInfo(baseType.Type).Symbol as INamedTypeSymbol;
-            if (baseSymbol == null)
-                return Enumerable.Empty<string>();
-
-            // Find base constructor and its parameters
-            var constructor = baseSymbol.Constructors.FirstOrDefault(c => c.Parameters.Any());
-            return constructor?.Parameters.Select(param => param.Name) ?? Enumerable.Empty<string>();
         }
 
         private string GetNamespace(ClassDeclarationSyntax classDeclaration)
