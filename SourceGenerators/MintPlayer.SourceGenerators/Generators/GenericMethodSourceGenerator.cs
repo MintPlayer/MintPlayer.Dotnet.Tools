@@ -11,25 +11,10 @@ using Microsoft.CodeAnalysis.CSharp;
 namespace MintPlayer.SourceGenerators.Generators
 {
     [Generator(LanguageNames.CSharp)]
-    public class GenericMethodSourceGenerator : IIncrementalGenerator
+    public class GenericMethodSourceGenerator : IncrementalGenerator
     {
-        public GenericMethodSourceGenerator()
+        public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
         {
-        }
-
-        public void Initialize(IncrementalGeneratorInitializationContext context)
-        {
-            var config = context.AnalyzerConfigOptionsProvider
-                .Select(static (p, ct) =>
-                {
-                    p.GlobalOptions.TryGetValue("build_property.rootnamespace", out var rootNamespace);
-                    return new Settings
-                    {
-                        RootNamespace = rootNamespace,
-                    };
-                })
-                .WithComparer(SettingsValueComparer.Instance);
-
             var methodsProvider = context.SyntaxProvider.CreateSyntaxProvider(
                 static (node, ct) =>
                 {
@@ -81,8 +66,8 @@ namespace MintPlayer.SourceGenerators.Generators
 
             var methodsSourceProvider = methodsProvider
                 .Where(static (p) => p != null)
-                .Combine(config)
-                .Select(static (p, ct) => new Producers.GenericMethodProducer(p.Left!, p.Right.RootNamespace!));
+                .Combine(settingsProvider)
+                .Select(static (providers, ct) => new Producers.GenericMethodProducer(providers.Left!, providers.Right.RootNamespace!));
 
             context.RegisterSourceOutput(methodsSourceProvider, static (c, g) => g?.Produce(c));
         }
