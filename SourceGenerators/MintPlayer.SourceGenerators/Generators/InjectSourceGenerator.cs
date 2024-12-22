@@ -115,8 +115,15 @@ namespace MintPlayer.SourceGenerators.Generators
 
         private string GetNamespace(ClassDeclarationSyntax classDeclaration)
         {
-            var namespaceDeclaration = classDeclaration.Parent as NamespaceDeclarationSyntax;
-            return namespaceDeclaration?.Name.ToString() ?? "GlobalNamespace";
+            switch (classDeclaration.Parent)
+            {
+                case NamespaceDeclarationSyntax nsSyntax:
+                    return nsSyntax.Name.ToString();
+                case FileScopedNamespaceDeclarationSyntax fsnsSyntax:
+                    return fsnsSyntax.Name.ToString();
+                default:
+                    return "GlobalNamespace";
+            }
         }
 
         private class InjectSyntaxReceiver : ISyntaxReceiver

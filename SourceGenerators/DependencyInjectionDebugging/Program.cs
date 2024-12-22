@@ -2,6 +2,8 @@
 
 Console.WriteLine("Hello, World!");
 
+namespace DependencyInjectionDebugging;
+
 public partial class CustomerController
 {
     [Inject] private readonly ICustomerService customerService;
