@@ -123,17 +123,10 @@ namespace MintPlayer.SourceGenerators.Generators
                 .Combine(settingsProvider)
                 .Select(static (p, ct) => new Producers.ClassNameListProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!));
 
-            var fieldDeclarationSourceProvider = fieldDeclarationsProvider
-                .Combine(settingsProvider)
-                .Select(static (p, ct) => new Producers.FieldNameListProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!));
-
             // Combine all Source Providers
             var sourceProvider = classNamesSourceProvider
-                .Combine(fieldDeclarationSourceProvider)
-                .SelectMany(static (p, _) => new Producer[] { p.Left, p.Right })
-                .Collect()
                 .Combine(classNameListSourceProvider)
-                .SelectMany(static (p, _) => p.Left.Concat(new Producer[] { p.Right }));
+                .SelectMany(static (p, _) => new Producer[] { p.Left, p.Right });
 
             // Generate Code
             context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
