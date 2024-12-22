@@ -1,8 +1,12 @@
 {
   "profiles": {
-    "Debug Source Generators": {
+    "Debug Source Generators on MintPlayer.SourceGenerators.Debug": {
       "commandName": "DebugRoslynComponent",
       "targetProject": "..\\MintPlayer.SourceGenerators.Debug\\MintPlayer.SourceGenerators.Debug.csproj"
+    },
+    "Debug Source Generators on DependencyInjectionDebugging": {
+      "commandName": "DebugRoslynComponent",
+      "targetProject": "..\\DependencyInjectionDebugging\\DependencyInjectionDebugging.csproj"
     }
   }
 }
