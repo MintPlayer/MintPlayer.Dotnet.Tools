@@ -7,7 +7,7 @@ using System.Text;
 
 namespace MintPlayer.SourceGenerators.Generators
 {
-    [Generator]
+    [Generator(LanguageNames.CSharp)]
     public class InjectSourceGenerator : ISourceGenerator
     {
         public void Initialize(GeneratorInitializationContext context)

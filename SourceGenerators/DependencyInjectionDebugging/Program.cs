@@ -8,10 +8,17 @@ public partial class CustomerController
     [Inject] private readonly IProductService productService;
 }
 
-public partial class ApiServiceBase
+public partial class HttpWithBaseUrlService
 {
     [Inject] private readonly HttpClient httpClient;
 }
+
+public partial class ApiServiceBase : HttpWithBaseUrlService
+{
+    [Inject] private readonly ITestService testService;
+}
+
+public interface ITestService { }
 
 public interface ICustomerService { }
 
