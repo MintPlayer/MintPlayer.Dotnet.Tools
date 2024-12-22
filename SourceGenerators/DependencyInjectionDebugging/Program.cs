@@ -1,8 +1,9 @@
 ﻿using MintPlayer.SourceGenerators.Attributes;
 
+namespace DependencyInjectionDebugging;
+
 Console.WriteLine("Hello, World!");
 
-namespace DependencyInjectionDebugging;
 
 public partial class CustomerController
 {
