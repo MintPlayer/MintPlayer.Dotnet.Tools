@@ -5,5 +5,5 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-[assembly: SuppressMessage("MicrosoftCodeAnalysisCorrectness", "RS1035:Do not use APIs banned for analyzers", Justification = "<Pending>", Scope = "member", Target = "~M:MintPlayer.SourceGenerators.Generators.InjectSourceGenerator.Initialize(Microsoft.CodeAnalysis.GeneratorInitializationContext)")]
-[assembly: SuppressMessage("MicrosoftCodeAnalysisCorrectness", "RS1035:Do not use APIs banned for analyzers", Justification = "<Pending>", Scope = "member", Target = "~M:MintPlayer.SourceGenerators.Generators.InjectSourceGenerator.Execute(Microsoft.CodeAnalysis.GeneratorExecutionContext)")]
+//[assembly: SuppressMessage("MicrosoftCodeAnalysisCorrectness", "RS1035:Do not use APIs banned for analyzers", Justification = "<Pending>", Scope = "member", Target = "~M:MintPlayer.SourceGenerators.Generators.InjectSourceGenerator.Initialize(Microsoft.CodeAnalysis.GeneratorInitializationContext)")]
+//[assembly: SuppressMessage("MicrosoftCodeAnalysisCorrectness", "RS1035:Do not use APIs banned for analyzers", Justification = "<Pending>", Scope = "member", Target = "~M:MintPlayer.SourceGenerators.Generators.InjectSourceGenerator.Execute(Microsoft.CodeAnalysis.GeneratorExecutionContext)")]
