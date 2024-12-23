@@ -107,11 +107,11 @@ namespace MintPlayer.SourceGenerators.Generators
                 .Select(field =>
                 {
                     var type = field.Declaration.Type;
-                    var typeSymbol = semanticModel.GetSymbolInfo(type)?.Symbol as ITypeSymbol;
-                    var fqn = typeSymbol.ToDisplayString(new SymbolDisplayFormat(
+                    var typeSymbol = semanticModel.GetSymbolInfo(type).Symbol as ITypeSymbol;
+                    var fqn = typeSymbol?.ToDisplayString(new SymbolDisplayFormat(
                         globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
                         typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                    ));
+                    )) ?? string.Empty;
                     var name = field.Declaration.Variables.First().Identifier.Text;
                     return (fqn, name);
                 })
