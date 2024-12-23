@@ -9,6 +9,8 @@ namespace MintPlayer.SourceGenerators.Generators
     [Generator(LanguageNames.CSharp)]
     public class InjectSourceGenerator : IncrementalGenerator
     {
+        // Measure performance of the Analyzer
+        // https://www.meziantou.net/measuring-performance-of-roslyn-source-generators.htm
         public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
         {
             var classesProvider = context.SyntaxProvider
