@@ -1,103 +1,76 @@
-﻿using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis;
-using System;
+﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using MintPlayer.SourceGenerators.Tools;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 
 namespace MintPlayer.SourceGenerators.Generators
 {
     [Generator(LanguageNames.CSharp)]
-    public class InjectSourceGenerator : ISourceGenerator
+    public class InjectSourceGenerator : IncrementalGenerator
     {
-        public void Initialize(GeneratorInitializationContext context)
+        // Measure performance of the Analyzer
+        // https://www.meziantou.net/measuring-performance-of-roslyn-source-generators.htm
+        public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
         {
-            context.RegisterForSyntaxNotifications(() => new InjectSyntaxReceiver());
-        }
-
-        public void Execute(GeneratorExecutionContext context)
-        {
-            if (context.SyntaxReceiver is not InjectSyntaxReceiver receiver)
-                return;
-
-            foreach (var classDeclaration in receiver.CandidateClasses)
-            {
-                var semanticModel = context.Compilation.GetSemanticModel(classDeclaration.SyntaxTree);
-                var source = GenerateConstructorForClass(classDeclaration, semanticModel, context.Compilation);
-                if (!string.IsNullOrEmpty(source))
-                {
-                    context.AddSource($"{classDeclaration.Identifier.Text}_Inject.g.cs", source);
-                }
-            }
-        }
-
-        private string GenerateConstructorForClass(
-            ClassDeclarationSyntax classDeclaration,
-            SemanticModel semanticModel,
-            Compilation compilation)
-        {
-            var namespaceName = GetNamespace(classDeclaration);
-            var className = classDeclaration.Identifier.Text;
-
-            // Get dependencies for the current class
-            var injectFields = GetInjectFields(classDeclaration, semanticModel);
-
-            // Traverse the inheritance hierarchy to collect dependencies from base classes
-            var baseDependencies = new List<(string Type, string Name)>();
-            var currentType = semanticModel.GetDeclaredSymbol(classDeclaration);
-
-            if (currentType is INamedTypeSymbol currentTypeSymbol)
-            {
-                while (currentTypeSymbol?.BaseType != null && currentTypeSymbol.BaseType.SpecialType != SpecialType.System_Object)
-                {
-                    var baseTypeSyntax = currentTypeSymbol.BaseType.DeclaringSyntaxReferences
-                        .FirstOrDefault()?.GetSyntax() as ClassDeclarationSyntax;
-
-                    if (baseTypeSyntax != null)
+            var classesProvider = context.SyntaxProvider
+                .CreateSyntaxProvider(
+                    static (node, ct) => node is ClassDeclarationSyntax classDeclaration &&
+                        classDeclaration.Members.OfType<FieldDeclarationSyntax>()
+                            .Any(f => f.AttributeLists.SelectMany(a => a.Attributes).Any()),
+                    static (context2, ct) =>
                     {
-                        baseDependencies.AddRange(GetInjectFields(baseTypeSyntax, compilation.GetSemanticModel(baseTypeSyntax.SyntaxTree)));
+                        if (context2.Node is ClassDeclarationSyntax classDeclaration)
+                        {
+                            var className = classDeclaration.Identifier.Text; // PASS ON
+
+                            // Get dependencies for the current class
+                            var injectFields = GetInjectFields(classDeclaration, context2.SemanticModel); // PASS ON
+
+                            // Traverse the inheritance hierarchy to collect dependencies from base classes
+                            var baseDependencies = new List<Models.InjectField>(); // PASS ON
+                            var currentType = context2.SemanticModel.GetDeclaredSymbol(classDeclaration);
+
+                            if (currentType is INamedTypeSymbol currentTypeSymbol)
+                            {
+                                while (currentTypeSymbol?.BaseType != null && currentTypeSymbol.BaseType.SpecialType != SpecialType.System_Object)
+                                {
+                                    var baseTypeSyntax = currentTypeSymbol.BaseType.DeclaringSyntaxReferences
+                                        .FirstOrDefault()?.GetSyntax();
+
+                                    if (baseTypeSyntax is ClassDeclarationSyntax baseClassDeclationSyntax)
+                                        baseDependencies.AddRange(GetInjectFields(baseClassDeclationSyntax, context2.SemanticModel.Compilation.GetSemanticModel(baseTypeSyntax.SyntaxTree)));
+
+                                    currentTypeSymbol = currentTypeSymbol.BaseType;
+                                }
+
+                                return new Models.ClassWithBaseDependenciesAndInjectFields
+                                {
+                                    FileName = classDeclaration.Identifier.Text,
+                                    ClassName = className,
+                                    ClassNamespace = GetNamespace(classDeclaration),
+                                    BaseDependencies = baseDependencies,
+                                    InjectFields = injectFields,
+                                };
+                            }
+                        }
+
+                        return default;
                     }
-                    currentTypeSymbol = currentTypeSymbol.BaseType;
-                }
+                );
 
-                // Combine all dependencies
-                var constructorParams = injectFields
-                    .Concat(baseDependencies)
-                    .Select(dep => $"{dep.Type} {dep.Name}")
-                    .Distinct()
-                    .ToList();
+            var classesSourceProvider = classesProvider
+                .Combine(settingsProvider)
+                .Select(static (providers, ct) => new Producers.InjectProducer(providers.Left, providers.Right.RootNamespace!));
 
-                if (!constructorParams.Any())
-                    return string.Empty;
+            // Combine all source providers
+            var sourceProvider = classesSourceProvider;
 
-                var assignments = injectFields.Select(dep => $"this.{dep.Name} = {dep.Name};");
-                var baseConstructorArgs = baseDependencies.Select(dep => dep.Name).Distinct();
-
-                var sb = new StringBuilder();
-                sb.AppendLine($"namespace {namespaceName}");
-                sb.AppendLine("{");
-                sb.AppendLine($"    public partial class {className}");
-                sb.AppendLine("    {");
-                sb.AppendLine($"        public {className}({string.Join(", ", constructorParams)})");
-                sb.AppendLine(baseConstructorArgs.Any() ? $"            : base({string.Join(", ", baseConstructorArgs)})" : "");
-                sb.AppendLine("        {");
-                foreach (var assignment in assignments)
-                {
-                    sb.AppendLine($"            {assignment}");
-                }
-                sb.AppendLine("        }");
-                sb.AppendLine("    }");
-                sb.AppendLine("}");
-
-                return sb.ToString();
-            }
-            else
-            {
-                return string.Empty;
-            }
+            // Generate code
+            context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
         }
 
-        private List<(string Type, string Name)> GetInjectFields(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
+        private static List<Models.InjectField> GetInjectFields(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
         {
             return classDeclaration.Members
                 .OfType<FieldDeclarationSyntax>()
@@ -115,12 +88,12 @@ namespace MintPlayer.SourceGenerators.Generators
                         genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters
                     )) ?? string.Empty;
                     var name = field.Declaration.Variables.First().Identifier.Text;
-                    return (fqn, name);
+                    return new Models.InjectField { Type = fqn, Name = name };
                 })
                 .ToList();
         }
 
-        private string GetNamespace(ClassDeclarationSyntax classDeclaration)
+        private static string? GetNamespace(ClassDeclarationSyntax classDeclaration)
         {
             switch (classDeclaration.Parent)
             {
@@ -129,22 +102,7 @@ namespace MintPlayer.SourceGenerators.Generators
                 case FileScopedNamespaceDeclarationSyntax fsnsSyntax:
                     return fsnsSyntax.Name.ToString();
                 default:
-                    return "GlobalNamespace";
-            }
-        }
-
-        private class InjectSyntaxReceiver : ISyntaxReceiver
-        {
-            public List<ClassDeclarationSyntax> CandidateClasses { get; } = new();
-
-            public void OnVisitSyntaxNode(SyntaxNode syntaxNode)
-            {
-                if (syntaxNode is ClassDeclarationSyntax classDeclaration &&
-                    classDeclaration.Members.OfType<FieldDeclarationSyntax>()
-                        .Any(field => field.AttributeLists.Any()))
-                {
-                    CandidateClasses.Add(classDeclaration);
-                }
+                    return null;
             }
         }
     }
