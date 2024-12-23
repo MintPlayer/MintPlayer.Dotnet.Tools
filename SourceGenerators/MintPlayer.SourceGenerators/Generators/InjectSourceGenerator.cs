@@ -106,11 +106,34 @@ namespace MintPlayer.SourceGenerators.Generators
                     .Any(attr => semanticModel.GetTypeInfo(attr).Type?.Name == "InjectAttribute"))
                 .Select(field =>
                 {
-                    var type = field.Declaration.Type;
-                    var typeSymbol = semanticModel.GetSymbolInfo(type).Symbol as ITypeSymbol;
-                    var fqn = typeSymbol?.ToDisplayString(new SymbolDisplayFormat(
+                    var fieldType = field.Declaration.Type;
+                    var fieldTypeSymbol = semanticModel.GetSymbolInfo(fieldType).Symbol as ITypeSymbol;
+                    
+                    //if (fieldTypeSymbol is INamedTypeSymbol namedFieldTypeSymbol)
+                    //{
+                    //    var typeArguments = namedFieldTypeSymbol.TypeArguments
+                    //        .Select((typeParamSymbol, index) =>
+                    //        {
+                    //            if (typeParamSymbol is INamedTypeSymbol namedTypeParamSymbol)
+                    //            {
+                    //                return namedTypeParamSymbol.ConstructedFrom?.ToDisplayString(new SymbolDisplayFormat(
+                    //                    globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                    //                    typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
+                    //                )) ?? string.Empty;
+                    //            }
+                    //            else
+                    //            {
+                    //                return string.Empty;
+                    //            }
+                    //        })
+                    //        .Where(x => !string.IsNullOrEmpty(x))
+                    //        .ToList();
+                    //}
+
+                    var fqn = fieldTypeSymbol?.ToDisplayString(new SymbolDisplayFormat(
                         globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
+                        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
+                        genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters
                     )) ?? string.Empty;
                     var name = field.Declaration.Variables.First().Identifier.Text;
                     return (fqn, name);

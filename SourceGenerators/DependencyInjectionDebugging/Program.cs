@@ -1,4 +1,5 @@
-﻿using MintPlayer.SourceGenerators.Attributes;
+﻿using Microsoft.Extensions.Options;
+using MintPlayer.SourceGenerators.Attributes;
 
 namespace DependencyInjectionDebugging;
 
@@ -11,11 +12,14 @@ public static class Program
 }
 
 
-//public partial class CustomerController
-//{
-//    [Inject] private readonly ICustomerService customerService;
-//    [Inject] private readonly IProductService productService;
-//}
+public class CustomerConfig { }
+
+public partial class CustomerController
+{
+    [Inject] private readonly IOptions<CustomerConfig> customerOptions;
+    //    [Inject] private readonly ICustomerService customerService;
+    //    [Inject] private readonly IProductService productService;
+}
 
 //public partial class HttpWithBaseUrlService
 //{
