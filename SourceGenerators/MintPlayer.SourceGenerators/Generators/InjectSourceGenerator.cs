@@ -106,9 +106,14 @@ namespace MintPlayer.SourceGenerators.Generators
                     .Any(attr => semanticModel.GetTypeInfo(attr).Type?.Name == "InjectAttribute"))
                 .Select(field =>
                 {
-                    var type = field.Declaration.Type.ToString();
+                    var type = field.Declaration.Type;
+                    var typeSymbol = semanticModel.GetSymbolInfo(type).Symbol as ITypeSymbol;
+                    var fqn = typeSymbol?.ToDisplayString(new SymbolDisplayFormat(
+                        globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
+                    )) ?? string.Empty;
                     var name = field.Declaration.Variables.First().Identifier.Text;
-                    return (type, name);
+                    return (fqn, name);
                 })
                 .ToList();
         }
