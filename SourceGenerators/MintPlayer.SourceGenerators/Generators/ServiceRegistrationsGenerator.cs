@@ -13,7 +13,7 @@ namespace MintPlayer.SourceGenerators.Generators
     public class ServiceRegistrationsGenerator : IncrementalGenerator //<Producers.RegistrationsProducer>
     {
         //public override IncrementalValueProvider<Producers.RegistrationsProducer> Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
-        internal override IEnumerable<object> InitializeBase(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
+        public override IEnumerable<object> Setup(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
         {
             var classesWithRegisterAttributeProvider = context.SyntaxProvider
                 .CreateSyntaxProvider(
@@ -55,8 +55,9 @@ namespace MintPlayer.SourceGenerators.Generators
                 .Combine(settingsProvider)
                 .Select(static (providers, ct) => new Producers.RegistrationsProducer(providers.Left, providers.Right.RootNamespace!));
 
-            // Combine all source providers
-            return registerAttributeSourceProvider;
+            //// Combine all source providers
+            //return registerAttributeSourceProvider;
+            return [registerAttributeSourceProvider];
         }
 
         //internal override IEnumerable<object> InitializeBase(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)

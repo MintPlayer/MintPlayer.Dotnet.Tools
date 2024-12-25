@@ -13,7 +13,7 @@ namespace MintPlayer.SourceGenerators.Generators
     [Generator(LanguageNames.CSharp)]
     public class GenericMethodSourceGenerator : IncrementalGenerator
     {
-        public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
+        public override IEnumerable<object> Setup(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
         {
             var methodsProvider = context.SyntaxProvider.CreateSyntaxProvider(
                 static (node, ct) =>
@@ -69,7 +69,7 @@ namespace MintPlayer.SourceGenerators.Generators
                 .Combine(settingsProvider)
                 .Select(static (providers, ct) => new Producers.GenericMethodProducer(providers.Left!, providers.Right.RootNamespace!));
 
-            context.RegisterSourceOutput(methodsSourceProvider, static (c, g) => g?.Produce(c));
+            return [methodsSourceProvider];
         }
     }
 

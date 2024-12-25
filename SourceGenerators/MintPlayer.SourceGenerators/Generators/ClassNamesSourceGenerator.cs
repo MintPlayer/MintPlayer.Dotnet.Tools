@@ -1,15 +1,20 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using MintPlayer.SourceGenerators.Producers;
 using MintPlayer.SourceGenerators.Tools;
+using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
+using System.Threading;
 
 namespace MintPlayer.SourceGenerators.Generators
 {
     [Generator(LanguageNames.CSharp)]
-    public class ClassNamesSourceGenerator : IncrementalGenerator<Producers.ClassNamesProducer, Producers.ClassNameListProducer>
+    public class ClassNamesSourceGenerator : IncrementalGenerator
     {
-        public override (IncrementalValueProvider<Producers.ClassNamesProducer>, IncrementalValueProvider<Producers.ClassNameListProducer>) Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
+        public override IEnumerable<object> Setup(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
         {
             var classDeclarationsProvider = context.SyntaxProvider
                 .CreateSyntaxProvider(
@@ -103,7 +108,7 @@ namespace MintPlayer.SourceGenerators.Generators
 
                             }
                         }
-                        
+
                         return default;
                     }
                 )
@@ -118,17 +123,41 @@ namespace MintPlayer.SourceGenerators.Generators
                 .Combine(settingsProvider)
                 .Select(static (p, ct) => new Producers.ClassNameListProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!));
 
-            return (classNamesSourceProvider, classNameListSourceProvider);
+            return [classNamesSourceProvider, classNameListSourceProvider];
+
+            //var x = (p, _) => new Producer[] { p.Left, p.Right };
+
+            //Func<(ClassNamesProducer Left, ClassNameListProducer Right), CancellationToken, IEnumerable<Producer>> x = NewMethod;
 
             ////// Combine all Source Providers
-            //var sourceProvider = classNamesSourceProvider
-            //    .Combine(classNameListSourceProvider)
-            //    .SelectMany(static (p, _) => new Producer[] { p.Left, p.Right })
-            //    .Collect()
-            //    .Combine(;
+            var sourceProvider = classNamesSourceProvider
+                .Combine(classNameListSourceProvider)
+                .SelectMany(NewMethod)
 
-            ////// Generate Code
-            ////context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
+                .Collect()
+                .Combine(classNameListSourceProvider)
+                .SelectMany(NewMethod2);
+
+            //// Generate Code
+            //context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
+        }
+
+        private static IEnumerable<Producer> NewMethod2((ImmutableArray<Producer> Left, ClassNameListProducer Right) tuple, CancellationToken token)
+        {
+            return [..tuple.Left, tuple.Right];
+        }
+
+        private static IEnumerable<Producer> NewMethod((ClassNamesProducer Left, ClassNameListProducer Right) tuple, CancellationToken ct)
+        {
+            return [tuple.Left, tuple.Right];
+        }
+
+
+        private static IEnumerable<Producer> NewMethod<T1, T2>((T1 Left, T2 Right) tuple, CancellationToken ct)
+            where T1 : Producer
+            where T2 : Producer
+        {
+            return new Producer[] { tuple.Left, tuple.Right };
         }
     }
 

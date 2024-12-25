@@ -11,7 +11,7 @@ namespace MintPlayer.SourceGenerators.Generators
     {
         // Measure performance of the Analyzer
         // https://www.meziantou.net/measuring-performance-of-roslyn-source-generators.htm
-        public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
+        public override IEnumerable<object> Setup(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
         {
             var classesProvider = context.SyntaxProvider
                 .CreateSyntaxProvider(
@@ -63,11 +63,13 @@ namespace MintPlayer.SourceGenerators.Generators
                 .Combine(settingsProvider)
                 .Select(static (providers, ct) => new Producers.InjectProducer(providers.Left, providers.Right.RootNamespace!));
 
-            // Combine all source providers
-            var sourceProvider = classesSourceProvider;
+            return [classesSourceProvider];
 
-            // Generate code
-            context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
+            //// Combine all source providers
+            //var sourceProvider = classesSourceProvider;
+
+            //// Generate code
+            //context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
         }
 
         private static List<Models.InjectField> GetInjectFields(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
