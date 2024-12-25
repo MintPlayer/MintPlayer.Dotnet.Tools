@@ -2,19 +2,14 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.SourceGenerators.Tools.ValueComparers;
-using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
-using System.Text;
 
 namespace MintPlayer.SourceGenerators.Generators
 {
     [Generator(LanguageNames.CSharp)]
-    public class ClassNamesSourceGenerator : IncrementalGenerator
+    public class ClassNamesSourceGenerator : IncrementalGenerator<Producers.ClassNamesProducer, Producers.ClassNameListProducer>
     {
-        public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
+        public override (IncrementalValueProvider<Producers.ClassNamesProducer>, IncrementalValueProvider<Producers.ClassNameListProducer>) Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
         {
             var classDeclarationsProvider = context.SyntaxProvider
                 .CreateSyntaxProvider(
@@ -123,13 +118,17 @@ namespace MintPlayer.SourceGenerators.Generators
                 .Combine(settingsProvider)
                 .Select(static (p, ct) => new Producers.ClassNameListProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!));
 
-            // Combine all Source Providers
-            var sourceProvider = classNamesSourceProvider
-                .Combine(classNameListSourceProvider)
-                .SelectMany(static (p, _) => new Producer[] { p.Left, p.Right });
+            return (classNamesSourceProvider, classNameListSourceProvider);
 
-            // Generate Code
-            context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
+            ////// Combine all Source Providers
+            //var sourceProvider = classNamesSourceProvider
+            //    .Combine(classNameListSourceProvider)
+            //    .SelectMany(static (p, _) => new Producer[] { p.Left, p.Right })
+            //    .Collect()
+            //    .Combine(;
+
+            ////// Generate Code
+            ////context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
         }
     }
 

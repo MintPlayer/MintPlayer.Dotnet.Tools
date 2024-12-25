@@ -1,21 +1,19 @@
 ﻿using Microsoft.CodeAnalysis;
-using MintPlayer.SourceGenerators.Tools.ValueComparers;
-using MintPlayer.SourceGenerators.Tools;
-using System;
-using System.Collections.Generic;
-using System.Text;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using MintPlayer.SourceGenerators.Models;
-using System.Linq;
-using MintPlayer.SourceGenerators.Attributes;
 using Microsoft.Extensions.DependencyInjection;
+using MintPlayer.SourceGenerators.Attributes;
+using MintPlayer.SourceGenerators.Models;
+using MintPlayer.SourceGenerators.Tools;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace MintPlayer.SourceGenerators.Generators
 {
     [Generator(LanguageNames.CSharp)]
-    public class ServiceRegistrationsGenerator : IncrementalGenerator
+    public class ServiceRegistrationsGenerator : IncrementalGenerator //<Producers.RegistrationsProducer>
     {
-        public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
+        //public override IncrementalValueProvider<Producers.RegistrationsProducer> Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
+        internal override IEnumerable<object> InitializeBase(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
         {
             var classesWithRegisterAttributeProvider = context.SyntaxProvider
                 .CreateSyntaxProvider(
@@ -58,10 +56,12 @@ namespace MintPlayer.SourceGenerators.Generators
                 .Select(static (providers, ct) => new Producers.RegistrationsProducer(providers.Left, providers.Right.RootNamespace!));
 
             // Combine all source providers
-            var sourceProvider = registerAttributeSourceProvider;
-
-            // Generate code
-            context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
+            return registerAttributeSourceProvider;
         }
+
+        //internal override IEnumerable<object> InitializeBase(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
+        //{
+        //    throw new System.NotImplementedException();
+        //}
     }
 }

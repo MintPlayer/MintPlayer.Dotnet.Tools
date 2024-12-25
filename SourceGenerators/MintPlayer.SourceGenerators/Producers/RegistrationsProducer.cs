@@ -1,12 +1,10 @@
-﻿using MintPlayer.SourceGenerators.Extensions;
+﻿using Microsoft.CodeAnalysis;
+using MintPlayer.SourceGenerators.Extensions;
 using MintPlayer.SourceGenerators.Models;
 using MintPlayer.SourceGenerators.Tools;
-using System;
 using System.CodeDom.Compiler;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection.PortableExecutable;
-using System.Text;
 using System.Threading;
 
 namespace MintPlayer.SourceGenerators.Producers
