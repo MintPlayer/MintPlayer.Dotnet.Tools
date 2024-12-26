@@ -11,7 +11,7 @@ namespace MintPlayer.SourceGenerators.Generators
     {
         // Measure performance of the Analyzer
         // https://www.meziantou.net/measuring-performance-of-roslyn-source-generators.htm
-        public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
+        public override IncrementalValuesProvider<Producer>[] Setup(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
         {
             var classesProvider = context.SyntaxProvider
                 .CreateSyntaxProvider(
@@ -57,17 +57,23 @@ namespace MintPlayer.SourceGenerators.Generators
 
                         return default;
                     }
-                );
+                )
+                .Collect();
 
             var classesSourceProvider = classesProvider
                 .Combine(settingsProvider)
-                .Select(static (providers, ct) => new Producers.InjectProducer(providers.Left, providers.Right.RootNamespace!));
+                .SelectMany(static (providers, ct) =>
+                    providers.Left.Select((prov, ct) =>
+                        new Producers.InjectProducer(prov, providers.Right.RootNamespace!, $"{prov!.FileName}_Inject.g.cs")
+                    )
+                );
 
-            // Combine all source providers
-            var sourceProvider = classesSourceProvider;
+            //// Combine all source providers
+            //var sourceProvider = classesSourceProvider;
 
-            // Generate code
-            context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
+            //// Generate code
+            //context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
+            return [classesSourceProvider];
         }
 
         private static List<Models.InjectField> GetInjectFields(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
@@ -81,7 +87,7 @@ namespace MintPlayer.SourceGenerators.Generators
                 {
                     var fieldType = field.Declaration.Type;
                     var fieldTypeSymbol = semanticModel.GetSymbolInfo(fieldType).Symbol as ITypeSymbol;
-                    
+
                     var fqn = fieldTypeSymbol?.ToDisplayString(new SymbolDisplayFormat(
                         globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
                         typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,

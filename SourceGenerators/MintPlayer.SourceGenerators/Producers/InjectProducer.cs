@@ -8,12 +8,12 @@ namespace MintPlayer.SourceGenerators.Producers
     internal class InjectProducer : Producer
     {
         private readonly Models.ClassWithBaseDependenciesAndInjectFields classInfo;
-        public InjectProducer(Models.ClassWithBaseDependenciesAndInjectFields classInfo, string rootNamespace) : base(rootNamespace)
+        public InjectProducer(Models.ClassWithBaseDependenciesAndInjectFields classInfo, string rootNamespace, string filename) : base(rootNamespace, filename)
         {
             this.classInfo = classInfo;
         }
 
-        protected override ProducedSource? ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
+        protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
         {
             var constructorParams = classInfo.InjectFields
                 .Concat(classInfo.BaseDependencies)
@@ -21,8 +21,7 @@ namespace MintPlayer.SourceGenerators.Producers
                 .Distinct()
                 .ToList();
 
-            if (!constructorParams.Any())
-                return new() { FileName = null };
+            if (!constructorParams.Any()) return;
 
             var assignments = classInfo.InjectFields.Select(dep => $"this.{dep.Name} = {dep.Name};");
             var baseConstructorArgs = classInfo.BaseDependencies.Select(dep => dep.Name).Distinct();
@@ -58,8 +57,6 @@ namespace MintPlayer.SourceGenerators.Producers
 
             writer.Indent--;
             writer.WriteLine("}");
-
-            return new() { FileName = $"{classInfo.FileName}_Inject.g.cs" };
         }
     }
 }

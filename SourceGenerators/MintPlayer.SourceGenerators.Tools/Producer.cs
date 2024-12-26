@@ -1,7 +1,7 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
+using MintPlayer.SourceGenerators.Tools.Extensions;
 using System.CodeDom.Compiler;
-using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -10,9 +10,10 @@ namespace MintPlayer.SourceGenerators.Tools
 {
     public abstract class Producer
     {
-        protected Producer(string rootNamespace)
+        protected Producer(string rootNamespace, string filename)
         {
             RootNamespace = rootNamespace;
+            Filename = filename.NullIfEmpty() ?? throw new System.InvalidOperationException("You must provide a filename with .g.cs extension to the Producer constructor");
         }
 
         public const string Header = """
@@ -26,29 +27,28 @@ namespace MintPlayer.SourceGenerators.Tools
             //-----------------------------------------------------------------------------------//
             """;
 
+        public string Filename { get; }
         public string RootNamespace { get; }
 
-        protected abstract ProducedSource? ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken);
+        protected abstract void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken);
 
         public void Produce(SourceProductionContext context)
         {
             context.CancellationToken.ThrowIfCancellationRequested();
             using var textWriter = new StringWriter();
             using var writer = new IndentedTextWriter(textWriter);
-            var result = ProduceSource(writer, context.CancellationToken);
-            if (result is { FileName: not null } producedSource)
+
+            try
             {
+                ProduceSource(writer, context.CancellationToken);
                 //if (producedSource.FileName == "FieldNameList.g.cs") Debugger.Break();
                 //if (producedSource.FileName == "ClassNames.g.cs") Debugger.Break();
                 //if (producedSource.FileName == "ClassNameList.g.cs") Debugger.Break();
-                try
-                {
-                    var code = textWriter.ToString();
-                    context.AddSource(producedSource.FileName, SourceText.From(code, Encoding.UTF8));
-                }
-                catch (System.Exception)
-                {
-                }
+                var code = textWriter.ToString();
+                context.AddSource(Filename, SourceText.From(code, Encoding.UTF8));
+            }
+            catch (System.Exception ex)
+            {
             }
         }
     }

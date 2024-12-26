@@ -1,19 +1,16 @@
 ﻿using Microsoft.CodeAnalysis;
-using MintPlayer.SourceGenerators.Tools.ValueComparers;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
 using System;
-using System.Collections.Generic;
-using System.Text;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Linq;
-using Microsoft.CodeAnalysis.CSharp;
 
 namespace MintPlayer.SourceGenerators.Generators
 {
     [Generator(LanguageNames.CSharp)]
     public class GenericMethodSourceGenerator : IncrementalGenerator
     {
-        public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
+        public override IncrementalValuesProvider<Producer>[] Setup(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
         {
             var methodsProvider = context.SyntaxProvider.CreateSyntaxProvider(
                 static (node, ct) =>
@@ -37,9 +34,9 @@ namespace MintPlayer.SourceGenerators.Generators
                                     Attribute = a,
                                     Type = context.SemanticModel.GetTypeInfo(a, ct).ConvertedType
                                 })
-                                .FirstOrDefault(a => a.Type.Equals(context.SemanticModel.Compilation.GetTypeByMetadataName(typeof(GenericMethodAttribute).FullName)));
+                                .FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.Type, context.SemanticModel.Compilation.GetTypeByMetadataName(typeof(GenericMethodAttribute).FullName)));
 
-                            if (int.TryParse(attributeSyntax.Attribute.ArgumentList.Arguments[0].Expression.ToFullString(), out var countValue))
+                            if (int.TryParse(attributeSyntax.Attribute.ArgumentList!.Arguments[0].Expression.ToFullString(), out var countValue))
                             {
                                 return new Models.GenericMethodDeclaration
                                 {
@@ -62,14 +59,15 @@ namespace MintPlayer.SourceGenerators.Generators
                     }
                     return null;
                 }
-            );
+            )
+                .Where(static (p) => p != null)
+                .Collect();
 
             var methodsSourceProvider = methodsProvider
-                .Where(static (p) => p != null)
                 .Combine(settingsProvider)
-                .Select(static (providers, ct) => new Producers.GenericMethodProducer(providers.Left!, providers.Right.RootNamespace!));
+                .Select(static (providers, ct) => new Producers.GenericMethodProducer(providers.Left!, providers.Right.RootNamespace!) as Producer);
 
-            context.RegisterSourceOutput(methodsSourceProvider, static (c, g) => g?.Produce(c));
+            return [methodsSourceProvider];
         }
     }
 

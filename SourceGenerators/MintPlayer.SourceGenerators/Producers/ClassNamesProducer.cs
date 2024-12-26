@@ -11,12 +11,12 @@ namespace MintPlayer.SourceGenerators.Producers
     public class ClassNamesProducer : Producer
     {
         private readonly IEnumerable<Models.ClassDeclaration> declarations;
-        public ClassNamesProducer(IEnumerable<Models.ClassDeclaration> declarations, string rootNamespace) : base(rootNamespace)
+        public ClassNamesProducer(IEnumerable<Models.ClassDeclaration> declarations, string rootNamespace) : base(rootNamespace, "ClassNames.g.cs")
         {
             this.declarations = declarations;
         }
 
-        protected override ProducedSource ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
+        protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
         {
             writer.WriteLine(Header);
             writer.WriteLine();
@@ -33,7 +33,6 @@ namespace MintPlayer.SourceGenerators.Producers
 
             writer.Indent--;
             writer.WriteLine("}");
-            return new ProducedSource { FileName = "ClassNames.g.cs" };
         }
     }
 }

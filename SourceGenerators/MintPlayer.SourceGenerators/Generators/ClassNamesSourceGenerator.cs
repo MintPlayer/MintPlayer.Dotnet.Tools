@@ -2,19 +2,14 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.SourceGenerators.Tools.ValueComparers;
-using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
-using System.Text;
 
 namespace MintPlayer.SourceGenerators.Generators
 {
     [Generator(LanguageNames.CSharp)]
     public class ClassNamesSourceGenerator : IncrementalGenerator
     {
-        public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
+        public override IncrementalValuesProvider<Producer>[] Setup(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
         {
             var classDeclarationsProvider = context.SyntaxProvider
                 .CreateSyntaxProvider(
@@ -117,19 +112,38 @@ namespace MintPlayer.SourceGenerators.Generators
 
             var classNamesSourceProvider = classDeclarationsProvider
                 .Combine(settingsProvider)
-                .Select(static (p, ct) => new Producers.ClassNamesProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!));
+                .Select(static (p, ct) => new Producers.ClassNamesProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!) as Producer);
 
-            var classNameListSourceProvider = classDeclarationsProvider
+            var classNameListSourceProvider1 = classDeclarationsProvider
                 .Combine(settingsProvider)
-                .Select(static (p, ct) => new Producers.ClassNameListProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!));
+                .Select(static (p, ct) => new Producers.ClassNameListProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!, overrideFilename: "ClassList1.g.cs") as Producer);
 
-            // Combine all Source Providers
-            var sourceProvider = classNamesSourceProvider
-                .Combine(classNameListSourceProvider)
-                .SelectMany(static (p, _) => new Producer[] { p.Left, p.Right });
+            var classNameListSourceProvider2 = classDeclarationsProvider
+                .Combine(settingsProvider)
+                .Select(static (p, ct) => new Producers.ClassNameListProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!, overrideFilename: "ClassList2.g.cs") as Producer);
 
-            // Generate Code
-            context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
+            var classNameListSourceProvider3 = classDeclarationsProvider
+                .Combine(settingsProvider)
+                .Select(static (p, ct) => new Producers.ClassNameListProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!, overrideFilename: "ClassList3.g.cs") as Producer);
+
+            return [classNamesSourceProvider, classNameListSourceProvider1, classNameListSourceProvider2, classNameListSourceProvider3];
+
+            //// Combine all Source Providers
+            //// Jay, All are of type Producer now. That's easier
+            //var sourceProviders = classNamesSourceProvider
+            //    .SelectMany(static (p, _) => new ImmutableArray<Producer> { p })
+
+            //    .Collect()
+            //    .Combine(classNameListSourceProvider1)
+            //    .SelectMany(static (p, _) => p.Left.Concat([p.Right]))
+
+            //    .Collect()
+            //    .Combine(classNameListSourceProvider2)
+            //    .SelectMany(static (p, _) => p.Left.Concat([p.Right]))
+
+            //    .Collect()
+            //    .Combine(classNameListSourceProvider3)
+            //    .SelectMany(static (p, _) => p.Left.Concat([p.Right]));
         }
     }
 

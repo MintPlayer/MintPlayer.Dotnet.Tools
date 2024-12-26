@@ -15,7 +15,7 @@ namespace MintPlayer.SourceGenerators.Generators
     [Generator(LanguageNames.CSharp)]
     public class ServiceRegistrationsGenerator : IncrementalGenerator
     {
-        public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
+        public override IncrementalValuesProvider<Producer>[] Setup(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
         {
             var classesWithRegisterAttributeProvider = context.SyntaxProvider
                 .CreateSyntaxProvider(
