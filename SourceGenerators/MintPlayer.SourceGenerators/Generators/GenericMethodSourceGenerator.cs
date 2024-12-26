@@ -67,9 +67,11 @@ namespace MintPlayer.SourceGenerators.Generators
             var methodsSourceProvider = methodsProvider
                 .Where(static (p) => p != null)
                 .Combine(settingsProvider)
-                .Select(static (providers, ct) => new Producers.GenericMethodProducer(providers.Left!, providers.Right.RootNamespace!));
+                .Select(static (providers, ct) => new Producers.GenericMethodProducer(providers.Left!, providers.Right.RootNamespace!) as Producer);
 
-            context.RegisterSourceOutput(methodsSourceProvider, static (c, g) => g?.Produce(c));
+            var sourceProvider = methodsSourceProvider;
+
+            context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
         }
     }
 

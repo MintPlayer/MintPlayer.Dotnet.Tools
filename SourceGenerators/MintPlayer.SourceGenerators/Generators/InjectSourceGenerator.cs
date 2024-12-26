@@ -61,7 +61,7 @@ namespace MintPlayer.SourceGenerators.Generators
 
             var classesSourceProvider = classesProvider
                 .Combine(settingsProvider)
-                .Select(static (providers, ct) => new Producers.InjectProducer(providers.Left, providers.Right.RootNamespace!));
+                .Select(static (providers, ct) => new Producers.InjectProducer(providers.Left, providers.Right.RootNamespace!) as Producer);
 
             // Combine all source providers
             var sourceProvider = classesSourceProvider;
