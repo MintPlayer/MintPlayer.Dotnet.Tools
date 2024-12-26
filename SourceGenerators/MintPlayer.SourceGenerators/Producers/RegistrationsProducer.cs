@@ -14,12 +14,12 @@ namespace MintPlayer.SourceGenerators.Producers
     public class RegistrationsProducer : Producer
     {
         private readonly IEnumerable<ServiceRegistration> serviceRegistrations;
-        public RegistrationsProducer(IEnumerable<ServiceRegistration> serviceRegistrations, string rootNamespace) : base(rootNamespace)
+        public RegistrationsProducer(IEnumerable<ServiceRegistration> serviceRegistrations, string rootNamespace) : base(rootNamespace, "ServiceMethods.g.cs")
         {
             this.serviceRegistrations = serviceRegistrations;
         }
 
-        protected override ProducedSource? ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
+        protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
         {
             writer.WriteLine(Header);
             writer.WriteLine();
@@ -78,8 +78,6 @@ namespace MintPlayer.SourceGenerators.Producers
 
             writer.Indent--;
             writer.WriteLine("}");
-
-            return new ProducedSource { FileName = "ServiceMethods.g.cs" };
         }
     }
 }

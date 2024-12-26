@@ -10,9 +10,10 @@ namespace MintPlayer.SourceGenerators.Tools
 {
     public abstract class Producer
     {
-        protected Producer(string rootNamespace)
+        protected Producer(string rootNamespace, string defaultFilename = null)
         {
             RootNamespace = rootNamespace;
+            DefaultFilename = defaultFilename;
         }
 
         public const string Header = """
@@ -27,28 +28,30 @@ namespace MintPlayer.SourceGenerators.Tools
             """;
 
         public string RootNamespace { get; }
+        public string DefaultFilename { get; }
 
-        protected abstract ProducedSource? ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken);
+        protected abstract void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken);
 
         public void Produce(SourceProductionContext context)
         {
             context.CancellationToken.ThrowIfCancellationRequested();
             using var textWriter = new StringWriter();
             using var writer = new IndentedTextWriter(textWriter);
-            var result = ProduceSource(writer, context.CancellationToken);
-            if (result is { FileName: not null } producedSource)
+
+            try
             {
+                ProduceSource(writer, context.CancellationToken);
+
                 //if (producedSource.FileName == "FieldNameList.g.cs") Debugger.Break();
                 //if (producedSource.FileName == "ClassNames.g.cs") Debugger.Break();
                 //if (producedSource.FileName == "ClassNameList.g.cs") Debugger.Break();
-                try
-                {
-                    var code = textWriter.ToString();
-                    context.AddSource(producedSource.FileName, SourceText.From(code, Encoding.UTF8));
-                }
-                catch (System.Exception)
-                {
-                }
+
+                var code = textWriter.ToString();
+                if (!string.IsNullOrEmpty(code))
+                    context.AddSource(DefaultFilename, SourceText.From(code, Encoding.UTF8));
+            }
+            catch (System.Exception)
+            {
             }
         }
     }

@@ -13,14 +13,14 @@ namespace MintPlayer.SourceGenerators.Producers
 {
     public class GenericMethodProducer : Producer
     {
-        public GenericMethodProducer(Models.GenericMethodDeclaration method, string rootNamespace) : base(rootNamespace)
+        public GenericMethodProducer(Models.GenericMethodDeclaration method, string rootNamespace) : base(rootNamespace, "GenericMethods.g.cs")
         {
             Method = method;
         }
 
         public GenericMethodDeclaration Method { get; }
 
-        protected override ProducedSource? ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
+        protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
         {
             if (Method.Method.ClassModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PartialKeyword) && Method.Method.MethodModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PrivateKeyword))
             {
@@ -68,11 +68,6 @@ namespace MintPlayer.SourceGenerators.Producers
 
                 writer.Indent--;
                 writer.WriteLine("}");
-                return new ProducedSource { FileName = "GenericMethods.g.cs" };
-            }
-            else
-            {
-                return null;
             }
         }
     }
