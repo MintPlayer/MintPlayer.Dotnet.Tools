@@ -57,14 +57,38 @@ namespace MintPlayer.SourceGenerators.Generators
 
                         return default;
                     }
-                );
+                )
+                .Collect();
 
             var classesSourceProvider = classesProvider
                 .Combine(settingsProvider)
                 .Select(static (providers, ct) => new Producers.InjectProducer(providers.Left, providers.Right.RootNamespace!) as Producer);
 
+            var classesSourceProvider1 = classesProvider
+                .Combine(settingsProvider)
+                .Select(static (providers, ct) => new Producers.InjectProducer(providers.Left, providers.Right.RootNamespace!, $"Inject_1.g.cs") as Producer);
+
+            var classesSourceProvider2 = classesProvider
+                .Combine(settingsProvider)
+                .Select(static (providers, ct) => new Producers.InjectProducer(providers.Left, providers.Right.RootNamespace!, $"Inject_2.g.cs") as Producer);
+
+            var classesSourceProvider3 = classesProvider
+                .Combine(settingsProvider)
+                .Select(static (providers, ct) => new Producers.InjectProducer(providers.Left, providers.Right.RootNamespace!, $"Inject_3.g.cs") as Producer);
+
             // Combine all source providers
-            var sourceProvider = classesSourceProvider;
+            var sourceProvider = classesSourceProvider
+                
+                .Combine(classesSourceProvider1)
+                .SelectMany(static (p, ct) => new[] { p.Left, p.Right })
+
+                .Collect()
+                .Combine(classesSourceProvider2)
+                .SelectMany(static (p, ct) => p.Left.Concat([p.Right]))
+
+                .Collect()
+                .Combine(classesSourceProvider3)
+                .SelectMany(static (p, ct) => p.Left.Concat([p.Right]));
 
             // Generate code
             context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
