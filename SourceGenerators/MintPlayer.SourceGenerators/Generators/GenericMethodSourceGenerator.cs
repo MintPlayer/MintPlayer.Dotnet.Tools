@@ -49,7 +49,7 @@ namespace MintPlayer.SourceGenerators.Generators
                                         ClassName = classSymbol.Name,
                                         MethodModifiers = methodDeclaration.Modifiers,
                                         ClassModifiers = classDeclaration.Modifiers,
-                                        ContainingNamespace = classSymbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
+                                        ContainingNamespace = classSymbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                         //ClassIsPartial = classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
                                         //MethodIsPartial = methodDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
                                         //ClassIsStatic = classDeclaration.Modifiers.Any(SyntaxKind.StaticKeyword),

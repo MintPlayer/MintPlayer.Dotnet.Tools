@@ -91,13 +91,13 @@ namespace MintPlayer.SourceGenerators.Diagnostics.CodeFixes
             return member switch
             {
                 IMethodSymbol methodSymbol => SyntaxFactory.MethodDeclaration(
-                    SyntaxFactory.ParseTypeName(methodSymbol.ReturnType.ToDisplayString()),
+                    SyntaxFactory.ParseTypeName(methodSymbol.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)),
                     methodSymbol.Name)
                     .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
                     .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)),
 
                 IPropertySymbol propertySymbol => SyntaxFactory.PropertyDeclaration(
-                    SyntaxFactory.ParseTypeName(propertySymbol.Type.ToDisplayString()),
+                    SyntaxFactory.ParseTypeName(propertySymbol.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)),
                     propertySymbol.Name)
                     .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
                     .AddAccessorListAccessors(

@@ -81,11 +81,7 @@ namespace MintPlayer.SourceGenerators.Generators
                     var fieldType = field.Declaration.Type;
                     var fieldTypeSymbol = semanticModel.GetSymbolInfo(fieldType).Symbol as ITypeSymbol;
                     
-                    var fqn = fieldTypeSymbol?.ToDisplayString(new SymbolDisplayFormat(
-                        globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
-                        genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters
-                    )) ?? string.Empty;
+                    var fqn = fieldTypeSymbol?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)) ?? string.Empty;
                     var name = field.Declaration.Variables.First().Identifier.Text;
                     return new Models.InjectField { Type = fqn, Name = name };
                 })

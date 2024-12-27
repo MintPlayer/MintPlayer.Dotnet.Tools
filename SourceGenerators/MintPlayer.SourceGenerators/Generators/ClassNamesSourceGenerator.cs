@@ -44,7 +44,7 @@ namespace MintPlayer.SourceGenerators.Generators
             var fieldDeclarationsProvider = context.SyntaxProvider
                 .CreateSyntaxProvider(
                     static (node, ct) => node is FieldDeclarationSyntax { AttributeLists.Count: > 0 } fieldDeclaration
-                        && fieldDeclaration.Modifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.ReadOnlyKeyword),
+                        && fieldDeclaration.Modifiers.Any(SyntaxKind.ReadOnlyKeyword),
                     static (context2, ct) =>
                     {
                         if (context2.Node is FieldDeclarationSyntax fieldDeclaration &&
@@ -60,48 +60,30 @@ namespace MintPlayer.SourceGenerators.Generators
                                         return new Models.FieldDeclaration
                                         {
                                             Namespace = namespaceDeclaration.Name.ToString(),
-                                            FullyQualifiedClassName = classSymbol.ToDisplayString(new SymbolDisplayFormat(
-                                                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                            )),
+                                            FullyQualifiedClassName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                             ClassName = classSymbol.Name,
                                             Name = symbol.Name,
-                                            FullyQualifiedTypeName = symbol.Type.ToDisplayString(new SymbolDisplayFormat(
-                                                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                            )),
+                                            FullyQualifiedTypeName = symbol.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                             Type = symbol.Type.Name,
                                         };
                                     case FileScopedNamespaceDeclarationSyntax fileScopedNamespaceDeclaration:
                                         return new Models.FieldDeclaration
                                         {
                                             Namespace = fileScopedNamespaceDeclaration.Name.ToString(),
-                                            FullyQualifiedClassName = classSymbol.ToDisplayString(new SymbolDisplayFormat(
-                                                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                            )),
+                                            FullyQualifiedClassName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                             ClassName = classSymbol.Name,
                                             Name = symbol.Name,
-                                            FullyQualifiedTypeName = symbol.Type.ToDisplayString(new SymbolDisplayFormat(
-                                                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                            )),
+                                            FullyQualifiedTypeName = symbol.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                             Type = symbol.Type.Name,
                                         };
                                     default:
                                         return new Models.FieldDeclaration
                                         {
                                             Namespace = null,
-                                            FullyQualifiedClassName = classSymbol.ToDisplayString(new SymbolDisplayFormat(
-                                                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                            )),
+                                            FullyQualifiedClassName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                             ClassName = classSymbol.Name,
                                             Name = symbol.Name,
-                                            FullyQualifiedTypeName = symbol.Type.ToDisplayString(new SymbolDisplayFormat(
-                                                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
-                                                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
-                                            )),
+                                            FullyQualifiedTypeName = symbol.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                             Type = symbol.Type.Name,
                                         };
                                 }
