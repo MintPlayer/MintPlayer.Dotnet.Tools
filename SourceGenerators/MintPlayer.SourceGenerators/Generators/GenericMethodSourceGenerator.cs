@@ -49,6 +49,7 @@ namespace MintPlayer.SourceGenerators.Generators
                                         ClassName = classSymbol.Name,
                                         MethodModifiers = methodDeclaration.Modifiers,
                                         ClassModifiers = classDeclaration.Modifiers,
+                                        ContainingNamespace = classSymbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
                                         //ClassIsPartial = classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
                                         //MethodIsPartial = methodDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
                                         //ClassIsStatic = classDeclaration.Modifiers.Any(SyntaxKind.StaticKeyword),
@@ -62,16 +63,15 @@ namespace MintPlayer.SourceGenerators.Generators
                     }
                     return null;
                 }
-            );
+            )
+                .Where(static (p) => p != null)
+                .Collect();
 
             var methodsSourceProvider = methodsProvider
-                .Where(static (p) => p != null)
                 .Combine(settingsProvider)
                 .Select(static (providers, ct) => new Producers.GenericMethodProducer(providers.Left!, providers.Right.RootNamespace!) as Producer);
 
-            var sourceProvider = methodsSourceProvider;
-
-            context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
+            context.ProduceCode(methodsSourceProvider);
         }
     }
 

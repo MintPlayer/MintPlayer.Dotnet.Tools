@@ -64,49 +64,10 @@ namespace MintPlayer.SourceGenerators.Generators
                 .Combine(settingsProvider)
                 .Select(static (providers, ct) => new Producers.InjectProducer(providers.Left, providers.Right.RootNamespace!) as Producer);
 
-            var classesSourceProvider1 = classesProvider
-                .Combine(settingsProvider)
-                .Select(static (providers, ct) => new Producers.InjectProducer(providers.Left, providers.Right.RootNamespace!, $"Inject_1.g.cs") as Producer);
-
-            var classesSourceProvider2 = classesProvider
-                .Combine(settingsProvider)
-                .Select(static (providers, ct) => new Producers.InjectProducer(providers.Left, providers.Right.RootNamespace!, $"Inject_2.g.cs") as Producer);
-
-            var classesSourceProvider3 = classesProvider
-                .Combine(settingsProvider)
-                .Select(static (providers, ct) => new Producers.InjectProducer(providers.Left, providers.Right.RootNamespace!, $"Inject_3.g.cs") as Producer);
-
             // Combine all source providers
-            var var1 = classesSourceProvider;
-            var var2 = var1
-                .Combine(classesSourceProvider1)
-                .SelectMany(static (p, ct) => new[] { p.Left, p.Right });
-            var var3 = var2
-                .Collect()
-                .Combine(classesSourceProvider2)
-                .SelectMany(static (p, ct) => p.Left.Concat([p.Right]));
-            var var4 = var3
-                .Collect()
-                .Combine(classesSourceProvider3)
-                .SelectMany(static (p, ct) => p.Left.Concat([p.Right]));
-            var sourceProvider = var4;
-
-            //var sourceProvider = classesSourceProvider
-
-            //    .Combine(classesSourceProvider1)
-            //    .SelectMany(static (p, ct) => new[] { p.Left, p.Right })
-
-            //    .Collect()
-            //    .Combine(classesSourceProvider2)
-            //    .SelectMany(static (p, ct) => p.Left.Concat([p.Right]))
-
-            //    .Collect()
-            //    .Combine(classesSourceProvider3)
-            //    .SelectMany(static (p, ct) => p.Left.Concat([p.Right]));
-
-            // Generate code
-            context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
+            context.ProduceCode(classesSourceProvider);
         }
+
 
         private static List<Models.InjectField> GetInjectFields(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
         {
