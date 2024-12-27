@@ -10,10 +10,10 @@ namespace MintPlayer.SourceGenerators.Tools
 {
     public abstract class Producer
     {
-        protected Producer(string rootNamespace, string defaultFilename = null)
+        protected Producer(string rootNamespace, string filename)
         {
             RootNamespace = rootNamespace;
-            DefaultFilename = defaultFilename;
+            Filename = filename;
         }
 
         public const string Header = """
@@ -28,13 +28,15 @@ namespace MintPlayer.SourceGenerators.Tools
             """;
 
         public string RootNamespace { get; }
-        public string DefaultFilename { get; }
+        public string Filename { get; }
 
         protected abstract void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken);
 
         public void Produce(SourceProductionContext context)
         {
             context.CancellationToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrEmpty(Filename)) return;
+
             using var textWriter = new StringWriter();
             using var writer = new IndentedTextWriter(textWriter);
 
@@ -48,7 +50,7 @@ namespace MintPlayer.SourceGenerators.Tools
 
                 var code = textWriter.ToString();
                 if (!string.IsNullOrEmpty(code))
-                    context.AddSource(DefaultFilename, SourceText.From(code, Encoding.UTF8));
+                    context.AddSource(Filename, SourceText.From(code, Encoding.UTF8));
             }
             catch (System.Exception)
             {
