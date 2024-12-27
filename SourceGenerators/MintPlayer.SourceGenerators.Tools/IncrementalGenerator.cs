@@ -3,7 +3,7 @@ using MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 namespace MintPlayer.SourceGenerators.Tools;
 
-public abstract class IncrementalGenerator : IIncrementalGenerator
+public abstract partial class IncrementalGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {

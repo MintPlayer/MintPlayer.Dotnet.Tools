@@ -55,13 +55,10 @@ namespace MintPlayer.SourceGenerators.Generators
 
             var registerAttributeSourceProvider = classesWithRegisterAttributeProvider
                 .Combine(settingsProvider)
-                .Select(static (providers, ct) => new Producers.RegistrationsProducer(providers.Left, providers.Right.RootNamespace!));
+                .Select(static (providers, ct) => new Producers.RegistrationsProducer(providers.Left, providers.Right.RootNamespace!) as Producer);
 
             // Combine all source providers
-            var sourceProvider = registerAttributeSourceProvider;
-
-            // Generate code
-            context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
+            context.ProduceCode(registerAttributeSourceProvider);
         }
     }
 }

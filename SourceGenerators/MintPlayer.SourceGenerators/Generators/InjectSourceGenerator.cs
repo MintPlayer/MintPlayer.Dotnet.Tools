@@ -57,18 +57,17 @@ namespace MintPlayer.SourceGenerators.Generators
 
                         return default;
                     }
-                );
+                )
+                .Collect();
 
             var classesSourceProvider = classesProvider
                 .Combine(settingsProvider)
-                .Select(static (providers, ct) => new Producers.InjectProducer(providers.Left, providers.Right.RootNamespace!));
+                .Select(static (providers, ct) => new Producers.InjectProducer(providers.Left, providers.Right.RootNamespace!) as Producer);
 
             // Combine all source providers
-            var sourceProvider = classesSourceProvider;
-
-            // Generate code
-            context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
+            context.ProduceCode(classesSourceProvider);
         }
+
 
         private static List<Models.InjectField> GetInjectFields(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
         {
