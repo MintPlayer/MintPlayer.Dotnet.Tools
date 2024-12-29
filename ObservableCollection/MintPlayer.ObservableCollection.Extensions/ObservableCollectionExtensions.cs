@@ -70,6 +70,17 @@ public static class ObservableCollectionExtensions
         collection.RemoveRange(collection.Skip(start).Take(count));
     }
 
+    /// <summary>
+    /// Insert an item at the specified index, and ensure the collection have at most <paramref name="maxItemCount"/> items.
+    /// </summary>
+    /// <remarks>
+    /// If the <paramref name="index"/> is greater than or equal to the half of the collection count, exceeding items will be removed from the head of the collection, otherwise at the tail.
+    /// </remarks>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="collection"></param>
+    /// <param name="index"></param>
+    /// <param name="item"></param>
+    /// <param name="maxItemCount">The maximum number of items to keep in this <paramref name="collection"/>.</param>
     public static void Insert<T>(this ObservableCollection<T> collection, int index, T item, int maxItemCount)
     {
         collection.Insert(index, item);
