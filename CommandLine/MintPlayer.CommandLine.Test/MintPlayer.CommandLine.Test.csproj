@@ -9,7 +9,11 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\MintPlayer.CommandLine\MintPlayer.CommandLine.csproj" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\MintPlayer.CommandLine\MintPlayer.CommandLine.csproj" />
 	</ItemGroup>
 
 </Project>

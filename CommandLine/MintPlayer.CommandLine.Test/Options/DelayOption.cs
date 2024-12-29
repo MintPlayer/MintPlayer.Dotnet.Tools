@@ -2,6 +2,9 @@
 
 namespace MintPlayer.CommandLine.Test.Options;
 
+/// <summary>
+/// Asks the user for a delay timespan
+/// </summary>
 internal class DelayOption : ICommandOption<int>
 {
     public string Name => "delay";

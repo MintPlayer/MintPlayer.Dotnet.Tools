@@ -7,7 +7,8 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\MintPlayer.CommandLine.Abstractions\MintPlayer.CommandLine.Abstractions.csproj" />
+		<ProjectReference Include="..\..\SourceGenerators\MintPlayer.SourceGenerators\MintPlayer.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
+		<ProjectReference Include="..\MintPlayer.CommandLine.Abstractions\MintPlayer.CommandLine.Abstractions.csproj" />
 	</ItemGroup>
 
 </Project>
