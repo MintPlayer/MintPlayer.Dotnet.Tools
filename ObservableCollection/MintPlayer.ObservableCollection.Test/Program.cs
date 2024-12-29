@@ -11,8 +11,9 @@ namespace MintPlayer.ObservableCollection.Test
         static void Main(string[] args)
         {
             //Demo1();
-            Demo2();
+            //Demo2();
             //Demo3();
+            DemoMaxItemCount();
             Console.ReadKey();
         }
 
@@ -102,6 +103,31 @@ namespace MintPlayer.ObservableCollection.Test
                 new Person { FirstName = "Bill", LastName = "Belichick" },
             };
             col.AddRange(people);
+        }
+
+        private static void DemoMaxItemCount()
+        {
+            Console.WriteLine("MaxItemCount demo");
+            const int maxItemCount = 20;
+            var col = new ObservableCollection<int>();
+            col.AddRange(Enumerable.Range(0, maxItemCount));
+            Console.WriteLine(string.Join(", ", col));
+
+            // Should remove from head
+            col.Add(20, maxItemCount);
+            Console.WriteLine(string.Join(", ", col));
+
+            // Should remove from tail
+            col.Insert(1, 21, maxItemCount);
+            Console.WriteLine(string.Join(", ", col));
+
+            // Should remove from head
+            col.Insert(maxItemCount / 2, 22, maxItemCount);
+            Console.WriteLine(string.Join(", ", col));
+
+            // Should remove from tail
+            col.Insert(maxItemCount / 2 - 1, 23, maxItemCount);
+            Console.WriteLine(string.Join(", ", col));
         }
     }
 }

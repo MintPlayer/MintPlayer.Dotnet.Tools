@@ -8,20 +8,17 @@
  * 
  **/
 
-using System;
-using System.Linq;
-using System.Collections.Generic;
 using System.Collections.Specialized;
 using MintPlayer.ObservableCollection.Events.EventHandlers;
 using System.ComponentModel;
 using System.Reflection;
 using System.Diagnostics;
-using System.Threading;
 using MintPlayer.ObservableCollection.Exceptions;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MintPlayer.ObservableCollection
 {
-    public class ObservableCollection<T> : System.Collections.ObjectModel.ObservableCollection<T>
+    public class ObservableCollection<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] T> : System.Collections.ObjectModel.ObservableCollection<T>
     {
         #region Constructors
         public ObservableCollection()
@@ -37,8 +34,8 @@ namespace MintPlayer.ObservableCollection
         #region Private fields
 
         private bool isAddingOrRemovingRange;
-        [NonSerialized] private DeferredEventsCollection deferredEvents;
-        private readonly SynchronizationContext synchronizationContext = SynchronizationContext.Current;
+        [NonSerialized] private DeferredEventsCollection? deferredEvents;
+        private readonly SynchronizationContext? synchronizationContext = SynchronizationContext.Current;
 
         #endregion Private fields
 
@@ -74,19 +71,22 @@ namespace MintPlayer.ObservableCollection
 
         #region Public properties
 
+        /// <summary>
+        /// Enable or disable the change notifications and events for this collection.
+        /// </summary>
         public bool Enabled { get; set; } = true;
 
         #endregion Public properties
 
         #region Events
 
-        public event ItemPropertyChangedEventHandler<T> ItemPropertyChanged;
+        public event ItemPropertyChangedEventHandler<T>? ItemPropertyChanged;
 
         #endregion Events
 
         #region Make CollectionChanged + PropertyChanged + ItemPropertyChanged events threadsafe
 
-        private bool IsCollectionView(object target)
+        private bool IsCollectionView(object? target)
         {
             if (target == null)
             {
@@ -119,8 +119,11 @@ namespace MintPlayer.ObservableCollection
             {
                 if (!isAddingOrRemovingRange)
                 {
-                    var _deferredEv = (ICollection<NotifyCollectionChangedEventArgs>)deferredEvents;
-                    if (_deferredEv == null)
+                    if (deferredEvents is ICollection<NotifyCollectionChangedEventArgs> _deferredEv)
+                    {
+                        _deferredEv.Add(e);
+                    }
+                    else
                     {
                         var handlers = GetHandlers();
                         foreach (var handler in handlers)
@@ -132,7 +135,7 @@ namespace MintPlayer.ObservableCollection
                                 {
                                     // Call the Refresh method if the target is a WPF CollectionView
                                     RunOnMainThread(
-                                        (param) => handler.Target.GetType().GetMethod("Refresh").Invoke(param.target, new object[0]),
+                                        (param) => handler.Target!.GetType().GetMethod("Refresh")!.Invoke(param.target, []),
                                         new { target = handler.Target }
                                     );
                                 }
@@ -144,16 +147,12 @@ namespace MintPlayer.ObservableCollection
                                     );
                                 }
                             }
-                            catch (TargetNullException ex)
+                            catch (TargetNullException)
                             {
                                 Debug.WriteLine($"The target of EventHandler {handler.Method.Name} is null.");
                                 Console.WriteLine($"The target of EventHandler {handler.Method.Name} is null.");
                             }
                         }
-                    }
-                    else
-                    {
-                        _deferredEv.Add(e);
                     }
 
                     // Also only attach the PropertyChanged event handler when we're not into
@@ -206,7 +205,7 @@ namespace MintPlayer.ObservableCollection
                                 (T)param.sender,
                                 new Events.EventArgs.ItemPropertyChangedEventArgs<T>(
                                     (T)param.sender,
-                                    param.e.PropertyName
+                                    param.e.PropertyName!
                                 )
                             );
                         }
@@ -321,7 +320,7 @@ namespace MintPlayer.ObservableCollection
         private IEnumerable<NotifyCollectionChangedEventHandler> GetHandlers()
         {
             var info = typeof(System.Collections.ObjectModel.ObservableCollection<T>).GetField(nameof(CollectionChanged), BindingFlags.Instance | BindingFlags.NonPublic);
-            var @event = (MulticastDelegate)info.GetValue(this);
+            var @event = info?.GetValue(this) as MulticastDelegate;
             var result =
                 @event?.GetInvocationList().Cast<NotifyCollectionChangedEventHandler>().Distinct()
                 ?? Enumerable.Empty<NotifyCollectionChangedEventHandler>();
@@ -333,15 +332,15 @@ namespace MintPlayer.ObservableCollection
 
         #region Synchronization to main thread
 
-        protected virtual void RunOnMainThread<TState>(Action<TState> action, TState state)
+        protected virtual void RunOnMainThread<TState>(Action<TState> action, TState? state)
         {
             if ((synchronizationContext == null) || (synchronizationContext == SynchronizationContext.Current))
             {
-                action(state);
+                action(state!);
             }
             else
             {
-                synchronizationContext.Send((param) => action((TState)param), state);
+                synchronizationContext.Send((param) => action((TState)param!), state);
             }
         }
 
