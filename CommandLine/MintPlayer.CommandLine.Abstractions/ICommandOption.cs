@@ -8,5 +8,5 @@ public interface ICommandOption
 
 public interface ICommandOption<TValue> : ICommandOption
 {
-    public Func<TValue>? GetDefaultValue { get; }
+    public TValue GetDefaultValue();
 }
