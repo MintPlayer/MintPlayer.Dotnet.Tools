@@ -1,4 +1,6 @@
-﻿namespace MintPlayer.ObservableCollection.Test.Extensions
+﻿using System.Collections;
+
+namespace MintPlayer.ObservableCollection.Test.Extensions
 {
     public static class IEnumerable
     {
@@ -23,6 +25,13 @@
             {
                 return list.Count == 0;
             }
+        }
+
+        public static T[] ToArray<T>(this IList list)
+        {
+            var array = new T[list.Count];
+            list.CopyTo(array, 0);
+            return array;
         }
     }
 }

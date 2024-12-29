@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<OutputType>Library</OutputType>
+		<PublishAot>true</PublishAot>
+
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+		<IsPackable>true</IsPackable>
+		<PackageId>MintPlayer.ObservableCollection.Extensions</PackageId>
+		<Version>9.0.0</Version>
+		<Description>Extension methods for MintPlayer.ObservableCollection</Description>
+		<Company>MintPlayer</Company>
+		<Authors>Pieterjan De Clippel</Authors>
+		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/ObservableCollection/MintPlayer.ObservableCollection.Extensions</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
+		<PackageTags>ObservableCollection, RemoveRange</PackageTags>
+		<Product>MintPlayer.ObservableCollection</Product>
+
+		<RepositoryType>Git</RepositoryType>
+	</PropertyGroup>
+
+	<!-- Include XML markups in the nupkg -->
+	<PropertyGroup Condition="'$(Configuration)'=='Release'">
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	</PropertyGroup>
+	<ItemGroup>
+	  <ProjectReference Include="..\MintPlayer.ObservableCollection\MintPlayer.ObservableCollection.csproj" />
+	</ItemGroup>
+
+</Project>

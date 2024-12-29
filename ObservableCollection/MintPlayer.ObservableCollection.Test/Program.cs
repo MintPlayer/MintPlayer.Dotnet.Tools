@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Threading;
+using MintPlayer.ObservableCollection.Extensions;
 using MintPlayer.ObservableCollection.Test.Extensions;
 
 namespace MintPlayer.ObservableCollection.Test
@@ -50,15 +51,11 @@ namespace MintPlayer.ObservableCollection.Test
                 Console.WriteLine($"Collection changed:");
                 if (!e.NewItems.IsNullOrEmpty())
                 {
-                    var newItemsArray = new Person[e.NewItems.Count];
-                    e.NewItems.CopyTo(newItemsArray, 0);
-                    Console.WriteLine($"- items added: {string.Join(", ", newItemsArray.Select(p => p.FullName))}");
+                    Console.WriteLine($"- items added: {string.Join(", ", e.NewItems.ToArray<Person>().Select(p => p.FullName))}");
                 }
                 if (!e.OldItems.IsNullOrEmpty())
                 {
-                    var oldItemsArray = new Person[e.OldItems.Count];
-                    e.OldItems.CopyTo(oldItemsArray, 0);
-                    Console.WriteLine($"- items removed: {string.Join(", ", oldItemsArray.Select(p => p.FullName))}");
+                    Console.WriteLine($"- items removed: {string.Join(", ", e.OldItems.ToArray<Person>().Select(p => p.FullName))}");
                 }
             };
             collection.ItemPropertyChanged += (sender, e) =>
@@ -73,11 +70,7 @@ namespace MintPlayer.ObservableCollection.Test
                 var person3 = new Person { FirstName = "Michael", LastName = "Douglas" };
 
                 // Add 3 items at once
-                collection.AddRange(new[] {
-                    person1,
-                    person2,
-                    person3
-                });
+                collection.AddRange([person1, person2, person3]);
 
                 // Change an item property
                 collection[1].LastName = "Knibble";
@@ -86,7 +79,16 @@ namespace MintPlayer.ObservableCollection.Test
                 collection[1] = new Person { FirstName = "Sim", LastName = "Salabim" };
 
                 // Remove 2 items at once
-                collection.RemoveRange(new[] { person1, person3 });
+                collection.RemoveRange([person1, person3]);
+
+                // Add some more people
+                var person4 = new Person { FirstName = "Johnny", LastName = "Logan" };
+                var person5 = new Person { FirstName = "Kiddy", LastName = "Bull" };
+                var person6 = new Person { FirstName = "Jacky", LastName = "Chan" };
+                collection.AddRange([person4, person5, person6]);
+
+                // Remove range using index
+                collection.RemoveRange(1, 2);
             })).Start();
         }
 
