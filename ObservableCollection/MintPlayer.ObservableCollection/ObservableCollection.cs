@@ -51,7 +51,7 @@ namespace MintPlayer.ObservableCollection
                 OnCountPropertyChanged();
                 OnIndexerPropertyChanged();
                 OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, param.items));
-            }, new { items = items.ToList() });
+            }, new { items = items.ToArray() });
         }
 
         public virtual void RemoveRange(IEnumerable<T> items)
@@ -64,7 +64,7 @@ namespace MintPlayer.ObservableCollection
                 OnCountPropertyChanged();
                 OnIndexerPropertyChanged();
                 OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, param.items));
-            }, new { items = items.ToList() });
+            }, new { items = items.ToArray() });
         }
 
         #endregion Public methods
