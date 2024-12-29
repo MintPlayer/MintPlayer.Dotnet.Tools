@@ -7,7 +7,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\MintPlayer.ObservableCollection\MintPlayer.ObservableCollection.csproj" />
+		<ProjectReference Include="..\MintPlayer.ObservableCollection.Extensions\MintPlayer.ObservableCollection.Extensions.csproj" />
 	</ItemGroup>
 
 </Project>

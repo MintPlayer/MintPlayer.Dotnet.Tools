@@ -40,5 +40,7 @@ namespace MintPlayer.ObservableCollection.Test
         }
 
         public string FullName => $"{firstname} {lastname}";
+
+        public override string ToString() => FullName;
     }
 }
