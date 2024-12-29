@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace MintPlayer.ObservableCollection.Extensions;
+﻿namespace MintPlayer.ObservableCollection.Extensions;
 
 public static class ObservableCollectionExtensions
 {
@@ -12,5 +10,15 @@ public static class ObservableCollectionExtensions
         if (start >= collection.Count) throw new ArgumentOutOfRangeException(nameof(start), start, "The index is outside the range of this list.");
 
         collection.RemoveRange(collection.Skip(start).Take(count));
+    }
+
+    public static void AddRange<T>(this ObservableCollection<T> collection, System.Collections.IEnumerable items)
+    {
+        collection.AddRange(items.Cast<T>());
+    }
+
+    public static void RemoveRange<T>(this ObservableCollection<T> collection, System.Collections.IEnumerable items)
+    {
+        collection.RemoveRange(items.Cast<T>());
     }
 }

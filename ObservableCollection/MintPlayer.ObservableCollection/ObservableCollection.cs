@@ -44,7 +44,7 @@ namespace MintPlayer.ObservableCollection
 
         #region Public methods
 
-        public void AddRange(IEnumerable<T> items)
+        public virtual void AddRange(IEnumerable<T> items)
         {
             CheckReentrancy();
 
@@ -57,7 +57,7 @@ namespace MintPlayer.ObservableCollection
             }, new { items = items.ToList() });
         }
 
-        public void RemoveRange(IEnumerable<T> items)
+        public virtual void RemoveRange(IEnumerable<T> items)
         {
             CheckReentrancy();
 
@@ -333,7 +333,7 @@ namespace MintPlayer.ObservableCollection
 
         #region Synchronization to main thread
 
-        private void RunOnMainThread<TState>(Action<TState> action, TState state)
+        protected virtual void RunOnMainThread<TState>(Action<TState> action, TState state)
         {
             if ((synchronizationContext == null) || (synchronizationContext == SynchronizationContext.Current))
             {
