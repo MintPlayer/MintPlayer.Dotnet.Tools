@@ -2,8 +2,8 @@
 
 namespace MintPlayer.CommandLine.Test.Commands;
 
-[CommandOption<Options.FileOption>]
-[CommandOption<Options.DelayOption>]
+[CommandOption<Options.FileOption>(Required = true)]
+[CommandOption<Options.DelayOption>(Required = false)]
 [SubCommand<Read.ReadSizeCommand>]
 internal class ReadCommand : ICommand
 {
