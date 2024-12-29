@@ -9,4 +9,10 @@ public interface ICommand
 
 public interface ICommand<TInput> : ICommand
 {
+    public Task Execute(TInput input);
+}
+
+public interface ICommand<TInput, TResult> : ICommand
+{
+    public Task<TResult> Execute(TInput input);
 }

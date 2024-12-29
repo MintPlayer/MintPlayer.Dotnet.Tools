@@ -2,4 +2,11 @@
 // Which is described here:
 // https://learn.microsoft.com/en-us/dotnet/standard/commandline/get-started-tutorial#add-a-subcommand-and-options
 // But I don't really like it, so here's my take on it.
-Console.WriteLine("Hello world");
+
+using Microsoft.Extensions.DependencyInjection;
+using MintPlayer.CommandLine;
+
+
+var services = new ServiceCollection()
+    .AddCommandLineTools()
+    .BuildServiceProvider();
