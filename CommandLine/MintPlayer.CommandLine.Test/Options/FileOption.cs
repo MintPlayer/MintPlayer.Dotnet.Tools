@@ -2,7 +2,7 @@
 
 namespace MintPlayer.CommandLine.Test.Options;
 
-internal class FileOption : ICommandOption
+internal class FileOption : ICommandOption<string>
 {
     public string Name => "file";
 

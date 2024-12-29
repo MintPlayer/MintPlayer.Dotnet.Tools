@@ -6,3 +6,7 @@ public interface ICommand
 
     public string Description { get; }
 }
+
+public interface ICommand<TInput> : ICommand
+{
+}
