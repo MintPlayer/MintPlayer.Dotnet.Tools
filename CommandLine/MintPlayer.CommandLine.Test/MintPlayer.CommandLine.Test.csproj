@@ -8,4 +8,8 @@
 		<IsPackable>false</IsPackable>
 	</PropertyGroup>
 
+	<ItemGroup>
+	  <ProjectReference Include="..\MintPlayer.CommandLine\MintPlayer.CommandLine.csproj" />
+	</ItemGroup>
+
 </Project>

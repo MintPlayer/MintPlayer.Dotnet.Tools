@@ -6,4 +6,8 @@
 		<Nullable>enable</Nullable>
 	</PropertyGroup>
 
+	<ItemGroup>
+	  <ProjectReference Include="..\MintPlayer.CommandLine.Abstractions\MintPlayer.CommandLine.Abstractions.csproj" />
+	</ItemGroup>
+
 </Project>

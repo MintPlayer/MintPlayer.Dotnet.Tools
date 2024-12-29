@@ -87,6 +87,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.CommandLine", "C
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.CommandLine.Test", "CommandLine\MintPlayer.CommandLine.Test\MintPlayer.CommandLine.Test.csproj", "{3C86403D-BA15-4DE5-94DB-250743471FC4}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.CommandLine.Abstractions", "CommandLine\MintPlayer.CommandLine.Abstractions\MintPlayer.CommandLine.Abstractions.csproj", "{DD7D4CBE-3DBD-411F-9EDE-42EA2E8A59EC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -209,6 +211,10 @@ Global
 		{3C86403D-BA15-4DE5-94DB-250743471FC4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3C86403D-BA15-4DE5-94DB-250743471FC4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3C86403D-BA15-4DE5-94DB-250743471FC4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DD7D4CBE-3DBD-411F-9EDE-42EA2E8A59EC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DD7D4CBE-3DBD-411F-9EDE-42EA2E8A59EC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DD7D4CBE-3DBD-411F-9EDE-42EA2E8A59EC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DD7D4CBE-3DBD-411F-9EDE-42EA2E8A59EC}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -243,6 +249,7 @@ Global
 		{0833621C-AFB4-4E25-9A4D-7B2E44CA7E05} = {A67D3C5B-2DCD-45B7-BFB6-D019F39C67D9}
 		{74CA4F16-6D02-46BD-AB96-AE047B252F2C} = {A9C67E54-1FE9-4B1E-AF32-2E913929AC1F}
 		{3C86403D-BA15-4DE5-94DB-250743471FC4} = {A9C67E54-1FE9-4B1E-AF32-2E913929AC1F}
+		{DD7D4CBE-3DBD-411F-9EDE-42EA2E8A59EC} = {A9C67E54-1FE9-4B1E-AF32-2E913929AC1F}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D5378D43-9246-4355-8C4B-880DB15B07DA}
