@@ -14,8 +14,9 @@ internal class ReadCommand : ICommand<ReadCommandInput, ReadCommandOutput>
     public async Task<ReadCommandOutput> Execute(ReadCommandInput input)
     {
         await Task.Delay(1);
+        return new ReadCommandOutput();
     }
 }
 
-internal partial class ReadCommandInput { }
-internal class ReadCommandOutput { }
+public partial class ReadCommandInput { }
+public class ReadCommandOutput { }

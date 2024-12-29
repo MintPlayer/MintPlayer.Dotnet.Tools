@@ -16,4 +16,4 @@ public class DelayCommand : ICommand<DelayCommandInput>
     }
 }
 
-internal partial class DelayCommandInput { }
+public partial class DelayCommandInput { }

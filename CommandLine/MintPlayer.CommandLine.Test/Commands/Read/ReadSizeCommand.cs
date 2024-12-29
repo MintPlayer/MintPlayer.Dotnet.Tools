@@ -12,10 +12,10 @@ public class ReadSizeCommand : ICommand<ReadSizeCommandInput, ReadSizeCommandOut
 
     public string Description => "Get file size";
 
-    public async Task<ReadCommandOutput> Execute(ReadCommandInput input)
+    public async Task<ReadSizeCommandOutput> Execute(ReadSizeCommandInput input)
     {
         var output = await commandRunner.Get<ReadCommand, ReadCommandOutput>().Execute(input);
-        return new ReadCommandOutput();
+        return new ReadSizeCommandOutput();
     }
 }
 
