@@ -34,8 +34,10 @@ namespace MintPlayer.SourceGenerators.Diagnostics.Analyzers
 
             foreach (var iface in implementedInterfaces)
             {
-                // Get members of the interface
-                var interfaceMembers = iface.GetMembers();
+                // Get all members of the interface and sub-interfaces
+                var interfaceMembers = iface.GetMembers()
+                    .Concat(iface.AllInterfaces.SelectMany(i => i.GetMembers()))
+                    .ToArray();
                 var classMembers = namedTypeSymbol.GetMembers()
                     .Where(m => m.DeclaredAccessibility == Accessibility.Public)
                     .Where(m => m.GetAttributes().All(attr => attr.AttributeClass?.Name != nameof(NoInterfaceMemberAttribute)));
