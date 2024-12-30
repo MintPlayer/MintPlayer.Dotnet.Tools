@@ -28,7 +28,7 @@ namespace MintPlayer.SourceGenerators.Diagnostics.Analyzers
             var ignoreAttributeSymbol = context.Compilation.GetTypeByMetadataName(typeof(NoInterfaceMemberAttribute).FullName);
 
             // Check if the class implements an interface
-            var implementedInterfaces = namedTypeSymbol.Interfaces;
+            var implementedInterfaces = namedTypeSymbol.Interfaces; // TODO: this only picks the interfaces for this type, not sub-interfaces
             if (!implementedInterfaces.Any() || namedTypeSymbol.TypeKind != TypeKind.Class)
                 return;
 

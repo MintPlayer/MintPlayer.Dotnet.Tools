@@ -14,6 +14,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\MintPlayer.CommandLine\MintPlayer.CommandLine.csproj" />
+		<ProjectReference Include="..\..\SourceGenerators\MintPlayer.SourceGenerators\MintPlayer.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
 	</ItemGroup>
 
 </Project>

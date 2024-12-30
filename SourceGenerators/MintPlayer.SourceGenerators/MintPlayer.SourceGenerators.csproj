@@ -1,11 +1,11 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-
-	<!--<PropertyGroup>
+	<!-- 
+	<PropertyGroup>
 		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPaths</GetTargetPathDependsOn>
-	</PropertyGroup>
+	</PropertyGroup> -->
 
-	<Target Name="GetDependencyTargetPaths">
+	<!--<Target Name="GetDependencyTargetPaths">
 		<ItemGroup>
 			<TargetPathWithTargetPlatformMoniker Include="$(PKGNewtonsoft_Json)\lib\netstandard2.0\Newtonsoft.Json.dll" IncludeRuntimeDependency="false" />
 			<TargetPathWithTargetPlatformMoniker Include="$(PKGMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\Microsoft.Extensions.DependencyInjection.Abstractions.dll" IncludeRuntimeDependency="false" />
@@ -46,18 +46,21 @@
 		<!--<AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>-->
 	</PropertyGroup>
 
-	<!--<ItemGroup>
+	<!-- Dependencies -->
+	<Import Project="MintPlayer.SourceGenerators.targets" />
+	
+	<ItemGroup>
 		<Compile Update="**\*.*.cs">
 			<DependentUpon>$([System.Text.RegularExpressions.Regex]::Replace(%(Filename), '(?:.(?![.]))+$', %(Extension)))</DependentUpon>
 		</Compile>
-	</ItemGroup>-->
-	<ItemGroup>
+	</ItemGroup>
+	<!--<ItemGroup>
 		<PackageReference Include="Microsoft.CodeAnalysis" Version="4.11.0" PrivateAssets="all" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" PrivateAssets="all" />
 		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" PrivateAssets="all" GeneratePathProperty="true" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" PrivateAssets="all" GeneratePathProperty="true" />
-	</ItemGroup>
+	</ItemGroup>-->
 
 	<ItemGroup>
 		<!-- Rolsyn 4.0 -->

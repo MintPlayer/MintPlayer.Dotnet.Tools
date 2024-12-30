@@ -8,7 +8,8 @@ public interface ICommandRunner
     //Task Run<TCommand>()
     //    where TCommand : ICommand<TInput>;
 
-    CommandExecutor<TCommand, TResult> Get<TCommand, TResult>();
+    //CommandExecutor<TCommand> Get<TCommand>();
+    TCommand Get<TCommand>();
 }
 
 //public interface ICommandExecutor<TCommand>
