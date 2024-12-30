@@ -31,6 +31,15 @@ public class ObservableCollection
     public ObservableCollection(IEnumerable<T> items) : this()
     {
         InternalAddRange(items);
+        if (areItemsImplementingINotifyPropertyChanged)
+        {
+            var notifyItems = Items.Cast<INotifyPropertyChanged>();
+            itemNotifyPropertyChangedList.AddRange(notifyItems);
+            foreach (var item in notifyItems)
+            {
+                item.PropertyChanged += ObservableCollection_Item_PropertyChanged;
+            }
+        }
     }
     #endregion Constructors
 
@@ -217,6 +226,18 @@ public class ObservableCollection
                 {
                     item.PropertyChanged -= ObservableCollection_Item_PropertyChanged;
                 }
+                itemNotifyPropertyChangedList.Clear();
+
+                // Attach event handlers to all items
+                if (Count > 0)
+                {
+                    var notifyItems = Items.Cast<INotifyPropertyChanged>();
+                    itemNotifyPropertyChangedList.AddRange(notifyItems);
+                    foreach (var item in notifyItems)
+                    {
+                        item.PropertyChanged += ObservableCollection_Item_PropertyChanged;
+                    }
+                }
             }
             else
             {
@@ -249,7 +270,7 @@ public class ObservableCollection
         if (Enabled)
         {
             RunOnMainThread(
-                (param) => base.OnPropertyChanged(param.e),
+                param => base.OnPropertyChanged(param.e),
                 new { e }
             );
         }
@@ -260,7 +281,7 @@ public class ObservableCollection
         if (!Enabled || sender is null || ItemPropertyChanged is null) return;
 
         RunOnMainThread(
-            (param) =>
+            param =>
             {
                 ItemPropertyChanged(
                     (T)param.sender,
@@ -301,12 +322,12 @@ public class ObservableCollection
 
     protected override void InsertItem(int index, T item)
     {
-        RunOnMainThread((param) => base.InsertItem(param.index, param.item), new { index, item });
+        RunOnMainThread(param => base.InsertItem(param.index, param.item), new { index, item });
     }
 
     protected override void ClearItems()
     {
-        RunOnMainThread<object>((param) => base.ClearItems(), null);
+        RunOnMainThread<object>(param => base.ClearItems(), null);
     }
 
     protected override void MoveItem(int oldIndex, int newIndex)
@@ -316,12 +337,12 @@ public class ObservableCollection
 
     protected override void RemoveItem(int index)
     {
-        RunOnMainThread((param) => base.RemoveItem(param), index);
+        RunOnMainThread(param => base.RemoveItem(param), index);
     }
 
     protected override void SetItem(int index, T item)
     {
-        RunOnMainThread((param) => base.SetItem(param.index, param.item), new { index, item });
+        RunOnMainThread(param => base.SetItem(param.index, param.item), new { index, item });
     }
 
     #endregion Make base methods threadsafe
@@ -451,6 +472,7 @@ public class ObservableCollection
                 {
                     item.PropertyChanged -= ObservableCollection_Item_PropertyChanged;
                 }
+                itemNotifyPropertyChangedList.Clear();
             }
         }
 
