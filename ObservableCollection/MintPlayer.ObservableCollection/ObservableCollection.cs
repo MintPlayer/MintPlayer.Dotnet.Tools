@@ -18,11 +18,14 @@ using System.Reflection;
 
 namespace MintPlayer.ObservableCollection;
 
-public class ObservableCollection<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] T> : System.Collections.ObjectModel.ObservableCollection<T>
+public class ObservableCollection
+    <[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces | DynamicallyAccessedMemberTypes.PublicMethods)] T> 
+    : System.Collections.ObjectModel.ObservableCollection<T>, IDisposable
 {
     #region Constructors
     public ObservableCollection()
     {
+        areItemsImplementingINotifyPropertyChanged = typeof(T).GetInterfaces().Contains(typeof(INotifyPropertyChanged));
     }
 
     public ObservableCollection(IEnumerable<T> items) : this()
@@ -31,11 +34,24 @@ public class ObservableCollection<[DynamicallyAccessedMembers(DynamicallyAccesse
     }
     #endregion Constructors
 
+    #region Finalizer
+
+    ~ObservableCollection()
+    {
+        Dispose(false);
+    }
+
+    #endregion
+
     #region Private fields
 
     private bool isAddingOrRemovingRange;
     [NonSerialized] private DeferredEventsCollection? deferredEvents;
     private readonly SynchronizationContext? synchronizationContext = SynchronizationContext.Current;
+
+    private readonly bool areItemsImplementingINotifyPropertyChanged;
+    private readonly List<INotifyPropertyChanged> itemNotifyPropertyChangedList = [];
+    private bool _disposed;
 
     #endregion Private fields
 
@@ -43,28 +59,43 @@ public class ObservableCollection<[DynamicallyAccessedMembers(DynamicallyAccesse
 
     public virtual void AddRange(IEnumerable<T> items)
     {
+        var enumerable = items as T[] ?? items.ToArray();
+        if (enumerable.Length == 0) return;
+        if (enumerable.Length == 1)
+        {
+            Add(enumerable[0]);
+            return;
+        }
+
         CheckReentrancy();
 
-        RunOnMainThread((param) =>
+        RunOnMainThread(param =>
         {
             InternalAddRange(param.items);
             OnCountPropertyChanged();
             OnIndexerPropertyChanged();
             OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, param.items));
-        }, new { items = items.ToArray() });
+        }, new { items = enumerable.ToArray() });
     }
 
     public virtual void RemoveRange(IEnumerable<T> items)
     {
-        CheckReentrancy();
+        var enumerable = items as T[] ?? items.ToArray();
+        if (enumerable.Length == 0) return;
+        if (enumerable.Length == 1)
+        {
+            Remove(enumerable[0]);
+            return;
+        }
 
-        RunOnMainThread((param) =>
+        CheckReentrancy();
+        RunOnMainThread(param =>
         {
             InternalRemoveRange(param.items);
             OnCountPropertyChanged();
             OnIndexerPropertyChanged();
             OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, param.items));
-        }, new { items = items.ToArray() });
+        }, new { items = enumerable.ToArray() });
     }
 
     #endregion Public methods
@@ -105,26 +136,29 @@ public class ObservableCollection<[DynamicallyAccessedMembers(DynamicallyAccesse
         #endregion
 
         #region Check if any of the types matches the CollectionView
-        return typeTree.Any(t =>
+        return typeTree.Any(t => 
             t.FullName == "System.Windows.Data.CollectionView" // WPF
+            //|| t.FullName == "Avalonia.Collections.DataGridCollectionView" // Avalonia DataGrid (Working without Refresh requirement)
             || t.DeclaringType?.FullName == "Avalonia.Utilities.WeakEvents");
         #endregion
     }
 
     protected override void OnCollectionChanged(NotifyCollectionChangedEventArgs e)
     {
-        // If there's only one item being added/removed, there's no need to do anything special.
-        if (!IsRange(e))
+        if (isAddingOrRemovingRange) return;
+
+        if (Enabled)
         {
-            base.OnCollectionChanged(e);
-        }
-        else
-        {
-            if (!isAddingOrRemovingRange)
+            // If there's only one item being added/removed, there's no need to do anything special.
+            if (!IsRange(e))
             {
-                if (deferredEvents is ICollection<NotifyCollectionChangedEventArgs> _deferredEv)
+                base.OnCollectionChanged(e);
+            }
+            else
+            {
+                if (deferredEvents is ICollection<NotifyCollectionChangedEventArgs> deferredEv)
                 {
-                    _deferredEv.Add(e);
+                    deferredEv.Add(e);
                 }
                 else
                 {
@@ -136,19 +170,31 @@ public class ObservableCollection<[DynamicallyAccessedMembers(DynamicallyAccesse
                             var isCollectionView = IsCollectionView(handler.Target);
                             if (isCollectionView)
                             {
-                                var methods = handler.Target.GetType().GetMethods(BindingFlags.Public | BindingFlags.NonPublic);
-                                Console.WriteLine(methods.Length);
+                                var method = handler.Target?.GetType().GetMethod("Refresh");
 
-                                // Call the Refresh method if the target is a WPF CollectionView
-                                RunOnMainThread(
-                                    (param) => handler.Target!.GetType().GetMethod("Refresh")!.Invoke(param.target, []),
-                                    new { target = handler.Target }
-                                );
+                                if (method is null)
+                                {
+                                    var newNotification =
+                                        new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset);
+                                    RunOnMainThread(
+                                        param => handler(this, param.e),
+                                        new { e = newNotification }
+                                    );
+                                }
+                                else
+                                {
+                                    // Call the Refresh method if the target is a WPF CollectionView
+                                    RunOnMainThread(
+                                        param => param.Method.Invoke(param.Target, []),
+                                        new { handler.Target, Method = method }
+                                    );
+                                }
+
                             }
-                            else if (Enabled)
+                            else
                             {
                                 RunOnMainThread(
-                                    (param) => handler(this, param.e),
+                                    param => handler(this, param.e),
                                     new { e }
                                 );
                             }
@@ -156,32 +202,43 @@ public class ObservableCollection<[DynamicallyAccessedMembers(DynamicallyAccesse
                         catch (TargetNullException)
                         {
                             Debug.WriteLine($"The target of EventHandler {handler.Method.Name} is null.");
-                            Console.WriteLine($"The target of EventHandler {handler.Method.Name} is null.");
                         }
                     }
                 }
+            }
+        }
 
-                // Also only attach the PropertyChanged event handler when we're not into
-                // the process of adding a number of items one by one.
-
-                if (typeof(T).GetInterfaces().Contains(typeof(INotifyPropertyChanged)))
+        // Also only attach the PropertyChanged event handler
+        if (areItemsImplementingINotifyPropertyChanged)
+        {
+            if (e.Action == NotifyCollectionChangedAction.Reset)
+            {
+                foreach (var item in itemNotifyPropertyChangedList)
                 {
-                    // First detach all event handlers
-                    if (e.OldItems != null)
+                    item.PropertyChanged -= ObservableCollection_Item_PropertyChanged;
+                }
+            }
+            else
+            {
+                // First detach all event handlers
+                if (e.OldItems != null)
+                {
+                    var notifyItems = e.OldItems.Cast<INotifyPropertyChanged>();
+                    foreach (var item in notifyItems)
                     {
-                        foreach (var item in e.OldItems)
-                        {
-                            ((INotifyPropertyChanged)item).PropertyChanged -= ObservableCollection_Item_PropertyChanged;
-                        }
+                        item.PropertyChanged -= ObservableCollection_Item_PropertyChanged;
+                        itemNotifyPropertyChangedList.Remove(item);
                     }
-                    // Then attach all event handlers
-                    if (e.NewItems != null)
+                }
+                // Then attach all event handlers
+                if (e.NewItems != null)
+                {
+                    var notifyItems = e.NewItems.Cast<INotifyPropertyChanged>();
+                    foreach (var item in notifyItems)
                     {
-                        foreach (var item in e.NewItems)
-                        {
-                            ((INotifyPropertyChanged)item).PropertyChanged += ObservableCollection_Item_PropertyChanged;
-                        }
+                        item.PropertyChanged += ObservableCollection_Item_PropertyChanged;
                     }
+                    itemNotifyPropertyChangedList.AddRange(notifyItems);
                 }
             }
         }
@@ -200,25 +257,21 @@ public class ObservableCollection<[DynamicallyAccessedMembers(DynamicallyAccesse
 
     private void ObservableCollection_Item_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (Enabled)
-        {
-            RunOnMainThread(
-                (param) =>
-                {
-                    if (ItemPropertyChanged != null)
-                    {
-                        ItemPropertyChanged(
-                            (T?)param.sender!,
-                            new Events.EventArgs.ItemPropertyChangedEventArgs<T>(
-                                (T?)param.sender,
-                                param.e.PropertyName!
-                            )
-                        );
-                    }
-                },
-                new { sender, e }
-            );
-        }
+        if (!Enabled || sender is null || ItemPropertyChanged is null) return;
+
+        RunOnMainThread(
+            (param) =>
+            {
+                ItemPropertyChanged(
+                    (T)param.sender,
+                    new Events.EventArgs.ItemPropertyChangedEventArgs<T>(
+                        (T)param.sender,
+                        param.e.PropertyName!
+                    )
+                );
+            },
+            new { sender, e }
+        );
     }
 
     #endregion Make CollectionChanged + PropertyChanged + ItemPropertyChanged events threadsafe
@@ -307,7 +360,7 @@ public class ObservableCollection<[DynamicallyAccessedMembers(DynamicallyAccesse
         }
     }
 
-    private bool IsRange(NotifyCollectionChangedEventArgs e)
+    private static bool IsRange(NotifyCollectionChangedEventArgs e)
     {
         var totalChanged = 0;
 
@@ -329,7 +382,7 @@ public class ObservableCollection<[DynamicallyAccessedMembers(DynamicallyAccesse
         var @event = info?.GetValue(this) as MulticastDelegate;
         var result =
             @event?.GetInvocationList().Cast<NotifyCollectionChangedEventHandler>().Distinct()
-            ?? Enumerable.Empty<NotifyCollectionChangedEventHandler>();
+            ?? [];
 
         return result;
     }
@@ -385,4 +438,29 @@ public class ObservableCollection<[DynamicallyAccessedMembers(DynamicallyAccesse
 
     #endregion Private Types
 
+    #region Disposable
+    private void Dispose(bool disposing)
+    {
+        if (_disposed) return;
+        if (disposing)
+        {
+            deferredEvents?.Dispose();
+            if (areItemsImplementingINotifyPropertyChanged)
+            {
+                foreach (var item in itemNotifyPropertyChangedList)
+                {
+                    item.PropertyChanged -= ObservableCollection_Item_PropertyChanged;
+                }
+            }
+        }
+
+        _disposed = true;
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+    #endregion
 }
