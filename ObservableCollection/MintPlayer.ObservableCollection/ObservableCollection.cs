@@ -183,8 +183,7 @@ public class ObservableCollection
 
                                 if (method is null)
                                 {
-                                    var newNotification =
-                                        new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset);
+                                    var newNotification = new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset);
                                     RunOnMainThread(
                                         param => handler(this, param.e),
                                         new { e = newNotification }
