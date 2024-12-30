@@ -89,9 +89,6 @@ public static class ObservableCollectionExtensions
     /// <summary>
     /// Insert an item at the specified index, and ensure the collection have at most <paramref name="maxItemCount"/> items.
     /// </summary>
-    /// <remarks>
-    /// If the <paramref name="index"/> is greater than or equal to the half of the collection count, exceeding items will be removed from the head of the collection, otherwise at the tail.
-    /// </remarks>
     /// <typeparam name="T">Collection type</typeparam>
     /// <param name="collection">Collection to restrict the number of items for</param>
     /// <param name="index">Position at where the item should be inserted</param>
