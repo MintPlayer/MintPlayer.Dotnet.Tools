@@ -86,7 +86,8 @@ namespace MintPlayer.ObservableCollection
 
         #region Make CollectionChanged + PropertyChanged + ItemPropertyChanged events threadsafe
 
-        private bool IsCollectionView(object? target)
+        // Let's allow this method to be overridden, to use custom UI frameworks
+        protected virtual bool IsCollectionView(object? target)
         {
             if (target == null)
             {
@@ -104,7 +105,9 @@ namespace MintPlayer.ObservableCollection
             #endregion
 
             #region Check if any of the types matches the CollectionView
-            return typeTree.Any(t => t.FullName == "System.Windows.Data.CollectionView");
+            return typeTree.Any(t => 
+                t.FullName == "System.Windows.Data.CollectionView" // WPF
+                || t.DeclaringType?.FullName == "Avalonia.Utilities.WeakEvents");
             #endregion
         }
 
