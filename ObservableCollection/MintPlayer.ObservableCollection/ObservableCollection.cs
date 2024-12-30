@@ -136,6 +136,8 @@ namespace MintPlayer.ObservableCollection
                                 var isCollectionView = IsCollectionView(handler.Target);
                                 if (isCollectionView)
                                 {
+                                    var methods = handler.Target.GetType().GetMethods(BindingFlags.Public | BindingFlags.NonPublic);
+
                                     // Call the Refresh method if the target is a WPF CollectionView
                                     RunOnMainThread(
                                         (param) => handler.Target!.GetType().GetMethod("Refresh")!.Invoke(param.target, []),
