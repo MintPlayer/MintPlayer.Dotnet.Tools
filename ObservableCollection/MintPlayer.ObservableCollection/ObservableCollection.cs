@@ -191,7 +191,7 @@ public class ObservableCollection
                                 }
                                 else
                                 {
-                                    // Call the Refresh method if the target is a WPF CollectionView
+                                    // Call the Refresh method if the target is a valid CollectionView
                                     RunOnMainThread(
                                         param => param.Method.Invoke(param.Target, []),
                                         new { handler.Target, Method = method }
