@@ -6,7 +6,7 @@ public interface IFaceBase
     public string? Name { get; set; }
 }
 
-public interface IFace
+public interface IFace : IFaceBase
 {
     //public string? Name { get; set; }
 }
