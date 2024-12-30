@@ -84,7 +84,7 @@ public class ObservableCollection
             OnCountPropertyChanged();
             OnIndexerPropertyChanged();
             OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, param.items));
-        }, new { items = enumerable.ToArray() });
+        }, new { items = enumerable });
     }
 
     public virtual void RemoveRange(IEnumerable<T> items)
@@ -104,7 +104,7 @@ public class ObservableCollection
             OnCountPropertyChanged();
             OnIndexerPropertyChanged();
             OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, param.items));
-        }, new { items = enumerable.ToArray() });
+        }, new { items = enumerable });
     }
 
     #endregion Public methods
