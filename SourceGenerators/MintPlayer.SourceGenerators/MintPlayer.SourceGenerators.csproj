@@ -9,8 +9,8 @@
 		<ItemGroup>
 			<TargetPathWithTargetPlatformMoniker Include="$(PKGNewtonsoft_Json)\lib\netstandard2.0\Newtonsoft.Json.dll" IncludeRuntimeDependency="false" />
 			<TargetPathWithTargetPlatformMoniker Include="$(PKGMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\Microsoft.Extensions.DependencyInjection.Abstractions.dll" IncludeRuntimeDependency="false" />
-			<TargetPathWithTargetPlatformMoniker Include="..\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Tools.dll" IncludeRuntimeDependency="false" />
-			<TargetPathWithTargetPlatformMoniker Include="..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Attributes.dll" IncludeRuntimeDependency="true" />
+			<TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Tools.dll" IncludeRuntimeDependency="false" />
+			<TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Attributes.dll" IncludeRuntimeDependency="true" />
 		</ItemGroup>
 	</Target>
 
