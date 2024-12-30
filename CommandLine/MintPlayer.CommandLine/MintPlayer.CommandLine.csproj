@@ -6,23 +6,23 @@
 		<Nullable>enable</Nullable>
 		<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
 	</PropertyGroup>
-
+<!-- 
 	<PropertyGroup>
 		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPaths</GetTargetPathDependsOn>
 	</PropertyGroup>
 
 	<Target Name="GetDependencyTargetPaths">
 		<ItemGroup>
-			<!--<TargetPathWithTargetPlatformMoniker Include="$(PKGNewtonsoft_Json)\lib\netstandard2.0\Newtonsoft.Json.dll" IncludeRuntimeDependency="false" />-->
+			<!-<TargetPathWithTargetPlatformMoniker Include="$(PKGNewtonsoft_Json)\lib\netstandard2.0\Newtonsoft.Json.dll" IncludeRuntimeDependency="false" />->
 			<TargetPathWithTargetPlatformMoniker Include="$(PKGMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\Microsoft.Extensions.DependencyInjection.Abstractions.dll" IncludeRuntimeDependency="false" />
 			<TargetPathWithTargetPlatformMoniker Include="..\..\SourceGenerators\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Tools.dll" IncludeRuntimeDependency="false" />
 			<TargetPathWithTargetPlatformMoniker Include="..\..\SourceGenerators\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Attributes.dll" IncludeRuntimeDependency="true" />
 		</ItemGroup>
-	</Target>
+	</Target> -->
 
-	<ItemGroup>
+	<!--<ItemGroup>
 		<None Include="$(PKGMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="false" />
-	</ItemGroup>
+	</ItemGroup>-->
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" GeneratePathProperty="true" />

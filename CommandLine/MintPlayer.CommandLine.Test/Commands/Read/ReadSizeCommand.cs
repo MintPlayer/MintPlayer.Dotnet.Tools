@@ -4,17 +4,20 @@ using MintPlayer.SourceGenerators.Attributes;
 namespace MintPlayer.CommandLine.Test.Commands.Read;
 
 [CommandOption<Options.FileOption>(Required = true)]
-public class ReadSizeCommand : ICommand<ReadSizeCommandInput, ReadSizeCommandOutput>
+public partial class ReadSizeCommand : ICommand<ReadSizeCommandInput, ReadSizeCommandOutput>
 {
     [Inject] private readonly ICommandRunner commandRunner;
 
-    public string Name => "size";
+    // TODO: remove [NoInterfaceMember] attribute
+    [NoInterfaceMember] public string Name => "size";
 
-    public string Description => "Get file size";
+    [NoInterfaceMember] public string Description => "Get file size";
+
 
     public async Task<ReadSizeCommandOutput> Execute(ReadSizeCommandInput input)
     {
-        var output = await commandRunner.Get<ReadCommand, ReadCommandOutput>().Execute(input);
+        await Task.Delay(1);
+        //var output = await commandRunner.Get<ReadSizeCommand>().Execute(input);
         return new ReadSizeCommandOutput();
     }
 }
