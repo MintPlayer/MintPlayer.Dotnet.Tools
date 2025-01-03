@@ -25,6 +25,8 @@ public static class ObservableCollectionExtensions
                 case ECollectionSide.Tail:
                     collection.RemoveRange(maxItemCount, exceed);
                     break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(side), side, null);
             }
         }
     }
@@ -80,10 +82,9 @@ public static class ObservableCollectionExtensions
     /// <param name="maxItemCount">The maximum number of items to keep in this <paramref name="collection"/>.</param>
     public static void Insert<T>(this ObservableCollection<T> collection, int index, T item, int maxItemCount)
     {
+        var halfCount = collection.Count / 2;
         collection.Insert(index, item);
-        var halfCount = (collection.Count - 1) / 2;
-        if (index >= halfCount) collection.RemoveExceedingAt(maxItemCount, ECollectionSide.Head);
-        else collection.RemoveExceedingAt(maxItemCount, ECollectionSide.Tail);
+        collection.RemoveExceedingAt(maxItemCount, index >= halfCount ? ECollectionSide.Head : ECollectionSide.Tail);
     }
 
     /// <summary>
