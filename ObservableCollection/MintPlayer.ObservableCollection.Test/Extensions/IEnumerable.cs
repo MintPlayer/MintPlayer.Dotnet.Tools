@@ -1,36 +1,37 @@
 ﻿using System.Collections;
 
-namespace MintPlayer.ObservableCollection.Test.Extensions;
-
-public static class IEnumerable
+namespace MintPlayer.ObservableCollection.Test.Extensions
 {
-    public static bool IsNullOrEmpty(this System.Collections.IList list)
+    public static class IEnumerable
     {
-        if (list == null)
+        public static bool IsNullOrEmpty(this System.Collections.IList list)
         {
-            return true;
+            if (list == null)
+            {
+                return true;
+            }
+            else
+            {
+                return list.Count == 0;
+            }
         }
-        else
+        public static bool IsNullOrEmpty<T>(this System.Collections.Generic.IList<T> list)
         {
-            return list.Count == 0;
+            if (list == null)
+            {
+                return true;
+            }
+            else
+            {
+                return list.Count == 0;
+            }
         }
-    }
-    public static bool IsNullOrEmpty<T>(this System.Collections.Generic.IList<T> list)
-    {
-        if (list == null)
-        {
-            return true;
-        }
-        else
-        {
-            return list.Count == 0;
-        }
-    }
 
-    public static T[] ToArray<T>(this IList list)
-    {
-        var array = new T[list.Count];
-        list.CopyTo(array, 0);
-        return array;
+        public static T[] ToArray<T>(this IList list)
+        {
+            var array = new T[list.Count];
+            list.CopyTo(array, 0);
+            return array;
+        }
     }
 }
