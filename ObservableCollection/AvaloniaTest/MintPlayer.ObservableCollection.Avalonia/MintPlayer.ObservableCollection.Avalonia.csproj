@@ -3,6 +3,7 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
+	<IsPackable>false</IsPackable>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
 
@@ -21,7 +22,6 @@
   </ItemGroup>
 
   <ItemGroup>
-      <ProjectReference Include="..\MintPlayer.ObservableCollection\MintPlayer.ObservableCollection.csproj" />
-      <ProjectReference Include="..\MintPlayer.ObservableCollection.Extensions\MintPlayer.ObservableCollection.Extensions.csproj" />
+    <ProjectReference Include="..\..\MintPlayer.ObservableCollection.Extensions\MintPlayer.ObservableCollection.Extensions.csproj" />
   </ItemGroup>
 </Project>
