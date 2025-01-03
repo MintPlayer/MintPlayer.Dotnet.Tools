@@ -44,6 +44,32 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    public void AddDistinctPeople()
+    {
+        const int count = 5;
+        var people = new Person[count];
+        for (int i = 0; i < count; i++)
+        {
+            people[i] = new Person($"Person {i + 1}", (i + 1) * 10);
+        }
+
+        People.AddDistinctRange(people);
+    }
+
+    [RelayCommand]
+    public void AddDistinctPeopleByAge()
+    {
+        const int count = 5;
+        var people = new Person[count];
+        for (int i = 0; i < count; i++)
+        {
+            people[i] = new Person($"Person {i + 1} but doesn't matter", (i + 1) * 10);
+        }
+
+        People.AddDistinctRange(people, new PersonAgeEqualityComparer());
+    }
+
+    [RelayCommand]
     public void RemoveSelectedPeople(IEnumerable people)
     {
         People.RemoveRange(people);
