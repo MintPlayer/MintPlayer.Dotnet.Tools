@@ -1,46 +1,42 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using System.Text;
 
-namespace MintPlayer.ObservableCollection.Test
+namespace MintPlayer.ObservableCollection.Test;
+
+public class Person : INotifyPropertyChanged
 {
-    public class Person : INotifyPropertyChanged
+    public event PropertyChangedEventHandler PropertyChanged;
+    protected void OnPropertyChanged([CallerMemberName] string propertyName = "")
     {
-        public event PropertyChangedEventHandler PropertyChanged;
-        protected void OnPropertyChanged([CallerMemberName] string propertyName = "")
+        if (PropertyChanged != null)
         {
-            if (PropertyChanged != null)
-            {
-                PropertyChanged(this, new PropertyChangedEventArgs(propertyName));
-            }
+            PropertyChanged(this, new PropertyChangedEventArgs(propertyName));
         }
-
-        private string firstname;
-        public string FirstName
-        {
-            get { return firstname; }
-            set
-            {
-                firstname = value;
-                OnPropertyChanged();
-            }
-        }
-
-        private string lastname;
-        public string LastName
-        {
-            get { return lastname; }
-            set
-            {
-                lastname = value;
-                OnPropertyChanged();
-            }
-        }
-
-        public string FullName => $"{firstname} {lastname}";
-
-        public override string ToString() => FullName;
     }
+
+    private string firstname;
+    public string FirstName
+    {
+        get => firstname;
+        set
+        {
+            firstname = value;
+            OnPropertyChanged();
+        }
+    }
+
+    private string lastname;
+    public string LastName
+    {
+        get => lastname;
+        set
+        {
+            lastname = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string FullName => $"{firstname} {lastname}";
+
+    public override string ToString() => FullName;
 }

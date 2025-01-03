@@ -1,12 +1,9 @@
-﻿using System;
+﻿namespace MintPlayer.SourceGenerators.Attributes;
 
-namespace MintPlayer.SourceGenerators.Attributes
+[AttributeUsage(AttributeTargets.Class)]
+public class BaseConstructorParameterAttribute<T> : Attribute
 {
-    [AttributeUsage(AttributeTargets.Class)]
-    public class BaseConstructorParameterAttribute<T> : Attribute
+    public BaseConstructorParameterAttribute(string paramName, T value)
     {
-        public BaseConstructorParameterAttribute(string paramName, T value)
-        {
-        }
     }
 }

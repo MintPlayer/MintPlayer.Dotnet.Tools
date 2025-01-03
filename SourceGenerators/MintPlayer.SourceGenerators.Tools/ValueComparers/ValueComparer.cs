@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
+﻿namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 /// <summary>
 /// Abstract base Value Comparer class

@@ -1,11 +1,8 @@
-﻿using System;
+﻿namespace MintPlayer.ObservableCollection.Exceptions;
 
-namespace MintPlayer.ObservableCollection.Exceptions
+public class TargetNullException : Exception
 {
-    public class TargetNullException : Exception
+    public TargetNullException() : base("The target of the specified CollectionChanged handler is null")
     {
-        public TargetNullException() : base("The target of the specified CollectionChanged handler is null")
-        {
-        }
     }
 }

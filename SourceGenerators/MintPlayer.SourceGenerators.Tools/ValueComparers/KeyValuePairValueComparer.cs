@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
+﻿namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 internal sealed class KeyValuePairValueComparer<TKey, TValue> : ValueComparer<KeyValuePair<TKey, TValue>>
 {

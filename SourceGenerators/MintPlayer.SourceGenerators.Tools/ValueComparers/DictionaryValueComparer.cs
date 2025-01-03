@@ -1,7 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-
-namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
+﻿namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 internal sealed class DictionaryValueComparer<TKey, TValue> : ValueComparer<Dictionary<TKey, TValue>>
     where TKey : notnull
