@@ -12,7 +12,7 @@
 
 		<IsPackable>true</IsPackable>
 		<PackageId>MintPlayer.ObservableCollection</PackageId>
-		<Version>9.3.2</Version>
+		<Version>9.3.3</Version>
 		<Description>
 			Extended version of System.Collections.ObjectModel.ObservableCollection. This class allows you to:
 			1) Use AddRange, invoking the CollectionChanged event only once

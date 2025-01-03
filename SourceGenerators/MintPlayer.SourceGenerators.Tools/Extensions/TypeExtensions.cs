@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace MintPlayer.SourceGenerators.Tools.Extensions;
+﻿namespace MintPlayer.SourceGenerators.Tools.Extensions;
 
 internal static class TypeExtensions
 {

@@ -3,10 +3,11 @@
 	<PropertyGroup>
 		<TargetFramework>netstandard2.0</TargetFramework>
 		<LangVersion>12</LangVersion>
+		<ImplicitUsings>enable</ImplicitUsings>
 	</PropertyGroup>
 
 	<PropertyGroup>
-		<Version>4.3.0</Version>
+		<Version>4.3.1</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains useful tools for building source generators</Description>

@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
+﻿namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 internal sealed class IEnumerableValueComparer<TValue> : ValueComparer<IEnumerable<TValue>>
 {

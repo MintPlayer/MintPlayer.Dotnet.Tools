@@ -1,5 +1,4 @@
 ﻿using MintPlayer.StringBuilder.Extensions.SplitLines;
-using System.Linq;
 
 namespace MintPlayer.StringBuilder.Extensions;
 

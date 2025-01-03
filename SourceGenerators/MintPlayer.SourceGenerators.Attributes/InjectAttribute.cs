@@ -1,9 +1,6 @@
-﻿using System;
+﻿namespace MintPlayer.SourceGenerators.Attributes;
 
-namespace MintPlayer.SourceGenerators.Attributes
+[AttributeUsage(AttributeTargets.Field)]
+public class InjectAttribute : Attribute
 {
-    [AttributeUsage(AttributeTargets.Field)]
-    public class InjectAttribute : Attribute
-    {
-    }
 }
