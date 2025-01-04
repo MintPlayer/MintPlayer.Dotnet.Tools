@@ -1,0 +1,34 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="PublicApiGenerator" Version="11.3.0" />
+	</ItemGroup>
+
+	<Target Name="ComputeApiHash" BeforeTargets="GenerateNuspec">
+		<!-- Use a tool or write a script to compute the hash of the public API -->
+		<Exec Command="dotnet tool run apihash --project $(MSBuildProjectFile) --output $(IntermediateOutputPath)api.hash" />
+
+		<!-- Read the computed hash -->
+		<ReadLinesFromFile File="$(IntermediateOutputPath)api.hash">
+			<Output TaskParameter="Lines" ItemName="ApiHash" />
+		</ReadLinesFromFile>
+
+		<!-- Store the hash in a property -->
+		<PropertyGroup>
+			<ComputedApiHash>@(ApiHash->'%(Identity)')</ComputedApiHash>
+		</PropertyGroup>
+	</Target>
+
+	<Target Name="InjectApiHashInNuspec" AfterTargets="GenerateNuspec">
+		<ItemGroup>
+			<NuspecProperties Include="apiHash" Value="$(ComputedApiHash)" />
+		</ItemGroup>
+	</Target>
+
+</Project>

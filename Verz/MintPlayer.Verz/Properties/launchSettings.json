@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "MintPlayer.Verz": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

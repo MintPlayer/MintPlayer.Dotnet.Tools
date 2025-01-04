@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\MintPlayer.Verz.Abstractions\MintPlayer.Verz.Abstractions.csproj" />
+		<ProjectReference Include="..\..\Sdks\MintPlayer.Verz.Sdk.Dotnet.Abstractions\MintPlayer.Verz.Sdk.Dotnet.Abstractions.csproj" />
+	</ItemGroup>
+
+</Project>
