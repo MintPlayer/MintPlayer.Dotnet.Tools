@@ -13,12 +13,24 @@
   </Design.DataContext>
 
     <Border Margin="20">
-        <Grid RowDefinitions="Auto,Auto,*" ColumnDefinitions="*,*,*">
+        <Grid RowDefinitions="Auto,Auto,Auto,*" ColumnDefinitions="*,*,*">
             <StackPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3"
                         Spacing="10" 
                         Orientation="Horizontal">
                 <Button Content="Add people"
                         Command="{Binding AddPeopleCommand}"/>
+
+                <Button Content="Add distinct people"
+                        Command="{Binding AddDistinctPeopleCommand}"/>
+
+                <Button Content="Add distinct people by age"
+                        Command="{Binding AddDistinctPeopleByAgeCommand}"/>
+            </StackPanel>
+
+            <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                        Margin="0,10,0,0"
+                        Spacing="10"
+                        Orientation="Horizontal">
 
                 <Button Content="Remove selected people"
                         Command="{Binding RemoveSelectedPeopleCommand}"
@@ -31,15 +43,15 @@
                         Command="{Binding ClearPeopleCommand}"/>
 
                 <TextBlock Text="{Binding LastItemChange, FallbackValue='Nothing changed'}"
-                                     VerticalAlignment="Center"/>
+                           VerticalAlignment="Center"/>
             </StackPanel>
 
-            <ComboBox Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+            <ComboBox Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3"
                       HorizontalAlignment="Stretch"
                       Margin="0,20"
                       ItemsSource="{Binding People}"/>
 
-            <DataGrid Grid.Row="2" Grid.Column="0"
+            <DataGrid Grid.Row="3" Grid.Column="0"
                       Name="PeopleGrid"
                       IsReadOnly="False"
                       ClipboardCopyMode="IncludeHeader"
@@ -50,11 +62,11 @@
                 </DataGrid.Columns>
             </DataGrid>
 
-            <ListBox Grid.Row="2" Grid.Column="1"
+            <ListBox Grid.Row="3" Grid.Column="1"
                       ItemsSource="{Binding People}">
             </ListBox>
 
-            <ScrollViewer Grid.Row="2" Grid.Column="2">
+            <ScrollViewer Grid.Row="3" Grid.Column="2">
                 <ItemsControl ItemsSource="{Binding People}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
