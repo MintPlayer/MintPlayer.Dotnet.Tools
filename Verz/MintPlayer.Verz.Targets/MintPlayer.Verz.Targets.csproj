@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<Version>9.0.0</Version>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="PublicApiHash.targets" Pack="true" PackagePath="build/" />
+		<None Include="bin\$(Configuration)\$(TargetFramework)\MintPlayer.Verz.Targets.dll" Pack="true" PackagePath="build/" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="PublicApiGenerator" Version="11.3.0" />
+		<PackageReference Include="Microsoft.Build.Utilities.Core" Version="17.12.6" />
+	</ItemGroup>
+
+</Project>

@@ -1,0 +1,16 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+	<UsingTask TaskName="GeneratePublicApiHashTask" AssemblyFile="$(MSBuildThisFileDirectory)MintPlayer.Verz.Targets.dll" />
+
+	<Target Name="GeneratePublicApiHash" AfterTargets="Build">
+		<GeneratePublicApiHashTask AssemblyPath="$(TargetPath)">
+			<Output TaskParameter="ApiHash" PropertyName="PublicApiHash" />
+		</GeneratePublicApiHashTask>
+
+		<Message Text="Public API SHA256: $(PublicApiHash)" Importance="High" />
+
+		<!-- Store the hash in a property -->
+		<PropertyGroup>
+			<ComputedApiHash>$(PublicApiHash)</ComputedApiHash>
+		</PropertyGroup>
+	</Target>
+</Project>
