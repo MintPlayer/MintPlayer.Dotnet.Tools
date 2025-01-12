@@ -16,12 +16,13 @@ class Program
         rootCommand.AddOption(fileOption);
         rootCommand.SetHandler(file => ReadFile(file!), fileOption);
 
-        return await rootCommand.InvokeAsync(args);
+        var statusCode = await rootCommand.InvokeAsync(args);
+        return statusCode;
     }
 
-    static void ReadFile(FileInfo file)
+    static async Task ReadFile(FileInfo file)
     {
-        File.ReadLines(file.FullName).ToList()
-            .ForEach(line => Console.WriteLine(line));
+        var lines = await File.ReadAllLinesAsync(file.FullName);
+        lines.ToList().ForEach(line => Console.WriteLine(line));
     }
 }

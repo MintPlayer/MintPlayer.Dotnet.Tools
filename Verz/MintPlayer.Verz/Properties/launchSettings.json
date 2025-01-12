@@ -2,7 +2,7 @@
   "profiles": {
     "MintPlayer.Verz": {
       "commandName": "Project",
-      "commandLineArgs": "--input Pieterjan --output \"De Clippel\""
+      "commandLineArgs": "--file \"C:\\Repos\\debug.log\""
     }
   }
 }
