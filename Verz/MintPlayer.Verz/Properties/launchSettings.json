@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "MintPlayer.Verz": {
+      "commandName": "Project",
+      "commandLineArgs": "--input Pieterjan --output \"De Clippel\""
+    }
+  }
+}
