@@ -1,6 +1,7 @@
 ﻿// dotnet tool install --global MintPlayer.Verz
 
 using System.CommandLine;
+using System.Diagnostics;
 using System.Reflection;
 
 namespace MintPlayer.Verz;
@@ -24,12 +25,17 @@ class Program
         packagesCommand.AddCommand(listPackagesCommand);
         listPackagesCommand.SetHandler(async () =>
         {
+            // TODO: read verz.json file from cwd, read valid verz subpackages property
+            // and only then load the assembly + search for a class that implements a specific interface
 
-
+            var stp = new Stopwatch();
+            stp.Start();
             var globalPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
             var modules = Directory.GetDirectories(globalPath);
             var moduleAssemblies = await Task.WhenAll(modules.Select(m => AnalyzeModule(m)));
             var validModules = moduleAssemblies.Where(asm => asm is not null && asm.IsFullyTrusted).ToList();
+            stp.Stop();
+            var x = stp.ElapsedMilliseconds;
         });
 
         var statusCode = await rootCommand.InvokeAsync(args);
