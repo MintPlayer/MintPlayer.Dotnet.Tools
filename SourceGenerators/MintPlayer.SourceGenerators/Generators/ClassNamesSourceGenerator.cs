@@ -53,40 +53,18 @@ namespace MintPlayer.SourceGenerators.Generators
                         {
                             if (fieldDeclaration.Parent is ClassDeclarationSyntax classDeclaration)
                             {
+                                var namespaceDeclaration = classDeclaration.FirstAncestorOrSelf<BaseNamespaceDeclarationSyntax>();
                                 var classSymbol = context2.SemanticModel.GetDeclaredSymbol(classDeclaration);
-                                switch (classDeclaration.Parent)
+
+                                return new Models.FieldDeclaration
                                 {
-                                    case NamespaceDeclarationSyntax namespaceDeclaration:
-                                        return new Models.FieldDeclaration
-                                        {
-                                            Namespace = namespaceDeclaration.Name.ToString(),
-                                            FullyQualifiedClassName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                            ClassName = classSymbol.Name,
-                                            Name = symbol.Name,
-                                            FullyQualifiedTypeName = symbol.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                            Type = symbol.Type.Name,
-                                        };
-                                    case FileScopedNamespaceDeclarationSyntax fileScopedNamespaceDeclaration:
-                                        return new Models.FieldDeclaration
-                                        {
-                                            Namespace = fileScopedNamespaceDeclaration.Name.ToString(),
-                                            FullyQualifiedClassName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                            ClassName = classSymbol.Name,
-                                            Name = symbol.Name,
-                                            FullyQualifiedTypeName = symbol.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                            Type = symbol.Type.Name,
-                                        };
-                                    default:
-                                        return new Models.FieldDeclaration
-                                        {
-                                            Namespace = null,
-                                            FullyQualifiedClassName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                            ClassName = classSymbol.Name,
-                                            Name = symbol.Name,
-                                            FullyQualifiedTypeName = symbol.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                            Type = symbol.Type.Name,
-                                        };
-                                }
+                                    Namespace = namespaceDeclaration.Name.ToString(),
+                                    FullyQualifiedClassName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                                    ClassName = classSymbol.Name,
+                                    Name = symbol.Name,
+                                    FullyQualifiedTypeName = symbol.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                                    Type = symbol.Type.Name,
+                                };
 
                             }
                         }
