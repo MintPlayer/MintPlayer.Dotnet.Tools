@@ -44,11 +44,13 @@ namespace MintPlayer.SourceGenerators.Generators
                                     currentTypeSymbol = currentTypeSymbol.BaseType;
                                 }
 
+                                var namespaceDeclaration = classDeclaration.FirstAncestorOrSelf<BaseNamespaceDeclarationSyntax>();
+
                                 return new Models.ClassWithBaseDependenciesAndInjectFields
                                 {
                                     FileName = classDeclaration.Identifier.Text,
                                     ClassName = className,
-                                    ClassNamespace = GetNamespace(classDeclaration),
+                                    ClassNamespace = namespaceDeclaration?.Name?.ToString(),
                                     BaseDependencies = baseDependencies,
                                     InjectFields = injectFields,
                                 };
@@ -86,19 +88,6 @@ namespace MintPlayer.SourceGenerators.Generators
                     return new Models.InjectField { Type = fqn, Name = name };
                 })
                 .ToList();
-        }
-
-        private static string? GetNamespace(ClassDeclarationSyntax classDeclaration)
-        {
-            switch (classDeclaration.Parent)
-            {
-                case NamespaceDeclarationSyntax nsSyntax:
-                    return nsSyntax.Name.ToString();
-                case FileScopedNamespaceDeclarationSyntax fsnsSyntax:
-                    return fsnsSyntax.Name.ToString();
-                default:
-                    return null;
-            }
         }
     }
 }
