@@ -1,18 +1,14 @@
 ﻿using MintPlayer.SourceGenerators.Models;
 using MintPlayer.SourceGenerators.Tools.ValueComparers;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
-namespace MintPlayer.SourceGenerators.ValueComparers
+namespace MintPlayer.SourceGenerators.ValueComparers;
+
+public class ClassDeclarationValueComparer : ValueComparer<ClassDeclaration>
 {
-    public class ClassDeclarationValueComparer : ValueComparer<ClassDeclaration>
+    protected override bool AreEqual(ClassDeclaration x, ClassDeclaration y)
     {
-        protected override bool AreEqual(ClassDeclaration x, ClassDeclaration y)
-        {
-            if (!IsEquals(x.Name, y.Name)) return false;
+        if (!IsEquals(x.Name, y.Name)) return false;
 
-            return true;
-        }
+        return true;
     }
 }
