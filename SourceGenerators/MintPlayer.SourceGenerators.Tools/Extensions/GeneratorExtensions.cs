@@ -5,6 +5,18 @@ namespace MintPlayer.SourceGenerators.Tools;
 public static class GeneratorExtensions
 {
     /// <summary>
+    /// Similar to <see cref="IncrementalValueProviderExtensions.Select{TSource, TResult}(IncrementalValueProvider{TSource}, Func{TSource, CancellationToken, TResult})"/>, but always returns a <see cref="Producer"/>
+    /// </summary>
+    /// <typeparam name="TValue">Selector type</typeparam>
+    /// <typeparam name="TProducer">Producer type</typeparam>
+    /// <param name="provider">Value provider</param>
+    /// <param name="selector">Mapping function that returns a <see cref="Producer"/></param>
+    /// <returns></returns>
+    public static IncrementalValueProvider<Producer> WithProducer<TValue, TProducer>(this IncrementalValueProvider<TValue> provider, Func<TValue, CancellationToken, TProducer> selector)
+        where TProducer : Producer
+        => provider.Select<TValue, Producer>((p, ct) => selector(p, ct) as Producer);
+
+    /// <summary>
     /// Call this method with all <see cref="IncrementalValueProvider{Producer}" /> you want to register.
     /// </summary>
     /// <param name="context">context parameter from the <see cref="IIncrementalGenerator.Initialize(IncrementalGeneratorInitializationContext)"/> method</param>

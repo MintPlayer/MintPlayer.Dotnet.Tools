@@ -55,7 +55,7 @@ namespace MintPlayer.SourceGenerators.Generators
 
             var registerAttributeSourceProvider = classesWithRegisterAttributeProvider
                 .Combine(settingsProvider)
-                .Select(static (providers, ct) => new Producers.RegistrationsProducer(providers.Left, providers.Right.RootNamespace!) as Producer);
+                .WithProducer(static (providers, ct) => new Producers.RegistrationsProducer(providers.Left, providers.Right.RootNamespace!));
 
             // Combine all source providers
             context.ProduceCode(registerAttributeSourceProvider);
