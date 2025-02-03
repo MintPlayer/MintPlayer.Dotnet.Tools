@@ -93,6 +93,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InterfaceImplementationDebu
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.Verz.Targets", "Verz\MintPlayer.Verz.Targets\MintPlayer.Verz.Targets.csproj", "{FB165C76-751D-4F5F-B679-5D3E6FF9CE6F}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Reactive", "Reactive", "{BB82EF0A-A91C-4101-ADF7-1B5F7E78437C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.Reactive.Demo", "Reactive\MintPlayer.Reactive.Demo\MintPlayer.Reactive.Demo.csproj", "{D0E1690B-DB99-4BD3-A670-73EA83767BE0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -223,6 +227,10 @@ Global
 		{FB165C76-751D-4F5F-B679-5D3E6FF9CE6F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FB165C76-751D-4F5F-B679-5D3E6FF9CE6F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FB165C76-751D-4F5F-B679-5D3E6FF9CE6F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D0E1690B-DB99-4BD3-A670-73EA83767BE0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D0E1690B-DB99-4BD3-A670-73EA83767BE0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D0E1690B-DB99-4BD3-A670-73EA83767BE0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D0E1690B-DB99-4BD3-A670-73EA83767BE0}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -261,6 +269,7 @@ Global
 		{9BF030D9-7CBB-458C-8051-E1D7FB9D7E46} = {1614A8B2-CA9A-4F94-B68A-BCC8ED244648}
 		{ABA2F1E2-B21B-425D-AB54-CC9EF317ADED} = {1614A8B2-CA9A-4F94-B68A-BCC8ED244648}
 		{FB165C76-751D-4F5F-B679-5D3E6FF9CE6F} = {0D1D2D90-BCFA-47EE-8C72-2E10405F96DF}
+		{D0E1690B-DB99-4BD3-A670-73EA83767BE0} = {BB82EF0A-A91C-4101-ADF7-1B5F7E78437C}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D5378D43-9246-4355-8C4B-880DB15B07DA}
