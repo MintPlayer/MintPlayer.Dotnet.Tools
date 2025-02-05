@@ -1,6 +1,4 @@
-﻿using static System.Net.Mime.MediaTypeNames;
-
-namespace MintPlayer.EnumerableExtensions;
+﻿namespace MintPlayer.EnumerableExtensions;
 
 public static class PairwiseExtension
 {

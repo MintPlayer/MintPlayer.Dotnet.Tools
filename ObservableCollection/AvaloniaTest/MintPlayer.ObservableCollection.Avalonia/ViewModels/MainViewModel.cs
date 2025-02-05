@@ -1,11 +1,9 @@
-﻿using System;
-using System.Collections;
-using System.Linq;
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MintPlayer.ObservableCollection.Avalonia.Models;
 using MintPlayer.ObservableCollection.Events.EventArgs;
 using MintPlayer.ObservableCollection.Extensions;
+using System.Collections;
 
 namespace MintPlayer.ObservableCollection.Avalonia.ViewModels;
 

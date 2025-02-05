@@ -1,5 +1,4 @@
 ﻿using MintPlayer.FolderHasher.Abstractions;
-using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
