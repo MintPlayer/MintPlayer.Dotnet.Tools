@@ -77,11 +77,11 @@ namespace MintPlayer.SourceGenerators.Generators
 
             var classNamesSourceProvider = classDeclarationsProvider
                 .Combine(settingsProvider)
-                .Select(static (p, ct) => new Producers.ClassNamesProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!) as Producer);
+                .Select(static Producer (p, ct) => new Producers.ClassNamesProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!));
 
             var classNameListSourceProvider = classDeclarationsProvider
                 .Combine(settingsProvider)
-                .Select(static (p, ct) => new Producers.ClassNameListProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!) as Producer);
+                .Select(static Producer (p, ct) => new Producers.ClassNameListProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!));
 
             // Combine all Source Providers
             context.ProduceCode(classNamesSourceProvider, classNameListSourceProvider);
