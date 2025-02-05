@@ -1,6 +1,5 @@
 ﻿using MintPlayer.EidReader.Native.Enums;
 using System.Runtime.InteropServices;
-using System.Xml;
 
 namespace MintPlayer.EidReader.Native.Structs;
 

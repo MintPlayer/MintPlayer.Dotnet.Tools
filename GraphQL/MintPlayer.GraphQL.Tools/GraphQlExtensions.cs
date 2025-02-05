@@ -1,7 +1,7 @@
-﻿using Newtonsoft.Json.Serialization;
-using Newtonsoft.Json;
-using Octokit.GraphQL.Core;
+﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 using Octokit.GraphQL;
+using Octokit.GraphQL.Core;
 using System.Text.RegularExpressions;
 
 namespace MintPlayer.GraphQL.Tools;

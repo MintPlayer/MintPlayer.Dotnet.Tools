@@ -18,8 +18,9 @@
 		<TargetFramework>netstandard2.0</TargetFramework>
 		<!--<TargetFramework>net9.0</TargetFramework>-->
 		<!-- Cannot use Collection Expressions from C#12. Use C#11 instead -->
-		<LangVersion>12</LangVersion>
+		<LangVersion>13</LangVersion>
 		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
 		<IncludeBuildOutput>false</IncludeBuildOutput>
 		<IsRoslynComponent>true</IsRoslynComponent>
 		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
@@ -30,7 +31,7 @@
 	</PropertyGroup>
 
 	<PropertyGroup>
-		<Version>4.4.3</Version>
+		<Version>4.4.4</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains several source generators</Description>
