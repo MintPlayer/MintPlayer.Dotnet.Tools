@@ -31,7 +31,7 @@
 	</PropertyGroup>
 
 	<PropertyGroup>
-		<Version>4.4.5</Version>
+		<Version>4.4.6</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains several source generators</Description>
