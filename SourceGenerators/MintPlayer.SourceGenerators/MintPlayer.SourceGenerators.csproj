@@ -21,6 +21,7 @@
 		<LangVersion>13</LangVersion>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
+		<DevelopmentDependency>true</DevelopmentDependency>
 		<IncludeBuildOutput>false</IncludeBuildOutput>
 		<IsRoslynComponent>true</IsRoslynComponent>
 		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
@@ -31,7 +32,7 @@
 	</PropertyGroup>
 
 	<PropertyGroup>
-		<Version>4.4.7</Version>
+		<Version>4.5.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains several source generators</Description>
@@ -70,7 +71,6 @@
 
 		<!-- Assets for this project-->
 		<None Include="$(MSBuildThisFileDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-		<None Include="$(PackageId).props" Pack="true" PackagePath="buildTransitive\" />
 		<!--<None Include="$(MSBuildThisFileDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).pdb" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />-->
 
 		<!-- Dependency DLLs -->
