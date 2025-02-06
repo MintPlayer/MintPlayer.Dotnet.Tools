@@ -1,0 +1,8 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project>
+    <ItemGroup>
+        <PackageReference Update="$(MSBuildThisFileName)"
+                          PrivateAssets="all"
+                          IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+    </ItemGroup>
+</Project>
