@@ -1,8 +1,12 @@
+using Microsoft.AspNetCore.Authentication.Certificate;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Microsoft.EntityFrameworkCore;
 using Org.BouncyCastle.Asn1.X509;
 using System.Net;
+using System.Security.Cryptography.X509Certificates;
 using System.Text.Json.Serialization;
 
 namespace DemoWebApp;
@@ -16,6 +20,27 @@ public class Program
 
         var builder = WebApplication.CreateSlimBuilder(args);
         builder.Services.AddControllersWithViews().AddNewtonsoftJson();
+        builder.Services.AddAuthentication(CertificateAuthenticationDefaults.AuthenticationScheme)
+            .AddCertificate(options =>
+            {
+                options.AllowedCertificateTypes = CertificateTypes.All;
+                options.RevocationMode = X509RevocationMode.NoCheck; // Adjust as needed
+                options.Events = new CertificateAuthenticationEvents
+                {
+                    OnCertificateValidated = context =>
+                    {
+                        // Custom validation logic (issuer, subject, thumbprint, etc.)
+                        context.Success();
+                        return Task.CompletedTask;
+                    },
+                    OnAuthenticationFailed = context =>
+                    {
+                        context.Fail("Invalid certificate.");
+                        return Task.CompletedTask;
+                    }
+                };
+            });
+        builder.Services.AddAuthorization();
         builder.WebHost.ConfigureKestrel(k =>
         {
             k.ConfigureHttpsDefaults(http =>
@@ -26,26 +51,26 @@ public class Program
                 {
                     return true;
                 };
-                http.ClientCertificateMode = Microsoft.AspNetCore.Server.Kestrel.Https.ClientCertificateMode.RequireCertificate;
+                http.OnAuthenticate = (context, options) =>
+                {
+
+                };
+                //http.ClientCertificateMode = ClientCertificateMode.AllowCertificate;
+                http.ClientCertificateMode = ClientCertificateMode.RequireCertificate;
             });
         });
         builder.WebHost.UseKestrelHttpsConfiguration();
         var app = builder.Build();
+        app.Use(async (context, next) => await next());
         app.UseDeveloperExceptionPage();
         app.UseHttpsRedirection();
         app.UseDeveloperExceptionPage();
+        app.UseAuthentication();
         app.UseRouting();
+        app.UseAuthorization();
         app.UseEndpoints(endpoints =>
         {
             endpoints.MapControllers();
-        });
-
-        var todosApi = app.MapGroup("/todos");
-        todosApi.MapGet("/", async (c) =>
-        {
-            var cert = c.Connection.ClientCertificate;
-            var result = new PersonInfo(cert!);
-            await c.Response.WriteAsJsonAsync(result);
         });
 
         app.Run();
