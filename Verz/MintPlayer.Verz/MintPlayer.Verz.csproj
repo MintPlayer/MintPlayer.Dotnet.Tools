@@ -3,9 +3,10 @@
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
 		<TargetFrameworks>net6.0;net8.0;net9.0</TargetFrameworks>
+		<LangVersion>12</LangVersion>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
-		<Version>0.0.3</Version>
+		<Version>9.0.0-preview1</Version>
 		<IsPackable>true</IsPackable>
 	</PropertyGroup>
 
@@ -15,7 +16,14 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+	  <PackageReference Include="NuGet.Protocol" Version="6.13.1" />
 	  <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Update="verz.json">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
 	</ItemGroup>
 
 </Project>
