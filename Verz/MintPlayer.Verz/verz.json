@@ -1,5 +1,6 @@
 ﻿{
   "Tools": [
-    "MintPlayer.AspNetCore.SpaServices"
+    "MintPlayer.Verz.Registry.NugetOrg",
+    "MintPlayer.Verz.Sdks.Dotnet"
   ]
 }

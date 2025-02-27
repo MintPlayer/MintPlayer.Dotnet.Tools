@@ -4,11 +4,6 @@
 		<TargetFrameworks>net6.0;net8.0;net9.0</TargetFrameworks>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
-		<Version>9.0.0-preview1</Version>
 	</PropertyGroup>
-
-	<ItemGroup>
-		<ProjectReference Include="..\..\MintPlayer.Verz.Core\MintPlayer.Verz.Core.csproj" />
-	</ItemGroup>
 
 </Project>

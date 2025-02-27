@@ -105,6 +105,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.Verz.Registry.Nu
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.Verz.Sdks.Dotnet", "Verz\Sdks\MintPlayer.Verz.Sdks.Dotnet\MintPlayer.Verz.Sdks.Dotnet.csproj", "{21DD82D8-C8A9-4D7F-AF53-BBB95B5C39D0}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.Verz.Core", "Verz\MintPlayer.Verz.Core\MintPlayer.Verz.Core.csproj", "{E89AB902-5CF4-4C12-B235-AD2AB75F6A31}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -247,6 +249,10 @@ Global
 		{21DD82D8-C8A9-4D7F-AF53-BBB95B5C39D0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{21DD82D8-C8A9-4D7F-AF53-BBB95B5C39D0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{21DD82D8-C8A9-4D7F-AF53-BBB95B5C39D0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E89AB902-5CF4-4C12-B235-AD2AB75F6A31}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E89AB902-5CF4-4C12-B235-AD2AB75F6A31}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E89AB902-5CF4-4C12-B235-AD2AB75F6A31}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E89AB902-5CF4-4C12-B235-AD2AB75F6A31}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -290,6 +296,7 @@ Global
 		{70F0E7B6-BE00-4C08-95A8-F770E8A347AA} = {0D1D2D90-BCFA-47EE-8C72-2E10405F96DF}
 		{9B74EABC-1C4B-4114-B473-A7797EADE9F0} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 		{21DD82D8-C8A9-4D7F-AF53-BBB95B5C39D0} = {70F0E7B6-BE00-4C08-95A8-F770E8A347AA}
+		{E89AB902-5CF4-4C12-B235-AD2AB75F6A31} = {0D1D2D90-BCFA-47EE-8C72-2E10405F96DF}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D5378D43-9246-4355-8C4B-880DB15B07DA}
