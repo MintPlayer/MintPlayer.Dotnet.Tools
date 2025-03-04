@@ -1,6 +1,7 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 using System.CodeDom.Compiler;
+using System.Diagnostics;
 using System.Text;
 
 namespace MintPlayer.SourceGenerators.Tools;
@@ -41,13 +42,11 @@ public abstract class Producer
         {
             ProduceSource(writer, context.CancellationToken);
 
-            //if (producedSource.FileName == "FieldNameList.g.cs") Debugger.Break();
-            //if (producedSource.FileName == "ClassNames.g.cs") Debugger.Break();
-            //if (producedSource.FileName == "ClassNameList.g.cs") Debugger.Break();
-
             var code = textWriter.ToString();
             if (!string.IsNullOrEmpty(code))
                 context.AddSource(Filename, SourceText.From(code, Encoding.UTF8));
+
+            if (Filename == "Markup2Descriptions.g.cs") Debugger.Break();
         }
         catch (System.Exception)
         {
