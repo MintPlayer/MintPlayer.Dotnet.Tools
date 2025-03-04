@@ -12,6 +12,7 @@ using NuGet.Packaging.Core;
 using NuGet.Packaging.Signing;
 using NuGet.Protocol.Core.Types;
 using System.Reflection;
+using System.Runtime.Loader;
 using System.Text;
 using System.Text.Json;
 
@@ -58,7 +59,7 @@ class Program
 
         var packagePathResolver = new VersionPackagePathResolver(cacheFolder, true);
         var extrationContext = new PackageExtractionContext(PackageSaveMode.Files, XmlDocFileSaveMode.None, ClientPolicyContext.GetClientPolicy(NullSettings.Instance, NullLogger.Instance), NullLogger.Instance);
-
+        var asmContext = new AssemblyLoadContext("Verz", true);
 
         var toolAssemblies = await Task.WhenAll(verzConfig.Tools
             .Select((tool) =>
@@ -83,13 +84,13 @@ class Program
                         await PackageExtractor.ExtractPackageAsync(string.Empty, packageReader, packagePathResolver, extrationContext, default);
 
                         var path = Path.Combine(packagePathResolver.GetInstallPath(packageId), "lib", "net9.0", $"{tool}.dll");
-                        return Assembly.LoadFrom(path);
+                        return asmContext.LoadFromAssemblyPath(path);
                     }
                 }, cancellationTokenSource.Token);
             }));
 
         var tools = toolAssemblies
-            .SelectMany(assembly => assembly.GetTypes())
+            .SelectMany(assembly => assembly.DefinedTypes)
             .Where(type => type.GetInterfaces().Intersect([typeof(IPackageRegistry), typeof(IDevelopmentSdk)]).Any())
             .Select(type => ActivatorUtilities.CreateInstance(app.Services, type))
             .ToList();
