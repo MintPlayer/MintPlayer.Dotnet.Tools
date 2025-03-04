@@ -1,4 +1,6 @@
-﻿using MintPlayer.SourceGenerators.Models;
+﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using MintPlayer.SourceGenerators.Models;
 using MintPlayer.SourceGenerators.Tools;
 using System.CodeDom.Compiler;
 
@@ -36,6 +38,14 @@ public class MethodDescriptionProducer : Producer
                 {
                     var first = methodGrouping.First();
                     writer.WriteLine($"""[global::System.ComponentModel.Description("{first.Text}")]""");
+                    if (first.MethodAccessModifiers.Any(SyntaxKind.ProtectedKeyword))
+                        writer.Write("protected ");
+                    if (first.MethodAccessModifiers.Any(SyntaxKind.PrivateKeyword))
+                        writer.Write("private ");
+                    if (first.MethodAccessModifiers.Any(SyntaxKind.PublicKeyword))
+                        writer.Write("public ");
+                    if (first.MethodAccessModifiers.Any(SyntaxKind.InternalKeyword))
+                        writer.Write("internal ");
                     writer.WriteLine($"partial {first.ReturnType} {methodGrouping.Key};");
                 }
 

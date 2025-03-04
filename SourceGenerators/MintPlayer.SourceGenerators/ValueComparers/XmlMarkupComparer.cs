@@ -14,6 +14,7 @@ public class XmlMarkupComparer : ValueComparer<XmlMarkup>
         if (!IsEquals(x.ReturnType, y.ReturnType)) return false;
         if (!IsEquals(x.MethodGenericParameters, y.MethodGenericParameters)) return false;
         if (!IsEquals(x.ClassGenericParameters, y.ClassGenericParameters)) return false;
+        if (!IsEquals(x.MethodAccessModifiers, y.MethodAccessModifiers)) return false;
 
         return true;
     }

@@ -51,6 +51,7 @@ public sealed class DescriptionsSourceGenerator : IncrementalGenerator
                                 Name = p.Name,
                                 Type = p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters).WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included))
                             }).ToArray(),
+                            MethodAccessModifiers = methodDeclaration.Modifiers,
                         };
                     }
 

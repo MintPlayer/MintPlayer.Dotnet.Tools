@@ -1,4 +1,5 @@
-﻿using MintPlayer.SourceGenerators.Tools;
+﻿using Microsoft.CodeAnalysis;
+using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.ValueComparers;
 
 namespace MintPlayer.SourceGenerators.Models;
@@ -14,6 +15,7 @@ public class XmlMarkup
     public string[] MethodGenericParameters { get; internal set; }
     public string[] ClassGenericParameters { get; internal set; }
     public XmlMarkupParameter[] MethodParameters { get; internal set; }
+    public SyntaxTokenList MethodAccessModifiers { get; internal set; }
 }
 
 [ValueComparer(typeof(XmlMarkupParameterComparer))]
