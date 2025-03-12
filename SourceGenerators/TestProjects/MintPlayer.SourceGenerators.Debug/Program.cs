@@ -15,12 +15,15 @@ public class TestService2 : ITestService2 { }
 
 public interface ITestService3
 {
-    string GetMessage();
+    Task<string> GetMessage(List<Guid> guids);
 }
 [Register(typeof(ITestService3), ServiceLifetime.Singleton, "CoreData")]
-public class TestService3 : ITestService3
+public partial class TestService3<TTest> : ITestService3
 {
-    public string GetMessage() => "Hello world";
+    /// <summary>
+    /// This method says hello
+    /// </summary>
+    public Task<string> GetMessage(List<Guid> guids) => Task.FromResult("Hello world");
 }
 
 public interface ITestService4 { }
