@@ -7,4 +7,5 @@ public class PropertyDeclaration
 {
     public string Name { get; set; }
     public string Type { get; set; }
+    public bool HasComparerIgnore { get; set; }
 }
