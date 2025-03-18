@@ -1,0 +1,8 @@
+﻿{
+  "profiles": {
+    "Debug Source Generators on ValueComparerDebugging": {
+      "commandName": "DebugRoslynComponent",
+      "targetProject": "..\\..\\TestProjects\\ValueComparerDebugging\\ValueComparerDebugging.csproj"
+    }
+  }
+}
