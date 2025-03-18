@@ -40,7 +40,7 @@ public class ValueComparersProducer : Producer
                 writer.WriteLine("{");
                 writer.Indent++;
 
-                foreach (var prop in cls.Properties)
+                foreach (var prop in cls.Properties.Where(p => !p.HasComparerIgnore))
                 {
                     writer.WriteLine($"if (!IsEquals(x.{prop.Name}, y.{prop.Name})) return false;");
                 }
