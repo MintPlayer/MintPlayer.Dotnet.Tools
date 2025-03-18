@@ -12,6 +12,9 @@ public abstract class Pipeline
     /// Base pipeline on which this pipeline was concatenated
     /// </summary>
     protected internal Pipeline? inner;
+
+    public abstract TaskAwaiter GetAwaiter();
+    public abstract bool CanAwait { get; }
 }
 
 /// <summary>
@@ -93,6 +96,8 @@ public class Pipeline<Tin, Tout> : Pipeline
             .ToArray();
     }
 
+    public override bool CanAwait => true;
+
     //public static Pipeline<TOUT> Create<TOUT>(Func<int, int, Channel<Tin>?, Channel<Tout>, Task<bool>> action, int consumerCount = 1)
     //{
     //    return Create<Tin, Tout>()
@@ -120,10 +125,20 @@ public class Pipeline<Tin, Tout> : Pipeline
         return result;
     }
 
-    public TaskAwaiter GetAwaiter()
+    public override TaskAwaiter GetAwaiter()
     {
-        return Task.WhenAll(tasks)
-            .ContinueWith(_ => output.Writer.Complete())
-            .GetAwaiter();
+        //if (inner is Pipeline<,> pipeline)
+        if (inner is { CanAwait: true })
+        {
+            return Task.WhenAll([.. tasks, Task.Run(async () => await (Pipeline)inner)])
+                .ContinueWith(_ => output.Writer.Complete())
+                .GetAwaiter();
+        }
+        else
+        {
+            return Task.WhenAll(tasks)
+                .ContinueWith(_ => output.Writer.Complete())
+                .GetAwaiter();
+        }
     }
 }
