@@ -6,9 +6,8 @@ namespace MintPlayer.ValueComparerGenerator.Producers;
 
 public class ValueComparersProducer : Producer
 {
-    static int counter = 1;
     private readonly IEnumerable<ClassDeclaration> declarations;
-    public ValueComparersProducer(IEnumerable<Models.ClassDeclaration> declarations, string rootNamespace) : base(rootNamespace, $"ValueComparers{counter++}.g.cs")
+    public ValueComparersProducer(IEnumerable<Models.ClassDeclaration> declarations, string rootNamespace) : base(rootNamespace, $"ValueComparers.g.cs")
     {
         this.declarations = declarations;
     }
