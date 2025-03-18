@@ -3,7 +3,7 @@
 namespace ValueComparerDebugging.Models;
 
 [AutoValueComparer]
-public class Address
+public partial class Address
 {
     public string Street { get; set; } = string.Empty;
     public int Number { get; set; }

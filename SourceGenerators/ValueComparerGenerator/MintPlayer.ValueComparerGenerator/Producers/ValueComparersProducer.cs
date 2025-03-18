@@ -6,8 +6,9 @@ namespace MintPlayer.ValueComparerGenerator.Producers;
 
 public class ValueComparersProducer : Producer
 {
+    static int counter = 1;
     private readonly IEnumerable<ClassDeclaration> declarations;
-    public ValueComparersProducer(IEnumerable<Models.ClassDeclaration> declarations, string rootNamespace) : base(rootNamespace, "ValueComparers.g.cs")
+    public ValueComparersProducer(IEnumerable<Models.ClassDeclaration> declarations, string rootNamespace) : base(rootNamespace, $"ValueComparers{counter++}.g.cs")
     {
         this.declarations = declarations;
     }
@@ -16,7 +17,7 @@ public class ValueComparersProducer : Producer
     {
         writer.WriteLine(Header);
 
-        foreach (var nsGrouping in declarations.GroupBy(d => d.Namespace))
+        foreach (var nsGrouping in declarations.Where(d => d.IsPartial).GroupBy(d => d.Namespace))
         {
             writer.WriteLine($"namespace {nsGrouping.Key.Substring("global::".Length)}");
             writer.WriteLine("{");

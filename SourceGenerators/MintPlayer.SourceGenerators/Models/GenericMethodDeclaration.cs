@@ -1,6 +1,9 @@
-﻿namespace MintPlayer.SourceGenerators.Models;
+﻿using MintPlayer.ValueComparerGenerator.Attributes;
 
-public class GenericMethodDeclaration
+namespace MintPlayer.SourceGenerators.Models;
+
+[AutoValueComparer]
+public partial class GenericMethodDeclaration
 {
     public MethodDeclaration? Method { get; set; }
     public int Count { get; set; }

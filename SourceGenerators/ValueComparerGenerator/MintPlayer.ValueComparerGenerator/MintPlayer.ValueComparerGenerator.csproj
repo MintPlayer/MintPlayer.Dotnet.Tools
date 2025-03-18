@@ -49,7 +49,7 @@
 
 		<!-- MintPlayer.SourceGenerators.Tools -->
 		<None Condition="'$(Configuration)' == 'Release' " Include="..\..\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
 	</ItemGroup>
 
 	<ItemGroup>

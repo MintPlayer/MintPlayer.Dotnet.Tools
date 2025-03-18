@@ -1,4 +1,5 @@
 ﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.ValueComparerGenerator.ValueComparers;
@@ -35,6 +36,7 @@ public class ValueComparerGenerator : IncrementalGenerator
                                 Name = symbol.Name,
                                 FullName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
                                 Namespace = symbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
+                                IsPartial = classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
                                 ComparerType = valueComparerType,
                                 ComparerAttributeType = valueComparerAttributeType,
                                 Properties = symbol.GetMembers().OfType<IPropertySymbol>().Select(property => new Models.PropertyDeclaration
