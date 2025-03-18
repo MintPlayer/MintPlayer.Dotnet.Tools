@@ -71,7 +71,5 @@ var pipelineC = pipelineB.Concat<ItemsResponse>(async (pageNumber, consumerId, i
 }, 3);
 
 
-// TODO: Make awaiter await inner-pipeline, so that we only have one call instead of 3 here
-await pipelineA;
-await pipelineB;
+// Awaiter awaits inner-pipeline, so we only have one call instead of 3 here
 await pipelineC;
