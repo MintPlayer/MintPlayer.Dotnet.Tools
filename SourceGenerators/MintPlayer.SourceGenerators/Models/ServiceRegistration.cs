@@ -1,11 +1,10 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
-using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.SourceGenerators.ValueComparers;
+using MintPlayer.ValueComparerGenerator.Attributes;
 
 namespace MintPlayer.SourceGenerators.Models;
 
-[ValueComparer(typeof(ServiceRegistrationComparer))]
-public class ServiceRegistration
+[AutoValueComparer]
+public partial class ServiceRegistration
 {
     public string? ServiceTypeName { get; set; }
     public string? ImplementationTypeName { get; set; }

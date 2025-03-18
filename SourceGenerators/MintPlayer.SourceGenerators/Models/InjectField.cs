@@ -1,10 +1,9 @@
-﻿using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.SourceGenerators.ValueComparers;
+﻿using MintPlayer.ValueComparerGenerator.Attributes;
 
 namespace MintPlayer.SourceGenerators.Models;
 
-[ValueComparer(typeof(InjectFieldValueComparer))]
-public class InjectField
+[AutoValueComparer]
+public partial class InjectField
 {
     public string? Type { get; set; }
     public string? Name { get; set; }

@@ -32,7 +32,7 @@
 	</PropertyGroup>
 
 	<PropertyGroup>
-		<Version>4.5.0</Version>
+		<Version>4.6.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains several source generators</Description>
@@ -79,12 +79,14 @@
 
 		<!-- MintPlayer.SourceGenerators.Tools -->
 		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\MintPlayer.SourceGenerators.Attributes\MintPlayer.SourceGenerators.Attributes.csproj" />
-		<ProjectReference Include="..\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj" PrivateAssets="all" /> <!--  GeneratePathProperty="true" -->
+		<ProjectReference Include="..\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj" PrivateAssets="all" />
+		<ProjectReference Include="..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator.Attributes\MintPlayer.ValueComparerGenerator.Attributes.csproj" />
+		<ProjectReference Include="..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator\MintPlayer.ValueComparerGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 	</ItemGroup>
 
 </Project>

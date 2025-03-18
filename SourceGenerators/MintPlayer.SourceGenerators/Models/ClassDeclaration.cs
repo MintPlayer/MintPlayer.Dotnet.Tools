@@ -1,10 +1,9 @@
-﻿using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.SourceGenerators.ValueComparers;
+﻿using MintPlayer.ValueComparerGenerator.Attributes;
 
 namespace MintPlayer.SourceGenerators.Models;
 
-[ValueComparer(typeof(ClassDeclarationValueComparer))]
-public class ClassDeclaration
+[AutoValueComparer]
+public partial class ClassDeclaration
 {
     public string? Name { get; set; }
 }

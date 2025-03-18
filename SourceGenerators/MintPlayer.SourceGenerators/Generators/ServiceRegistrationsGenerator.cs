@@ -45,7 +45,7 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                     return default;
                 }
             )
-            .WithComparer(ValueComparers.ServiceRegistrationComparer.Instance)
+            .WithComparer(ServiceRegistrationComparer.Instance)
             .Collect();
 
         var registerAttributeSourceProvider = classesWithRegisterAttributeProvider

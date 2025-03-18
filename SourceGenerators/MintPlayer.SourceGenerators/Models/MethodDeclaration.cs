@@ -1,8 +1,10 @@
 ﻿using Microsoft.CodeAnalysis;
+using MintPlayer.ValueComparerGenerator.Attributes;
 
 namespace MintPlayer.SourceGenerators.Models;
 
-public class MethodDeclaration
+[AutoValueComparer]
+public partial class MethodDeclaration
 {
     public string? MethodName { get; set; }
     public string? ClassName { get; set; }

@@ -1,10 +1,9 @@
-﻿using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.SourceGenerators.ValueComparers;
+﻿using MintPlayer.ValueComparerGenerator.Attributes;
 
 namespace MintPlayer.SourceGenerators.Models;
 
-[ValueComparer(typeof(FieldDeclarationComparer))]
-public class FieldDeclaration
+[AutoValueComparer]
+public partial class FieldDeclaration
 {
     public string? Name { get; set; }
     public string? FullyQualifiedClassName { get; set; }
