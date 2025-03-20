@@ -124,6 +124,9 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SourceGenerators", "SourceGenerators", "{0F5CE474-092E-48CC-A6DF-2A988A5ADC32}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "eng", "eng", "{4690C409-91FD-458E-9CC2-4A179C20DA48}"
+	ProjectSection(SolutionItems) = preProject
+		SourceGenerators\eng\sourcegenerator.targets = SourceGenerators\eng\sourcegenerator.targets
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
