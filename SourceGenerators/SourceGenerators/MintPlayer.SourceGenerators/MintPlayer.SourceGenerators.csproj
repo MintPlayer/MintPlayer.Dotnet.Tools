@@ -41,17 +41,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<!-- Rolsyn 4.0 -->
-		<!--<None Include="$(MSBuildThisFileDirectory)\bin\roslyn4.0\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="false" />
-		<None Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="false" />-->
-		<!-- Rolsyn 4.9 -->
-		<!--<None Include="$(MSBuildThisFileDirectory)\bin\roslyn4.9\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="false" />
-		<None Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="false" />-->
-
-		<!-- Assets for this project-->
-		<None Include="$(MSBuildThisFileDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-		<!--<None Include="$(MSBuildThisFileDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).pdb" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />-->
-
 		<!-- Dependency DLLs -->
 		<None Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 		<None Include="$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
