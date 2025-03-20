@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" PrivateAssets="all" GeneratePathProperty="true" />
+	</ItemGroup>
+
+	<PropertyGroup>
+		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsDependencyInjection</GetTargetPathDependsOn>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- Put the assets for this project in the correct package path -->
+		<None Include="$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+	</ItemGroup>
+
+	<Target Name="GetDependencyTargetPathsDependencyInjection">
+		<!-- Include dependency DLLs and put them in the correct package path -->
+		<ItemGroup>
+			<!-- Rolsyn 4.0 -->
+			<!--<None Include="$(MSBuildThisFileDirectory)\bin\roslyn4.0\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="false" />
+			<None Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="false" />-->
+			<!-- Rolsyn 4.9 -->
+			<!--<None Include="$(MSBuildThisFileDirectory)\bin\roslyn4.9\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="false" />
+			<None Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="false" />-->
+
+			<TargetPathWithTargetPlatformMoniker Include="$(PKGMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\Microsoft.Extensions.DependencyInjection.Abstractions.dll" IncludeRuntimeDependency="false" />
+		</ItemGroup>
+	</Target>
+</Project>

@@ -7,14 +7,12 @@
 
 	<Target Name="GetDependencyTargetPaths">
 		<ItemGroup>
-			<TargetPathWithTargetPlatformMoniker Include="$(PKGNewtonsoft_Json)\lib\netstandard2.0\Newtonsoft.Json.dll" IncludeRuntimeDependency="false" />
-			<TargetPathWithTargetPlatformMoniker Include="$(PKGMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\Microsoft.Extensions.DependencyInjection.Abstractions.dll" IncludeRuntimeDependency="false" />
 			<TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Attributes.dll" IncludeRuntimeDependency="true" />
 		</ItemGroup>
 	</Target>
 
 	<PropertyGroup>
-		<Version>4.6.0</Version>
+		<Version>4.7.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains several source generators</Description>
@@ -30,21 +28,8 @@
 		<!--<AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>-->
 	</PropertyGroup>
 
-	<!--<ItemGroup>
-		<Compile Update="**\*.*.cs">
-			<DependentUpon>$([System.Text.RegularExpressions.Regex]::Replace(%(Filename), '(?:.(?![.]))+$', %(Extension)))</DependentUpon>
-		</Compile>
-	</ItemGroup>-->
-	<ItemGroup>
-		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" PrivateAssets="all" GeneratePathProperty="true" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" PrivateAssets="all" GeneratePathProperty="true" />
-	</ItemGroup>
-
 	<ItemGroup>
 		<!-- Dependency DLLs -->
-		<None Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-		<None Include="$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-
 		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
 	</ItemGroup>
 
@@ -55,4 +40,6 @@
 	</ItemGroup>
 
 	<Import Project="..\..\eng\sourcegenerator.targets" />
+	<Import Project="..\..\eng\newtonsoftjson.targets" />
+	<Import Project="..\..\eng\dependencyinjection.targets" />
 </Project>
