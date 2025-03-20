@@ -30,6 +30,7 @@
 	<ItemGroup>
 		<!-- Put the assets for this project in the correct package path -->
 		<None Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Condition="'$(Configuration)' == 'Release' " Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 	</ItemGroup>
 
 	<Target Name="GetDependencyTargetPathsCommon">
