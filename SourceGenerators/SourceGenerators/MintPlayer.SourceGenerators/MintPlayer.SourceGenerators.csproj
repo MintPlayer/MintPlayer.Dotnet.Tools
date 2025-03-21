@@ -12,7 +12,7 @@
 	</Target>
 
 	<PropertyGroup>
-		<Version>4.8.0</Version>
+		<Version>4.9.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains several source generators</Description>
@@ -30,12 +30,9 @@
 
 	<ItemGroup>
 		<!-- Dependency DLLs -->
-		<!-- Roslyn 4.0 -->
-		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="true" />
-		<None Condition="'$(Configuration)' == 'Release' " Include="..\..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="true" />
-		<!-- Roslyn 4.9 -->
-		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="true" />
-		<None Condition="'$(Configuration)' == 'Release' " Include="..\..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="true" />
+		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
+		<None Condition="'$(Configuration)' == 'Release' " Include="..\..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
+		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="" Visible="true" />
 	</ItemGroup>
 
 	<ItemGroup>
