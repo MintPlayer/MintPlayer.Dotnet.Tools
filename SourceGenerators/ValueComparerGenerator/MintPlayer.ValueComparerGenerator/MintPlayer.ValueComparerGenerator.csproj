@@ -12,7 +12,7 @@
 	</Target>
 
 	<PropertyGroup>
-		<Version>4.7.2</Version>
+		<Version>4.8.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains a source generator that generates value-comparers for you</Description>
@@ -25,8 +25,8 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<!-- MintPlayer.SourceGenerators.Tools -->
-		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
+		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="true" />
+		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="true" />
 	</ItemGroup>
 
 	<ItemGroup>
