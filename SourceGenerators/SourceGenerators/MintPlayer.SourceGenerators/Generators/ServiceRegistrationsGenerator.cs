@@ -30,7 +30,7 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                             if (attr.ConstructorArguments[0].Value is not INamedTypeSymbol interfaceSymbol) return default;
 
                             // Verify that the class implements the interface
-                            if (namedTypeSymbol.AllInterfaces.All(i => i != interfaceSymbol)) return default;
+                            if (namedTypeSymbol.AllInterfaces.All(i => !SymbolEqualityComparer.Default.Equals(i, interfaceSymbol))) return default;
 
                             return new ServiceRegistration
                             {
@@ -50,7 +50,7 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
 
         var registerAttributeSourceProvider = classesWithRegisterAttributeProvider
             .Combine(settingsProvider)
-            .Select(static Producer (providers, ct) => new Producers.RegistrationsProducer(providers.Left, providers.Right.RootNamespace!));
+            .Select(static Producer (providers, ct) => new Producers.RegistrationsProducer(providers.Left.NotNull(), providers.Right.RootNamespace!));
 
         // Combine all source providers
         context.ProduceCode(registerAttributeSourceProvider);

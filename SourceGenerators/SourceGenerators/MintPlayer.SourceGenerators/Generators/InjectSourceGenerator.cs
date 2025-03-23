@@ -62,7 +62,7 @@ public class InjectSourceGenerator : IncrementalGenerator
 
         var classesSourceProvider = classesProvider
             .Combine(settingsProvider)
-            .Select(static Producer (providers, ct) => new Producers.InjectProducer(providers.Left, providers.Right.RootNamespace!));
+            .Select(static Producer (providers, ct) => new Producers.InjectProducer(providers.Left.NotNull(), providers.Right.RootNamespace!));
 
         // Combine all source providers
         context.ProduceCode(classesSourceProvider);
