@@ -2,15 +2,15 @@
   "profiles": {
     "Debug Source Generators on MintPlayer.SourceGenerators.Debug": {
       "commandName": "DebugRoslynComponent",
-      "targetProject": "..\\TestProjects\\MintPlayer.SourceGenerators.Debug\\MintPlayer.SourceGenerators.Debug.csproj"
+      "targetProject": "..\\..\\TestProjects\\MintPlayer.SourceGenerators.Debug\\MintPlayer.SourceGenerators.Debug.csproj"
     },
     "Debug Source Generators on DependencyInjectionDebugging": {
       "commandName": "DebugRoslynComponent",
-      "targetProject": "..\\TestProjects\\DependencyInjectionDebugging\\DependencyInjectionDebugging.csproj"
+      "targetProject": "..\\..\\TestProjects\\DependencyInjectionDebugging\\DependencyInjectionDebugging.csproj"
     },
     "Debug Source Generators on InterfaceImplementationDebugging": {
       "commandName": "DebugRoslynComponent",
-      "targetProject": "..\\TestProjects\\InterfaceImplementationDebugging\\InterfaceImplementationDebugging.csproj"
+      "targetProject": "..\\..\\TestProjects\\InterfaceImplementationDebugging\\InterfaceImplementationDebugging.csproj"
     }
   }
 }
