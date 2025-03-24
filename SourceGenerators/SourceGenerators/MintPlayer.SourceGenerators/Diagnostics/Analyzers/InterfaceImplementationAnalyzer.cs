@@ -20,47 +20,50 @@ public class InterfaceImplementationAnalyzer : DiagnosticAnalyzer
 
     private static void AnalyzeSymbol(SymbolAnalysisContext context)
     {
-        //context.Compilation.gets
-        var namedTypeSymbol = (INamedTypeSymbol)context.Symbol;
-        var ignoreAttributeSymbol = context.Compilation.GetTypeByMetadataName(typeof(NoInterfaceMemberAttribute).FullName);
-
-        // Check if the class implements an interface
-        var implementedInterfaces = namedTypeSymbol.Interfaces;
-        if (!implementedInterfaces.Any() || namedTypeSymbol.TypeKind != TypeKind.Class)
-            return;
-
-        foreach (var iface in implementedInterfaces)
+        switch (context.Symbol)
         {
-            // Get all members of the interface and sub-interfaces
-            var interfaceMembers = iface.GetMembers()
-                .Concat(iface.AllInterfaces.SelectMany(i => i.GetMembers()))
-                .ToArray();
-            var classMembers = namedTypeSymbol.GetMembers()
-                .Where(m => m.DeclaredAccessibility == Accessibility.Public)
-                .Where(m => m.GetAttributes().All(attr => attr.AttributeClass?.Name != nameof(NoInterfaceMemberAttribute)));
+            case INamedTypeSymbol namedTypeSymbol:
+                var ignoreAttributeSymbol = context.Compilation.GetTypeByMetadataName(typeof(NoInterfaceMemberAttribute).FullName);
 
-            foreach (var member in classMembers)
-            {
-                if (!interfaceMembers.Any(im => im.Name == member.Name) && !member.IsImplicitlyDeclared)
+                // Check if the class implements an interface
+                var implementedInterfaces = namedTypeSymbol.Interfaces;
+                if (!implementedInterfaces.Any() || namedTypeSymbol.TypeKind != TypeKind.Class)
+                    return;
+
+                foreach (var iface in implementedInterfaces)
                 {
-                    if (member is IMethodSymbol method)
+                    // Get all members of the interface and sub-interfaces
+                    var interfaceMembers = iface.GetMembers()
+                        .Concat(iface.AllInterfaces.SelectMany(i => i.GetMembers()))
+                        .ToArray();
+                    var classMembers = namedTypeSymbol.GetMembers()
+                        .Where(m => m.DeclaredAccessibility == Accessibility.Public)
+                        .Where(m => m.GetAttributes().All(attr => attr.AttributeClass?.Name != nameof(NoInterfaceMemberAttribute)));
+
+                    foreach (var member in classMembers)
                     {
-                        // We don't need to process the Xxx_get and Xxx_set methods
-                        if (method.MethodKind is MethodKind.PropertyGet or MethodKind.PropertySet) continue;
+                        if (!interfaceMembers.Any(im => im.Name == member.Name) && !member.IsImplicitlyDeclared)
+                        {
+                            if (member is IMethodSymbol method)
+                            {
+                                // We don't need to process the Xxx_get and Xxx_set methods
+                                if (method.MethodKind is MethodKind.PropertyGet or MethodKind.PropertySet) continue;
 
-                        // Try to ignore events
-                        if (method.Kind == SymbolKind.Event) continue;
+                                // Try to ignore events
+                                if (method.Kind == SymbolKind.Event) continue;
+                            }
+
+                            if (member.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, ignoreAttributeSymbol)))
+                                continue;
+
+                            // Report diagnostic for missing member
+                            var syntaxNode = member.DeclaringSyntaxReferences.First().GetSyntax(context.CancellationToken);
+                            var diagnostic = Diagnostic.Create(DiagnosticRules.MissingInterfaceMemberRule, syntaxNode.GetLocation(), member.Name, iface.Name);
+                            context.ReportDiagnostic(diagnostic);
+                        }
                     }
-
-                    if (member.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, ignoreAttributeSymbol)))
-                        continue;
-
-                    // Report diagnostic for missing member
-                    var syntaxNode = member.DeclaringSyntaxReferences.First().GetSyntax(context.CancellationToken);
-                    var diagnostic = Diagnostic.Create(DiagnosticRules.MissingInterfaceMemberRule, syntaxNode.GetLocation(), member.Name, iface.Name);
-                    context.ReportDiagnostic(diagnostic);
                 }
-            }
+                break;
         }
     }
 }

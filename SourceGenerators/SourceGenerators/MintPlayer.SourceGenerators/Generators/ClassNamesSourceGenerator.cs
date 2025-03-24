@@ -71,11 +71,11 @@ public class ClassNamesSourceGenerator : IncrementalGenerator
 
         var classNamesSourceProvider = classDeclarationsProvider
             .Combine(settingsProvider)
-            .Select(static Producer (p, ct) => new Producers.ClassNamesProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!));
+            .Select(static Producer (p, ct) => new Producers.ClassNamesProducer(declarations: p.Left.NotNull(), rootNamespace: p.Right.RootNamespace!));
 
         var classNameListSourceProvider = classDeclarationsProvider
             .Combine(settingsProvider)
-            .Select(static Producer (p, ct) => new Producers.ClassNameListProducer(declarations: p.Left, rootNamespace: p.Right.RootNamespace!));
+            .Select(static Producer (p, ct) => new Producers.ClassNameListProducer(declarations: p.Left.NotNull(), rootNamespace: p.Right.RootNamespace!));
 
         // Combine all Source Providers
         context.ProduceCode(classNamesSourceProvider, classNameListSourceProvider);

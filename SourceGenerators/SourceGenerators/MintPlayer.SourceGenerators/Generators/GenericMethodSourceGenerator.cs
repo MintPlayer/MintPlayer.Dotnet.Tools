@@ -56,15 +56,14 @@ public class GenericMethodSourceGenerator : IncrementalGenerator
                         }
                     }
                 }
-                return null;
-            }
-        )
-            .Where(static (p) => p != null)
+
+                return default;
+            })
             .Collect();
 
         var methodsSourceProvider = methodsProvider
             .Combine(settingsProvider)
-            .Select(static Producer (providers, ct) => new Producers.GenericMethodProducer(providers.Left!, providers.Right.RootNamespace!));
+            .Select(static Producer (providers, ct) => new Producers.GenericMethodProducer(providers.Left.NotNull(), providers.Right.RootNamespace!));
 
         context.ProduceCode(methodsSourceProvider);
     }
