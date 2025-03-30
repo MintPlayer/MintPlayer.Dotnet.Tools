@@ -13,10 +13,31 @@
 		<RoslynVersion></RoslynVersion>
 	</PropertyGroup>
 
+	<Choose>
+		<When Condition="$(RoslynVersion) == 'roslyn4.0'">
+			<ItemGroup>
+				<PackageReference Include="Microsoft.CodeAnalysis" Version="4.11.0" PrivateAssets="all" />
+				<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" PrivateAssets="all" />
+				<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+				<!--<PackageReference Include="Microsoft.CodeAnalysis.Features" Version="4.0.1" PrivateAssets="all" />-->
+			</ItemGroup>
+			<PropertyGroup>
+				<DefineConstants>$(DefineConstants);ROSLYN_4_0;ROSLYN_4_0_OR_GREATER</DefineConstants>
+			</PropertyGroup>
+		</When>
+		<Otherwise>
+			<ItemGroup>
+				<PackageReference Include="Microsoft.CodeAnalysis" Version="4.11.0" PrivateAssets="all" />
+				<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" PrivateAssets="all" />
+				<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+				<!--<PackageReference Include="Microsoft.CodeAnalysis.Features" Version="4.9.2" PrivateAssets="all" />-->
+			</ItemGroup>
+			<PropertyGroup>
+				<DefineConstants>$(DefineConstants);ROSLYN_4_9;ROSLYN_4_0_OR_GREATER;ROSLYN_4_9_OR_GREATER</DefineConstants>
+			</PropertyGroup>
+		</Otherwise>
+	</Choose>
 	<ItemGroup>
-		<PackageReference Include="Microsoft.CodeAnalysis" Version="4.11.0" PrivateAssets="all" />
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" PrivateAssets="all" />
-		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
 	</ItemGroup>
 
 	<ItemGroup>
