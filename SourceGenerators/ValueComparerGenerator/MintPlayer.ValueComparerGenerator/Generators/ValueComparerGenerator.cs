@@ -24,7 +24,8 @@ public class ValueComparerGenerator : IncrementalGenerator
                     {
                         var autoValueComparerAttribute = context.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.ValueComparerGenerator.Attributes.AutoValueComparerAttribute");
                         const string valueComparerType = "global::MintPlayer.SourceGenerators.Tools.ValueComparers.ValueComparer";
-                        const string valueComparerAttributeType = "global::MintPlayer.ValueComparerGenerator.Attributes.ValueComparerAttribute";
+                        // ValueComparerAttribute is within the Tools project, AutoValueComparerAttribute is within the ValueComparerGenerator project
+                        const string valueComparerAttributeType = "global::MintPlayer.SourceGenerators.Tools.ValueComparerAttribute";
 
                         var attr = symbol.GetAttributes()
                             .FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, autoValueComparerAttribute));
