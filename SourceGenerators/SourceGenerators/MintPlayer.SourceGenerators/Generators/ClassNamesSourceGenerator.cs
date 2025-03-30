@@ -77,8 +77,17 @@ public class ClassNamesSourceGenerator : IncrementalGenerator
             .Combine(settingsProvider)
             .Select(static Producer (p, ct) => new Producers.ClassNameListProducer(declarations: p.Left.NotNull(), rootNamespace: p.Right.RootNamespace!));
 
+        var classNamesDiagnosticProvider = classDeclarationsProvider
+            .Combine(settingsProvider)
+            .Select(static IDiagnosticReporter (p, ct) => new Producers.ClassNamesProducer(declarations: p.Left.NotNull(), rootNamespace: p.Right.RootNamespace!));
+
+        var classNameListDiagnosticProvider = classDeclarationsProvider
+            .Combine(settingsProvider)
+            .Select(static IDiagnosticReporter (p, ct) => new Producers.ClassNameListProducer(declarations: p.Left.NotNull(), rootNamespace: p.Right.RootNamespace!));
+
         // Combine all Source Providers
         context.ProduceCode(classNamesSourceProvider, classNameListSourceProvider);
+        context.ReportDiagnostics(classNamesDiagnosticProvider, classNameListDiagnosticProvider);
     }
 }
 

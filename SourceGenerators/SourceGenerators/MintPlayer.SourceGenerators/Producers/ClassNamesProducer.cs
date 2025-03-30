@@ -3,12 +3,17 @@ using System.CodeDom.Compiler;
 
 namespace MintPlayer.SourceGenerators.Producers;
 
-public class ClassNamesProducer : Producer
+public class ClassNamesProducer : Producer, IDiagnosticReporter
 {
     private readonly IEnumerable<Models.ClassDeclaration> declarations;
     public ClassNamesProducer(IEnumerable<Models.ClassDeclaration> declarations, string rootNamespace) : base(rootNamespace, "ClassNames.g.cs")
     {
         this.declarations = declarations;
+    }
+
+    public IEnumerable<Microsoft.CodeAnalysis.Diagnostic> GetDiagnostics()
+    {
+        return [];
     }
 
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)

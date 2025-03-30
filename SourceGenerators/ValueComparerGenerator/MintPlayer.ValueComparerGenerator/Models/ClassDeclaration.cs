@@ -1,4 +1,5 @@
-﻿using MintPlayer.SourceGenerators.Tools;
+﻿using Microsoft.CodeAnalysis;
+using MintPlayer.SourceGenerators.Tools;
 
 namespace MintPlayer.ValueComparerGenerator.Models;
 
@@ -12,4 +13,5 @@ public class ClassDeclaration
     public string ComparerType { get; set; }
     public string ComparerAttributeType { get; set; }
     public PropertyDeclaration[] Properties { get; set; } = [];
+    public Location? Location { get; internal set; }
 }

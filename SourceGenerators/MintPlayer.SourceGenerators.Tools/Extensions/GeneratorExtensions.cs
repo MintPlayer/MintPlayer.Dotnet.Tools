@@ -1,4 +1,5 @@
 ﻿using Microsoft.CodeAnalysis;
+using MintPlayer.SourceGenerators.Tools.Extensions;
 
 namespace MintPlayer.SourceGenerators.Tools;
 
@@ -39,13 +40,13 @@ public static class GeneratorExtensions
     /// </summary>
     /// <param name="context">context parameter from the <see cref="IIncrementalGenerator.Initialize(IncrementalGeneratorInitializationContext)"/> method</param>
     /// <param name="providers">All the diagnostic providers to be registered</param>
-    internal static void ReportDiagnostics(this IncrementalGeneratorInitializationContext context, params IncrementalValueProvider<Diagnostic>[] providers)
+    public static void ReportDiagnostics(this IncrementalGeneratorInitializationContext context, params IncrementalValueProvider<IDiagnosticReporter>[] providers)
     {
         switch (providers.Length)
         {
             case 0: return;
             case 1:
-                context.RegisterSourceOutput(providers[0], static (c, d) => c.ReportDiagnostic(d));
+                context.RegisterSourceOutput(providers[0], static (c, d) => c.ReportDiagnostic(d.GetDiagnostics()));
                 return;
         }
 
@@ -61,6 +62,6 @@ public static class GeneratorExtensions
                 .SelectMany(static (p, ct) => p.Left.Concat([p.Right]));
         }
 
-        context.RegisterSourceOutput(sourceProvider, static (c, d) => c.ReportDiagnostic(d));
+        context.RegisterSourceOutput(sourceProvider, static (c, d) => c.ReportDiagnostic(d.GetDiagnostics()));
     }
 }
