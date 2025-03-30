@@ -12,14 +12,14 @@
 	</Target>
 
 	<PropertyGroup>
-		<Version>4.11.0</Version>
+		<Version>4.13.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains a source generator that generates value-comparers for you</Description>
 		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/SourceGenerators/MintPlayer.SourceGenerators</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
-		<PackageId>MintPlayer.SourceGenerators.ValueComparerGenerator</PackageId>
+		<PackageId>MintPlayer.ValueComparerGenerator</PackageId>
 		<PackageTags>SourceGenerators,ValueComparerGenerator</PackageTags>
 		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
 	</PropertyGroup>
