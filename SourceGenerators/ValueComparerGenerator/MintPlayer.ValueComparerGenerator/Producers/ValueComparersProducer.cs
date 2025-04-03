@@ -36,7 +36,7 @@ public class ValueComparersProducer : Producer, IDiagnosticReporter
 
         foreach (var nsGrouping in declarations.Where(d => d.IsPartial).GroupBy(d => d.Namespace))
         {
-            writer.WriteLine($"namespace {nsGrouping.Key.Substring("global::".Length)}");
+            writer.WriteLine($"namespace {nsGrouping.Key}");
             writer.WriteLine("{");
             writer.Indent++;
 
