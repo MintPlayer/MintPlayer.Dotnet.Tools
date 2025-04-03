@@ -79,6 +79,12 @@ public class ValueComparerGenerator : IncrementalGenerator
                             FullName = baseType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                             IsPartial = baseType.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is ClassDeclarationSyntax baseClassDeclaration && baseClassDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
                             Namespace = baseType.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
+                            Properties = baseType.GetMembers().OfType<IPropertySymbol>().Select(property => new Models.PropertyDeclaration
+                            {
+                                Name = property.Name,
+                                Type = property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
+                                HasComparerIgnore = property.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, context.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.ValueComparerGenerator.Attributes.ComparerIgnoreAttribute"))),
+                            }).ToArray(),
                         },
                         Namespace = symbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
                         Properties = symbol.GetMembers().OfType<IPropertySymbol>().Select(property => new Models.PropertyDeclaration
@@ -107,6 +113,7 @@ public class ValueComparerGenerator : IncrementalGenerator
                         Name = t.Name,
                         Namespace = t.Namespace,
                     }).ToArray(),
+                    //Properties = g.First().BaseType.Properties,
                 })
                 .Where(t => t.BaseType.FullName != "Object")
         );
