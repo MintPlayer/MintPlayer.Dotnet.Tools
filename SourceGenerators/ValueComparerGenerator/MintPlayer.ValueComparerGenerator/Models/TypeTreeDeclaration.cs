@@ -9,6 +9,8 @@ public class TypeTreeDeclaration
     //public string ComparerAttributeType { get; set; }
     //public string BaseTypeName { get; set; }
     //public bool IsBaseTypePartial { get; set; }
+
+    public override string ToString() => $"Tree: {BaseType}";
 }
 
 public class DerivedType
@@ -16,6 +18,8 @@ public class DerivedType
     public string? Type { get; set; }
     public string? Name { get; set; }
     public string? Namespace { get; set; }
+
+    public override string ToString() => Type ?? string.Empty;
 }
 
 public class BaseType
@@ -26,4 +30,6 @@ public class BaseType
     public string? Namespace { get; set; }
     public PropertyDeclaration[] Properties { get; set; } = [];
     public bool HasAttribute { get; set; }
+
+    public override string ToString() => FullName ?? string.Empty;
 }

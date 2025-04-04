@@ -110,7 +110,8 @@ public class ValueComparerGenerator : IncrementalGenerator
                             Location = symbol.Locations.FirstOrDefault(),
                             Type = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                             IsPartial = classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
-                            HasAttribute = false,
+                            HasAttribute = symbol.GetAttributes()
+                                .Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, context.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.ValueComparerGenerator.Attributes.AutoValueComparerAttribute"))),
                             BaseType = (Models.BaseType?)null,
                             Namespace = symbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
                             Properties = symbol.GetMembers().OfType<IPropertySymbol>().Select(property => new Models.PropertyDeclaration
@@ -144,6 +145,7 @@ public class ValueComparerGenerator : IncrementalGenerator
                 })
         );
 
+        // This provider retrieves all types that have derived types
         var typeTreeProvider = allTypesProvider
             .Collect()
             .Select((allTypes, ct) => allTypes
@@ -163,15 +165,33 @@ public class ValueComparerGenerator : IncrementalGenerator
                 })
         );
 
+        //allTypesProvider.Collect().Select(p => p.Except(typeProvider.co).Except(typeTreeProvider));
+        var childrenWithoutDerived = allTypesProvider.Collect().Combine(typeProvider).Combine(typeTreeProvider)
+            .Select(static (p, ct) => p.Left.Left
+                .Where(all => all is { HasAttribute: true })
+                .Where(all => !p.Left.Right.Any(x => x.FullName == all?.Type) && !p.Right.Any(x => x.BaseType.FullName == all?.Type))
+                .Select(t => new Models.ClassDeclaration
+                {
+                    Name = t.Name,
+                    FullName = t.Type,
+                    Namespace = t.Namespace,
+                    IsPartial = t.IsPartial,
+                    Location = t.Location,
+                    Properties = t.Properties,
+                    HasAutoValueComparerAttribute = t.HasAttribute,
+                }));
+
         //var comparerSourceProvider = classDeclarationsProvider
         //    .Combine(settingsProvider)
         //    .Select(static Producer (p, ct) => new Producers.ValueComparersProducer(declarations: p.Left.OfType<Models.ClassDeclaration>(), rootNamespace: p.Right.RootNamespace!));
 
         var typeTreeSourceProvider = typeProvider
             .Combine(typeTreeProvider)
+            .Combine(childrenWithoutDerived)
             .Combine(settingsProvider)
-            .Select(static Producer (p, ct) => new Producers.TreeValueComparerProducer(p.Left.Left.Where(t => t.HasAutoValueComparerAttribute), p.Left.Right, p.Right.RootNamespace!, valueComparerType, valueComparerAttributeType));
+            .Select(static Producer (p, ct) => new Producers.TreeValueComparerProducer(p.Left.Left.Left.Where(t => t.HasAutoValueComparerAttribute), p.Left.Left.Right, p.Left.Right, p.Right.RootNamespace!, valueComparerType, valueComparerAttributeType));
 
         context.ProduceCode(typeTreeSourceProvider);
     }
+
 }

@@ -1,6 +1,7 @@
 ﻿using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.ValueComparerGenerator.Models;
 using System.CodeDom.Compiler;
+using System.Diagnostics;
 using System.Linq;
 
 namespace MintPlayer.ValueComparerGenerator.Producers;
@@ -9,12 +10,14 @@ public sealed class TreeValueComparerProducer : Producer
 {
     private readonly IEnumerable<ClassDeclaration> classDeclarations;
     private readonly IEnumerable<TypeTreeDeclaration> treeDeclarations;
+    private readonly IEnumerable<ClassDeclaration> childrenWithoutChildren;
     private readonly string comparerType;
     private readonly string comparerAttributeType;
-    public TreeValueComparerProducer(IEnumerable<ClassDeclaration> classDeclarations, IEnumerable<TypeTreeDeclaration> treeDeclarations, string rootNamespace, string comparerType, string comparerAttributeType) : base(rootNamespace, $"TreeValueComparers.g.cs")
+    public TreeValueComparerProducer(IEnumerable<ClassDeclaration> classDeclarations, IEnumerable<TypeTreeDeclaration> treeDeclarations, IEnumerable<ClassDeclaration> childrenWithoutChildren, string rootNamespace, string comparerType, string comparerAttributeType) : base(rootNamespace, $"TreeValueComparers.g.cs")
     {
         this.classDeclarations = classDeclarations;
         this.treeDeclarations = treeDeclarations;
+        this.childrenWithoutChildren = childrenWithoutChildren;
         this.comparerType = comparerType;
         this.comparerAttributeType = comparerAttributeType;
     }
@@ -48,25 +51,28 @@ public sealed class TreeValueComparerProducer : Producer
                 bt.BaseType.Name,
                 bt.BaseType.FullName,
                 bt.BaseType.Namespace,
-                DerivedTypes = bt.DerivedTypes
-                    .ToArray()
-                    .Select(g => new DerivedTypeTmp
-                    {
-                        Name = g.Name,
-                        Type = g.Type,
-                        Namespace = g.Namespace,
-                    })
-                    .ToArray(),
+                bt.DerivedTypes,
                 bt.BaseType.Properties,
             })
-            .Concat(classDeclarations
+            .Concat(classDeclarations.Where(cd => !treeDeclarations.Any(td => td.BaseType.FullName == cd.FullName))
                 .Where(d => d.IsPartial)
                 .Select(d => new
                 {
                     d.Name,
                     d.FullName,
                     d.Namespace,
-                    DerivedTypes = Array.Empty<DerivedTypeTmp>(),
+                    DerivedTypes = Array.Empty<DerivedType>(),
+                    d.Properties,
+                }
+            ))
+            .Concat(childrenWithoutChildren
+                .Where(d => d.IsPartial)
+                .Select(d => new
+                {
+                    d.Name,
+                    d.FullName,
+                    d.Namespace,
+                    DerivedTypes = Array.Empty<DerivedType>(),
                     d.Properties,
                 }
             ))
@@ -103,16 +109,23 @@ public sealed class TreeValueComparerProducer : Producer
                 }
 
                 // TODO: call base class comparer instead of false
-                writer.WriteLine("return (x, y) switch");
-                writer.WriteLine("{");
-                writer.Indent++;
-                foreach (var derivedType in baseType.DerivedTypes)
+                if (baseType.DerivedTypes.Length > 0)
                 {
-                    writer.WriteLine($"({derivedType.Type} a, {derivedType.Type} b) => IsEquals(a, b),");
+                    writer.WriteLine("return (x, y) switch");
+                    writer.WriteLine("{");
+                    writer.Indent++;
+                    foreach (var derivedType in baseType.DerivedTypes)
+                    {
+                        writer.WriteLine($"({derivedType.Type} a, {derivedType.Type} b) => IsEquals(a, b),");
+                    }
+                    writer.WriteLine("_ => false,");
+                    writer.Indent--;
+                    writer.WriteLine("};");
                 }
-                writer.WriteLine("_ => false,");
-                writer.Indent--;
-                writer.WriteLine("};");
+                else
+                {
+                    writer.WriteLine("return true;");
+                }
 
                 writer.Indent--;
                 writer.WriteLine("}");
@@ -125,11 +138,4 @@ public sealed class TreeValueComparerProducer : Producer
             writer.WriteLine("}");
         }
     }
-}
-
-file class DerivedTypeTmp
-{
-    public string? Name { get; set; }
-    public string? Type { get; set; }
-    public string? Namespace { get; set; }
 }
