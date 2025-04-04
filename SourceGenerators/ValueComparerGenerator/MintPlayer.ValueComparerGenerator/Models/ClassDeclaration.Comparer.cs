@@ -1,7 +1,6 @@
 ﻿using MintPlayer.SourceGenerators.Tools.ValueComparers;
-using MintPlayer.ValueComparerGenerator.Models;
 
-namespace MintPlayer.ValueComparerGenerator.ValueComparers;
+namespace MintPlayer.ValueComparerGenerator.Models;
 
 public class ClassDeclarationValueComparer : ValueComparer<ClassDeclaration>
 {

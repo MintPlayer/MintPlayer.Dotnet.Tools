@@ -1,18 +1,17 @@
-﻿namespace MintPlayer.ValueComparerGenerator.Models;
+﻿using MintPlayer.SourceGenerators.Tools;
 
+namespace MintPlayer.ValueComparerGenerator.Models;
+
+[ValueComparer(typeof(TypeTreeDeclarationComparer))]
 public class TypeTreeDeclaration
 {
     public BaseType BaseType { get; set; } = null!;
     public DerivedType[] DerivedTypes { get; set; } = [];
-    //public PropertyDeclaration[] Properties { get; set; } = [];
-    //public string ComparerType { get; set; }
-    //public string ComparerAttributeType { get; set; }
-    //public string BaseTypeName { get; set; }
-    //public bool IsBaseTypePartial { get; set; }
 
     public override string ToString() => $"Tree: {BaseType}";
 }
 
+[ValueComparer(typeof(DerivedTypeValueComparer))]
 public class DerivedType
 {
     public string? Type { get; set; }
@@ -22,6 +21,7 @@ public class DerivedType
     public override string ToString() => Type ?? string.Empty;
 }
 
+[ValueComparer(typeof(BaseTypeValueComparer))]
 public class BaseType
 {
     public string? Name { get; set; }

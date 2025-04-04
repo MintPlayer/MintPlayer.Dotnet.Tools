@@ -1,8 +1,6 @@
 ﻿using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.ValueComparerGenerator.Models;
 using System.CodeDom.Compiler;
-using System.Diagnostics;
-using System.Linq;
 
 namespace MintPlayer.ValueComparerGenerator.Producers;
 
@@ -26,24 +24,6 @@ public sealed class TreeValueComparerProducer : Producer
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
     {
         writer.WriteLine(Header);
-
-        //var treeGrouped = treeDeclarations.Where(d => d.BaseType.IsPartial)
-        //    .GroupBy(d => d.BaseType.Namespace)
-        //    .Select(g => new
-        //    {
-        //        Namespace = g.Key,
-        //        Types = g
-        //            .ToArray()
-        //            .GroupBy(d => new { d.BaseType.Name, d.BaseType.FullName, d.BaseType.Namespace })
-        //            .Select(g => new
-        //            {
-        //                g.Key.Name,
-        //                g.Key.FullName,
-        //                g.Key.Namespace,
-        //                Types = g.SelectMany(d => d.DerivedTypes).ToArray(),
-        //                g.First().BaseType.Properties,
-        //            })
-        //    });
 
         var treeGrouped = treeDeclarations.Where(d => d.BaseType.IsPartial)
             .Select(bt => new
