@@ -2,7 +2,7 @@
 
 namespace MintPlayer.ValueComparerGenerator.Models;
 
-[ValueComparer(typeof(ValueComparers.PropertyDeclarationValueComparer))]
+[ValueComparer(typeof(PropertyDeclarationValueComparer))]
 public class PropertyDeclaration
 {
     public string Name { get; set; }
