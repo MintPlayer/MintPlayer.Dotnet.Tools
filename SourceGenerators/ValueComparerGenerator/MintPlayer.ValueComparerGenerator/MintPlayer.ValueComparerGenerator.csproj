@@ -30,6 +30,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <Compile Remove="Producers\ValueComparersProducer.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<ProjectReference Include="..\MintPlayer.ValueComparerGenerator.Attributes\MintPlayer.ValueComparerGenerator.Attributes.csproj" />
 	</ItemGroup>
 

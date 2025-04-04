@@ -25,4 +25,5 @@ public class BaseType
     public bool IsPartial { get; set; }
     public string? Namespace { get; set; }
     public PropertyDeclaration[] Properties { get; set; } = [];
+    public bool HasAttribute { get; set; }
 }

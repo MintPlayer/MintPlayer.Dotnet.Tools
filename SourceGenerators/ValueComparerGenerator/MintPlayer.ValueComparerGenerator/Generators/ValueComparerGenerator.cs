@@ -15,49 +15,48 @@ public class ValueComparerGenerator : IncrementalGenerator
         // ValueComparerAttribute is within the Tools project, AutoValueComparerAttribute is within the ValueComparerGenerator project
         const string valueComparerAttributeType = "global::MintPlayer.SourceGenerators.Tools.ValueComparerAttribute";
 
-        var classDeclarationsProvider = context.SyntaxProvider
-            .CreateSyntaxProvider(
-                static (node, ct) =>
-                {
-                    return node is ClassDeclarationSyntax { } classDeclaration;
-                },
-                static (context, ct) =>
-                {
-                    if (context.Node is ClassDeclarationSyntax classDeclaration &&
-                        context.SemanticModel.GetDeclaredSymbol(classDeclaration, ct) is INamedTypeSymbol symbol)
-                    {
-                        var autoValueComparerAttribute = context.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.ValueComparerGenerator.Attributes.AutoValueComparerAttribute");
+        //var classDeclarationsProvider = context.SyntaxProvider
+        //    .CreateSyntaxProvider(
+        //        static (node, ct) =>
+        //        {
+        //            return node is ClassDeclarationSyntax { AttributeLists.Count: > 0 } classDeclaration;
+        //        },
+        //        static (context, ct) =>
+        //        {
+        //            if (context.Node is ClassDeclarationSyntax classDeclaration &&
+        //                context.SemanticModel.GetDeclaredSymbol(classDeclaration, ct) is INamedTypeSymbol symbol)
+        //            {
+        //                var autoValueComparerAttribute = context.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.ValueComparerGenerator.Attributes.AutoValueComparerAttribute");
 
-                        var attr = symbol.GetAttributes()
-                            .FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, autoValueComparerAttribute));
+        //                var attr = symbol.GetAttributes()
+        //                    .FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, autoValueComparerAttribute));
 
-                        if (attr is not null)
-                        {
-                            return new Models.ClassDeclaration
-                            {
-                                Name = symbol.Name,
-                                FullName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
-                                Namespace = symbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
-                                IsPartial = classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
-                                ComparerType = valueComparerType,
-                                ComparerAttributeType = valueComparerAttributeType,
-                                Properties = symbol.GetMembers().OfType<IPropertySymbol>().Select(property => new Models.PropertyDeclaration
-                                {
-                                    Name = property.Name,
-                                    Type = property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
-                                    HasComparerIgnore = property.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, context.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.ValueComparerGenerator.Attributes.ComparerIgnoreAttribute"))),
-                                }).ToArray(),
-                                Location = symbol.Locations.FirstOrDefault(),
-                            };
-                        }
-                    }
+        //                if (attr is not null)
+        //                {
+        //                    return new Models.ClassDeclaration
+        //                    {
+        //                        Name = symbol.Name,
+        //                        FullName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
+        //                        Namespace = symbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
+        //                        IsPartial = classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
+        //                        Properties = symbol.GetMembers().OfType<IPropertySymbol>().Select(property => new Models.PropertyDeclaration
+        //                        {
+        //                            Name = property.Name,
+        //                            Type = property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
+        //                            HasComparerIgnore = property.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, context.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.ValueComparerGenerator.Attributes.ComparerIgnoreAttribute"))),
+        //                        }).ToArray(),
+        //                        Location = symbol.Locations.FirstOrDefault(),
+        //                    };
+        //                }
+        //            }
 
-                    return default;
-                }
-            )
-            .WithComparer(ClassDeclarationValueComparer.Instance)
-            .Collect();
+        //            return default;
+        //        }
+        //    )
+        //    .WithComparer(ClassDeclarationValueComparer.Instance)
+        //    .Collect();
 
+        // This provider retrieves all types with and without a base-type and have the AutoValueComparerAttribute
         var allTypesProvider = context.SyntaxProvider.CreateSyntaxProvider(
             static (node, ct) =>
             {
@@ -65,67 +64,114 @@ public class ValueComparerGenerator : IncrementalGenerator
             },
             static (context, ct) =>
             {
+                // AutoValueComparerAttribute should be applied to the base type, because the base type must be partial
                 if (context.Node is ClassDeclarationSyntax classDeclaration &&
-                    context.SemanticModel.GetDeclaredSymbol(classDeclaration, ct) is INamedTypeSymbol symbol &&
-                    symbol.BaseType is { } baseType)
+                    context.SemanticModel.GetDeclaredSymbol(classDeclaration, ct) is INamedTypeSymbol symbol)
                 {
-                    return new
+                    if (symbol.BaseType is { Name: not "Object" } baseType)
                     {
-                        symbol.Name,
-                        Type = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                        BaseType = new Models.BaseType
+                        return new
                         {
-                            Name = baseType.Name,
-                            FullName = baseType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                            IsPartial = baseType.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is ClassDeclarationSyntax baseClassDeclaration && baseClassDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
-                            Namespace = baseType.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
-                            Properties = baseType.GetMembers().OfType<IPropertySymbol>().Select(property => new Models.PropertyDeclaration
+                            symbol.Name,
+                            Location = symbol.Locations.FirstOrDefault(),
+                            Type = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                            IsPartial = classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
+                            HasAttribute = symbol.GetAttributes()
+                                .Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, context.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.ValueComparerGenerator.Attributes.AutoValueComparerAttribute"))),
+                            BaseType = (Models.BaseType?)new Models.BaseType
+                            {
+                                Name = baseType.Name,
+                                FullName = baseType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                                IsPartial = baseType.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is ClassDeclarationSyntax baseClassDeclaration && baseClassDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
+                                Namespace = baseType.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
+                                Properties = baseType.GetMembers().OfType<IPropertySymbol>().Select(property => new Models.PropertyDeclaration
+                                {
+                                    Name = property.Name,
+                                    Type = property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
+                                    HasComparerIgnore = property.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, context.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.ValueComparerGenerator.Attributes.ComparerIgnoreAttribute"))),
+                                }).ToArray(),
+                                HasAttribute = baseType.GetAttributes()
+                                    .Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, context.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.ValueComparerGenerator.Attributes.AutoValueComparerAttribute"))),
+                            },
+                            Namespace = symbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
+                            Properties = symbol.GetMembers().OfType<IPropertySymbol>().Select(property => new Models.PropertyDeclaration
                             {
                                 Name = property.Name,
                                 Type = property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
                                 HasComparerIgnore = property.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, context.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.ValueComparerGenerator.Attributes.ComparerIgnoreAttribute"))),
                             }).ToArray(),
-                        },
-                        Namespace = symbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
-                        Properties = symbol.GetMembers().OfType<IPropertySymbol>().Select(property => new Models.PropertyDeclaration
+                        };
+                    }
+                    else
+                    {
+                        return new
                         {
-                            Name = property.Name,
-                            Type = property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
-                            HasComparerIgnore = property.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, context.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.ValueComparerGenerator.Attributes.ComparerIgnoreAttribute"))),
-                        }).ToArray(),
-                    };
+                            symbol.Name,
+                            Location = symbol.Locations.FirstOrDefault(),
+                            Type = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                            IsPartial = classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
+                            HasAttribute = false,
+                            BaseType = (Models.BaseType?)null,
+                            Namespace = symbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
+                            Properties = symbol.GetMembers().OfType<IPropertySymbol>().Select(property => new Models.PropertyDeclaration
+                            {
+                                Name = property.Name,
+                                Type = property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
+                                HasComparerIgnore = property.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, context.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.ValueComparerGenerator.Attributes.ComparerIgnoreAttribute"))),
+                            }).ToArray(),
+                        };
+                    }
                 }
                 return default;
             }
+        );
+
+        // This provider retrieves all types without a base-type
+        var typeProvider = allTypesProvider
+            .Collect()
+            .Select((allTypes, ct) => allTypes
+                .NotNull()
+                .Where(t => t.IsPartial && (t.BaseType is null || !t.BaseType.IsPartial || !t.BaseType.HasAttribute))
+                .Select(t => new Models.ClassDeclaration
+                {
+                    Name = t.Name,
+                    FullName = t.Type,
+                    Namespace = t.Namespace,
+                    IsPartial = t.IsPartial,
+                    Location = t.Location,
+                    Properties = t.Properties,
+                    HasAutoValueComparerAttribute = t.HasAttribute,
+                })
         );
 
         var typeTreeProvider = allTypesProvider
             .Collect()
             .Select((allTypes, ct) => allTypes
                 .NotNull()
-                .GroupBy(t => t.BaseType)
+                //.Where(t => t.BaseType.IsPartial && (t.BaseType.FullName != "Object" || t.BaseType.HasAttribute))
+                .Where(t => t.BaseType is { IsPartial: true, HasAttribute: true })
+                .GroupBy(t => new { t.BaseType!.FullName })
                 .Select(g => new Models.TypeTreeDeclaration
                 {
-                    BaseType = g.Key,
+                    BaseType = g.First().BaseType!,
                     DerivedTypes = g.Select(t => new Models.DerivedType
                     {
                         Type = t.Type,
                         Name = t.Name,
                         Namespace = t.Namespace,
                     }).ToArray(),
-                    //Properties = g.First().BaseType.Properties,
                 })
-                .Where(t => t.BaseType.FullName != "Object")
         );
 
-        var comparerSourceProvider = classDeclarationsProvider
-            .Combine(settingsProvider)
-            .Select(static Producer (p, ct) => new Producers.ValueComparersProducer(declarations: p.Left.OfType<Models.ClassDeclaration>(), rootNamespace: p.Right.RootNamespace!));
+        //var comparerSourceProvider = classDeclarationsProvider
+        //    .Combine(settingsProvider)
+        //    .Select(static Producer (p, ct) => new Producers.ValueComparersProducer(declarations: p.Left.OfType<Models.ClassDeclaration>(), rootNamespace: p.Right.RootNamespace!));
 
-        var typeTreeSourceProvider = typeTreeProvider
+        var typeTreeSourceProvider = typeProvider
+            .Combine(typeTreeProvider)
             .Combine(settingsProvider)
-            .Select(static Producer (p, ct) => new Producers.TreeValueComparerProducer(p.Left, p.Right.RootNamespace!, valueComparerType, valueComparerAttributeType));
+            .Select(static Producer (p, ct) => new Producers.TreeValueComparerProducer(p.Left.Left.Where(t => t.HasAutoValueComparerAttribute), p.Left.Right, p.Right.RootNamespace!, valueComparerType, valueComparerAttributeType));
 
-        context.ProduceCode(comparerSourceProvider, typeTreeSourceProvider);
+        context.ProduceCode(typeTreeSourceProvider);
     }
 }
