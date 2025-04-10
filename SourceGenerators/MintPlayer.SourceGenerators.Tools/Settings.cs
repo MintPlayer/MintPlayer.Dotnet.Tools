@@ -6,4 +6,5 @@ namespace MintPlayer.SourceGenerators.Tools;
 public sealed class Settings
 {
     public string? RootNamespace { get; set; }
+    public bool Disable { get; set; }
 }

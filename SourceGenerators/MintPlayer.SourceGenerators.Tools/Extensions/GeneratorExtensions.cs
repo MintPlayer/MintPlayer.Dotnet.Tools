@@ -22,14 +22,14 @@ public static class GeneratorExtensions
 
         var sourceProvider = providers[0]
             .Combine(providers[1])
-            .SelectMany(static (p, ct) => new[] { p.Left, p.Right });
+            .SelectMany(static (p, ct) => new[] { p.Left, p.Right }.NotNull());
 
         for (int i = 2; i < providers.Length; i++)
         {
             sourceProvider = sourceProvider
                 .Collect()
                 .Combine(providers[i])
-                .SelectMany(static (p, ct) => p.Left.Concat([p.Right]));
+                .SelectMany(static (p, ct) => p.Left.Concat([p.Right]).NotNull());
         }
 
         context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));

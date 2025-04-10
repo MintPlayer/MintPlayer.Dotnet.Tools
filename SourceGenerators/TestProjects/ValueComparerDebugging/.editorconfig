@@ -1,0 +1,4 @@
+﻿is_global = true
+
+# Source Generators
+disable_value_comparer_generator=true

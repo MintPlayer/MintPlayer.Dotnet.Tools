@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
+using MintPlayer.SourceGenerators.Tools.Extensions;
 
 namespace MintPlayer.SourceGenerators.Generators;
 
@@ -33,6 +34,7 @@ public class ClassNamesSourceGenerator : IncrementalGenerator
                 }
             )
             .WithComparer(Models.ClassDeclarationValueComparer.Instance)
+            .WhereEnabled(settingsProvider)
             .Collect();
 
         var fieldDeclarationsProvider = context.SyntaxProvider
@@ -67,6 +69,7 @@ public class ClassNamesSourceGenerator : IncrementalGenerator
                 }
             )
             .WithComparer(Models.FieldDeclarationValueComparer.Instance)
+            .WhereEnabled(settingsProvider)
             .Collect();
 
         var classNamesSourceProvider = classDeclarationsProvider

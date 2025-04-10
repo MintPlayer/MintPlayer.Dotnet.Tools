@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
+using MintPlayer.SourceGenerators.Tools.Extensions;
 
 namespace MintPlayer.ValueComparerGenerator.Generators;
 
@@ -87,6 +88,7 @@ public class ValueComparerGenerator : IncrementalGenerator
 
         // This provider retrieves all types without a base-type
         var typeProvider = allTypesProvider
+            .WhereEnabled(settingsProvider)
             .Collect()
             .Select((allTypes, ct) => allTypes
                 .NotNull()
@@ -105,6 +107,7 @@ public class ValueComparerGenerator : IncrementalGenerator
 
         // This provider retrieves all types that have derived types
         var typeTreeProvider = allTypesProvider
+            .WhereEnabled(settingsProvider)
             .Collect()
             .Select((allTypes, ct) => allTypes
                 .NotNull()
@@ -124,7 +127,10 @@ public class ValueComparerGenerator : IncrementalGenerator
         );
 
         //allTypesProvider.Collect().Select(p => p.Except(typeProvider.co).Except(typeTreeProvider));
-        var childrenWithoutDerived = allTypesProvider.Collect().Combine(typeProvider).Combine(typeTreeProvider)
+        var childrenWithoutDerived = allTypesProvider
+            .WhereEnabled(settingsProvider)
+            .Collect()
+            .Combine(typeProvider).Combine(typeTreeProvider)
             .Select(static (p, ct) => p.Left.Left
                 .Where(all => all is { HasAttribute: true })
                 .Where(all => !p.Left.Right.Any(x => x.FullName == all?.Type) && !p.Right.Any(x => x.BaseType.FullName == all?.Type))
