@@ -8,12 +8,15 @@ namespace MintPlayer.SourceGenerators.Generators;
 [Generator(LanguageNames.CSharp)]
 public class InjectSourceGenerator : IncrementalGenerator
 {
+    public override void RegisterComparers()
+    {
+        NewtonsoftJsonComparers.Register();
+    }
+
     // Measure performance of the Analyzer
     // https://www.meziantou.net/measuring-performance-of-roslyn-source-generators.htm
     public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {
-        NewtonsoftJsonComparers.Register();
-
         var classesProvider = context.SyntaxProvider
             .CreateSyntaxProvider(
                 static (node, ct) => node is ClassDeclarationSyntax classDeclaration &&
