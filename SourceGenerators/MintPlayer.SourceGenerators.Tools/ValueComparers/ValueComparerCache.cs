@@ -10,9 +10,7 @@ internal static class ValueComparerCache
 
     private static class Cache<TValue>
     {
-        public static IEqualityComparer<TValue?> Comparer { get; }
-
-        static Cache()
+        private static readonly Lazy<IEqualityComparer<TValue?>> lazyComparer = new(() =>
         {
             // Note: Add Comparer when it is not possible via ValueCompareAttribute
             // Note: ImmutableArrays cannot be casted to IEqualityComparer<TValue?>?, therefore use AsEnumerable() to cast it to IEnumerable<TValue?>?.
@@ -68,8 +66,10 @@ internal static class ValueComparerCache
                 _ => GetOtherComparerType(type),
             };
 
-            Comparer = (IEqualityComparer<TValue?>?)Activator.CreateInstance(comparerType) ?? throw new NotImplementedException();
-        }
+            return (IEqualityComparer<TValue?>?)Activator.CreateInstance(comparerType) ?? throw new NotImplementedException();
+        });
+
+        public static IEqualityComparer<TValue?> Comparer => lazyComparer.Value;
 
         private static Type? GetOtherComparerType(Type? type)
         {
@@ -85,9 +85,7 @@ internal static class ValueComparerCache
         private static List<CustomComparer<TValue>> customComparers = [];
         internal static void AddCustomComparer<TComparer>() where TComparer : ValueComparer<TValue>
         {
-            var x = typeof(TComparer);
-            var y = new CustomComparer<TValue>() { ComparerType = x };
-            customComparers.Add(y);
+            customComparers.Add(new CustomComparer<TValue>() { ComparerType = typeof(TComparer) });
         }
     }
 

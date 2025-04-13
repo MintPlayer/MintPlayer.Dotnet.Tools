@@ -3,7 +3,6 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.ValueComparers.NewtonsoftJson;
-using Newtonsoft.Json.Linq;
 
 namespace MintPlayer.SourceGenerators.Generators;
 
