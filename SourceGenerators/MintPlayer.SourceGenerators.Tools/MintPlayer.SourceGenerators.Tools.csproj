@@ -8,7 +8,7 @@
 	</PropertyGroup>
 
 	<PropertyGroup>
-		<Version>4.13.0</Version>
+		<Version>4.15.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains useful tools for building source generators</Description>
@@ -32,10 +32,5 @@
 		</PackageReference>
 	</ItemGroup>
 
-	<!-- Configure file-nesting -->
-	<ItemGroup>
-		<Compile Update="**\*.*.cs">
-			<DependentUpon>$([System.Text.RegularExpressions.Regex]::Replace(%(Filename), '(?:.(?![.]))+$', %(Extension)))</DependentUpon>
-		</Compile>
-	</ItemGroup>
+	<Import Project="../eng/filenesting.targets"/>
 </Project>

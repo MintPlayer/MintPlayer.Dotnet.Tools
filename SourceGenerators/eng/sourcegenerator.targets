@@ -66,10 +66,5 @@
 		</ItemGroup>
 	</Target>
 
-	<!-- Group files -->
-	<ItemGroup>
-		<Compile Update="$(MSBuildProjectDirectory)\**\*.*.cs">
-			<DependentUpon>$([System.Text.RegularExpressions.Regex]::Replace(%(Filename), '(?:.(?![.]))+$', %(Extension)))</DependentUpon>
-		</Compile>
-	</ItemGroup>
+	<Import Project="./filenesting.targets"/>
 </Project>

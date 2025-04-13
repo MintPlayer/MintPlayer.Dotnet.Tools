@@ -126,9 +126,14 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "eng", "eng", "{4690C409-91FD-458E-9CC2-4A179C20DA48}"
 	ProjectSection(SolutionItems) = preProject
 		SourceGenerators\eng\dependencyinjection.targets = SourceGenerators\eng\dependencyinjection.targets
+		SourceGenerators\eng\filenesting.targets = SourceGenerators\eng\filenesting.targets
 		SourceGenerators\eng\newtonsoftjson.targets = SourceGenerators\eng\newtonsoftjson.targets
 		SourceGenerators\eng\sourcegenerator.targets = SourceGenerators\eng\sourcegenerator.targets
 	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ValueComparers", "ValueComparers", "{8E4DD3AC-2565-4C9D-94ED-960C03A9D7F8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.ValueComparers.NewtonsoftJson", "SourceGenerators\ValueComparers\MintPlayer.ValueComparers.NewtonsoftJson\MintPlayer.ValueComparers.NewtonsoftJson.csproj", "{08DD5F55-535B-432E-AFB7-02E69D6F4417}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -296,6 +301,10 @@ Global
 		{12840C0C-9186-4833-8180-9D4F8A416E42}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{12840C0C-9186-4833-8180-9D4F8A416E42}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{12840C0C-9186-4833-8180-9D4F8A416E42}.Release|Any CPU.Build.0 = Release|Any CPU
+		{08DD5F55-535B-432E-AFB7-02E69D6F4417}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{08DD5F55-535B-432E-AFB7-02E69D6F4417}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{08DD5F55-535B-432E-AFB7-02E69D6F4417}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{08DD5F55-535B-432E-AFB7-02E69D6F4417}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -348,6 +357,8 @@ Global
 		{12840C0C-9186-4833-8180-9D4F8A416E42} = {1614A8B2-CA9A-4F94-B68A-BCC8ED244648}
 		{0F5CE474-092E-48CC-A6DF-2A988A5ADC32} = {C65054D9-CAD1-4124-B474-D03C178D9D78}
 		{4690C409-91FD-458E-9CC2-4A179C20DA48} = {C65054D9-CAD1-4124-B474-D03C178D9D78}
+		{8E4DD3AC-2565-4C9D-94ED-960C03A9D7F8} = {C65054D9-CAD1-4124-B474-D03C178D9D78}
+		{08DD5F55-535B-432E-AFB7-02E69D6F4417} = {8E4DD3AC-2565-4C9D-94ED-960C03A9D7F8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D5378D43-9246-4355-8C4B-880DB15B07DA}

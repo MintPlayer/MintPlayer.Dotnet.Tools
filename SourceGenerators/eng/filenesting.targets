@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+	<!-- Group files -->
+	<ItemGroup>
+		<Compile Update="$(MSBuildProjectDirectory)\**\*.*.cs">
+			<DependentUpon>$([System.Text.RegularExpressions.Regex]::Replace(%(Filename), '(?:.(?![.]))+$', %(Extension)))</DependentUpon>
+		</Compile>
+	</ItemGroup>
+</Project>
