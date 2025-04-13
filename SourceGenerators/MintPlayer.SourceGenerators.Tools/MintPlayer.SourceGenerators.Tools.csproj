@@ -32,10 +32,5 @@
 		</PackageReference>
 	</ItemGroup>
 
-	<!-- Configure file-nesting -->
-	<ItemGroup>
-		<Compile Update="**\*.*.cs">
-			<DependentUpon>$([System.Text.RegularExpressions.Regex]::Replace(%(Filename), '(?:.(?![.]))+$', %(Extension)))</DependentUpon>
-		</Compile>
-	</ItemGroup>
+	<Import Project="../eng/filenesting.targets"/>
 </Project>

@@ -126,6 +126,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "eng", "eng", "{4690C409-91FD-458E-9CC2-4A179C20DA48}"
 	ProjectSection(SolutionItems) = preProject
 		SourceGenerators\eng\dependencyinjection.targets = SourceGenerators\eng\dependencyinjection.targets
+		SourceGenerators\eng\filenesting.targets = SourceGenerators\eng\filenesting.targets
 		SourceGenerators\eng\newtonsoftjson.targets = SourceGenerators\eng\newtonsoftjson.targets
 		SourceGenerators\eng\sourcegenerator.targets = SourceGenerators\eng\sourcegenerator.targets
 	EndProjectSection
