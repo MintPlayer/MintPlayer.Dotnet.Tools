@@ -9,10 +9,13 @@ namespace MintPlayer.SourceGenerators.Generators;
 [Generator(LanguageNames.CSharp)]
 public class GenericMethodSourceGenerator : IncrementalGenerator
 {
-    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
+    public override void RegisterComparers()
     {
         NewtonsoftJsonComparers.Register();
+    }
 
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
+    {
         var methodsProvider = context.SyntaxProvider.CreateSyntaxProvider(
             static (node, ct) =>
             {
@@ -35,7 +38,7 @@ public class GenericMethodSourceGenerator : IncrementalGenerator
                                 Attribute = a,
                                 Type = context.SemanticModel.GetTypeInfo(a, ct).ConvertedType
                             })
-                            .FirstOrDefault(a => a.Type.Equals(context.SemanticModel.Compilation.GetTypeByMetadataName(typeof(GenericMethodAttribute).FullName)));
+                            .FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.Type, context.SemanticModel.Compilation.GetTypeByMetadataName(typeof(GenericMethodAttribute).FullName)));
 
                         if (int.TryParse(attributeSyntax.Attribute.ArgumentList.Arguments[0].Expression.ToFullString(), out var countValue))
                         {

@@ -10,10 +10,13 @@ namespace MintPlayer.SourceGenerators.Generators;
 [Generator(LanguageNames.CSharp)]
 public class ClassNamesSourceGenerator : IncrementalGenerator
 {
-    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
+    public override void RegisterComparers()
     {
         NewtonsoftJsonComparers.Register();
+    }
 
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
+    {
         var classDeclarationsProvider = context.SyntaxProvider
             .CreateSyntaxProvider(
                 static (node, ct) =>

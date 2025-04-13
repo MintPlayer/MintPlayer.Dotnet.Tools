@@ -78,12 +78,17 @@ internal static class ValueComparerCache
             if (comparerTypeFromAttribute is { })
                 return comparerTypeFromAttribute;
 
+            // customComparers must be filled before Cache<TValue> is called
             return customComparers.FirstOrDefault()?.ComparerType;
         }
 
         private static List<CustomComparer<TValue>> customComparers = [];
         internal static void AddCustomComparer<TComparer>() where TComparer : ValueComparer<TValue>
-            => customComparers.Add(new() { ComparerType = typeof(TComparer) });
+        {
+            var x = typeof(TComparer);
+            var y = new CustomComparer<TValue>() { ComparerType = x };
+            customComparers.Add(y);
+        }
     }
 
     public static IEqualityComparer<TValue?> GetComparer<TValue>() => Cache<TValue>.Comparer;
