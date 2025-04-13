@@ -1,4 +1,5 @@
 ﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Text;
 using System.Reflection;
 
 namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
@@ -52,8 +53,10 @@ internal static class ValueComparerCache
                 { IsGenericType: true } when underlyingType is not null && type.GetGenericTypeDefinition() == typeof(KeyValuePair<,>) => typeof(NullableKeyValuePairValueComparer<,>).MakeGenericType(arg1, arg2),
 
                 // Object Comparers
-                //{ } jObjectType when jObjectType == typeof(JObject) => typeof(JObjectValueComparer),
                 { } locationType when locationType == typeof(Location) => typeof(LocationValueComparer),
+                { } syntaxType when syntaxType == typeof(SyntaxNode) => typeof(SyntaxValueComparer),
+                { } symbolType when typeof(ISymbol).IsAssignableFrom(symbolType) => typeof(SymbolValueComparer),
+                { } sourceTextType when sourceTextType == typeof(SourceText) => typeof(SourceTextValueComparer),
 
                 // Default Value Comparers
                 { } stringType when stringType == typeof(string) => typeof(DefaultValueComparer<>).MakeGenericType(type),
@@ -62,12 +65,33 @@ internal static class ValueComparerCache
                 { IsValueType: true } => typeof(DefaultValueComparer<>).MakeGenericType(typeof(TValue)),
 
                 // Attribute Value Comparer
-                _ => type.GetCustomAttribute<ValueComparerAttribute>()?.ComparerType,
+                _ => GetOtherComparerType(type),
             };
 
             Comparer = (IEqualityComparer<TValue?>?)Activator.CreateInstance(comparerType) ?? throw new NotImplementedException();
         }
+
+        private static Type? GetOtherComparerType(Type? type)
+        {
+            // Check if the type has a ValueComparerAttribute
+            var comparerTypeFromAttribute = type.GetCustomAttribute<ValueComparerAttribute>()?.ComparerType;
+            if (comparerTypeFromAttribute is { })
+                return comparerTypeFromAttribute;
+
+            return customComparers.FirstOrDefault()?.ComparerType;
+        }
+
+        private static List<CustomComparer<TValue>> customComparers = [];
+        internal static void AddCustomComparer<TComparer>() where TComparer : ValueComparer<TValue>
+            => customComparers.Add(new() { ComparerType = typeof(TComparer) });
     }
 
     public static IEqualityComparer<TValue?> GetComparer<TValue>() => Cache<TValue>.Comparer;
+    internal static void AddCustomComparer<TValue, TComparer>() where TComparer : ValueComparer<TValue>
+        => Cache<TValue>.AddCustomComparer<TComparer>();
+}
+
+internal class CustomComparer<TValue>
+{
+    public Type? ComparerType { get; set; }
 }

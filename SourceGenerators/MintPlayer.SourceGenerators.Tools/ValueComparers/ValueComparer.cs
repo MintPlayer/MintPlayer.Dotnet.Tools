@@ -5,6 +5,12 @@
 /// </summary>
 public abstract class ValueComparer<T> : IEqualityComparer<T?>
 {
+    /// <summary>
+    /// Register a custom comparer for <typeparamref name="T"/>, where you cannot use the <see cref="ValueComparerAttribute"/>.
+    /// </summary>
+    public static void RegisterCustomComparer<TComparer>() where TComparer : ValueComparer<T>
+        => ValueComparerCache.AddCustomComparer<T, TComparer>();
+
     public static IEqualityComparer<T?> Instance { get; } = ValueComparerCache.GetComparer<T>();
 
     public static bool IsEquals<TValue>(TValue? x, TValue? y) => ValueComparerCache.GetComparer<TValue>().Equals(x, y);

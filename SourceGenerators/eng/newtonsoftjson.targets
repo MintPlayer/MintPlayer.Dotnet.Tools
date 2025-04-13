@@ -3,6 +3,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" PrivateAssets="all" GeneratePathProperty="true" />
+		<ProjectReference Include="$(MSBuildThisFileDirectory)\..\ValueComparers\MintPlayer.ValueComparers.NewtonsoftJson\MintPlayer.ValueComparers.NewtonsoftJson.csproj" />
 	</ItemGroup>
 
 	<PropertyGroup>
@@ -13,8 +14,10 @@
 		<!-- Put the assets for this project in the correct package path -->
 		<!-- Rolsyn 4.0 -->
 		<None Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="false" />
+		<None Include="$(MSBuildThisFileDirectory)\..\ValueComparers\MintPlayer.ValueComparers.NewtonsoftJson\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="false" />
 		<!-- Rolsyn 4.9 -->
 		<None Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="false" />
+		<None Include="$(MSBuildThisFileDirectory)\..\ValueComparers\MintPlayer.ValueComparers.NewtonsoftJson\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="false" />
 	</ItemGroup>
 
 	<Target Name="GetDependencyTargetPathsNewtonsoftJson">

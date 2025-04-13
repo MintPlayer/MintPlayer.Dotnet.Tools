@@ -1,6 +1,7 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
+using MintPlayer.ValueComparers.NewtonsoftJson;
 
 namespace MintPlayer.SourceGenerators.Generators;
 
@@ -11,6 +12,8 @@ public class InjectSourceGenerator : IncrementalGenerator
     // https://www.meziantou.net/measuring-performance-of-roslyn-source-generators.htm
     public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {
+        NewtonsoftJsonComparers.Register();
+
         var classesProvider = context.SyntaxProvider
             .CreateSyntaxProvider(
                 static (node, ct) => node is ClassDeclarationSyntax classDeclaration &&

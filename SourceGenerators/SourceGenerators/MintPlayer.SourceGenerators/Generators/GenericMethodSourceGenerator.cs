@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
+using MintPlayer.ValueComparers.NewtonsoftJson;
 
 namespace MintPlayer.SourceGenerators.Generators;
 
@@ -10,6 +11,8 @@ public class GenericMethodSourceGenerator : IncrementalGenerator
 {
     public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {
+        NewtonsoftJsonComparers.Register();
+
         var methodsProvider = context.SyntaxProvider.CreateSyntaxProvider(
             static (node, ct) =>
             {
