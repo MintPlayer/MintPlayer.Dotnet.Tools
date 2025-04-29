@@ -104,6 +104,7 @@ public class ValueComparerGenerator : IncrementalGenerator
                     HasAutoValueComparerAttribute = t.HasAttribute,
                 })
         );
+            //.WithComparer(Models.ClassDeclarationValueComparer.Instance);
 
         // This provider retrieves all types that have derived types
         var typeTreeProvider = allTypesProvider
@@ -145,7 +146,7 @@ public class ValueComparerGenerator : IncrementalGenerator
             .Combine(typeTreeProvider)
             .Combine(childrenWithoutDerived)
             .Combine(settingsProvider)
-            .Select(static Producer (p, ct) => new Producers.TreeValueComparerProducer(p.Left.Left.Left.Where(t => t.HasAutoValueComparerAttribute), p.Left.Left.Right, p.Left.Right, p.Right.RootNamespace!, valueComparerType, valueComparerAttributeType));
+            .Select(static Producer (p, ct) => new Producers.TreeValueComparerProducer(p.Left.Left.Left.Where(t => t.HasAutoValueComparerAttribute), p.Left.Left.Right, p.Left.Right, p.Right, valueComparerType, valueComparerAttributeType));
 
         context.ProduceCode(typeTreeSourceProvider);
     }

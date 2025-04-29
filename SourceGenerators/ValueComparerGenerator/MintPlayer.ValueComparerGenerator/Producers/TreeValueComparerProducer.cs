@@ -1,4 +1,5 @@
-﻿using MintPlayer.SourceGenerators.Tools;
+﻿using Microsoft.CodeAnalysis;
+using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.ValueComparerGenerator.Models;
 using System.CodeDom.Compiler;
 
@@ -9,13 +10,15 @@ public sealed class TreeValueComparerProducer : Producer
     private readonly IEnumerable<ClassDeclaration> classDeclarations;
     private readonly IEnumerable<TypeTreeDeclaration> treeDeclarations;
     private readonly IEnumerable<ClassDeclaration> childrenWithoutChildren;
+    private readonly Settings settings;
     private readonly string comparerType;
     private readonly string comparerAttributeType;
-    public TreeValueComparerProducer(IEnumerable<ClassDeclaration> classDeclarations, IEnumerable<TypeTreeDeclaration> treeDeclarations, IEnumerable<ClassDeclaration> childrenWithoutChildren, string rootNamespace, string comparerType, string comparerAttributeType) : base(rootNamespace, $"TreeValueComparers.g.cs")
+    public TreeValueComparerProducer(IEnumerable<ClassDeclaration> classDeclarations, IEnumerable<TypeTreeDeclaration> treeDeclarations, IEnumerable<ClassDeclaration> childrenWithoutChildren, Settings settings, string comparerType, string comparerAttributeType) : base(settings.RootNamespace!, $"TreeValueComparers.g.cs")
     {
         this.classDeclarations = classDeclarations;
         this.treeDeclarations = treeDeclarations;
         this.childrenWithoutChildren = childrenWithoutChildren;
+        this.settings = settings;
         this.comparerType = comparerType;
         this.comparerAttributeType = comparerAttributeType;
     }
@@ -58,12 +61,35 @@ public sealed class TreeValueComparerProducer : Producer
             ))
             .GroupBy(d => d.Namespace);
 
+        writer.WriteLine($"using Microsoft.CodeAnalysis;");
+        writer.WriteLine();
 
+        var ivp = settings.IncrementalValueProviderSymbol;
         foreach (var namespaceGrouping in treeGrouped)
         {
             writer.WriteLine($"namespace {namespaceGrouping.Key}");
             writer.WriteLine("{");
             writer.Indent++;
+
+            writer.WriteLine($"public static class ValueComparerExtensions");
+            writer.WriteLine("{");
+            writer.Indent++;
+
+            foreach (var baseType in namespaceGrouping)
+            {
+                writer.WriteLine($"public static {ivp}<{baseType.Name}> WithComparer(this {ivp}<{baseType.Name}> source)");
+                writer.WriteLine("{");
+                writer.Indent++;
+
+                writer.WriteLine($"return source.WithComparer({baseType.Name}ValueComparer.Instance);");
+
+                writer.Indent--;
+                writer.WriteLine("}");
+            }
+
+            writer.Indent--;
+            writer.WriteLine("}");
+            writer.WriteLine();
 
             foreach (var baseType in namespaceGrouping)
             {
