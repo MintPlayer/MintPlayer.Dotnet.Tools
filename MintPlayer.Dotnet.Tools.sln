@@ -135,6 +135,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ValueComparers", "ValueComp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.ValueComparers.NewtonsoftJson", "SourceGenerators\ValueComparers\MintPlayer.ValueComparers.NewtonsoftJson\MintPlayer.ValueComparers.NewtonsoftJson.csproj", "{08DD5F55-535B-432E-AFB7-02E69D6F4417}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Helpers", "Helpers", "{D4992485-AD63-4439-B032-D2FBE46C5C65}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RemoveObjBin", "Helpers\RemoveObjBin\RemoveObjBin.csproj", "{DDAF5340-C90D-4EC1-B0E1-F9E5CECB1A44}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -305,6 +309,10 @@ Global
 		{08DD5F55-535B-432E-AFB7-02E69D6F4417}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{08DD5F55-535B-432E-AFB7-02E69D6F4417}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{08DD5F55-535B-432E-AFB7-02E69D6F4417}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DDAF5340-C90D-4EC1-B0E1-F9E5CECB1A44}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DDAF5340-C90D-4EC1-B0E1-F9E5CECB1A44}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DDAF5340-C90D-4EC1-B0E1-F9E5CECB1A44}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DDAF5340-C90D-4EC1-B0E1-F9E5CECB1A44}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -359,6 +367,7 @@ Global
 		{4690C409-91FD-458E-9CC2-4A179C20DA48} = {C65054D9-CAD1-4124-B474-D03C178D9D78}
 		{8E4DD3AC-2565-4C9D-94ED-960C03A9D7F8} = {C65054D9-CAD1-4124-B474-D03C178D9D78}
 		{08DD5F55-535B-432E-AFB7-02E69D6F4417} = {8E4DD3AC-2565-4C9D-94ED-960C03A9D7F8}
+		{DDAF5340-C90D-4EC1-B0E1-F9E5CECB1A44} = {D4992485-AD63-4439-B032-D2FBE46C5C65}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D5378D43-9246-4355-8C4B-880DB15B07DA}
