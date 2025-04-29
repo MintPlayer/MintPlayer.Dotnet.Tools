@@ -5,6 +5,7 @@ var foldersToDelete = new[]
 };
 
 var allDirectories = Directory.EnumerateDirectories(rootPath, "*", SearchOption.AllDirectories)
+    .Where(dir => !dir.Contains("node_modules", StringComparison.OrdinalIgnoreCase))
     .Where(dir => foldersToDelete.Contains(Path.GetFileName(dir), StringComparer.OrdinalIgnoreCase));
 
 foreach (var binDir in allDirectories)

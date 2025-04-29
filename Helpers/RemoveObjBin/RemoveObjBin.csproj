@@ -11,7 +11,7 @@
 		<ToolCommandName>rob</ToolCommandName>
 
 		<IsPackable>true</IsPackable>
-		<Version>9.0.2</Version>
+		<Version>9.0.3</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package removes bin/obj folders in the cwd</Description>
