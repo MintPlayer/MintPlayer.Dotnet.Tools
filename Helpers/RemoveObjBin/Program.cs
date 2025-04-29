@@ -1,4 +1,4 @@
-﻿var rootPath = @"C:\Repos\MintPlayer.Dotnet.Tools";
+﻿var rootPath = Directory.GetCurrentDirectory();
 var foldersToDelete = new[]
 {
     "bin", "obj", "bin-windows", "bin-linux", "obj-windows", "obj-linux", "tmp-build"
