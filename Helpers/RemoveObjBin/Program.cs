@@ -1,7 +1,13 @@
-﻿var rootPath = Directory.GetCurrentDirectory();
-Console.WriteLine("Current Directory: " + rootPath);
+﻿var rootPath = @"C:\Repos\MintPlayer.Dotnet.Tools";
+var foldersToDelete = new[]
+{
+    "bin", "obj", "bin-windows", "bin-linux", "obj-windows", "obj-linux", "tmp-build"
+};
 
-foreach (var binDir in Directory.EnumerateDirectories(rootPath, "bin|obj|bin-windows|bin-linux|obj-windows|obj-linux|tmp-build", SearchOption.AllDirectories))
+var allDirectories = Directory.EnumerateDirectories(rootPath, "*", SearchOption.AllDirectories)
+    .Where(dir => foldersToDelete.Contains(Path.GetFileName(dir), StringComparer.OrdinalIgnoreCase));
+
+foreach (var binDir in allDirectories)
 {
     try
     {
