@@ -35,6 +35,16 @@ public static class GeneratorExtensions
         context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
     }
 
+    public static void ProduceCode(this IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Producer[]> providers)
+    {
+        context.RegisterSourceOutput(providers, static (c, g) =>
+        {
+            foreach (var item in g)
+                item?.Produce(c);
+        });
+    }
+
+
     /// <summary>
     /// Call this method with all <see cref="IncrementalValueProvider{ImmutableArrayOfDiagnostic}" /> you want to register.
     /// </summary>
