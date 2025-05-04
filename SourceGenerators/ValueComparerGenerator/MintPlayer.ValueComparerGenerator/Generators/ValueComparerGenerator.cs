@@ -60,6 +60,8 @@ public class ValueComparerGenerator : IncrementalGenerator
                                 Type = property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
                                 HasComparerIgnore = property.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, context.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.ValueComparerGenerator.Attributes.ComparerIgnoreAttribute"))),
                             }).ToArray(),
+                            HasCodeAnalysisReference = context.SemanticModel.Compilation.ReferencedAssemblyNames
+                                .Any(a => a.Name == "Microsoft.CodeAnalysis"),
                         };
                     }
                     else
@@ -80,6 +82,8 @@ public class ValueComparerGenerator : IncrementalGenerator
                                 Type = property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
                                 HasComparerIgnore = property.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, context.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.ValueComparerGenerator.Attributes.ComparerIgnoreAttribute"))),
                             }).ToArray(),
+                            HasCodeAnalysisReference = context.SemanticModel.Compilation.ReferencedAssemblyNames
+                                .Any(a => a.Name == "Microsoft.CodeAnalysis"),
                         };
                     }
                 }
@@ -141,11 +145,26 @@ public class ValueComparerGenerator : IncrementalGenerator
                     HasAutoValueComparerAttribute = t.HasAttribute,
                 }));
 
-        var typeTreeSourceProvider = typeProvider
-            .Combine(typeTreeProvider)
-            .Combine(childrenWithoutDerived)
-            .Combine(settingsProvider)
-            .Select(static Producer (p, ct) => new Producers.TreeValueComparerProducer(p.Left.Left.Left.Where(t => t.HasAutoValueComparerAttribute), p.Left.Left.Right, p.Left.Right, p.Right.RootNamespace!, valueComparerType, valueComparerAttributeType));
+        var hasCodeAnalysisReference = allTypesProvider
+            .Collect()
+            .Select(static (allTypes, ct) => allTypes
+                .NotNull()
+                .Any(t => t.HasCodeAnalysisReference));
+
+        var typeTreeSourceProvider = typeProvider   // p.Left.Left.Left.Left
+            .Combine(typeTreeProvider)              // p.Left.Left.Left.Right
+            .Combine(childrenWithoutDerived)        // p.Left.Left.Right
+            .Combine(settingsProvider)              // p.Left.Right
+            .Combine(hasCodeAnalysisReference)      // p.Right
+            .Select(static Producer (p, ct) => new Producers.TreeValueComparerProducer(
+                p.Left.Left.Left.Left.Where(t => t.HasAutoValueComparerAttribute),
+                p.Left.Left.Left.Right,
+                p.Left.Left.Right,
+                p.Left.Right.RootNamespace!,
+                valueComparerType,
+                valueComparerAttributeType,
+                p.Right
+            ));
 
         context.ProduceCode(typeTreeSourceProvider);
     }

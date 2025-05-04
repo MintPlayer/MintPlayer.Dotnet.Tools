@@ -11,13 +11,15 @@ public sealed class TreeValueComparerProducer : Producer
     private readonly IEnumerable<ClassDeclaration> childrenWithoutChildren;
     private readonly string comparerType;
     private readonly string comparerAttributeType;
-    public TreeValueComparerProducer(IEnumerable<ClassDeclaration> classDeclarations, IEnumerable<TypeTreeDeclaration> treeDeclarations, IEnumerable<ClassDeclaration> childrenWithoutChildren, string rootNamespace, string comparerType, string comparerAttributeType) : base(rootNamespace, $"TreeValueComparers.g.cs")
+    private readonly bool hasCodeAnalysisReference;
+    public TreeValueComparerProducer(IEnumerable<ClassDeclaration> classDeclarations, IEnumerable<TypeTreeDeclaration> treeDeclarations, IEnumerable<ClassDeclaration> childrenWithoutChildren, string rootNamespace, string comparerType, string comparerAttributeType, bool hasCodeAnalysisReference) : base(rootNamespace, $"TreeValueComparers.g.cs")
     {
         this.classDeclarations = classDeclarations;
         this.treeDeclarations = treeDeclarations;
         this.childrenWithoutChildren = childrenWithoutChildren;
         this.comparerType = comparerType;
         this.comparerAttributeType = comparerAttributeType;
+        this.hasCodeAnalysisReference = hasCodeAnalysisReference;
     }
 
 
@@ -114,6 +116,30 @@ public sealed class TreeValueComparerProducer : Producer
                 writer.WriteLine("}");
                 writer.WriteLine();
             }
+            writer.Indent--;
+            writer.WriteLine("}");
+        }
+
+        if (hasCodeAnalysisReference)
+        {
+            writer.WriteLine();
+            writer.WriteLine($"namespace {RootNamespace}");
+            writer.WriteLine("{");
+            writer.Indent++;
+            writer.WriteLine($"public static class ValueComparerExtensions");
+            writer.WriteLine("{");
+            writer.Indent++;
+            foreach (var type in classDeclarations)
+            {
+                writer.WriteLine($"public static global::Microsoft.CodeAnalysis.IncrementalValuesProvider<{type.FullName}?> WithComparer(this global::Microsoft.CodeAnalysis.IncrementalValuesProvider<{type.FullName}?> provider)");
+                writer.WriteLine("{");
+                writer.Indent++;
+                writer.WriteLine($"return global::Microsoft.CodeAnalysis.IncrementalValueProviderExtensions.WithComparer(provider, {type.FullName}ValueComparer.Instance);");
+                writer.Indent--;
+                writer.WriteLine("}");
+            }
+            writer.Indent--;
+            writer.WriteLine("}");
             writer.Indent--;
             writer.WriteLine("}");
         }
