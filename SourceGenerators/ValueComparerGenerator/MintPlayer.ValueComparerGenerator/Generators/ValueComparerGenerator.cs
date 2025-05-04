@@ -130,10 +130,12 @@ public class ValueComparerGenerator : IncrementalGenerator
         );
 
         //allTypesProvider.Collect().Select(p => p.Except(typeProvider.co).Except(typeTreeProvider));
-        var childrenWithoutDerived = allTypesProvider.Collect().Combine(typeProvider).Combine(typeTreeProvider)
-            .Select(static (p, ct) => p.Left.Left
+        var childrenWithoutDerived = allTypesProvider.Collect()
+            .Join(typeProvider)
+            .Join(typeTreeProvider)
+            .Select(static (p, ct) => p.Item1
                 .Where(all => all is { HasAttribute: true })
-                .Where(all => !p.Left.Right.Any(x => x.FullName == all?.Type) && !p.Right.Any(x => x.BaseType.FullName == all?.Type))
+                .Where(all => !p.Item2.Any(x => x.FullName == all?.Type) && !p.Item3.Any(x => x.BaseType.FullName == all?.Type))
                 .Select(t => new Models.ClassDeclaration
                 {
                     Name = t.Name,
@@ -151,22 +153,21 @@ public class ValueComparerGenerator : IncrementalGenerator
                 .NotNull()
                 .Any(t => t.HasCodeAnalysisReference));
 
-        var typeTreeSourceProvider = typeProvider   // p.Left.Left.Left.Left
-            .Combine(typeTreeProvider)              // p.Left.Left.Left.Right
-            .Combine(childrenWithoutDerived)        // p.Left.Left.Right
-            .Combine(settingsProvider)              // p.Left.Right
-            .Combine(hasCodeAnalysisReference)      // p.Right
+        var typeTreeSourceProvider = typeProvider
+            .Join(typeTreeProvider)
+            .Join(childrenWithoutDerived)
+            .Join(settingsProvider)
+            .Join(hasCodeAnalysisReference)
             .Select(static Producer (p, ct) => new Producers.TreeValueComparerProducer(
-                p.Left.Left.Left.Left.Where(t => t.HasAutoValueComparerAttribute),
-                p.Left.Left.Left.Right,
-                p.Left.Left.Right,
-                p.Left.Right.RootNamespace!,
+                p.Item1.Where(t => t.HasAutoValueComparerAttribute),
+                p.Item2,
+                p.Item3,
+                p.Item4.RootNamespace!,
                 valueComparerType,
                 valueComparerAttributeType,
-                p.Right
+                p.Item5
             ));
 
         context.ProduceCode(typeTreeSourceProvider);
     }
-
 }

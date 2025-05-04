@@ -1,5 +1,4 @@
 ﻿using Microsoft.CodeAnalysis;
-using MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 namespace MintPlayer.SourceGenerators.Tools;
 

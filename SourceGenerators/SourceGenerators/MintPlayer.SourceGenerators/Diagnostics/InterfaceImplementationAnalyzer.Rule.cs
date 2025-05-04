@@ -2,7 +2,7 @@
 
 namespace MintPlayer.SourceGenerators.Diagnostics;
 
-public static class DiagnosticRules
+public static partial class DiagnosticRules
 {
     public static readonly DiagnosticDescriptor MissingInterfaceMemberRule = new DiagnosticDescriptor(
         id: "INTF001",
