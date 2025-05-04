@@ -1,4 +1,6 @@
-﻿namespace MintPlayer.SeasonChecker.Abstractions;
+﻿using System.Runtime.CompilerServices;
+
+namespace MintPlayer.SeasonChecker.Abstractions;
 
 public interface ISeason
 {
