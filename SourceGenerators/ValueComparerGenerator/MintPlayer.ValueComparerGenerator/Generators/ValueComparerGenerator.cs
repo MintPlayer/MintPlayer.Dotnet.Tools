@@ -151,11 +151,11 @@ public class ValueComparerGenerator : IncrementalGenerator
                 .NotNull()
                 .Any(t => t.HasCodeAnalysisReference));
 
-        var typeTreeSourceProvider = typeProvider   // p.Left.Left.Left.Left
-            .Join(typeTreeProvider)              // p.Left.Left.Left.Right
-            .Join(childrenWithoutDerived)        // p.Left.Left.Right
-            .Join(settingsProvider)              // p.Left.Right
-            .Join(hasCodeAnalysisReference)      // p.Right
+        var typeTreeSourceProvider = typeProvider
+            .Join(typeTreeProvider)
+            .Join(childrenWithoutDerived)
+            .Join(settingsProvider)
+            .Join(hasCodeAnalysisReference)
             .Select(static Producer (p, ct) => new Producers.TreeValueComparerProducer(
                 p.Item1.Where(t => t.HasAutoValueComparerAttribute),
                 p.Item2,
@@ -168,42 +168,4 @@ public class ValueComparerGenerator : IncrementalGenerator
 
         context.ProduceCode(typeTreeSourceProvider);
     }
-
-}
-
-public static class IncrementalValueProviderExtensions
-{
-    public static IncrementalValueProvider<(T1, T2)> Join<T1, T2>(
-        this IncrementalValueProvider<T1> first,
-        IncrementalValueProvider<T2> second)
-    {
-        return Microsoft.CodeAnalysis.IncrementalValueProviderExtensions.Combine(first, second);
-        //return first.Combine(second);
-    }
-
-    public static IncrementalValueProvider<(T1, T2, T3)> Join<T1, T2, T3>(
-        this IncrementalValueProvider<(T1, T2)> previous,
-        IncrementalValueProvider<T3> third)
-    {
-        return Microsoft.CodeAnalysis.IncrementalValueProviderExtensions.Combine(previous, third)
-            .Select(static (t, _) => (t.Left.Item1, t.Left.Item2, t.Right));
-    }
-
-    public static IncrementalValueProvider<(T1, T2, T3, T4)> Join<T1, T2, T3, T4>(
-        this IncrementalValueProvider<(T1, T2, T3)> previous,
-        IncrementalValueProvider<T4> fourth)
-    {
-        return Microsoft.CodeAnalysis.IncrementalValueProviderExtensions.Combine(previous, fourth)
-            .Select(static (t, _) => (t.Left.Item1, t.Left.Item2, t.Left.Item3, t.Right));
-    }
-    
-    public static IncrementalValueProvider<(T1, T2, T3, T4, T5)> Join<T1, T2, T3, T4, T5>(
-        this IncrementalValueProvider<(T1, T2, T3, T4)> previous,
-        IncrementalValueProvider<T5> fifth)
-    {
-        return Microsoft.CodeAnalysis.IncrementalValueProviderExtensions.Combine(previous, fifth)
-            .Select(static (t, _) => (t.Left.Item1, t.Left.Item2, t.Left.Item3, t.Left.Item4, t.Right));
-    }
-
-    // ...and so on for more items
 }
