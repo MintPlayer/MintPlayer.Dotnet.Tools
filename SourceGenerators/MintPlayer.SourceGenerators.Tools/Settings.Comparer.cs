@@ -1,4 +1,6 @@
-﻿namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
+﻿using MintPlayer.SourceGenerators.Tools.ValueComparers;
+
+namespace MintPlayer.SourceGenerators.Tools;
 
 public sealed class SettingsValueComparer : ValueComparer<Settings>
 {
