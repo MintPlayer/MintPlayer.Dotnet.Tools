@@ -3,7 +3,7 @@ using MintPlayer.SourceGenerators.Models;
 using MintPlayer.SourceGenerators.Tools;
 using System.CodeDom.Compiler;
 
-namespace MintPlayer.SourceGenerators.Producers;
+namespace MintPlayer.SourceGenerators.Generators;
 
 public class RegistrationsProducer : Producer
 {

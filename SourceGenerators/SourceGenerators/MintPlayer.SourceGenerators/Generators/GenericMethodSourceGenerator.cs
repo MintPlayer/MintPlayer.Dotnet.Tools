@@ -69,7 +69,7 @@ public class GenericMethodSourceGenerator : IncrementalGenerator
 
         var methodsSourceProvider = methodsProvider
             .Combine(settingsProvider)
-            .Select(static Producer (providers, ct) => new Producers.GenericMethodProducer(providers.Left.NotNull(), providers.Right.RootNamespace!));
+            .Select(static Producer (providers, ct) => new GenericMethodProducer(providers.Left.NotNull(), providers.Right.RootNamespace!));
 
         context.ProduceCode(methodsSourceProvider);
     }

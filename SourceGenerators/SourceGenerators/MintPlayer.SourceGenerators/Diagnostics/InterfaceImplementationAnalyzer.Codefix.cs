@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Attributes;
 using System.Collections.Immutable;
 
-namespace MintPlayer.SourceGenerators.Diagnostics.CodeFixes;
+namespace MintPlayer.SourceGenerators.Diagnostics;
 
 [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(InterfaceCodeFixProvider))]
 public class InterfaceCodeFixProvider : CodeFixProvider

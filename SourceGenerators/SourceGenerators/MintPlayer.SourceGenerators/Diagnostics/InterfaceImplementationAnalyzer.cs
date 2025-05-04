@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis.Diagnostics;
 using MintPlayer.SourceGenerators.Attributes;
 using System.Collections.Immutable;
 
-namespace MintPlayer.SourceGenerators.Diagnostics.Analyzers;
+namespace MintPlayer.SourceGenerators.Diagnostics;
 
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public class InterfaceImplementationAnalyzer : DiagnosticAnalyzer
