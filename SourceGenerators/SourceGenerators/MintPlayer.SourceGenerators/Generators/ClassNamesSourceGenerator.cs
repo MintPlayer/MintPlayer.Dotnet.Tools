@@ -76,20 +76,20 @@ public class ClassNamesSourceGenerator : IncrementalGenerator
             .Collect();
 
         var classNamesSourceProvider = classDeclarationsProvider
-            .Combine(settingsProvider)
-            .Select(static Producer (p, ct) => new ClassNamesProducer(declarations: p.Left.NotNull(), rootNamespace: p.Right.RootNamespace!));
+            .Join(settingsProvider)
+            .Select(static Producer (p, ct) => new ClassNamesProducer(declarations: p.Item1.NotNull(), rootNamespace: p.Item2.RootNamespace!));
 
         var classNameListSourceProvider = classDeclarationsProvider
-            .Combine(settingsProvider)
-            .Select(static Producer (p, ct) => new ClassNameListProducer(declarations: p.Left.NotNull(), rootNamespace: p.Right.RootNamespace!));
+            .Join(settingsProvider)
+            .Select(static Producer (p, ct) => new ClassNameListProducer(declarations: p.Item1.NotNull(), rootNamespace: p.Item2.RootNamespace!));
 
         var classNamesDiagnosticProvider = classDeclarationsProvider
-            .Combine(settingsProvider)
-            .Select(static IDiagnosticReporter (p, ct) => new ClassNamesProducer(declarations: p.Left.NotNull(), rootNamespace: p.Right.RootNamespace!));
+            .Join(settingsProvider)
+            .Select(static IDiagnosticReporter (p, ct) => new ClassNamesProducer(declarations: p.Item1.NotNull(), rootNamespace: p.Item2.RootNamespace!));
 
         var classNameListDiagnosticProvider = classDeclarationsProvider
-            .Combine(settingsProvider)
-            .Select(static IDiagnosticReporter (p, ct) => new ClassNameListProducer(declarations: p.Left.NotNull(), rootNamespace: p.Right.RootNamespace!));
+            .Join(settingsProvider)
+            .Select(static IDiagnosticReporter (p, ct) => new ClassNameListProducer(declarations: p.Item1.NotNull(), rootNamespace: p.Item2.RootNamespace!));
 
         // Combine all Source Providers
         context.ProduceCode(classNamesSourceProvider, classNameListSourceProvider);

@@ -55,8 +55,8 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
             .Collect();
 
         var registerAttributeSourceProvider = classesWithRegisterAttributeProvider
-            .Combine(settingsProvider)
-            .Select(static Producer (providers, ct) => new RegistrationsProducer(providers.Left.NotNull(), providers.Right.RootNamespace!));
+            .Join(settingsProvider)
+            .Select(static Producer (providers, ct) => new RegistrationsProducer(providers.Item1.NotNull(), providers.Item2.RootNamespace!));
 
         // Combine all source providers
         context.ProduceCode(registerAttributeSourceProvider);

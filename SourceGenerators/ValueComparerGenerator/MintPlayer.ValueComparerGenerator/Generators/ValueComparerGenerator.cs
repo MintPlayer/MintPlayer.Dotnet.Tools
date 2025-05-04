@@ -130,10 +130,12 @@ public class ValueComparerGenerator : IncrementalGenerator
         );
 
         //allTypesProvider.Collect().Select(p => p.Except(typeProvider.co).Except(typeTreeProvider));
-        var childrenWithoutDerived = allTypesProvider.Collect().Combine(typeProvider).Combine(typeTreeProvider)
-            .Select(static (p, ct) => p.Left.Left
+        var childrenWithoutDerived = allTypesProvider.Collect()
+            .Join(typeProvider)
+            .Join(typeTreeProvider)
+            .Select(static (p, ct) => p.Item1
                 .Where(all => all is { HasAttribute: true })
-                .Where(all => !p.Left.Right.Any(x => x.FullName == all?.Type) && !p.Right.Any(x => x.BaseType.FullName == all?.Type))
+                .Where(all => !p.Item2.Any(x => x.FullName == all?.Type) && !p.Item3.Any(x => x.BaseType.FullName == all?.Type))
                 .Select(t => new Models.ClassDeclaration
                 {
                     Name = t.Name,
