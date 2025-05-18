@@ -139,6 +139,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Helpers", "Helpers", "{D499
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RemoveObjBin", "Helpers\RemoveObjBin\RemoveObjBin.csproj", "{DDAF5340-C90D-4EC1-B0E1-F9E5CECB1A44}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ConfigBuilder", "ConfigBuilder", "{323548EB-E356-4639-BD8C-427225612061}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.ConfigBuilderGenerator", "SourceGenerators\ConfigBuilder\MintPlayer.ConfigBuilderGenerator\MintPlayer.ConfigBuilderGenerator.csproj", "{07B12C05-45C9-48AC-BB7B-98F7BF4733EB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConfigBuilderDebugging", "SourceGenerators\TestProjects\ConfigBuilderDebugging\ConfigBuilderDebugging.csproj", "{45C8D21B-0CB5-49B0-A481-3C827AFBAABC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -313,6 +319,14 @@ Global
 		{DDAF5340-C90D-4EC1-B0E1-F9E5CECB1A44}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DDAF5340-C90D-4EC1-B0E1-F9E5CECB1A44}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DDAF5340-C90D-4EC1-B0E1-F9E5CECB1A44}.Release|Any CPU.Build.0 = Release|Any CPU
+		{07B12C05-45C9-48AC-BB7B-98F7BF4733EB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{07B12C05-45C9-48AC-BB7B-98F7BF4733EB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{07B12C05-45C9-48AC-BB7B-98F7BF4733EB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{07B12C05-45C9-48AC-BB7B-98F7BF4733EB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{45C8D21B-0CB5-49B0-A481-3C827AFBAABC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{45C8D21B-0CB5-49B0-A481-3C827AFBAABC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{45C8D21B-0CB5-49B0-A481-3C827AFBAABC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{45C8D21B-0CB5-49B0-A481-3C827AFBAABC}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -368,6 +382,9 @@ Global
 		{8E4DD3AC-2565-4C9D-94ED-960C03A9D7F8} = {C65054D9-CAD1-4124-B474-D03C178D9D78}
 		{08DD5F55-535B-432E-AFB7-02E69D6F4417} = {8E4DD3AC-2565-4C9D-94ED-960C03A9D7F8}
 		{DDAF5340-C90D-4EC1-B0E1-F9E5CECB1A44} = {D4992485-AD63-4439-B032-D2FBE46C5C65}
+		{323548EB-E356-4639-BD8C-427225612061} = {C65054D9-CAD1-4124-B474-D03C178D9D78}
+		{07B12C05-45C9-48AC-BB7B-98F7BF4733EB} = {323548EB-E356-4639-BD8C-427225612061}
+		{45C8D21B-0CB5-49B0-A481-3C827AFBAABC} = {1614A8B2-CA9A-4F94-B68A-BCC8ED244648}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D5378D43-9246-4355-8C4B-880DB15B07DA}
