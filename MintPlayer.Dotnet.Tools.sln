@@ -147,6 +147,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "CliParser", "CliParser", "{
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.CliParser.Demo", "CliBuilder\CliParser\MintPlayer.CliParser.Demo\MintPlayer.CliParser.Demo.csproj", "{97B0AC00-7F27-47EE-8760-E98D8897C49D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.CliParser", "CliBuilder\CliParser\MintPlayer.CliParser\MintPlayer.CliParser.csproj", "{E8461987-5224-4099-A9D9-4A742AE83103}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.CliParser.Abstractions", "CliBuilder\CliParser\MintPlayer.CliParser.Abstractions\MintPlayer.CliParser.Abstractions.csproj", "{E63E056C-331C-4ABC-B6E4-D42D514FDA97}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -329,6 +333,14 @@ Global
 		{97B0AC00-7F27-47EE-8760-E98D8897C49D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{97B0AC00-7F27-47EE-8760-E98D8897C49D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{97B0AC00-7F27-47EE-8760-E98D8897C49D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E8461987-5224-4099-A9D9-4A742AE83103}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E8461987-5224-4099-A9D9-4A742AE83103}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E8461987-5224-4099-A9D9-4A742AE83103}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E8461987-5224-4099-A9D9-4A742AE83103}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E63E056C-331C-4ABC-B6E4-D42D514FDA97}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E63E056C-331C-4ABC-B6E4-D42D514FDA97}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E63E056C-331C-4ABC-B6E4-D42D514FDA97}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E63E056C-331C-4ABC-B6E4-D42D514FDA97}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -387,6 +399,8 @@ Global
 		{DF6E4045-6EF9-4A0C-9A70-889E5C531C8F} = {712B1AC8-534C-4B96-90F7-3BBE863DD12B}
 		{9A2FA9C4-81E1-49CB-A60A-04FD82CFB6AA} = {712B1AC8-534C-4B96-90F7-3BBE863DD12B}
 		{97B0AC00-7F27-47EE-8760-E98D8897C49D} = {9A2FA9C4-81E1-49CB-A60A-04FD82CFB6AA}
+		{E8461987-5224-4099-A9D9-4A742AE83103} = {9A2FA9C4-81E1-49CB-A60A-04FD82CFB6AA}
+		{E63E056C-331C-4ABC-B6E4-D42D514FDA97} = {9A2FA9C4-81E1-49CB-A60A-04FD82CFB6AA}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D5378D43-9246-4355-8C4B-880DB15B07DA}

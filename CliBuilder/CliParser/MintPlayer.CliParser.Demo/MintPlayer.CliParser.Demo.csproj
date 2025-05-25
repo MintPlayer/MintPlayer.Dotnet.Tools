@@ -10,4 +10,8 @@
 		<InvariantGlobalization>true</InvariantGlobalization>
 	</PropertyGroup>
 
+	<ItemGroup>
+	  <ProjectReference Include="..\MintPlayer.CliParser\MintPlayer.CliParser.csproj" />
+	</ItemGroup>
+
 </Project>

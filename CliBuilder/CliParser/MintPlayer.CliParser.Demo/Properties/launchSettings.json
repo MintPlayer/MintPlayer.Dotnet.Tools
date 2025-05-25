@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "MintPlayer.CliParser.Demo": {
+      "commandName": "Project",
+      "commandLineArgs": "--firstname Pieterjan --lastname \"De Clippel\" --surname=\"De \\\" Clippel\" --age=31"
+    }
+  }
+}
