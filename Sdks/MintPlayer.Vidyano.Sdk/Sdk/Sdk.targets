@@ -1,0 +1,5 @@
+﻿<Project>
+  <Target Name="PrintLangVersion" AfterTargets="Build">
+    <Message Importance="High" Text="LangVersion is $(LangVersion)" />
+  </Target>
+</Project>
