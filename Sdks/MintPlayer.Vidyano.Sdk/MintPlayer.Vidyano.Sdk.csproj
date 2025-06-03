@@ -5,10 +5,11 @@
 		<PackAsTool>false</PackAsTool>
 		<IsPackable>true</IsPackable>
 		<IncludeBuildOutput>false</IncludeBuildOutput>
+		<Version>1.1.0</Version>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<Content Include="Sdk\**\*.*" Pack="true" PackagePath="Sdk\" />
+		<None Include="Sdk\**\*.*" Pack="true" PackagePath="Sdk\" />
 	</ItemGroup>
 	
 </Project>
