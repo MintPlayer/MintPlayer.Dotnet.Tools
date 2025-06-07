@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "MintPlayer.CodeMigrator": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}
