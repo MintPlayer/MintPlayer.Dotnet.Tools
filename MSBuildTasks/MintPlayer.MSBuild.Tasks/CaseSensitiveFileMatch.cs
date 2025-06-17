@@ -1,5 +1,6 @@
 ﻿using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
+using System;
 using System.IO;
 using System.Linq;
 
@@ -21,13 +22,23 @@ namespace MintPlayer.MSBuild.Tasks
 
         public override bool Execute()
         {
-            Exists = System.IO.Directory.EnumerateFiles(Directory, Path.GetFileName(Candidate))
-                .Any(file => string.Equals(Path.GetFileName(file), Path.GetFileName(Candidate), System.StringComparison.Ordinal));
+            var targetFileName = Path.GetFileName(Candidate);
+            var matchedFilePath = System.IO.Directory.EnumerateFiles(Directory, targetFileName)
+                .FirstOrDefault(file => string.Equals(Path.GetFileName(file), targetFileName, StringComparison.Ordinal));
 
-            var item = new TaskItem(Path.Combine(Directory, Candidate));
-            item.SetMetadata("BaseName", Candidate);
-            item.SetMetadata("Exists", "true");
-            MatchedFiles = new[] { item };
+            if (matchedFilePath != null)
+            {
+                Exists = true;
+                var item = new TaskItem(matchedFilePath);
+                item.SetMetadata("BaseName", targetFileName);
+                item.SetMetadata("Exists", "true");
+                MatchedFiles = new[] { item };
+            }
+            else
+            {
+                Exists = false;
+                MatchedFiles = Array.Empty<ITaskItem>();
+            }
 
             return true;
         }
