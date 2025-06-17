@@ -24,3 +24,4 @@ namespace MintPlayer.MSBuild.Tasks
         }
     }
 }
+
