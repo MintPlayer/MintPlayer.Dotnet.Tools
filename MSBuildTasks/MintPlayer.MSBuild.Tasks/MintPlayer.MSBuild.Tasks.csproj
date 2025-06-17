@@ -4,7 +4,7 @@
 		<TargetFramework>netstandard2.0</TargetFramework>
 		<IsPackable>true</IsPackable>
 		<PackageId>MintPlayer.MSBuild.Tasks</PackageId>
-		<Version>1.0.0</Version>
+		<Version>1.0.1</Version>
 		<Description>Contains several helper methods to use in csproj files</Description>
 		<Company>MintPlayer</Company>
 		<Authors>Pieterjan De Clippel</Authors>
