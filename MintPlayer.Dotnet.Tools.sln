@@ -143,6 +143,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Sdks", "Sdks", "{8604A250-5
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.Vidyano.Sdk", "Sdks\MintPlayer.Vidyano.Sdk\MintPlayer.Vidyano.Sdk.csproj", "{1687F914-B76A-4DB4-9076-1492EAEA42F1}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "MSBuildTasks", "MSBuildTasks", "{7FF25677-4801-406D-89BC-5791CA0ACD2F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.MSBuild.Tasks", "MSBuildTasks\MintPlayer.MSBuild.Tasks\MintPlayer.MSBuild.Tasks.csproj", "{32BFD99C-E7EA-427D-8F13-A7588E84C6A9}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -321,6 +325,10 @@ Global
 		{1687F914-B76A-4DB4-9076-1492EAEA42F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1687F914-B76A-4DB4-9076-1492EAEA42F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1687F914-B76A-4DB4-9076-1492EAEA42F1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{32BFD99C-E7EA-427D-8F13-A7588E84C6A9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{32BFD99C-E7EA-427D-8F13-A7588E84C6A9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{32BFD99C-E7EA-427D-8F13-A7588E84C6A9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{32BFD99C-E7EA-427D-8F13-A7588E84C6A9}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -377,6 +385,7 @@ Global
 		{08DD5F55-535B-432E-AFB7-02E69D6F4417} = {8E4DD3AC-2565-4C9D-94ED-960C03A9D7F8}
 		{DDAF5340-C90D-4EC1-B0E1-F9E5CECB1A44} = {D4992485-AD63-4439-B032-D2FBE46C5C65}
 		{1687F914-B76A-4DB4-9076-1492EAEA42F1} = {8604A250-552F-48D8-8FF0-02C06B627A8C}
+		{32BFD99C-E7EA-427D-8F13-A7588E84C6A9} = {7FF25677-4801-406D-89BC-5791CA0ACD2F}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D5378D43-9246-4355-8C4B-880DB15B07DA}
