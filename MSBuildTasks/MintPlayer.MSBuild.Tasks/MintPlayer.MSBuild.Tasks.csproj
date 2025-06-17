@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<IsPackable>true</IsPackable>
+		<PackageId>MintPlayer.MSBuild.Tasks</PackageId>
+		<Version>1.0.0</Version>
+		<Description>Contains several helper methods to use in csproj files</Description>
+		<Company>MintPlayer</Company>
+		<Authors>Pieterjan De Clippel</Authors>
+		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/MSBuildTasks/MintPlayer.MSBuild.Tasks</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
+		<PackageTags>MSBuild, File-exists-case-insensitive</PackageTags>
+		<Product>MintPlayer.MSBuild.Tasks</Product>
+		<RepositoryType>Git</RepositoryType>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Build.Utilities.Core" Version="17.14.8" />
+	</ItemGroup>
+
+</Project>
