@@ -33,23 +33,24 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
 
                             if (attr is null) return default;
 
+                            var serviceLifetimeSymbol = context2.SemanticModel.Compilation.GetTypeByMetadataName("Microsoft.Extensions.DependencyInjection.ServiceLifetime");
                             if (attr.AttributeConstructor?.Parameters.Length == 2)
                             {
-                                if (attr.ConstructorArguments[0].Value is not ServiceLifetime lifetime) return default;
+                                if (!SymbolEqualityComparer.Default.Equals(attr.ConstructorArguments[0].Type, serviceLifetimeSymbol)) return default;
                                 if (attr.ConstructorArguments[1].Value is not string methodNameHint) return default;
 
                                 return new ServiceRegistration
                                 {
                                     ServiceTypeName = null,
                                     ImplementationTypeName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                    Lifetime = lifetime,
+                                    Lifetime = (ServiceLifetime)attr.ConstructorArguments[1].Value!,
                                     MethodNameHint = methodNameHint,
                                 };
                             }
                             else if (attr.AttributeConstructor?.Parameters.Length == 3)
                             {
                                 if (attr.ConstructorArguments[0].Value is not INamedTypeSymbol interfaceTypeSymbol) return default;
-                                if (attr.ConstructorArguments[1].Value is not ServiceLifetime lifetime) return default;
+                                if (!SymbolEqualityComparer.Default.Equals(attr.ConstructorArguments[1].Type, serviceLifetimeSymbol)) return default;
                                 if (attr.ConstructorArguments[2].Value is not string methodNameHint) return default;
 
                                 // Verify that the class implements the interface
@@ -59,7 +60,7 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                 {
                                     ServiceTypeName = interfaceTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                     ImplementationTypeName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                    Lifetime = lifetime,
+                                    Lifetime = (ServiceLifetime)attr.ConstructorArguments[1].Value!,
                                     MethodNameHint = methodNameHint,
                                 };
                             }
