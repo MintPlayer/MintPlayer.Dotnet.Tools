@@ -43,7 +43,7 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                 {
                                     ServiceTypeName = null,
                                     ImplementationTypeName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                    Lifetime = (ServiceLifetime)attr.ConstructorArguments[1].Value!,
+                                    Lifetime = (ServiceLifetime)attr.ConstructorArguments[0].Value!,
                                     MethodNameHint = methodNameHint,
                                 };
                             }
