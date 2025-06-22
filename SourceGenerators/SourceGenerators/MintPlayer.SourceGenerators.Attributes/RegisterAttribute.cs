@@ -6,5 +6,6 @@ namespace MintPlayer.SourceGenerators.Attributes;
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
 public class RegisterAttribute : Attribute
 {
+    public RegisterAttribute(ServiceLifetime lifetime, string methodNameHint = "") { }
     public RegisterAttribute(Type interfaceType, ServiceLifetime lifetime, string methodNameHint = "") { }
 }

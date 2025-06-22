@@ -33,18 +33,36 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
 
                             if (attr is null) return default;
 
-                            if (attr.ConstructorArguments[0].Value is not INamedTypeSymbol interfaceSymbol) return default;
-
-                            // Verify that the class implements the interface
-                            if (namedTypeSymbol.AllInterfaces.All(i => !SymbolEqualityComparer.Default.Equals(i, interfaceSymbol))) return default;
-
-                            return new ServiceRegistration
+                            if (attr.AttributeConstructor?.Parameters.Length == 2)
                             {
-                                ServiceTypeName = interfaceSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                ImplementationTypeName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                Lifetime = (ServiceLifetime)attr.ConstructorArguments[1].Value!,
-                                MethodNameHint = (string?)attr.ConstructorArguments[2].Value ?? string.Empty,
-                            };
+                                if (attr.ConstructorArguments[0].Value is not ServiceLifetime lifetime) return default;
+                                if (attr.ConstructorArguments[1].Value is not string methodNameHint) return default;
+
+                                return new ServiceRegistration
+                                {
+                                    ServiceTypeName = null,
+                                    ImplementationTypeName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                                    Lifetime = lifetime,
+                                    MethodNameHint = methodNameHint,
+                                };
+                            }
+                            else if (attr.AttributeConstructor?.Parameters.Length == 3)
+                            {
+                                if (attr.ConstructorArguments[0].Value is not INamedTypeSymbol interfaceTypeSymbol) return default;
+                                if (attr.ConstructorArguments[1].Value is not ServiceLifetime lifetime) return default;
+                                if (attr.ConstructorArguments[2].Value is not string methodNameHint) return default;
+
+                                // Verify that the class implements the interface
+                                if (namedTypeSymbol.AllInterfaces.All(i => !SymbolEqualityComparer.Default.Equals(i, interfaceTypeSymbol))) return default;
+                                
+                                return new ServiceRegistration
+                                {
+                                    ServiceTypeName = interfaceTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                                    ImplementationTypeName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                                    Lifetime = lifetime,
+                                    MethodNameHint = methodNameHint,
+                                };
+                            }
                         }
                     }
 
