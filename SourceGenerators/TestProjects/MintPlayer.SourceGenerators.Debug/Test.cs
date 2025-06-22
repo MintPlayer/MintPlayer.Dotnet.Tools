@@ -1,18 +1,20 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using MintPlayer.SourceGenerators.Attributes;
 
+namespace Testje;
+
 public partial class BaseClass
 {
-    private readonly string code;
-    private readonly ITestService1 testService1;
-    public BaseClass(string code, ITestService1 testService1)
-    {
-        this.code = code;
-        this.testService1 = testService1;
-    }
+    //private readonly string code;
+    [Inject] private readonly ITestService1 testService1;
+    //public BaseClass(ITestService1 testService1)
+    //{
+    //    //this.code = code;
+    //    this.testService1 = testService1;
+    //}
 }
 
-[BaseConstructorParameter<string>("code", "FR")]
+//[BaseConstructorParameter<string>("code", "FR")]
 public partial class Class1 : BaseClass
 {
     [Inject] private readonly ITestService1 testService1;
