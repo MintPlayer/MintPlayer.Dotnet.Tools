@@ -36,7 +36,7 @@ internal class InjectProducer : Producer
                 var assignments = classInfo.InjectFields.Select(dep => $"this.{dep.Name} = {dep.Name};");
                 var baseConstructorArgs = classInfo.BaseDependencies.Select(dep => dep.Name).Distinct();
 
-                writer.WriteLine($"public partial class {classInfo.ClassName}");
+                writer.WriteLine($"partial class {classInfo.ClassName}");
                 writer.WriteLine("{");
                 writer.Indent++;
 
