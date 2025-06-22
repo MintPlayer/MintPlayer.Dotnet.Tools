@@ -1,4 +1,5 @@
-﻿using MintPlayer.SourceGenerators.Extensions;
+﻿using Microsoft.Extensions.DependencyInjection;
+using MintPlayer.SourceGenerators.Extensions;
 using MintPlayer.SourceGenerators.Models;
 using MintPlayer.SourceGenerators.Tools;
 using System.CodeDom.Compiler;
@@ -8,6 +9,13 @@ namespace MintPlayer.SourceGenerators.Generators;
 public class RegistrationsProducer : Producer
 {
     private readonly IEnumerable<ServiceRegistration> serviceRegistrations;
+    private readonly Dictionary<ServiceLifetime, string> lifetimeNames = new()
+    {
+        { ServiceLifetime.Singleton, nameof(ServiceLifetime.Singleton) },
+        { ServiceLifetime.Scoped, nameof(ServiceLifetime.Scoped) },
+        { ServiceLifetime.Transient, nameof(ServiceLifetime.Transient) },
+    };
+
     public RegistrationsProducer(IEnumerable<ServiceRegistration> serviceRegistrations, string rootNamespace) : base(rootNamespace, "ServiceMethods.g.cs")
     {
         this.serviceRegistrations = serviceRegistrations;
@@ -42,18 +50,11 @@ public class RegistrationsProducer : Producer
             var total = methodGroup.Count();
             foreach (var svc in methodGroup)
             {
-                switch (svc.Lifetime)
-                {
-                    case Microsoft.Extensions.DependencyInjection.ServiceLifetime.Singleton:
-                        writer.Write($".AddSingleton<{svc.ServiceTypeName}, {svc.ImplementationTypeName}>()");
-                        break;
-                    case Microsoft.Extensions.DependencyInjection.ServiceLifetime.Scoped:
-                        writer.Write($".AddScoped<{svc.ServiceTypeName}, {svc.ImplementationTypeName}>()");
-                        break;
-                    case Microsoft.Extensions.DependencyInjection.ServiceLifetime.Transient:
-                        writer.Write($".AddTransient<{svc.ServiceTypeName}, {svc.ImplementationTypeName}>()");
-                        break;
-                }
+                cancellationToken.ThrowIfCancellationRequested();
+                if (svc.ServiceTypeName is null)
+                    writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ImplementationTypeName}>()");
+                else
+                    writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ServiceTypeName}, {svc.ImplementationTypeName}>()");
 
                 if (++currentIndex == total)
                     writer.Write(";");
