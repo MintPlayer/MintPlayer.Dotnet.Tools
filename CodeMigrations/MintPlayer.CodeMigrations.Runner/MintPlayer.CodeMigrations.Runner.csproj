@@ -26,4 +26,12 @@
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 	</PropertyGroup>
 
+	<ItemGroup>
+	  <PackageReference Include="NuGet.Protocol" Version="6.14.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\MintPlayer.CodeMigrations.Tools\MintPlayer.CodeMigrations.Tools.csproj" />
+	</ItemGroup>
+
 </Project>
