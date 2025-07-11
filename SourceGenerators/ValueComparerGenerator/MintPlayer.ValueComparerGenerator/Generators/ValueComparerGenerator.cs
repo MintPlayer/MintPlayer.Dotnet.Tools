@@ -54,12 +54,15 @@ public class ValueComparerGenerator : IncrementalGenerator
                                     .Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, context.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.ValueComparerGenerator.Attributes.AutoValueComparerAttribute"))),
                             },
                             Namespace = symbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
-                            Properties = symbol.GetMembers().OfType<IPropertySymbol>().Select(property => new Models.PropertyDeclaration
-                            {
-                                Name = property.Name,
-                                Type = property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
-                                HasComparerIgnore = property.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, context.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.ValueComparerGenerator.Attributes.ComparerIgnoreAttribute"))),
-                            }).ToArray(),
+                            Properties = symbol.GetMembers().OfType<IPropertySymbol>()
+                                .Where(p => !p.IsIndexer && !p.IsImplicitlyDeclared)
+                                .Select(property => new Models.PropertyDeclaration
+                                {
+                                    Name = property.Name,
+                                    Type = property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
+                                    HasComparerIgnore = property.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, context.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.ValueComparerGenerator.Attributes.ComparerIgnoreAttribute"))),
+                                })
+                                .ToArray(),
                             HasCodeAnalysisReference = context.SemanticModel.Compilation.ReferencedAssemblyNames
                                 .Any(a => a.Name == "Microsoft.CodeAnalysis"),
                         };
@@ -76,12 +79,14 @@ public class ValueComparerGenerator : IncrementalGenerator
                                 .Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, context.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.ValueComparerGenerator.Attributes.AutoValueComparerAttribute"))),
                             BaseType = (Models.BaseType?)null,
                             Namespace = symbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
-                            Properties = symbol.GetMembers().OfType<IPropertySymbol>().Select(property => new Models.PropertyDeclaration
-                            {
-                                Name = property.Name,
-                                Type = property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
-                                HasComparerIgnore = property.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, context.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.ValueComparerGenerator.Attributes.ComparerIgnoreAttribute"))),
-                            }).ToArray(),
+                            Properties = symbol.GetMembers().OfType<IPropertySymbol>()
+                                .Where(p => !p.IsIndexer && !p.IsImplicitlyDeclared)
+                                .Select(property => new Models.PropertyDeclaration
+                                {
+                                    Name = property.Name,
+                                    Type = property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
+                                    HasComparerIgnore = property.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, context.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.ValueComparerGenerator.Attributes.ComparerIgnoreAttribute"))),
+                                }).ToArray(),
                             HasCodeAnalysisReference = context.SemanticModel.Compilation.ReferencedAssemblyNames
                                 .Any(a => a.Name == "Microsoft.CodeAnalysis"),
                         };
