@@ -15,7 +15,10 @@ public abstract class ValueComparer<T> : IEqualityComparer<T?>
 
     public static bool IsEquals<TValue>(TValue? x, TValue? y) => ValueComparerCache.GetComparer<TValue>().Equals(x, y);
 
-    protected abstract bool AreEqual(T x, T y);
+    /// <summary>
+    /// Implement your value comparison logic here.
+    /// </summary>
+    protected virtual bool AreEqual(T x, T y) => true;
 
     public bool Equals(T? x, T? y)
     {
