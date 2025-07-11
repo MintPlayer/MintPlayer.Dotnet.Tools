@@ -33,8 +33,10 @@ public sealed class TreeValueComparerProducer : Producer
                 bt.BaseType.Name,
                 bt.BaseType.FullName,
                 bt.BaseType.Namespace,
+                bt.BaseType.IsAbstract,
                 bt.DerivedTypes,
                 bt.BaseType.Properties,
+                bt.BaseType.AllProperties,
             })
             .Concat(classDeclarations.Where(cd => !treeDeclarations.Any(td => td.BaseType.FullName == cd.FullName))
                 .Where(d => d.IsPartial)
@@ -43,8 +45,10 @@ public sealed class TreeValueComparerProducer : Producer
                     d.Name,
                     d.FullName,
                     d.Namespace,
+                    IsAbstract = d.IsAbstract,
                     DerivedTypes = Array.Empty<DerivedType>(),
                     d.Properties,
+                    d.AllProperties,
                 }
             ))
             .Concat(childrenWithoutChildren
@@ -54,8 +58,10 @@ public sealed class TreeValueComparerProducer : Producer
                     d.Name,
                     d.FullName,
                     d.Namespace,
+                    d.IsAbstract,
                     DerivedTypes = Array.Empty<DerivedType>(),
                     d.Properties,
+                    d.AllProperties,
                 }
             ))
             .GroupBy(d => d.Namespace);
@@ -85,9 +91,12 @@ public sealed class TreeValueComparerProducer : Producer
                 writer.WriteLine("{");
                 writer.Indent++;
 
-                foreach (var prop in baseType.Properties.Where(p => !p.HasComparerIgnore))
+                // If base-type is abstract, we don't need to compare properties
+                // The derived-type comparer will check these properties
+                if (!baseType.IsAbstract)
                 {
-                    writer.WriteLine($"if (!IsEquals(x.{prop.Name}, y.{prop.Name})) return false;");
+                    foreach (var prop in baseType.AllProperties.Where(p => !p.HasComparerIgnore))
+                        writer.WriteLine($"if (!IsEquals(x.{prop.Name}, y.{prop.Name})) return false;");
                 }
 
                 // TODO: call base class comparer instead of false

@@ -17,6 +17,7 @@ public class DerivedType
     public string? Type { get; set; }
     public string? Name { get; set; }
     public string? Namespace { get; set; }
+    public PropertyDeclaration[] AllProperties { get; set; } = [];
 
     public override string ToString() => Type ?? string.Empty;
 }
@@ -26,9 +27,11 @@ public class BaseType
 {
     public string? Name { get; set; }
     public string? FullName { get; set; }
+    public bool IsAbstract { get; set; }
     public bool IsPartial { get; set; }
     public string? Namespace { get; set; }
     public PropertyDeclaration[] Properties { get; set; } = [];
+    public PropertyDeclaration[] AllProperties { get; set; } = [];
     public bool HasAttribute { get; set; }
 
     public override string ToString() => FullName ?? string.Empty;
