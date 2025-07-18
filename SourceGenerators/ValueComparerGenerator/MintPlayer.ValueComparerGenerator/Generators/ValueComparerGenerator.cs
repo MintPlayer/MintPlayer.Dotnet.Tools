@@ -48,7 +48,8 @@ public class ValueComparerGenerator : IncrementalGenerator
                                 FullName = baseType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                 IsAbstract = baseType.IsAbstract,
                                 IsPartial = baseType.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is ClassDeclarationSyntax baseClassDeclaration && baseClassDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
-                                Namespace = baseType.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
+                                // TODO: replace "Namespace" with "BaseTypePathspec"
+                                PathSpec = baseType.GetPathSpec(),
                                 Properties = baseType.GetMembers().OfType<IPropertySymbol>().Select(property => new Models.PropertyDeclaration
                                 {
                                     Name = property.Name,
@@ -76,7 +77,8 @@ public class ValueComparerGenerator : IncrementalGenerator
                                     HasComparerIgnore = property.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, comparerIgnoreAttr)),
                                 })
                                 .ToArray() ?? [],
-                            Namespace = symbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
+                            //Namespace = symbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
+                            PathSpec = symbol.GetPathSpec(),
                             Properties = symbol.GetMembers().OfType<IPropertySymbol>()
                                 .Where(p => !p.IsIndexer && !p.IsImplicitlyDeclared)
                                 .Select(property => new Models.PropertyDeclaration
@@ -111,7 +113,8 @@ public class ValueComparerGenerator : IncrementalGenerator
                                     HasComparerIgnore = property.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, comparerIgnoreAttr)),
                                 })
                                 .ToArray() ?? [],
-                            Namespace = symbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
+                            //Namespace = symbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
+                            PathSpec = symbol.GetPathSpec(),
                             Properties = symbol.GetMembers().OfType<IPropertySymbol>()
                                 .Where(p => !p.IsIndexer && !p.IsImplicitlyDeclared)
                                 .Select(property => new Models.PropertyDeclaration
@@ -139,7 +142,7 @@ public class ValueComparerGenerator : IncrementalGenerator
                 {
                     Name = t.Name,
                     FullName = t.Type,
-                    Namespace = t.Namespace,
+                    PathSpec = t.PathSpec,
                     IsPartial = t.IsPartial,
                     IsAbstract = t.IsAbstract,
                     Location = t.Location,
@@ -164,7 +167,7 @@ public class ValueComparerGenerator : IncrementalGenerator
                     {
                         Type = t.Type,
                         Name = t.Name,
-                        Namespace = t.Namespace,
+                        PathSpec = t.PathSpec,
                         AllProperties = t.AllProperties,
                     }).ToArray(),
                 })
@@ -181,7 +184,7 @@ public class ValueComparerGenerator : IncrementalGenerator
                 {
                     Name = t.Name,
                     FullName = t.Type,
-                    Namespace = t.Namespace,
+                    PathSpec = t.PathSpec,
                     IsAbstract = t.IsAbstract,
                     IsPartial = t.IsPartial,
                     Location = t.Location,

@@ -2,11 +2,17 @@
 
 namespace ValueComparerDebugging.Models;
 
-[AutoValueComparer]
-public partial class Address
+public partial class Context
 {
-    public string Street { get; set; } = string.Empty;
-    public int Number { get; set; }
-    public string City { get; set; } = string.Empty;
-    public int PostalCode { get; set; }
+    public partial class Models
+    {
+        [AutoValueComparer]
+        public partial class Address
+        {
+            public string Street { get; set; } = string.Empty;
+            public int Number { get; set; }
+            public string City { get; set; } = string.Empty;
+            public int PostalCode { get; set; }
+        }
+    }
 }
