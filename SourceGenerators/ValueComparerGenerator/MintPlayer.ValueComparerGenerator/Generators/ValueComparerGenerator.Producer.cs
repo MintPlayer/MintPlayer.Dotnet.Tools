@@ -25,7 +25,10 @@ public sealed class TreeValueComparerProducer : Producer
 
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
     {
+        writer.WriteLine("#nullable enable");
+        writer.WriteLine();
         writer.WriteLine(Header);
+        writer.WriteLine();
 
         var treeGrouped = treeDeclarations.Where(d => d.BaseType.IsPartial)
             .Select(bt => new
@@ -151,8 +154,6 @@ public sealed class TreeValueComparerProducer : Producer
 
         if (hasCodeAnalysisReference)
         {
-            writer.WriteLine("#nullable enable");
-            writer.WriteLine();
             writer.WriteLine($"namespace {RootNamespace}");
             writer.WriteLine("{");
             writer.Indent++;
