@@ -38,7 +38,7 @@ public class ClassNamesSourceGenerator : IncrementalGenerator
                     }
                 }
             )
-            .WithComparer()
+            .WithNullableComparer()
             .Collect();
 
         var fieldDeclarationsProvider = context.SyntaxProvider
@@ -72,7 +72,7 @@ public class ClassNamesSourceGenerator : IncrementalGenerator
                     return default;
                 }
             )
-            .WithComparer()
+            .WithNullableComparer()
             .Collect();
 
         var classNamesSourceProvider = classDeclarationsProvider
