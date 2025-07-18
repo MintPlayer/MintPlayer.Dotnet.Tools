@@ -151,6 +151,7 @@ public sealed class TreeValueComparerProducer : Producer
 
         if (hasCodeAnalysisReference)
         {
+            writer.WriteLine("#nullable enable");
             writer.WriteLine();
             writer.WriteLine($"namespace {RootNamespace}");
             writer.WriteLine("{");
