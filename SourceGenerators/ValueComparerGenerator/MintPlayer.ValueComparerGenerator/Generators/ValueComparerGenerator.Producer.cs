@@ -158,7 +158,7 @@ public sealed class TreeValueComparerProducer : Producer
             writer.WriteLine($"public static class ValueComparerExtensions");
             writer.WriteLine("{");
             writer.Indent++;
-            foreach (var type in classDeclarations)
+            foreach (var type in treeGrouped.SelectMany(g => g.Types))
             {
                 writer.WriteLine($"public static global::Microsoft.CodeAnalysis.IncrementalValuesProvider<{type.FullName}?> WithComparer(this global::Microsoft.CodeAnalysis.IncrementalValuesProvider<{type.FullName}?> provider)");
                 writer.WriteLine("{");
