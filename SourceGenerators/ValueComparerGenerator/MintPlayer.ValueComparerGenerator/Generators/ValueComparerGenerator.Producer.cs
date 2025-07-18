@@ -166,6 +166,13 @@ public sealed class TreeValueComparerProducer : Producer
                 writer.WriteLine($"return global::Microsoft.CodeAnalysis.IncrementalValueProviderExtensions.WithComparer(provider, {type.FullName}ValueComparer.Instance);");
                 writer.Indent--;
                 writer.WriteLine("}");
+
+                writer.WriteLine($"public static global::Microsoft.CodeAnalysis.IncrementalValueProvider<{type.FullName}?> WithComparer(this global::Microsoft.CodeAnalysis.IncrementalValueProvider<{type.FullName}?> provider)");
+                writer.WriteLine("{");
+                writer.Indent++;
+                writer.WriteLine($"return global::Microsoft.CodeAnalysis.IncrementalValueProviderExtensions.WithComparer(provider, {type.FullName}ValueComparer.Instance);");
+                writer.Indent--;
+                writer.WriteLine("}");
             }
             writer.Indent--;
             writer.WriteLine("}");
