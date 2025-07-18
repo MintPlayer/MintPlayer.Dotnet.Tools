@@ -8,7 +8,7 @@ public class ClassDeclarationValueComparer : ValueComparer<ClassDeclaration>
     {
         if (!IsEquals(x.Name, y.Name)) return false;
         if (!IsEquals(x.FullName, y.FullName)) return false;
-        if (!IsEquals(x.Namespace, y.Namespace)) return false;
+        if (!IsEquals(x.PathSpec, y.PathSpec)) return false;
         if (!IsEquals(x.IsPartial, y.IsPartial)) return false;
         if (!IsEquals(x.HasAutoValueComparerAttribute, y.HasAutoValueComparerAttribute)) return false;
         if (!IsEquals(x.Properties, y.Properties)) return false;

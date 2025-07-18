@@ -2,9 +2,15 @@
 
 namespace ValueComparerDebugging.Mobility;
 
-[AutoValueComparer]
-public partial class SportsCar : Car
+public partial class Context
 {
-    public int Horsepower { get; set; } // in HP
-    public bool IsConvertible { get; set; }
+    public partial class Entities
+    {
+        [AutoValueComparer]
+        public partial class SportsCar : Car
+        {
+            public int Horsepower { get; set; } // in HP
+            public bool IsConvertible { get; set; }
+        }
+    }
 }

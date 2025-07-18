@@ -32,7 +32,7 @@ public sealed class TreeValueComparerProducer : Producer
             {
                 bt.BaseType.Name,
                 bt.BaseType.FullName,
-                bt.BaseType.Namespace,
+                bt.BaseType.PathSpec,
                 bt.BaseType.IsAbstract,
                 bt.DerivedTypes,
                 bt.BaseType.Properties,
@@ -44,7 +44,7 @@ public sealed class TreeValueComparerProducer : Producer
                 {
                     d.Name,
                     d.FullName,
-                    d.Namespace,
+                    d.PathSpec,
                     IsAbstract = d.IsAbstract,
                     DerivedTypes = Array.Empty<DerivedType>(),
                     d.Properties,
@@ -57,24 +57,37 @@ public sealed class TreeValueComparerProducer : Producer
                 {
                     d.Name,
                     d.FullName,
-                    d.Namespace,
+                    d.PathSpec,
                     d.IsAbstract,
                     DerivedTypes = Array.Empty<DerivedType>(),
                     d.Properties,
                     d.AllProperties,
                 }
             ))
-            .GroupBy(d => d.Namespace);
+            .GroupBy(d => d.PathSpec.ContainingNamespace)
+            .Select(ns => new
+            {
+                Namespace = ns.Key,
+                Types = ns.ToArray(),
+            });
 
 
         foreach (var namespaceGrouping in treeGrouped)
         {
-            writer.WriteLine($"namespace {namespaceGrouping.Key}");
+            writer.WriteLine($"namespace {namespaceGrouping.Namespace}");
             writer.WriteLine("{");
             writer.Indent++;
 
-            foreach (var baseType in namespaceGrouping)
+            foreach (var baseType in namespaceGrouping.Types)
             {
+                // Nested partial classes for each parent type
+                foreach (var parentType in baseType.PathSpec.Parents)
+                {
+                    writer.WriteLine($"partial class {parentType.Name}");
+                    writer.WriteLine("{");
+                    writer.Indent++;
+                }
+
                 writer.WriteLine($"[{comparerAttributeType}(typeof({baseType.Name}ValueComparer))]");
                 writer.WriteLine($"partial class {baseType.Name}");
                 writer.WriteLine("{");
@@ -124,6 +137,13 @@ public sealed class TreeValueComparerProducer : Producer
                 writer.Indent--;
                 writer.WriteLine("}");
                 writer.WriteLine();
+
+                // Nested partial classes for each parent type
+                foreach (var parentType in baseType.PathSpec.Parents)
+                {
+                    writer.Indent--;
+                    writer.WriteLine("}");
+                }
             }
             writer.Indent--;
             writer.WriteLine("}");

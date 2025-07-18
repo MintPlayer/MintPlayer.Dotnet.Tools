@@ -3,12 +3,18 @@ using System.Collections;
 
 namespace ValueComparerDebugging.Models;
 
-[AutoValueComparer]
-public partial class Person
+public partial class Context
 {
-    public string FirstName { get; set; } = string.Empty;
-    public string LastName { get; set; } = string.Empty;
-    public List<Address> Addresses { get; set; } = [];
+    public partial class Models
+    {
+        [AutoValueComparer]
+        public partial class Person
+        {
+            public string FirstName { get; set; } = string.Empty;
+            public string LastName { get; set; } = string.Empty;
+            public List<Address> Addresses { get; set; } = [];
 
-    public string this[int index] => string.Empty;
+            public string this[int index] => string.Empty;
+        }
+    }
 }

@@ -2,8 +2,14 @@
 
 namespace ValueComparerDebugging.Mobility;
 
-[AutoValueComparer]
-public partial class ElectricCar : Car
+public partial class Context
 {
-    public int BatteryCapacity { get; set; } // in kWh
+    public partial class Entities
+    {
+        [AutoValueComparer]
+        public partial class ElectricCar : Car
+        {
+            public int BatteryCapacity { get; set; } // in kWh
+        }
+    }
 }

@@ -2,8 +2,14 @@
 
 namespace ValueComparerDebugging.Mobility;
 
-[AutoValueComparer]
-public partial class Motorcycle : Vehicle
+public partial class Context
 {
-    public bool HasSidecar { get; set; }
+    public partial class Entities
+    {
+        [AutoValueComparer]
+        public partial class Motorcycle : Vehicle
+        {
+            public bool HasSidecar { get; set; }
+        }
+    }
 }

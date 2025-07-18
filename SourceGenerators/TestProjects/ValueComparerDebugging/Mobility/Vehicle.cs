@@ -2,10 +2,16 @@
 
 namespace ValueComparerDebugging.Mobility;
 
-[AutoValueComparer]
-public partial class Vehicle
+public partial class Context
 {
-    public string Make { get; set; }
-    public string Model { get; set; }
-    public int Year { get; set; }
+    public partial class Entities
+    {
+        [AutoValueComparer]
+        public partial class Vehicle
+        {
+            public string Make { get; set; }
+            public string Model { get; set; }
+            public int Year { get; set; }
+        }
+    }
 }

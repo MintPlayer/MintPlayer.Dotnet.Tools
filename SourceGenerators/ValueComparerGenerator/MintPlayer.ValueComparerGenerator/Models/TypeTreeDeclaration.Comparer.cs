@@ -18,7 +18,7 @@ public class DerivedTypeValueComparer : ValueComparer<DerivedType>
     {
         if (!IsEquals(x.Type, y.Type)) return false;
         if (!IsEquals(x.Name, y.Name)) return false;
-        if (!IsEquals(x.Namespace, y.Namespace)) return false;
+        if (!IsEquals(x.PathSpec, y.PathSpec)) return false;
         if (!IsEquals(x.AllProperties, y.AllProperties)) return false;
         return true;
     }
@@ -31,7 +31,7 @@ public class BaseTypeValueComparer : ValueComparer<BaseType>
         if (!IsEquals(x.Name, y.Name)) return false;
         if (!IsEquals(x.FullName, y.FullName)) return false;
         if (!IsEquals(x.IsPartial, y.IsPartial)) return false;
-        if (!IsEquals(x.Namespace, y.Namespace)) return false;
+        if (!IsEquals(x.PathSpec, y.PathSpec)) return false;
         if (!IsEquals(x.Properties, y.Properties)) return false;
         if (!IsEquals(x.AllProperties, y.AllProperties)) return false;
         if (!IsEquals(x.HasAttribute, y.HasAttribute)) return false;
