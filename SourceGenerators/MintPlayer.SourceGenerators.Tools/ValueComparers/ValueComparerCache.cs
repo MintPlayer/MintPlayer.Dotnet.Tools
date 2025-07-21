@@ -27,6 +27,21 @@ internal static class ValueComparerCache
             var arg5 = type.IsGenericType ? type.GetGenericArguments().ElementAtOrDefault(4) : null;
             var arg6 = type.IsGenericType ? type.GetGenericArguments().ElementAtOrDefault(5) : null;
 
+            var commonComparer = type switch
+            {
+                ISymbol symbol => SymbolEqualityComparer.Default,
+                _ => null,
+            };
+
+            if (commonComparer is IEqualityComparer<TValue?> comp)
+                return comp;
+
+            //if (commonComparer is not null && typeof(TValue).IsAssignableFrom(typeof(ISymbol)))
+            //{
+            //    // If the type is ISymbol, use the SymbolEqualityComparer
+            //    return (IEqualityComparer<TValue?>)(object)commonComparer;
+            //}
+
             var comparerType = type switch
             {
                 // Collection Comparers
