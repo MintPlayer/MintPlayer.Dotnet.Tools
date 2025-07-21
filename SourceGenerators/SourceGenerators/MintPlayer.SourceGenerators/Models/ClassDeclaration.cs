@@ -1,4 +1,5 @@
-﻿using MintPlayer.ValueComparerGenerator.Attributes;
+﻿using Microsoft.CodeAnalysis;
+using MintPlayer.ValueComparerGenerator.Attributes;
 
 namespace MintPlayer.SourceGenerators.Models;
 
