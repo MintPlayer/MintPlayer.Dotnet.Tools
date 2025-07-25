@@ -1,5 +1,4 @@
 ﻿using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using System.Collections.Immutable;
@@ -16,6 +15,7 @@ public class UnusedUsingsAnalyzer : DiagnosticAnalyzer
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
+        // We register an action that will be executed for each semantic model.
         context.RegisterSemanticModelAction(AnalyzeSemanticModel);
     }
 
@@ -24,39 +24,36 @@ public class UnusedUsingsAnalyzer : DiagnosticAnalyzer
         var semanticModel = context.SemanticModel;
         var cancellationToken = context.CancellationToken;
 
-        // Get all required namespaces that are used in the file.
-        var usedUsings = semanticModel.SyntaxTree
-            .GetRoot(cancellationToken)
-            .DescendantNodes()
-            .OfType<IdentifierNameSyntax>()
-            .Select(identifier => semanticModel.GetSymbolInfo(identifier, cancellationToken).Symbol?.ContainingNamespace?.ToDisplayString())
-            .Where(ns => ns != null)
-            .ToImmutableHashSet();
+        // The compiler itself already calculates which usings are unnecessary.
+        // This is exposed as diagnostic CS8019.
+        // We can leverage the compiler's work instead of re-implementing the logic.
+        // This is the most reliable way to handle all edge cases correctly.
+        var diagnostics = semanticModel.GetDiagnostics(cancellationToken: cancellationToken);
 
-        if (semanticModel.SyntaxTree.GetRoot(cancellationToken) is not CompilationUnitSyntax root)
-            return;
+        // Find all diagnostics from the compiler that report an unused using directive.
+        var unusedUsingDiagnostics = diagnostics.Where(d => d.Id == "CS8019");
 
-        // Iterate through all using directives in the file.
-        foreach (var usingDirective in root.Usings)
+        foreach (var unusedUsingDiagnostic in unusedUsingDiagnostics)
         {
-            // We only want to check simple namespace usings (e.g., `using System;`).
-            // We'll ignore static usings (`using static System.Console;`) and aliased usings (`using S = System;`).
-            if (usingDirective.StaticKeyword.IsKind(SyntaxKind.GlobalKeyword) || usingDirective.StaticKeyword.IsKind(SyntaxKind.StaticKeyword) || usingDirective.Alias != null)
-                continue;
-
-            if (semanticModel.GetDeclaredSymbol(usingDirective, cancellationToken) is not INamespaceSymbol usingSymbol)
-                continue;
-
-            var isUsed = usedUsings.Contains(usingSymbol.Name);
-
-            // If a using directive is not in the set of used usings provided by the semantic model,
-            // then it is considered unused.
-            if (!isUsed)
+            // We need to get the syntax root to find the node associated with the diagnostic.
+            if (semanticModel.SyntaxTree.GetRoot(cancellationToken) is not SyntaxNode root)
             {
-                context.ReportDiagnostic(Diagnostic.Create(
+                continue;
+            }
+
+            var usingDirectiveNode = root.FindNode(unusedUsingDiagnostic.Location.SourceSpan);
+
+            // Ensure the node is actually a UsingDirectiveSyntax.
+            if (usingDirectiveNode is UsingDirectiveSyntax usingDirective)
+            {
+                // Report our own diagnostic (MP001) at the same location.
+                // This allows our custom code fix to be triggered by the compiler's findings.
+                var customDiagnostic = Diagnostic.Create(
                     DiagnosticRules.UnusedUsingsRule,
                     usingDirective.GetLocation(),
-                    usingSymbol.Name));
+                    usingDirective.Name.ToString());
+
+                context.ReportDiagnostic(customDiagnostic);
             }
         }
     }
