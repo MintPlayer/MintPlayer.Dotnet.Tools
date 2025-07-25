@@ -36,6 +36,7 @@ public class UnusedUsingsAnalyzer : DiagnosticAnalyzer
             .Select(n => semanticModel.GetSymbolInfo(n, context.CancellationToken).Symbol?.ContainingNamespace)
             .Where(ns => ns != null)
             .Distinct(SymbolEqualityComparer.Default)
+            .OfType<INamespaceSymbol>()
             .ToList();
 
         foreach (var usingDirective in usings.NotNull())
