@@ -2,7 +2,6 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
-using MintPlayer.SourceGenerators.Tools;
 using System.Collections.Immutable;
 
 namespace MintPlayer.SourceGenerators.Diagnostics;
@@ -17,55 +16,48 @@ public class UnusedUsingsAnalyzer : DiagnosticAnalyzer
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-
         context.RegisterSemanticModelAction(AnalyzeSemanticModel);
     }
+
     private static void AnalyzeSemanticModel(SemanticModelAnalysisContext context)
     {
         var semanticModel = context.SemanticModel;
-        var root = semanticModel.SyntaxTree.GetRoot(context.CancellationToken);
+        var cancellationToken = context.CancellationToken;
 
-        var usings = root.DescendantNodes()
-            .OfType<UsingDirectiveSyntax>()
-            .Where(u => !u.StaticKeyword.IsKind(SyntaxKind.StaticKeyword) && u.Alias == null)
-            .ToList();
-
-        // Get all referenced symbols in the file
-        var referencedNamespaces = root
+        // Get all required namespaces that are used in the file.
+        var usedUsings = semanticModel.SyntaxTree
+            .GetRoot(cancellationToken)
             .DescendantNodes()
-            .Select(n => semanticModel.GetSymbolInfo(n, context.CancellationToken).Symbol?.ContainingNamespace)
+            .OfType<IdentifierNameSyntax>()
+            .Select(identifier => semanticModel.GetSymbolInfo(identifier, cancellationToken).Symbol?.ContainingNamespace?.ToDisplayString())
             .Where(ns => ns != null)
-            .Distinct(SymbolEqualityComparer.Default)
-            .OfType<INamespaceSymbol>()
-            .ToList();
+            .ToImmutableHashSet();
 
-        foreach (var usingDirective in usings.NotNull())
+        if (semanticModel.SyntaxTree.GetRoot(cancellationToken) is not CompilationUnitSyntax root)
+            return;
+
+        // Iterate through all using directives in the file.
+        foreach (var usingDirective in root.Usings)
         {
-            if (semanticModel.GetSymbolInfo(usingDirective.Name, context.CancellationToken).Symbol is not INamespaceSymbol usingSymbol)
+            // We only want to check simple namespace usings (e.g., `using System;`).
+            // We'll ignore static usings (`using static System.Console;`) and aliased usings (`using S = System;`).
+            if (usingDirective.StaticKeyword.IsKind(SyntaxKind.GlobalKeyword) || usingDirective.StaticKeyword.IsKind(SyntaxKind.StaticKeyword) || usingDirective.Alias != null)
                 continue;
 
-            var isUsed = referencedNamespaces.Any(ns => ns != null && (ns.Equals(usingSymbol) || IsChildNamespace(ns, usingSymbol)));
+            if (semanticModel.GetDeclaredSymbol(usingDirective, cancellationToken) is not INamespaceSymbol usingSymbol)
+                continue;
 
+            var isUsed = usedUsings.Contains(usingSymbol.Name);
+
+            // If a using directive is not in the set of used usings provided by the semantic model,
+            // then it is considered unused.
             if (!isUsed)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     DiagnosticRules.UnusedUsingsRule,
                     usingDirective.GetLocation(),
-                    usingDirective.Name.ToString()));
+                    usingSymbol.Name));
             }
         }
-    }
-
-    private static bool IsChildNamespace(INamespaceSymbol child, INamespaceSymbol parent)
-    {
-        while (child != null && !child.IsGlobalNamespace)
-        {
-            if (SymbolEqualityComparer.Default.Equals(child, parent))
-                return true;
-
-            child = child.ContainingNamespace;
-        }
-
-        return false;
     }
 }
