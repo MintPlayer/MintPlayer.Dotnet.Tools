@@ -1,5 +1,34 @@
 ﻿<Project>
-  <Target Name="PrintLangVersion" AfterTargets="Build">
-    <Message Importance="High" Text="LangVersion is $(LangVersion)" />
-  </Target>
+	<PropertyGroup Condition=" '$(OS.StartsWith(`Windows`))' == 'true' ">
+		<BaseIntermediateOutputPath>$(MSBuildProjectDirectory)\tmp-build\obj-windows\</BaseIntermediateOutputPath>
+		<BaseOutputPath>$(MSBuildProjectDirectory)\tmp-build\bin-windows\</BaseOutputPath>
+	</PropertyGroup>
+	<PropertyGroup Condition=" '$(OS.StartsWith(`Windows`))' != 'true' ">
+		<BaseIntermediateOutputPath>$(MSBuildProjectDirectory)/tmp-build/obj-linux/</BaseIntermediateOutputPath>
+		<BaseOutputPath>$(MSBuildProjectDirectory)/tmp-build/bin-linux/</BaseOutputPath>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(IsTestProject)' != 'true'">
+		<EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+	</PropertyGroup>
+
+	<!--Exclude tmp-build from input items-->
+	<ItemGroup>
+		<Compile Remove="$(MSBuildProjectDirectory)/tmp-build/**" />
+		<Content Remove="$(MSBuildProjectDirectory)/tmp-build/**" />
+		<EmbeddedResource Remove="$(MSBuildProjectDirectory)/tmp-build/**" />
+		<None Remove="$(MSBuildProjectDirectory)/tmp-build/**" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Compile Update="**/*.*.cs">
+			<DependentUpon>$([System.Text.RegularExpressions.Regex]::Replace('%(Filename)', '(?:.(?![.]))+$', '%(Extension)'))</DependentUpon>
+		</Compile>
+		<Compile Update="**/*.*.json">
+			<DependentUpon>$([System.Text.RegularExpressions.Regex]::Replace('%(Filename)', '(?:.(?![.]))+$', '%(Extension)'))</DependentUpon>
+		</Compile>
+		<AdditionalFiles Update="**/model-hashes.json">
+			<DependentUpon>model.json</DependentUpon>
+		</AdditionalFiles>
+	</ItemGroup>
 </Project>

@@ -5,11 +5,11 @@
 		<PackAsTool>false</PackAsTool>
 		<IsPackable>true</IsPackable>
 		<IncludeBuildOutput>false</IncludeBuildOutput>
-		<Version>1.1.0</Version>
+		<Version>1.2.0</Version>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<None Include="Sdk\**\*.*" Pack="true" PackagePath="Sdk\" />
+		<None Include="Sdk\**\*.*" Pack="true" PackagePath="buildTransitive\" />
 	</ItemGroup>
 	
 </Project>

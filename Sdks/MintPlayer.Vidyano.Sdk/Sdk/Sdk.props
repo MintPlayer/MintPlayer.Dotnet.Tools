@@ -1,54 +1,12 @@
 ﻿<Project>
 	<PropertyGroup>
-		<LangVersion>13</LangVersion>
-		<Nullable>enable</Nullable>
-		<ImplicitUsings>enable</ImplicitUsings>
-		<TieredPGO>enable</TieredPGO>
-		<TypeScriptCompileBlocked>true</TypeScriptCompileBlocked>
-		<WarningsAsErrors>CS8600;CS8601;CS8602;CS8625;CS8765</WarningsAsErrors>
-		<NoWarn>MA0026</NoWarn>
+		<CommonTargetFramework>net9.0</CommonTargetFramework>
+		<CommonLangVersion>13</CommonLangVersion>
+		<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+		<CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
 	</PropertyGroup>
-
-	<!--Global usings-->
 	<ItemGroup>
-		<Using Include="Vidyano.Service" />
-		<Using Include="Vidyano.Service.RavenDB" />
-		<using Include="Vidyano.Service.Repository" />
-	</ItemGroup>
-
-	<!--References-->
-	<ItemGroup>
-		<PackageReference Include="Microsoft.Web.LibraryManager.Build" />
-		<PackageReference Include="RavenMigrations" />
-		<PackageReference Include="ThisAssembly.AssemblyInfo" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
-		<PackageReference Include="ThisAssembly.Git" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
-		<PackageReference Include="TwoSky.WebComponents.MailTo" />
-		<PackageReference Include="Vidyano.RavenDB" />
-		<PackageReference Include="Vidyano.SourceGenerators" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
-	</ItemGroup>
-
-	<!--SourceGenerator-->
-	<ItemGroup>
-		<!--SourceGenerator settings-->
-		<AdditionalFiles Include="App_Data\**\*.json" />
-		<!--SourceGenerator aliases-->
-		<Using Include="$(AssemblyName).Service.Generated" />
-		<Using Alias="Types" Include="$(AssemblyName).Service.Generated.PersistentObjectTypes.$(AssemblyName)" />
-		<Using Alias="AttributeNames" Include="$(AssemblyName).Service.Generated.PersistentObjectAttributeNames.$(AssemblyName)" />
-		<Using Alias="QueryNames" Include="$(AssemblyName).Service.Generated.QueryNames.$(AssemblyName)" />
-		<Using Alias="QuerySources" Include="$(AssemblyName).Service.Generated.QuerySources.$(AssemblyName)" />
-	</ItemGroup>
-
-	<!--Manage files-->
-	<ItemGroup>
-		<None Remove="$(AssemblyName).csproj.DotSettings" />
-		<None Remove="App_Data\cdncache.tmp" />
-		<None Update="App_Data\**\*.*" CopyToOutputDirectory="PreserveNewest" />
-		<None Include="wwwroot\.well-known\**" CopyToOutputDirectory="PreserveNewest" />
-	</ItemGroup>
-
-	<!--UnitTests-->
-	<ItemGroup>
-		<InternalsVisibleTo Include="$(AssemblyName).UnitTests" />
+		<PackageReference Update="Meziantou.Analyzer" Version="2.0.210" PrivateAssets="all" />
+		<PackageReference Update="MinVer" Version="6.0.0" PrivateAssets="all" />
 	</ItemGroup>
 </Project>
