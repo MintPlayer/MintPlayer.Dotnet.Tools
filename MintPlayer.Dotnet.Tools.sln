@@ -160,6 +160,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.Mapper", "Source
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.Mapper.Attributes", "SourceGenerators\Mapper\MintPlayer.Mapper.Attributes\MintPlayer.Mapper.Attributes.csproj", "{8562F10D-A7BA-4A71-96B8-0B33CAD28F2C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MapperDebugging", "SourceGenerators\TestProjects\MapperDebugging\MapperDebugging.csproj", "{E0C0CCEF-141A-4A3A-A528-790676FE2A7D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -358,6 +360,10 @@ Global
 		{8562F10D-A7BA-4A71-96B8-0B33CAD28F2C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8562F10D-A7BA-4A71-96B8-0B33CAD28F2C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8562F10D-A7BA-4A71-96B8-0B33CAD28F2C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E0C0CCEF-141A-4A3A-A528-790676FE2A7D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E0C0CCEF-141A-4A3A-A528-790676FE2A7D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E0C0CCEF-141A-4A3A-A528-790676FE2A7D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E0C0CCEF-141A-4A3A-A528-790676FE2A7D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -420,6 +426,7 @@ Global
 		{B4336EBD-C69C-49A4-9747-053748B1AE25} = {C65054D9-CAD1-4124-B474-D03C178D9D78}
 		{4A002A4D-6A41-4E2D-B155-59D1D91370E6} = {B4336EBD-C69C-49A4-9747-053748B1AE25}
 		{8562F10D-A7BA-4A71-96B8-0B33CAD28F2C} = {B4336EBD-C69C-49A4-9747-053748B1AE25}
+		{E0C0CCEF-141A-4A3A-A528-790676FE2A7D} = {1614A8B2-CA9A-4F94-B68A-BCC8ED244648}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D5378D43-9246-4355-8C4B-880DB15B07DA}
