@@ -1,5 +1,7 @@
 ﻿using Microsoft.CodeAnalysis;
 using MintPlayer.SourceGenerators.Tools;
+using MintPlayer.SourceGenerators.Tools.Extensions;
+using System;
 
 namespace MintPlayer.Mapper.Generators;
 
@@ -14,16 +16,49 @@ public class MapperGenerator : IncrementalGenerator
                 static (node, ct) => node is not null,
                 static (ctx, ct) =>
                 {
-                    if (ctx.SemanticModel.GetDeclaredSymbol(ctx.TargetNode, ct) is INamedTypeSymbol typeSymbol)
+                    if (ctx.SemanticModel.GetDeclaredSymbol(ctx.TargetNode, ct) is INamedTypeSymbol typeSymbol &&
+                        ctx.Attributes.FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute") is { } attr &&
+                        attr.ConstructorArguments.FirstOrDefault().Value is INamedTypeSymbol mapType)
                     {
                         return new Models.TypeToMap
                         {
                             DeclaredType = typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                            MappingType = ctx.Attributes.FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute")
-                                is { } attribute &&
-                                attribute.ConstructorArguments.FirstOrDefault().Value is INamedTypeSymbol mapType
-                                ? mapType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
-                                : string.Empty
+                            MappingType =  mapType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+
+                            DeclaredProperties = typeSymbol.GetAllProperties()
+                                .Where(p => !p.IsIndexer && !p.IsImplicitlyDeclared && !p.IsStatic)
+                                .Select(p => new Models.PropertyDeclaration
+                                {
+                                    PropertyName = p.Name,
+                                    PropertyType = p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                                    Alias = p.GetAttributes()
+                                        .FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperAliasAttribute")
+                                        ?.ConstructorArguments.FirstOrDefault().Value as string,
+                                    //IsNullable = p.NullableAnnotation == NullableAnnotation.Annotated,
+                                    //IsReadOnly = p.IsReadOnly,
+                                    //IsStatic = p.IsStatic,
+                                    //IsVirtual = p.IsVirtual,
+                                    //IsAbstract = p.IsAbstract,
+                                    //IsOverride = p.IsOverride,
+                                })
+                                .ToArray(),
+                            MappingProperties = mapType.GetAllProperties()
+                                .Where(p => !p.IsIndexer && !p.IsImplicitlyDeclared && !p.IsStatic)
+                                .Select(p => new Models.PropertyDeclaration
+                                {
+                                    PropertyName = p.Name,
+                                    PropertyType = p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                                    Alias = p.GetAttributes()
+                                        .FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperAliasAttribute")
+                                        ?.ConstructorArguments.FirstOrDefault().Value as string,
+                                    //IsNullable = p.NullableAnnotation == NullableAnnotation.Annotated,
+                                    //IsReadOnly = p.IsReadOnly,
+                                    //IsStatic = p.IsStatic,
+                                    //IsVirtual = p.IsVirtual,
+                                    //IsAbstract = p.IsAbstract,
+                                    //IsOverride = p.IsOverride,
+                                })
+                                .ToArray(),
                         };
                     }
                     return null;

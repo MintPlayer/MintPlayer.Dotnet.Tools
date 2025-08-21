@@ -1,0 +1,13 @@
+﻿using MintPlayer.ValueComparerGenerator.Attributes;
+
+namespace MintPlayer.Mapper.Models;
+
+[AutoValueComparer]
+public partial class PropertyDeclaration
+{
+    public string PropertyName { get; set; }
+    public string PropertyType { get; set; }
+    public string? Alias { get; set; }
+
+    public override string ToString() => $"{PropertyName} ({PropertyType})";
+}

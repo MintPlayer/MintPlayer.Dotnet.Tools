@@ -7,6 +7,8 @@ Console.WriteLine("Hello, World!");
 public class Person
 {
     public string? Name { get; set; }
+
+    [MapperAlias("Leeftijd")]
     public int? Age { get; set; }
 }
 
