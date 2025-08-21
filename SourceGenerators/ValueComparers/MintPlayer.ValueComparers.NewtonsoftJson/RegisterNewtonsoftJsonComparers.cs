@@ -6,11 +6,16 @@ namespace MintPlayer.ValueComparers.NewtonsoftJson;
 public static class NewtonsoftJsonComparers
 {
     private static bool isRegistered = false;
+    private static readonly object mutex = new();
+
     public static void Register()
     {
-        if (isRegistered) return;
-        isRegistered = true;
+        lock (mutex)
+        {
+            if (isRegistered) return;
+            isRegistered = true;
 
-        ValueComparer<JObject>.RegisterCustomComparer<JObjectValueComparer>();
+            ValueComparer<JObject>.RegisterCustomComparer<JObjectValueComparer>();
+        }
     }
 }
