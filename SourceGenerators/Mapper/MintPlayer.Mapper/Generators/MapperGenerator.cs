@@ -24,7 +24,9 @@ public class MapperGenerator : IncrementalGenerator
                         {
                             DestinationNamespace = typeSymbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
                             DeclaredType = typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                            DeclaredTypeName = typeSymbol.Name,
                             MappingType =  mapType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                            MappingTypeName = mapType.Name,
 
                             DeclaredProperties = typeSymbol.GetAllProperties()
                                 .Where(p => !p.IsIndexer && !p.IsImplicitlyDeclared && !p.IsStatic)
