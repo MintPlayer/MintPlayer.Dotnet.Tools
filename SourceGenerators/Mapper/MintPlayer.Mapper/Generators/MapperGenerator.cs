@@ -3,13 +3,14 @@ using MintPlayer.SourceGenerators.Tools;
 
 namespace MintPlayer.Mapper.Generators;
 
+[Generator(LanguageNames.CSharp)]
 public class MapperGenerator : IncrementalGenerator
 {
     public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {
         var typesToMapProvider = context.SyntaxProvider
             .ForAttributeWithMetadataName(
-                "MintPlayer.Mapper.Attributes.MapperAttribute",
+                "MintPlayer.Mapper.Attributes.GenerateMapperAttribute",
                 static (node, ct) => node is not null,
                 static (ctx, ct) =>
                 {
@@ -18,9 +19,11 @@ public class MapperGenerator : IncrementalGenerator
                         return new Models.TypeToMap
                         {
                             DeclaredType = typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                            MappingType = ctx.Attributes
-                                .FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperAttribute")
-                                ?.ConstructorArguments.FirstOrDefault().Value?.ToString() ?? string.Empty
+                            MappingType = ctx.Attributes.FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute")
+                                is { } attribute &&
+                                attribute.ConstructorArguments.FirstOrDefault().Value is INamedTypeSymbol mapType
+                                ? mapType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                                : string.Empty
                         };
                     }
                     return null;
