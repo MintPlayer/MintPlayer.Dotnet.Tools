@@ -10,4 +10,6 @@ public partial class TypeToMap
 
     public string MappingType { get; set; }
     public PropertyDeclaration[] MappingProperties { get; set; } = [];
+
+    public string DestinationNamespace { get; set; }
 }

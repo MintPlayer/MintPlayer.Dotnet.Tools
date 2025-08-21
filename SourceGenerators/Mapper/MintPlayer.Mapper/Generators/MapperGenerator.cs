@@ -22,6 +22,7 @@ public class MapperGenerator : IncrementalGenerator
                     {
                         return new Models.TypeToMap
                         {
+                            DestinationNamespace = typeSymbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
                             DeclaredType = typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                             MappingType =  mapType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
 
