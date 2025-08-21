@@ -129,6 +129,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "eng", "eng", "{4690C409-91F
 		SourceGenerators\eng\filenesting.targets = SourceGenerators\eng\filenesting.targets
 		SourceGenerators\eng\newtonsoftjson.targets = SourceGenerators\eng\newtonsoftjson.targets
 		SourceGenerators\eng\sourcegenerator.targets = SourceGenerators\eng\sourcegenerator.targets
+		SourceGenerators\eng\valuecomparergenerator.targets = SourceGenerators\eng\valuecomparergenerator.targets
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ValueComparers", "ValueComparers", "{8E4DD3AC-2565-4C9D-94ED-960C03A9D7F8}"
@@ -152,6 +153,12 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.CodeMigrations.Tools", "CodeMigrations\MintPlayer.CodeMigrations.Tools\MintPlayer.CodeMigrations.Tools.csproj", "{22D540B1-C510-4E9F-B4E1-A5E7D38D9717}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.CodeMigrations.Runner", "CodeMigrations\MintPlayer.CodeMigrations.Runner\MintPlayer.CodeMigrations.Runner.csproj", "{C87AAF91-FF01-4FBE-8577-FEFB364F71E2}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Mapper", "Mapper", "{B4336EBD-C69C-49A4-9747-053748B1AE25}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.Mapper", "SourceGenerators\Mapper\MintPlayer.Mapper\MintPlayer.Mapper.csproj", "{4A002A4D-6A41-4E2D-B155-59D1D91370E6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.Mapper.Attributes", "SourceGenerators\Mapper\MintPlayer.Mapper.Attributes\MintPlayer.Mapper.Attributes.csproj", "{8562F10D-A7BA-4A71-96B8-0B33CAD28F2C}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.NestFiles", "Helpers\MintPlayer.NestFiles\MintPlayer.NestFiles.csproj", "{0AA3041B-3DF5-4C12-A15E-53EE1D214E97}"
 EndProject
@@ -345,6 +352,14 @@ Global
 		{C87AAF91-FF01-4FBE-8577-FEFB364F71E2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C87AAF91-FF01-4FBE-8577-FEFB364F71E2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C87AAF91-FF01-4FBE-8577-FEFB364F71E2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4A002A4D-6A41-4E2D-B155-59D1D91370E6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4A002A4D-6A41-4E2D-B155-59D1D91370E6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4A002A4D-6A41-4E2D-B155-59D1D91370E6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4A002A4D-6A41-4E2D-B155-59D1D91370E6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8562F10D-A7BA-4A71-96B8-0B33CAD28F2C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8562F10D-A7BA-4A71-96B8-0B33CAD28F2C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8562F10D-A7BA-4A71-96B8-0B33CAD28F2C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8562F10D-A7BA-4A71-96B8-0B33CAD28F2C}.Release|Any CPU.Build.0 = Release|Any CPU
 		{0AA3041B-3DF5-4C12-A15E-53EE1D214E97}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{0AA3041B-3DF5-4C12-A15E-53EE1D214E97}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0AA3041B-3DF5-4C12-A15E-53EE1D214E97}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -408,6 +423,9 @@ Global
 		{32BFD99C-E7EA-427D-8F13-A7588E84C6A9} = {7FF25677-4801-406D-89BC-5791CA0ACD2F}
 		{22D540B1-C510-4E9F-B4E1-A5E7D38D9717} = {D1480FCB-7DA9-4D5B-BE28-3A4758EB313B}
 		{C87AAF91-FF01-4FBE-8577-FEFB364F71E2} = {D1480FCB-7DA9-4D5B-BE28-3A4758EB313B}
+		{B4336EBD-C69C-49A4-9747-053748B1AE25} = {C65054D9-CAD1-4124-B474-D03C178D9D78}
+		{4A002A4D-6A41-4E2D-B155-59D1D91370E6} = {B4336EBD-C69C-49A4-9747-053748B1AE25}
+		{8562F10D-A7BA-4A71-96B8-0B33CAD28F2C} = {B4336EBD-C69C-49A4-9747-053748B1AE25}
 		{0AA3041B-3DF5-4C12-A15E-53EE1D214E97} = {D4992485-AD63-4439-B032-D2FBE46C5C65}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution

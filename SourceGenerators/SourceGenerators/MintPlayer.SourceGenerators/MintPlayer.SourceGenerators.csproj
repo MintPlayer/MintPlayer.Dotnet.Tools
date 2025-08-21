@@ -31,17 +31,14 @@
 	<ItemGroup>
 		<!-- Dependency DLLs -->
 		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
-		<None Condition="'$(Configuration)' == 'Release' " Include="..\..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
-		<!--<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="" Visible="true" />-->
 	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\MintPlayer.SourceGenerators.Attributes\MintPlayer.SourceGenerators.Attributes.csproj" />
-		<ProjectReference Include="..\..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator.Attributes\MintPlayer.ValueComparerGenerator.Attributes.csproj" />
-		<ProjectReference Include="..\..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator\MintPlayer.ValueComparerGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 	</ItemGroup>
 
 	<Import Project="..\..\eng\sourcegenerator.targets" />
+	<Import Project="..\..\eng\valuecomparergenerator.targets" />
 	<Import Project="..\..\eng\newtonsoftjson.targets" />
 	<Import Project="..\..\eng\dependencyinjection.targets" />
 </Project>
