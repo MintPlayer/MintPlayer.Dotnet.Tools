@@ -59,7 +59,11 @@ public sealed class MapperProducer : Producer
             // TODO: add properties
             foreach (var (source, destination) in type.MappedProperties)
             {
-                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName},");
+                // TODO: handle nullables and collections
+                if (source.IsPrimitive && destination.IsPrimitive)
+                    writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName},");
+                else
+                    writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(),");
             }
 
             writer.Indent--;
@@ -79,7 +83,11 @@ public sealed class MapperProducer : Producer
             // TODO: add properties
             foreach (var (source, destination) in type.MappedProperties)
             {
-                writer.WriteLine($"{destination.PropertyName} = input.{source.PropertyName},");
+                // TODO: handle nullables and collections
+                if (source.IsPrimitive && destination.IsPrimitive)
+                    writer.WriteLine($"{destination.PropertyName} = input.{source.PropertyName},");
+                else
+                    writer.WriteLine($"{destination.PropertyName} = input.{source.PropertyName}.MapTo{destination.PropertyTypeName}(),");
             }
 
             writer.Indent--;
