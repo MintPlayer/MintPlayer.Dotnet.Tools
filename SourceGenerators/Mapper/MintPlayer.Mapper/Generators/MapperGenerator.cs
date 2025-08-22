@@ -1,6 +1,7 @@
 ﻿using Microsoft.CodeAnalysis;
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.Tools.Extensions;
+using MintPlayer.ValueComparerGenerator.Attributes;
 using System;
 
 namespace MintPlayer.Mapper.Generators;
@@ -34,12 +35,13 @@ public class MapperGenerator : IncrementalGenerator
                                 {
                                     PropertyName = p.Name,
                                     PropertyType = p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                    Alias = p.GetAttributes()
-                                        .FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperAliasAttribute")
-                                        ?.ConstructorArguments.FirstOrDefault().Value as string,
+                                    Alias = p.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperAliasAttribute")
+                                        is { ConstructorArguments.Length: > 0 } aliasAttr
+                                        && aliasAttr.ConstructorArguments[0].Value is string aliasName
+                                        ? aliasName : p.Name,
                                     //IsNullable = p.NullableAnnotation == NullableAnnotation.Annotated,
                                     //IsReadOnly = p.IsReadOnly,
-                                    //IsStatic = p.IsStatic,
+                                    IsStatic = p.IsStatic,
                                     //IsVirtual = p.IsVirtual,
                                     //IsAbstract = p.IsAbstract,
                                     //IsOverride = p.IsOverride,
@@ -51,12 +53,13 @@ public class MapperGenerator : IncrementalGenerator
                                 {
                                     PropertyName = p.Name,
                                     PropertyType = p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                    Alias = p.GetAttributes()
-                                        .FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperAliasAttribute")
-                                        ?.ConstructorArguments.FirstOrDefault().Value as string,
+                                    Alias = p.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperAliasAttribute")
+                                        is { ConstructorArguments.Length: > 0 } aliasAttr
+                                        && aliasAttr.ConstructorArguments[0].Value is string aliasName
+                                        ? aliasName : p.Name,
                                     //IsNullable = p.NullableAnnotation == NullableAnnotation.Annotated,
                                     //IsReadOnly = p.IsReadOnly,
-                                    //IsStatic = p.IsStatic,
+                                    IsStatic = p.IsStatic,
                                     //IsVirtual = p.IsVirtual,
                                     //IsAbstract = p.IsAbstract,
                                     //IsOverride = p.IsOverride,
@@ -67,10 +70,22 @@ public class MapperGenerator : IncrementalGenerator
                     return null;
                 }
             )
-            .WithNullableComparer()
+            .Where(static (i) => i is { })
+            .Select(static (i, ct) => i!)
+            .WithComparer();
+
+        var distinctTypesToMapProvider = typesToMapProvider
+            .Select(static (i, ct) => new Models.TypeWithMappedProperties
+            {
+                TypeToMap = i,
+                MappedProperties = i.DeclaredProperties
+                    .Select(dp => (Source: dp, Destination: i.MappingProperties.FirstOrDefault(mp => mp.Alias == dp.Alias)))
+                    .Where(p => p.Destination is { })
+            })
+            .WithComparer()
             .Collect();
 
-        var typesToMapSourceProvider = typesToMapProvider
+        var typesToMapSourceProvider = distinctTypesToMapProvider
             .Join(settingsProvider)
             .Select(static Producer (p, ct) => new MapperProducer(p.Item1, p.Item2.RootNamespace!));
 

@@ -7,13 +7,14 @@ Console.WriteLine("Hello, World!");
 public class Person
 {
     public string? Name { get; set; }
-
-    [MapperAlias("Leeftijd")]
     public int? Age { get; set; }
 }
 
 public class PersonDto
 {
-    public string? Name { get; set; }
-    public int? Age { get; set; }
+    [MapperAlias(nameof(Person.Name))]
+    public string? Naam { get; set; }
+
+    [MapperAlias(nameof(Person.Age))]
+    public int? Leeftijd { get; set; }
 }
