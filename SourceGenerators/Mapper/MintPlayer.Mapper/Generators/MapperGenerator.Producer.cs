@@ -56,14 +56,38 @@ public sealed class MapperProducer : Producer
             writer.WriteLine("{");
             writer.Indent++;
 
-            // TODO: add properties
             foreach (var (source, destination) in type.MappedProperties)
             {
-                // TODO: handle nullables and collections
+                // Handle primitive types
                 if (source.IsPrimitive && destination.IsPrimitive)
+                {
                     writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName},");
+                }
+                // Handle arrays
+                else if (IsArrayType(source.PropertyType) && IsArrayType(destination.PropertyType))
+                {
+                    writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{source.PropertyName}.Select(x => x.MapTo{destination.PropertyTypeName}()).ToArray(),");
+                }
+                // Handle List<T>
+                else if (IsListType(source.PropertyType) && IsListType(destination.PropertyType))
+                {
+                    writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{source.PropertyName}.Select(x => x.MapTo{destination.PropertyTypeName}()).ToList(),");
+                }
+                // Handle ICollection<T>
+                else if (IsCollectionType(source.PropertyType) && IsCollectionType(destination.PropertyType))
+                {
+                    writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{source.PropertyName}.Select(x => x.MapTo{destination.PropertyTypeName}()).ToList(),");
+                }
+                // Handle nullable reference types
+                else if (IsNullableType(source.PropertyType) && IsNullableType(destination.PropertyType))
+                {
+                    writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{source.PropertyName}.MapTo{destination.PropertyTypeName}(),");
+                }
+                // Handle complex types
                 else
-                    writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(),");
+                {
+                    writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName}.MapTo{destination.PropertyTypeName}(),");
+                }
             }
 
             writer.Indent--;
@@ -83,11 +107,36 @@ public sealed class MapperProducer : Producer
             // TODO: add properties
             foreach (var (source, destination) in type.MappedProperties)
             {
-                // TODO: handle nullables and collections
+                // Handle primitive types
                 if (source.IsPrimitive && destination.IsPrimitive)
+                {
                     writer.WriteLine($"{destination.PropertyName} = input.{source.PropertyName},");
+                }
+                // Handle arrays
+                else if (IsArrayType(source.PropertyType) && IsArrayType(destination.PropertyType))
+                {
+                    writer.WriteLine($"{destination.PropertyName} = input.{source.PropertyName} == null ? null : input.{source.PropertyName}.Select(x => x.MapTo{source.PropertyTypeName}()).ToArray(),");
+                }
+                // Handle List<T>
+                else if (IsListType(source.PropertyType) && IsListType(destination.PropertyType))
+                {
+                    writer.WriteLine($"{destination.PropertyName} = input.{source.PropertyName} == null ? null : input.{source.PropertyName}.Select(x => x.MapTo{source.PropertyTypeName}()).ToList(),");
+                }
+                // Handle ICollection<T>
+                else if (IsCollectionType(source.PropertyType) && IsCollectionType(destination.PropertyType))
+                {
+                    writer.WriteLine($"{destination.PropertyName} = input.{source.PropertyName} == null ? null : input.{source.PropertyName}.Select(x => x.MapTo{source.PropertyTypeName}()).ToList(),");
+                }
+                // Handle nullable reference types
+                else if (IsNullableType(source.PropertyType) && IsNullableType(destination.PropertyType))
+                {
+                    writer.WriteLine($"{destination.PropertyName} = input.{source.PropertyName} == null ? null : input.{source.PropertyName}.MapTo{source.PropertyTypeName}(),");
+                }
+                // Handle complex types
                 else
-                    writer.WriteLine($"{destination.PropertyName} = input.{source.PropertyName}.MapTo{destination.PropertyTypeName}(),");
+                {
+                    writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(),");
+                }
             }
 
             writer.Indent--;
@@ -120,5 +169,26 @@ public sealed class MapperProducer : Producer
 
         writer.Indent--;
         writer.WriteLine("}");
+    }
+
+    // Helper methods for type checks
+    private static bool IsArrayType(string type)
+    {
+        return type.EndsWith("[]");
+    }
+
+    private static bool IsListType(string type)
+    {
+        return type.StartsWith("System.Collections.Generic.List<") || type.StartsWith("List<");
+    }
+
+    private static bool IsCollectionType(string type)
+    {
+        return type.StartsWith("System.Collections.Generic.ICollection<") || type.StartsWith("ICollection<");
+    }
+
+    private static bool IsNullableType(string type)
+    {
+        return type.EndsWith("?") || type.StartsWith("System.Nullable<");
     }
 }
