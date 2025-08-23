@@ -1,8 +1,6 @@
 ﻿using Microsoft.CodeAnalysis;
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.Tools.Extensions;
-using MintPlayer.ValueComparerGenerator.Attributes;
-using System;
 
 namespace MintPlayer.Mapper.Generators;
 
