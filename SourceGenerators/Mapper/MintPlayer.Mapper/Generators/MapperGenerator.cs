@@ -87,7 +87,7 @@ public class MapperGenerator : IncrementalGenerator
                 TypeToMap = i,
                 MappedProperties = i.DeclaredProperties
                     .Select(dp => (Source: dp, Destination: i.MappingProperties.FirstOrDefault(mp => mp.Alias == dp.Alias)))
-                    .Where(p => p.Destination is { })
+                    .Where(p => p.Source is { IsStatic: false } && p.Destination is { IsStatic: false })
             })
             .WithComparer()
             .Collect();
