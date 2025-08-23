@@ -135,7 +135,7 @@ public sealed class MapperProducer : Producer
                 // Handle complex types
                 else
                 {
-                    writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(),");
+                    writer.WriteLine($"{destination.PropertyName} = input.{source.PropertyName}.MapTo{source.PropertyTypeName}(),");
                 }
             }
 
