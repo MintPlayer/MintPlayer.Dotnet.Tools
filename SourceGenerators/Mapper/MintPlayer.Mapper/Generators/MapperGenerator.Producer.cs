@@ -179,12 +179,12 @@ public sealed class MapperProducer : Producer
 
     private static bool IsListType(string type)
     {
-        return type.StartsWith("System.Collections.Generic.List<") || type.StartsWith("List<");
+        return type.StartsWith("global::System.Collections.Generic.List<") || type.StartsWith("List<");
     }
 
     private static bool IsCollectionType(string type)
     {
-        return type.StartsWith("System.Collections.Generic.ICollection<") || type.StartsWith("ICollection<");
+        return type.StartsWith("global::System.Collections.Generic.ICollection<") || type.StartsWith("ICollection<");
     }
 
     private static bool IsNullableType(string type)

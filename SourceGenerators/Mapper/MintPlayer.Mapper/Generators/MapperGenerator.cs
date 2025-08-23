@@ -35,7 +35,10 @@ public class MapperGenerator : IncrementalGenerator
                                 {
                                     PropertyName = p.Name,
                                     PropertyType = p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                    PropertyTypeName = p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                                    PropertyTypeName = p.Type is INamedTypeSymbol namedType && namedType.IsGenericType && namedType.Name == "List" && namedType.TypeArguments.Length == 1
+                                        ? namedType.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)
+                                        : p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+
                                     Alias = p.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperAliasAttribute")
                                         is { ConstructorArguments.Length: > 0 } aliasAttr
                                         && aliasAttr.ConstructorArguments[0].Value is string aliasName
@@ -55,7 +58,9 @@ public class MapperGenerator : IncrementalGenerator
                                 {
                                     PropertyName = p.Name,
                                     PropertyType = p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                    PropertyTypeName = p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                                    PropertyTypeName = p.Type is INamedTypeSymbol namedType && namedType.IsGenericType && namedType.Name == "List" && namedType.TypeArguments.Length == 1
+                                        ? namedType.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)
+                                        : p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
                                     Alias = p.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperAliasAttribute")
                                         is { ConstructorArguments.Length: > 0 } aliasAttr
                                         && aliasAttr.ConstructorArguments[0].Value is string aliasName
