@@ -10,6 +10,7 @@ public class Person
     public int? Age { get; set; }
     public Address Address { get; set; }
     public List<ContactInfo> ContactInfos { get; set; } = [];
+    public List<string> Notes { get; set; }
 }
 
 public class PersonDto
@@ -25,6 +26,9 @@ public class PersonDto
 
     [MapperAlias(nameof(Person.ContactInfos))]
     public List<ContactInfoDto> Contactgegevens { get; set; } = [];
+
+    [MapperAlias(nameof(Person.Notes))]
+    public List<string> Notities { get; set; }
 }
 
 [GenerateMapper(typeof(AddressDto))]

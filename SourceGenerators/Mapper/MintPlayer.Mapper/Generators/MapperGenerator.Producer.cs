@@ -1,6 +1,7 @@
 ﻿using MintPlayer.Mapper.Models;
 using MintPlayer.SourceGenerators.Tools;
 using System.CodeDom.Compiler;
+using System.Diagnostics;
 
 namespace MintPlayer.Mapper.Generators;
 
@@ -66,27 +67,27 @@ public sealed class MapperProducer : Producer
                 // Handle arrays
                 else if (IsArrayType(source.PropertyType) && IsArrayType(destination.PropertyType))
                 {
-                    writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{source.PropertyName}.Select(x => x.MapTo{destination.PropertyTypeName}()).ToArray(),");
+                    writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{source.PropertyTypeName}()).ToArray(),");
                 }
                 // Handle List<T>
                 else if (IsListType(source.PropertyType) && IsListType(destination.PropertyType))
                 {
-                    writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{source.PropertyName}.Select(x => x.MapTo{destination.PropertyTypeName}()).ToList(),");
+                    writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{source.PropertyTypeName}()).ToList(),");
                 }
                 // Handle ICollection<T>
                 else if (IsCollectionType(source.PropertyType) && IsCollectionType(destination.PropertyType))
                 {
-                    writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{source.PropertyName}.Select(x => x.MapTo{destination.PropertyTypeName}()).ToList(),");
+                    writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{source.PropertyTypeName}()).ToList(),");
                 }
                 // Handle nullable reference types
                 else if (IsNullableType(source.PropertyType) && IsNullableType(destination.PropertyType))
                 {
-                    writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{source.PropertyName}.MapTo{destination.PropertyTypeName}(),");
+                    writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(),");
                 }
                 // Handle complex types
                 else
                 {
-                    writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName}.MapTo{destination.PropertyTypeName}(),");
+                    writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(),");
                 }
             }
 
@@ -115,27 +116,34 @@ public sealed class MapperProducer : Producer
                 // Handle arrays
                 else if (IsArrayType(source.PropertyType) && IsArrayType(destination.PropertyType))
                 {
-                    writer.WriteLine($"{destination.PropertyName} = input.{source.PropertyName} == null ? null : input.{source.PropertyName}.Select(x => x.MapTo{source.PropertyTypeName}()).ToArray(),");
+                    if (destination.PropertyTypeName == "string") Debugger.Break();
+                    writer.WriteLine($"{destination.PropertyName} = input.{source.PropertyName} == null ? null : input.{source.PropertyName}.Select(x => x.MapTo{destination.PropertyTypeName}()).ToArray(),");
                 }
                 // Handle List<T>
                 else if (IsListType(source.PropertyType) && IsListType(destination.PropertyType))
                 {
-                    writer.WriteLine($"{destination.PropertyName} = input.{source.PropertyName} == null ? null : input.{source.PropertyName}.Select(x => x.MapTo{source.PropertyTypeName}()).ToList(),");
+                    // TODO: if PropertyType is List or Array, destination.PropertyTypeName == "string",
+                    // So we should know if the generic type argument is primitive or not.
+                    // However it can be List<List<int>> too, so this entire block (+ the one below) should work recursively
+                    if (destination.PropertyTypeName == "string") Debugger.Break();
+                    writer.WriteLine($"{destination.PropertyName} = input.{source.PropertyName} == null ? null : input.{source.PropertyName}.Select(x => x.MapTo{destination.PropertyTypeName}()).ToList(),");
                 }
                 // Handle ICollection<T>
                 else if (IsCollectionType(source.PropertyType) && IsCollectionType(destination.PropertyType))
                 {
-                    writer.WriteLine($"{destination.PropertyName} = input.{source.PropertyName} == null ? null : input.{source.PropertyName}.Select(x => x.MapTo{source.PropertyTypeName}()).ToList(),");
+                    if (destination.PropertyTypeName == "string") Debugger.Break();
+                    writer.WriteLine($"{destination.PropertyName} = input.{source.PropertyName} == null ? null : input.{source.PropertyName}.Select(x => x.MapTo{destination.PropertyTypeName}()).ToList(),");
                 }
                 // Handle nullable reference types
                 else if (IsNullableType(source.PropertyType) && IsNullableType(destination.PropertyType))
                 {
-                    writer.WriteLine($"{destination.PropertyName} = input.{source.PropertyName} == null ? null : input.{source.PropertyName}.MapTo{source.PropertyTypeName}(),");
+                    if (destination.PropertyTypeName == "string") Debugger.Break();
+                    writer.WriteLine($"{destination.PropertyName} = input.{source.PropertyName} == null ? null : input.{source.PropertyName}.MapTo{destination.PropertyTypeName}(),");
                 }
                 // Handle complex types
                 else
                 {
-                    writer.WriteLine($"{destination.PropertyName} = input.{source.PropertyName}.MapTo{source.PropertyTypeName}(),");
+                    writer.WriteLine($"{destination.PropertyName} = input.{source.PropertyName}.MapTo{destination.PropertyTypeName}(),");
                 }
             }
 
