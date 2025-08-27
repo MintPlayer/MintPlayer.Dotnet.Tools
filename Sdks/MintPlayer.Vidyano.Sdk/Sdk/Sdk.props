@@ -5,8 +5,27 @@
 		<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
 		<CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
 	</PropertyGroup>
+
+	<PropertyGroup Condition=" '$(OS.StartsWith(`Windows`))' == 'true' ">
+		<BaseIntermediateOutputPath>$(MSBuildProjectDirectory)\tmp-build\obj-windows\</BaseIntermediateOutputPath>
+		<BaseOutputPath>$(MSBuildProjectDirectory)\tmp-build\bin-windows\</BaseOutputPath>
+	</PropertyGroup>
+	<PropertyGroup Condition=" '$(OS.StartsWith(`Windows`))' != 'true' ">
+		<BaseIntermediateOutputPath>$(MSBuildProjectDirectory)/tmp-build/obj-linux/</BaseIntermediateOutputPath>
+		<BaseOutputPath>$(MSBuildProjectDirectory)/tmp-build/bin-linux/</BaseOutputPath>
+	</PropertyGroup>
+	
+	<PropertyGroup>
+		<VidyanoRavenDBVersion Condition="'$(VidyanoRavenDBVersion)' == ''">6.0.20250804.6019</VidyanoRavenDBVersion>
+		<VidyanoSourceGeneratorsVersion Condition="'$(VidyanoSourceGeneratorsVersion)' == ''">2.22.1</VidyanoSourceGeneratorsVersion>
+		<MeziantouAnalyzerVersion Condition="'$(MeziantouAnalyzerVersion)' == ''">2.0.210</MeziantouAnalyzerVersion>
+		<MinVerVersion Condition="'$(MinVerVersion)' == ''">6.0.0</MinVerVersion>
+	</PropertyGroup>
+	
 	<ItemGroup>
-		<PackageReference Update="Meziantou.Analyzer" Version="2.0.210" PrivateAssets="all" />
-		<PackageReference Update="MinVer" Version="6.0.0" PrivateAssets="all" />
+		<PackageReference Include="Vidyano.RavenDB" Version="6.0.20250804.6019" Condition="'$(VidyanoRavenDBVersion)' == ''" />
+		<PackageReference Include="Vidyano.SourceGenerators" Version="2.22.1" Condition="'$(VidyanoSourceGeneratorsVersion)' == ''" />
+		<GlobalPackageReference Include="Meziantou.Analyzer" Version="2.0.210" PrivateAssets="all" Condition="'$(MeziantouAnalyzerVersion)' == ''" />
+		<GlobalPackageReference Include="MinVer" Version="6.0.0" PrivateAssets="all" Condition="'$(MinVerVersion)' == ''" />
 	</ItemGroup>
 </Project>
