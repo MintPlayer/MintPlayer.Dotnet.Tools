@@ -1,19 +1,23 @@
 ﻿<Project>
-	
+
 	<!-- BaseIntermediateOutputPath / BaseOutputPath must be set here (early!) -->
 	<Choose>
 		<When Condition="'$(OS)' != '' and $(OS.StartsWith('Windows'))">
-			<Message Text="Using Windows path settings" Importance="high" />
-			<BaseIntermediateOutputPath Condition="'$(BaseIntermediateOutputPath)' == ''">$(MSBuildProjectDirectory)\tmp-build\obj-windows\</BaseIntermediateOutputPath>
-			<BaseOutputPath Condition="'$(BaseOutputPath)' == ''">$(MSBuildProjectDirectory)\tmp-build\bin-windows\</BaseOutputPath>
+			<PropertyGroup>
+				<Message Text="Using Windows path settings" Importance="high" />
+				<BaseIntermediateOutputPath Condition="'$(BaseIntermediateOutputPath)' == ''">$(MSBuildProjectDirectory)\tmp-build\obj-windows\</BaseIntermediateOutputPath>
+				<BaseOutputPath Condition="'$(BaseOutputPath)' == ''">$(MSBuildProjectDirectory)\tmp-build\bin-windows\</BaseOutputPath>
+			</PropertyGroup>
 		</When>
 		<Otherwise>
-			<Message Text="Using Linux path settings" Importance="high" />
-			<BaseIntermediateOutputPath Condition="'$(BaseIntermediateOutputPath)' == ''">$(MSBuildProjectDirectory)/tmp-build/obj-linux/</BaseIntermediateOutputPath>
-			<BaseOutputPath Condition="'$(BaseOutputPath)' == ''">$(MSBuildProjectDirectory)/tmp-build/bin-linux/</BaseOutputPath>
+			<PropertyGroup>
+				<Message Text="Using Linux path settings" Importance="high" />
+				<BaseIntermediateOutputPath Condition="'$(BaseIntermediateOutputPath)' == ''">$(MSBuildProjectDirectory)/tmp-build/obj-linux/</BaseIntermediateOutputPath>
+				<BaseOutputPath Condition="'$(BaseOutputPath)' == ''">$(MSBuildProjectDirectory)/tmp-build/bin-linux/</BaseOutputPath>
+			</PropertyGroup>
 		</Otherwise>
 	</Choose>
-	
+
 	<PropertyGroup>
 		<CommonTargetFramework>net9.0</CommonTargetFramework>
 		<CommonLangVersion>13</CommonLangVersion>
@@ -27,7 +31,7 @@
 		<MeziantouAnalyzerVersion Condition="'$(MeziantouAnalyzerVersion)' == ''">2.0.210</MeziantouAnalyzerVersion>
 		<MinVerVersion Condition="'$(MinVerVersion)' == ''">6.0.0</MinVerVersion>
 	</PropertyGroup>
-	
+
 	<ItemGroup>
 		<PackageReference Include="Vidyano.RavenDB" Version="6.0.20250804.6019" Condition="'$(VidyanoRavenDBVersion)' == ''" />
 		<PackageReference Include="Vidyano.SourceGenerators" Version="2.22.1" Condition="'$(VidyanoSourceGeneratorsVersion)' == ''" />
