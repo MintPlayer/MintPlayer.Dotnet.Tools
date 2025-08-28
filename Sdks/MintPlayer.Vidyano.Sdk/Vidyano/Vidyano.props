@@ -3,10 +3,14 @@
 	<!-- BaseIntermediateOutputPath / BaseOutputPath must be set here (early!) -->
 	<Choose>
 		<When Condition="'$(OS)' != '' and $(OS.StartsWith('Windows'))">
-			<Import Project="$(MSBuildThisFileDirectory)windows\outpaths.props" />
+			<Message Text="Using Windows path settings" Importance="high" />
+			<BaseIntermediateOutputPath Condition="'$(BaseIntermediateOutputPath)' == ''">$(MSBuildProjectDirectory)\tmp-build\obj-windows\</BaseIntermediateOutputPath>
+			<BaseOutputPath Condition="'$(BaseOutputPath)' == ''">$(MSBuildProjectDirectory)\tmp-build\bin-windows\</BaseOutputPath>
 		</When>
 		<Otherwise>
-			<Import Project="$(MSBuildThisFileDirectory)linux\outpaths.props" />
+			<Message Text="Using Linux path settings" Importance="high" />
+			<BaseIntermediateOutputPath Condition="'$(BaseIntermediateOutputPath)' == ''">$(MSBuildProjectDirectory)/tmp-build/obj-linux/</BaseIntermediateOutputPath>
+			<BaseOutputPath Condition="'$(BaseOutputPath)' == ''">$(MSBuildProjectDirectory)/tmp-build/bin-linux/</BaseOutputPath>
 		</Otherwise>
 	</Choose>
 	
