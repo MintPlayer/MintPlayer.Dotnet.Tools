@@ -9,6 +9,11 @@
 		<Content Remove="$(MSBuildProjectDirectory)/tmp-build/**" />
 		<EmbeddedResource Remove="$(MSBuildProjectDirectory)/tmp-build/**" />
 		<None Remove="$(MSBuildProjectDirectory)/tmp-build/**" />
+		
+		<Compile Remove="$(MSBuildProjectDirectory)/obj/**" />
+		<Content Remove="$(MSBuildProjectDirectory)/obj/**" />
+		<EmbeddedResource Remove="$(MSBuildProjectDirectory)/obj/**" />
+		<None Remove="$(MSBuildProjectDirectory)/obj/**" />
 	</ItemGroup>
 
 	<ItemGroup>
