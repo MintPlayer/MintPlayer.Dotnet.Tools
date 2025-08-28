@@ -1,0 +1,7 @@
+﻿<Project>
+	<PropertyGroup>
+		<Message Text="Using Linux path settings" Importance="high" />
+		<BaseIntermediateOutputPath Condition="'$(BaseIntermediateOutputPath)' == ''">$(MSBuildProjectDirectory)/tmp-build/obj-linux/</BaseIntermediateOutputPath>
+		<BaseOutputPath Condition="'$(BaseOutputPath)' == ''">$(MSBuildProjectDirectory)/tmp-build/bin-linux/</BaseOutputPath>
+	</PropertyGroup>
+</Project>

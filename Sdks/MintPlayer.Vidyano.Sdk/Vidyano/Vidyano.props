@@ -1,4 +1,15 @@
 ﻿<Project>
+	
+	<!-- BaseIntermediateOutputPath / BaseOutputPath must be set here (early!) -->
+	<Choose>
+		<When Condition="'$(OS)' != '' and $(OS.StartsWith('Windows'))">
+			<Import Project="$(MSBuildThisFileDirectory)windows\outpaths.props" />
+		</When>
+		<Otherwise>
+			<Import Project="$(MSBuildThisFileDirectory)linux\outpaths.props" />
+		</Otherwise>
+	</Choose>
+	
 	<PropertyGroup>
 		<CommonTargetFramework>net9.0</CommonTargetFramework>
 		<CommonLangVersion>13</CommonLangVersion>
@@ -6,15 +17,6 @@
 		<CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
 	</PropertyGroup>
 
-	<PropertyGroup Condition=" '$(OS.StartsWith(`Windows`))' == 'true' ">
-		<BaseIntermediateOutputPath>$(MSBuildProjectDirectory)\tmp-build\obj-windows\</BaseIntermediateOutputPath>
-		<BaseOutputPath>$(MSBuildProjectDirectory)\tmp-build\bin-windows\</BaseOutputPath>
-	</PropertyGroup>
-	<PropertyGroup Condition=" '$(OS.StartsWith(`Windows`))' != 'true' ">
-		<BaseIntermediateOutputPath>$(MSBuildProjectDirectory)/tmp-build/obj-linux/</BaseIntermediateOutputPath>
-		<BaseOutputPath>$(MSBuildProjectDirectory)/tmp-build/bin-linux/</BaseOutputPath>
-	</PropertyGroup>
-	
 	<PropertyGroup>
 		<VidyanoRavenDBVersion Condition="'$(VidyanoRavenDBVersion)' == ''">6.0.20250804.6019</VidyanoRavenDBVersion>
 		<VidyanoSourceGeneratorsVersion Condition="'$(VidyanoSourceGeneratorsVersion)' == ''">2.22.1</VidyanoSourceGeneratorsVersion>

@@ -1,0 +1,7 @@
+﻿<Project>
+	<PropertyGroup>
+		<Message Text="Using Windows path settings" Importance="high" />
+		<BaseIntermediateOutputPath Condition="'$(BaseIntermediateOutputPath)' == ''">$(MSBuildProjectDirectory)\tmp-build\obj-windows\</BaseIntermediateOutputPath>
+		<BaseOutputPath Condition="'$(BaseOutputPath)' == ''">$(MSBuildProjectDirectory)\tmp-build\bin-windows\</BaseOutputPath>
+	</PropertyGroup>
+</Project>

@@ -1,3 +1,3 @@
 ﻿<Project>
-	<Import Project="$(MSBuildThisFileDirectory)..\buildTransitive\MintPlayer.Vidyano.Sdk.targets" />
+	<Import Project="$(MSBuildThisFileDirectory)..\buildTransitive\Vidyano.targets" />
 </Project>
