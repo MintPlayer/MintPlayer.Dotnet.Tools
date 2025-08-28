@@ -1,3 +1,19 @@
 ﻿<Project>
+	<!-- BaseIntermediateOutputPath / BaseOutputPath must be set here (early!) -->
+	<Choose>
+		<When Condition="'$(OS)' != '' and $(OS.StartsWith('Windows'))">
+			<PropertyGroup>
+				<BaseIntermediateOutputPath>$(MSBuildProjectDirectory)\tmp-build\obj-windows\</BaseIntermediateOutputPath>
+				<BaseOutputPath>$(MSBuildProjectDirectory)\tmp-build\bin-windows\</BaseOutputPath>
+			</PropertyGroup>
+		</When>
+		<Otherwise>
+			<PropertyGroup>
+				<BaseIntermediateOutputPath>$(MSBuildProjectDirectory)/tmp-build/obj-linux/</BaseIntermediateOutputPath>
+				<BaseOutputPath>$(MSBuildProjectDirectory)/tmp-build/bin-linux/</BaseOutputPath>
+			</PropertyGroup>
+		</Otherwise>
+	</Choose>
+
 	<Import Project="$(MSBuildThisFileDirectory)..\buildTransitive\Vidyano.props" />
 </Project>

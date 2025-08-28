@@ -15,9 +15,12 @@
 		<Compile Update="**/*.*.cs">
 			<DependentUpon>$([System.Text.RegularExpressions.Regex]::Replace('%(Filename)', '(?:.(?![.]))+$', '%(Extension)'))</DependentUpon>
 		</Compile>
-		<Compile Update="**/*.*.json">
+		<Content Update="**/*.*.json">
 			<DependentUpon>$([System.Text.RegularExpressions.Regex]::Replace('%(Filename)', '(?:.(?![.]))+$', '%(Extension)'))</DependentUpon>
-		</Compile>
+		</Content>
+		<None Update="**/*.*.json">
+			<DependentUpon>$([System.Text.RegularExpressions.Regex]::Replace('%(Filename)', '(?:.(?![.]))+$', '%(Extension)'))</DependentUpon>
+		</None>
 		<AdditionalFiles Update="**/model-hashes.json">
 			<DependentUpon>model.json</DependentUpon>
 		</AdditionalFiles>
