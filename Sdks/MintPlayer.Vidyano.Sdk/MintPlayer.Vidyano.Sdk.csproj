@@ -5,11 +5,11 @@
 		<PackAsTool>false</PackAsTool>
 		<IsPackable>true</IsPackable>
 		<IncludeBuildOutput>false</IncludeBuildOutput>
-		<Version>1.5.0</Version>
+		<Version>1.6.0</Version>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<None Include="Sdk\**\*.*" Pack="true" PackagePath="buildTransitive\MintPlayer.Vidyano.%(Filename)%(Extension)" />
+		<None Include="Vidyano\**\*.*" Pack="true" PackagePath="buildTransitive\%(Filename)%(Extension)" />
 		<None Include="Entrypoint\**\*.*" Pack="true" PackagePath="Sdk\%(Filename)%(Extension)" />
 	</ItemGroup>
 	
