@@ -26,7 +26,7 @@
 		<None Update="**/*.*.json">
 			<DependentUpon>$([System.Text.RegularExpressions.Regex]::Replace('%(Filename)', '(?:.(?![.]))+$', '%(Extension)'))</DependentUpon>
 		</None>
-		<AdditionalFiles Update="**/model-hashes.json">
+		<AdditionalFiles Include="**/model-hashes.json">
 			<DependentUpon>model.json</DependentUpon>
 		</AdditionalFiles>
 	</ItemGroup>
