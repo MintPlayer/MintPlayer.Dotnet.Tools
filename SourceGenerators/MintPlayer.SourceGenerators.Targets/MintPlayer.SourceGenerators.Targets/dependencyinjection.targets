@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+
+	<ItemGroup>
+		<PackageReference Update="Microsoft.Extensions.DependencyInjection" PrivateAssets="all" GeneratePathProperty="true" />
+		<PackageReference Update="Microsoft.Extensions.DependencyInjection.Abstractions" PrivateAssets="all" GeneratePathProperty="true" />
+	</ItemGroup>
+
+	<PropertyGroup>
+		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsDependencyInjection</GetTargetPathDependsOn>
+	</PropertyGroup>
+
+	<ItemGroup Condition=" '$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)' !== '' ">
+		<!-- Put the assets for this project in the correct package path -->
+		<!-- Rolsyn 4.0 -->
+		<None Include="$(PkgMicrosoft_Extensions_DependencyInjection)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="false" />
+		<None Include="$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="false" />
+		<!-- Rolsyn 4.9 -->
+		<None Include="$(PkgMicrosoft_Extensions_DependencyInjection)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="false" />
+		<None Include="$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="false" />
+	</ItemGroup>
+
+	<Target Name="GetDependencyTargetPathsDependencyInjection">
+		<!-- Indicate that these assemblies are required -->
+		<ItemGroup Condition=" '$(PkgMicrosoft_Extensions_DependencyInjection)' !== '' ">
+			<TargetPathWithTargetPlatformMoniker Include="$(PkgMicrosoft_Extensions_DependencyInjection)\lib\netstandard2.0\Microsoft.Extensions.DependencyInjection.dll" IncludeRuntimeDependency="false" />
+		</ItemGroup>
+		<ItemGroup Condition=" '$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)' !== '' ">
+			<TargetPathWithTargetPlatformMoniker Include="$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\Microsoft.Extensions.DependencyInjection.Abstractions.dll" IncludeRuntimeDependency="false" />
+		</ItemGroup>
+	</Target>
+</Project>

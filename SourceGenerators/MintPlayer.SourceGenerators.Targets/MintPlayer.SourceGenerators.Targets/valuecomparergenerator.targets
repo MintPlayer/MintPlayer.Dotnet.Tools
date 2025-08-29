@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+
+	<ItemGroup>
+		<PackageReference Update="MintPlayer.ValueComparerGenerator.Attributes" GeneratePathProperty="true" />
+		<PackageReference Update="MintPlayer.ValueComparerGenerator" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+	</ItemGroup>
+
+	<PropertyGroup>
+		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsValueComparer</GetTargetPathDependsOn>
+	</PropertyGroup>
+
+	<ItemGroup Condition=" '$(PkgMintPlayer_ValueComparerGenerator_Attributes)' !== '' ">
+		<!-- Put the assets for this project in the correct package path -->
+		<None Condition="'$(Configuration)' == 'Release' " Include="$(PkgMintPlayer_ValueComparerGenerator_Attributes)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
+	</ItemGroup>
+
+	<Target Name="GetDependencyTargetPathsValueComparer">
+		<!-- Indicate that these assemblies are required -->
+		<ItemGroup Condition=" '$(PkgMintPlayer_ValueComparerGenerator_Attributes)' !== '' ">
+			<!--<TargetPathWithTargetPlatformMoniker Include="$(PkgMintPlayer_ValueComparerGenerator)\lib\netstandard2.0\MintPlayer.ValueComparerGenerator.dll" IncludeRuntimeDependency="false" />-->
+			<TargetPathWithTargetPlatformMoniker Include="$(PkgMintPlayer_ValueComparerGenerator_Attributes)\lib\netstandard2.0\MintPlayer.ValueComparerGenerator.Attributes.dll" IncludeRuntimeDependency="true" />
+		</ItemGroup>
+	</Target>
+
+</Project>

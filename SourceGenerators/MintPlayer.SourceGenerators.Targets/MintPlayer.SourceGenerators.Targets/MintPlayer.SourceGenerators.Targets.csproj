@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>netstandard2.0</TargetFramework>
+	</PropertyGroup>
+
+	<ItemGroup>
+	  <None Remove="dependencyinjection.targets" />
+	  <None Remove="filenesting.targets" />
+	  <None Remove="newtonsoftjson.targets" />
+	  <None Remove="sourcegenerator.targets" />
+	  <None Remove="valuecomparergenerator.targets" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Content Include="dependencyinjection.targets" />
+	  <Content Include="filenesting.targets" />
+	  <Content Include="newtonsoftjson.targets" />
+	  <Content Include="sourcegenerator.targets" />
+	  <Content Include="valuecomparergenerator.targets" />
+	</ItemGroup>
+
+</Project>
