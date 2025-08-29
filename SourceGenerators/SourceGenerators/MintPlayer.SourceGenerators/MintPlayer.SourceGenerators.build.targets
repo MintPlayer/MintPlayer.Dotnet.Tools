@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <!-- Ensure the compiler knows about analyzer dependency DLLs that ship with this package -->
+  <PropertyGroup>
+    <GetTargetPathDependsOn>$(GetTargetPathDependsOn);MintPlayer_SourceGenerators_AddAnalyzerDeps</GetTargetPathDependsOn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Probe both Roslyn layouts we ship -->
+    <_MintPlayer_SG_DependencyDlls Include="$(MSBuildThisFileDirectory)..\analyzers\dotnet\roslyn4.0\cs\*.dll" />
+    <_MintPlayer_SG_DependencyDlls Include="$(MSBuildThisFileDirectory)..\analyzers\dotnet\roslyn4.9\cs\*.dll" />
+  </ItemGroup>
+
+  <Target Name="MintPlayer_SourceGenerators_AddAnalyzerDeps">
+    <ItemGroup>
+      <!-- Pass dependencies to the compiler without promoting them to runtime assets -->
+      <TargetPathWithTargetPlatformMoniker Include="@(_MintPlayer_SG_DependencyDlls)" IncludeRuntimeDependency="false" />
+    </ItemGroup>
+  </Target>
+
+</Project>
+

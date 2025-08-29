@@ -44,4 +44,9 @@
 	<Import Project="..\..\eng\sourcegenerator.targets" />
 	<Import Project="..\..\eng\newtonsoftjson.targets" />
 	<Import Project="..\..\eng\dependencyinjection.targets" />
+
+	<!-- Ship a build targets file so only direct consumers auto-include analyzer dependencies -->
+	<ItemGroup>
+		<None Include="MintPlayer.SourceGenerators.build.targets" Pack="true" PackagePath="build/MintPlayer.SourceGenerators.targets" />
+	</ItemGroup>
 </Project>
