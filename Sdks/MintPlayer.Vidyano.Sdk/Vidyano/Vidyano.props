@@ -20,9 +20,9 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Vidyano.RavenDB" Version="6.0.20250804.6019" Condition="'$(VidyanoRavenDBVersion)' == ''" />
-		<PackageReference Include="Vidyano.SourceGenerators" Version="2.22.1" Condition="'$(VidyanoSourceGeneratorsVersion)' == ''" />
-		<GlobalPackageReference Include="Meziantou.Analyzer" Version="2.0.210" PrivateAssets="all" Condition="'$(MeziantouAnalyzerVersion)' == ''" />
-		<GlobalPackageReference Include="MinVer" Version="6.0.0" PrivateAssets="all" Condition="'$(MinVerVersion)' == ''" />
+		<PackageReference Include="Vidyano.RavenDB" Version="6.0.20250804.6019" />
+		<PackageReference Include="Vidyano.SourceGenerators" Version="2.22.1" />
+		<GlobalPackageReference Include="Meziantou.Analyzer" Version="2.0.210" PrivateAssets="all" />
+		<GlobalPackageReference Include="MinVer" Version="6.0.0" PrivateAssets="all" />
 	</ItemGroup>
 </Project>
