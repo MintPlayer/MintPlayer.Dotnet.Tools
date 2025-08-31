@@ -153,6 +153,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.CodeMigrations.T
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.CodeMigrations.Runner", "CodeMigrations\MintPlayer.CodeMigrations.Runner\MintPlayer.CodeMigrations.Runner.csproj", "{C87AAF91-FF01-4FBE-8577-FEFB364F71E2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.NestFiles", "Helpers\MintPlayer.NestFiles\MintPlayer.NestFiles.csproj", "{0AA3041B-3DF5-4C12-A15E-53EE1D214E97}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -343,6 +345,10 @@ Global
 		{C87AAF91-FF01-4FBE-8577-FEFB364F71E2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C87AAF91-FF01-4FBE-8577-FEFB364F71E2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C87AAF91-FF01-4FBE-8577-FEFB364F71E2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0AA3041B-3DF5-4C12-A15E-53EE1D214E97}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0AA3041B-3DF5-4C12-A15E-53EE1D214E97}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0AA3041B-3DF5-4C12-A15E-53EE1D214E97}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0AA3041B-3DF5-4C12-A15E-53EE1D214E97}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -402,6 +408,7 @@ Global
 		{32BFD99C-E7EA-427D-8F13-A7588E84C6A9} = {7FF25677-4801-406D-89BC-5791CA0ACD2F}
 		{22D540B1-C510-4E9F-B4E1-A5E7D38D9717} = {D1480FCB-7DA9-4D5B-BE28-3A4758EB313B}
 		{C87AAF91-FF01-4FBE-8577-FEFB364F71E2} = {D1480FCB-7DA9-4D5B-BE28-3A4758EB313B}
+		{0AA3041B-3DF5-4C12-A15E-53EE1D214E97} = {D4992485-AD63-4439-B032-D2FBE46C5C65}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D5378D43-9246-4355-8C4B-880DB15B07DA}
