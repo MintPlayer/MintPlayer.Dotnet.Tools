@@ -8,7 +8,7 @@
 		<Nullable>enable</Nullable>
 
 		<IsPackable>true</IsPackable>
-		<Version>1.0.0</Version>
+		<Version>1.0.1</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains targets that should group C# and JSON files</Description>
