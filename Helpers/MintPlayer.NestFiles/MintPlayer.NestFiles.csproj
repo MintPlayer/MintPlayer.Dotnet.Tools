@@ -8,7 +8,7 @@
 		<Nullable>enable</Nullable>
 
 		<IsPackable>true</IsPackable>
-		<Version>1.0.3</Version>
+		<Version>1.0.4</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains targets that should group C# and JSON files</Description>
@@ -21,7 +21,8 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<None Include="**/*.props" Pack="true" PackagePath="buildTransitive\%(Filename)%(Extension)" />
-		<None Remove="obj/**/*.props" />
+		<None Include="Sdk.props" Pack="true" PackagePath="Sdk\Sdk.props" />
+		<None Include="Sdk.targets" Pack="true" PackagePath="Sdk\Sdk.targets" />
 	</ItemGroup>
+
 </Project>
