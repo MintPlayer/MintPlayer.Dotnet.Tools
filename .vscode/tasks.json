@@ -1,0 +1,18 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "BuildValueComparerDebugging",
+      "type": "shell",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}/SourceGenerators/TestProjects/ValueComparerDebugging/ValueComparerDebugging.csproj"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/SourceGenerators/TestProjects/ValueComparerDebugging"
+      },
+      "problemMatcher": "$msCompile"
+    }
+  ]
+}
