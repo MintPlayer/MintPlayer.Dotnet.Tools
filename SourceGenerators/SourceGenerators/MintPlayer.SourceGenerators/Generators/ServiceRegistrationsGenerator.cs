@@ -28,51 +28,62 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                         var classSymbol = context2.SemanticModel.GetDeclaredSymbol(classDeclaration, ct);
                         if (classSymbol is INamedTypeSymbol namedTypeSymbol)
                         {
-                            var attr = classSymbol.GetAttributes()
-                                .FirstOrDefault(a => a.AttributeClass?.Name == nameof(RegisterAttribute));
+                            var attrs = classSymbol.GetAttributes()
+                                .Where(a => a.AttributeClass?.Name == nameof(RegisterAttribute))
+                                .ToArray();
 
-                            if (attr is null) return default;
+                            if (attrs.Length is 0) return default;
 
                             var serviceLifetimeSymbol = context2.SemanticModel.Compilation.GetTypeByMetadataName("Microsoft.Extensions.DependencyInjection.ServiceLifetime");
-                            if (attr.AttributeConstructor?.Parameters.Length == 2)
-                            {
-                                if (!SymbolEqualityComparer.Default.Equals(attr.ConstructorArguments[0].Type, serviceLifetimeSymbol)) return default;
-                                if (attr.ConstructorArguments[1].Value is not string methodNameHint) return default;
 
-                                return new ServiceRegistration
-                                {
-                                    ServiceTypeName = null,
-                                    ImplementationTypeName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                    Lifetime = (ServiceLifetime)attr.ConstructorArguments[0].Value!,
-                                    MethodNameHint = methodNameHint,
-                                };
-                            }
-                            else if (attr.AttributeConstructor?.Parameters.Length is 3 or 4)
+                            return attrs.Select(attr =>
                             {
-                                if (attr.ConstructorArguments[0].Value is not INamedTypeSymbol interfaceTypeSymbol) return default;
-                                if (!SymbolEqualityComparer.Default.Equals(attr.ConstructorArguments[1].Type, serviceLifetimeSymbol)) return default;
-                                var methodNameHint = attr.ConstructorArguments[2].Value as string;
-                                var factoryName = attr.ConstructorArguments[3].Value as string;
-
-                                // Verify that the class implements the interface
-                                if (namedTypeSymbol.AllInterfaces.All(i => !SymbolEqualityComparer.Default.Equals(i, interfaceTypeSymbol))) return default;
-                                
-                                return new ServiceRegistration
+                                if (attr.AttributeConstructor?.Parameters.Length == 2)
                                 {
-                                    ServiceTypeName = interfaceTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                    ImplementationTypeName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                    Lifetime = (ServiceLifetime)attr.ConstructorArguments[1].Value!,
-                                    MethodNameHint = methodNameHint,
-                                    FactoryName = factoryName,
-                                };
-                            }
+                                    if (!SymbolEqualityComparer.Default.Equals(attr.ConstructorArguments[0].Type, serviceLifetimeSymbol)) return default;
+                                    if (attr.ConstructorArguments[1].Value is not string methodNameHint) return default;
+
+                                    return new ServiceRegistration
+                                    {
+                                        ServiceTypeName = null,
+                                        ImplementationTypeName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                                        Lifetime = (ServiceLifetime)attr.ConstructorArguments[0].Value!,
+                                        MethodNameHint = methodNameHint,
+                                    };
+                                }
+                                else if (attr.AttributeConstructor?.Parameters.Length is 3 or 4)
+                                {
+                                    if (attr.ConstructorArguments[0].Value is not INamedTypeSymbol interfaceTypeSymbol) return default;
+                                    if (!SymbolEqualityComparer.Default.Equals(attr.ConstructorArguments[1].Type, serviceLifetimeSymbol)) return default;
+                                    var methodNameHint = attr.ConstructorArguments[2].Value as string;
+                                    var factoryName = attr.ConstructorArguments[3].Value as string;
+
+                                    // Verify that the class implements the interface
+                                    if (namedTypeSymbol.AllInterfaces.All(i => !SymbolEqualityComparer.Default.Equals(i, interfaceTypeSymbol))) return default;
+
+                                    return new ServiceRegistration
+                                    {
+                                        ServiceTypeName = interfaceTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                                        ImplementationTypeName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                                        Lifetime = (ServiceLifetime)attr.ConstructorArguments[1].Value!,
+                                        MethodNameHint = methodNameHint,
+                                        FactoryName = factoryName,
+                                    };
+                                }
+                                else
+                                {
+                                    return default;
+                                }
+                            })
+                            .NotNull()
+                            .ToArray();
                         }
                     }
 
                     return default;
                 }
             )
-            .WithNullableComparer()
+            .SelectMany((x, ct) => x)
             .Collect();
 
         var registerAttributeSourceProvider = classesWithRegisterAttributeProvider

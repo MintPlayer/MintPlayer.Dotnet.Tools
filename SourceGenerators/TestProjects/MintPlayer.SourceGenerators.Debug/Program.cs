@@ -20,15 +20,32 @@ public interface ITestService3
 {
     string GetMessage();
 }
-[Register(typeof(ITestService3), ServiceLifetime.Singleton, "CoreData", nameof(Factory))]
+
+[Register(typeof(ITestService3), ServiceLifetime.Singleton, "CoreData", nameof(FactoryMain))]
+[Register(typeof(ITestService3), ServiceLifetime.Singleton, "CoreData", nameof(FactoryDev))]
+[Register(typeof(ITestService3), ServiceLifetime.Singleton, "CoreData", nameof(FactoryFeature))]
 public class TestService3 : ITestService3
 {
+    public TestService3(EBranchType branchType) { }
+
     public string GetMessage() => "Hello world";
 
-    public static ITestService3 Factory(IServiceProvider serviceProvider) => new TestService3();
+    public static ITestService3 FactoryMain(IServiceProvider serviceProvider)
+        => new TestService3(EBranchType.Main);
+    public static ITestService3 FactoryDev(IServiceProvider serviceProvider)
+        => new TestService3(EBranchType.Dev);
+    public static ITestService3 FactoryFeature(IServiceProvider serviceProvider)
+        => new TestService3(EBranchType.Feature);
 }
 
 public interface ITestService4 { }
 [Register(typeof(ITestService4), ServiceLifetime.Scoped)]
 public class TestService4 : ITestService4 { }
 
+
+public enum EBranchType
+{
+    Main,
+    Dev,
+    Feature
+}
