@@ -37,7 +37,7 @@ public class InterfaceImplementationAnalyzer : DiagnosticAnalyzer
                         .Concat(iface.AllInterfaces.SelectMany(i => i.GetMembers()))
                         .ToArray();
                     var classMembers = namedTypeSymbol.GetMembers()
-                        .Where(m => m.DeclaredAccessibility == Accessibility.Public)
+                        .Where(m => (m.DeclaredAccessibility == Accessibility.Public) && !m.IsStatic)
                         .Where(m => m.GetAttributes().All(attr => attr.AttributeClass?.Name != nameof(NoInterfaceMemberAttribute)));
 
                     foreach (var member in classMembers)

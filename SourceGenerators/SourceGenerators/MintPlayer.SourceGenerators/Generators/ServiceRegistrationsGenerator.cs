@@ -47,11 +47,12 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                     MethodNameHint = methodNameHint,
                                 };
                             }
-                            else if (attr.AttributeConstructor?.Parameters.Length == 3)
+                            else if (attr.AttributeConstructor?.Parameters.Length is 3 or 4)
                             {
                                 if (attr.ConstructorArguments[0].Value is not INamedTypeSymbol interfaceTypeSymbol) return default;
                                 if (!SymbolEqualityComparer.Default.Equals(attr.ConstructorArguments[1].Type, serviceLifetimeSymbol)) return default;
-                                if (attr.ConstructorArguments[2].Value is not string methodNameHint) return default;
+                                var methodNameHint = attr.ConstructorArguments[2].Value as string;
+                                var factoryName = attr.ConstructorArguments[3].Value as string;
 
                                 // Verify that the class implements the interface
                                 if (namedTypeSymbol.AllInterfaces.All(i => !SymbolEqualityComparer.Default.Equals(i, interfaceTypeSymbol))) return default;
@@ -62,6 +63,7 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                     ImplementationTypeName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                     Lifetime = (ServiceLifetime)attr.ConstructorArguments[1].Value!,
                                     MethodNameHint = methodNameHint,
+                                    FactoryName = factoryName,
                                 };
                             }
                         }
