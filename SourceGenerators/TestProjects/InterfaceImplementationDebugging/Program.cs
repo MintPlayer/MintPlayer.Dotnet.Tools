@@ -16,6 +16,10 @@ public interface IFace : IFaceBase
 
 public class Face : IFace
 {
+    public Face()
+    {
+    }
+
     public string? Name { get; set; }
 
     public object? GetValue(object target) => null;

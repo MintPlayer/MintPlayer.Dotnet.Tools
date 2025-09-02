@@ -60,7 +60,7 @@ public class InterfaceCodeFixProvider : CodeFixProvider
         if (interfaceSyntaxRoot == null || interfaceSemanticModel == null) return solution;
 
         // Determine missing members
-        var classMembers = classSymbol?.GetMembers().Where(m => m.DeclaredAccessibility == Accessibility.Public);
+        var classMembers = classSymbol?.GetMembers().Where(m => (m.DeclaredAccessibility == Accessibility.Public) && !m.IsStatic && !m.IsImplicitlyDeclared);
         var interfaceMembers = interfaceSymbol.GetMembers();
 
         var missingMembers = classMembers

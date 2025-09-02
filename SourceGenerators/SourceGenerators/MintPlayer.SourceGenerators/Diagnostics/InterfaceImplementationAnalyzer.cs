@@ -8,8 +8,7 @@ namespace MintPlayer.SourceGenerators.Diagnostics;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public class InterfaceImplementationAnalyzer : DiagnosticAnalyzer
 {
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        ImmutableArray.Create(DiagnosticRules.MissingInterfaceMemberRule);
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [DiagnosticRules.MissingInterfaceMemberRule];
 
     public override void Initialize(AnalysisContext context)
     {
@@ -37,30 +36,24 @@ public class InterfaceImplementationAnalyzer : DiagnosticAnalyzer
                         .Concat(iface.AllInterfaces.SelectMany(i => i.GetMembers()))
                         .ToArray();
                     var classMembers = namedTypeSymbol.GetMembers()
-                        .Where(m => (m.DeclaredAccessibility == Accessibility.Public) && !m.IsStatic)
-                        .Where(m => m.GetAttributes().All(attr => attr.AttributeClass?.Name != nameof(NoInterfaceMemberAttribute)));
+                        .Where(m => (m.DeclaredAccessibility == Accessibility.Public) && !m.IsStatic && m.CanBeReferencedByName && !m.IsImplicitlyDeclared)
+                        .Where(m => !m.GetAttributes().Any(attr => SymbolEqualityComparer.Default.Equals(attr.AttributeClass, ignoreAttributeSymbol)));
 
                     foreach (var member in classMembers)
                     {
-                        if (!interfaceMembers.Any(im => im.Name == member.Name) && !member.IsImplicitlyDeclared)
+                        // Member already exists
+                        if (interfaceMembers.Any(im => im.Name == member.Name)) continue;
+
+                        if (member is IMethodSymbol method)
                         {
-                            if (member is IMethodSymbol method)
-                            {
-                                // We don't need to process the Xxx_get and Xxx_set methods
-                                if (method.MethodKind is MethodKind.PropertyGet or MethodKind.PropertySet) continue;
-
-                                // Try to ignore events
-                                if (method.Kind == SymbolKind.Event) continue;
-                            }
-
-                            if (member.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, ignoreAttributeSymbol)))
-                                continue;
-
-                            // Report diagnostic for missing member
-                            var syntaxNode = member.DeclaringSyntaxReferences.First().GetSyntax(context.CancellationToken);
-                            var diagnostic = Diagnostic.Create(DiagnosticRules.MissingInterfaceMemberRule, syntaxNode.GetLocation(), member.Name, iface.Name);
-                            context.ReportDiagnostic(diagnostic);
+                            // Try to ignore events
+                            if (method.Kind is SymbolKind.Event) continue;
                         }
+
+                        // Report diagnostic for missing member
+                        var syntaxNode = member.DeclaringSyntaxReferences.First().GetSyntax(context.CancellationToken);
+                        var diagnostic = Diagnostic.Create(DiagnosticRules.MissingInterfaceMemberRule, syntaxNode.GetLocation(), member.Name, iface.Name);
+                        context.ReportDiagnostic(diagnostic);
                     }
                 }
                 break;
