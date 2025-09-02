@@ -52,9 +52,19 @@ public class RegistrationsProducer : Producer
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (svc.ServiceTypeName is null)
-                    writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ImplementationTypeName}>()");
+                {
+                    if (svc.FactoryName is not null)
+                        writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ImplementationTypeName}>({svc.ImplementationTypeName}.{svc.FactoryName})");
+                    else
+                        writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ImplementationTypeName}>()");
+                }
                 else
-                    writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ServiceTypeName}, {svc.ImplementationTypeName}>()");
+                {
+                    if (svc.FactoryName is not null)
+                        writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ServiceTypeName}>({svc.ImplementationTypeName}.{svc.FactoryName})");
+                    else
+                        writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ServiceTypeName}, {svc.ImplementationTypeName}>()");
+                }
 
                 if (++currentIndex == total)
                     writer.Write(";");
