@@ -1,3 +1,5 @@
+// ctrl + shift + p
+// Tasks: Run Task => echo FileContent
 {
   "version": "2.0.0",
   "tasks": [
@@ -13,6 +15,25 @@
         "cwd": "${workspaceFolder}/SourceGenerators/TestProjects/ValueComparerDebugging"
       },
       "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "echo FileContent",
+      "type": "shell",
+      "command": "echo",
+      "args": [
+        "${input:fileContent}"
+      ],
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "fileContent",
+      "type": "command",
+      "command": "extension.commandvariable.file.content",
+      "args": {
+        "fileName": "${workspaceFolder}/.vscode/build.pid"
+      }
     }
   ]
 }

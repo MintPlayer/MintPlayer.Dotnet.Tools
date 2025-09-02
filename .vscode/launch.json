@@ -6,10 +6,7 @@
       "type": "coreclr",
       "request": "attach",
       "preLaunchTask": "BuildValueComparerDebugging",
-      "processFilter": {
-        "executable": "dotnet",
-        "arguments": "csc.dll"
-      }
+      "processId": "${command:extension.commandvariable.file.content,./pid.txt}"
     }
   ]
 }

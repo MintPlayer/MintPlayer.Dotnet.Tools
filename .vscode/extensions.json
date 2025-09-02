@@ -1,0 +1,8 @@
+{
+    "recommendations": [
+        "ms-dotnettools.csdevkit",
+        "eamodio.gitlens",
+        "esbenp.prettier-vscode",
+        "rioj7.command-variable"
+    ]
+}

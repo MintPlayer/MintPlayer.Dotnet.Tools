@@ -1,0 +1,12 @@
+{
+  "command-variable.commands": {
+    "pickProcessFromFile": {
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "Get-Content '${workspaceFolder}/.vscode/build.pid'"
+      ]
+    }
+  }
+}
