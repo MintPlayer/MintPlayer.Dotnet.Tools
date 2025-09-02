@@ -10,5 +10,5 @@ public partial class ServiceRegistration
     public string? ImplementationTypeName { get; set; }
     public ServiceLifetime Lifetime { get; set; }
     public string? MethodNameHint { get; set; } = string.Empty;
-    public string? FactoryName { get; set; } = string.Empty;
+    public string[] FactoryNames { get; set; } = [];
 }

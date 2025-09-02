@@ -53,17 +53,37 @@ public class RegistrationsProducer : Producer
                 cancellationToken.ThrowIfCancellationRequested();
                 if (svc.ServiceTypeName is null)
                 {
-                    if (svc.FactoryName is not null)
-                        writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ImplementationTypeName}>({svc.ImplementationTypeName}.{svc.FactoryName})");
+                    if (svc.FactoryNames.Length > 0)
+                    {
+                        var currentFactoryIndex = 0;
+                        foreach (var factoryName in svc.FactoryNames)
+                        {
+                            writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ServiceTypeName}>({svc.ImplementationTypeName}.{factoryName})");
+                            if (++currentFactoryIndex != svc.FactoryNames.Length)
+                                writer.WriteLine();
+                        }
+                    }
                     else
+                    {
                         writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ImplementationTypeName}>()");
+                    }
                 }
                 else
                 {
-                    if (svc.FactoryName is not null)
-                        writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ServiceTypeName}>({svc.ImplementationTypeName}.{svc.FactoryName})");
+                    if (svc.FactoryNames.Length > 0)
+                    {
+                        var currentFactoryIndex = 0;
+                        foreach (var factoryName in svc.FactoryNames)
+                        {
+                            writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ServiceTypeName}>({svc.ImplementationTypeName}.{factoryName})");
+                            if (++currentFactoryIndex != svc.FactoryNames.Length)
+                                writer.WriteLine();
+                        }
+                    }
                     else
+                    {
                         writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ServiceTypeName}, {svc.ImplementationTypeName}>()");
+                    }
                 }
 
                 if (++currentIndex == total)
