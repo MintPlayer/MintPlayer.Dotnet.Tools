@@ -13,8 +13,8 @@ public class ValueComparerGenerator : IncrementalGenerator
 
     public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {
-        if (!System.Diagnostics.Debugger.IsAttached)
-            System.Diagnostics.Debugger.Launch();
+        // if (!System.Diagnostics.Debugger.IsAttached)
+        //     System.Diagnostics.Debugger.Launch();
 
         const string valueComparerType = "global::MintPlayer.SourceGenerators.Tools.ValueComparers.ValueComparer";
         // ValueComparerAttribute is within the Tools project, AutoValueComparerAttribute is within the ValueComparerGenerator project

@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      // Step 1: Run your test project build (this loads the generator)
+      // Step 1: Run build on the test project (triggers the generator)
       "name": "Build ValueComparerDebugging (with generator)",
       "type": "coreclr",
       "request": "launch",
@@ -16,19 +16,20 @@
       "internalConsoleOptions": "neverOpen"
     },
     {
-      // Step 2: Attach to the Roslyn compiler that’s running the generator
-      "name": "Attach to Roslyn Compiler (csc)",
+      // Step 2: Attach directly to the dotnet.exe compiler process
+      "name": "Attach to Roslyn Compiler",
       "type": "coreclr",
-      "request": "attach"
+      "request": "attach",
+      "processName": "dotnet"
     }
   ],
   "compounds": [
     {
-      // One-button F5 experience
+      // One F5 experience
       "name": "Debug Source Generator",
       "configurations": [
         "Build ValueComparerDebugging (with generator)",
-        "Attach to Roslyn Compiler (csc)"
+        "Attach to Roslyn Compiler"
       ]
     }
   ]
