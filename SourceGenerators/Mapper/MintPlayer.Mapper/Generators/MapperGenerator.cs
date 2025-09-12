@@ -114,9 +114,9 @@ public class MapperGenerator : IncrementalGenerator
                                 {
                                     MethodName = m.Name,
                                     SourceType = m.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                    SourceTypeName = m.Parameters[0].Type.Name,
+                                    SourceTypeName = m.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
                                     DestinationType = m.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                    DestinationTypeName = m.ReturnType.Name,
+                                    DestinationTypeName = m.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
                                 })
                                 .ToArray(),
                         };
