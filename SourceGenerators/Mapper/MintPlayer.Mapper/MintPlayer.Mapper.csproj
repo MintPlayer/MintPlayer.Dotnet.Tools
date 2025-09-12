@@ -1,0 +1,41 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPaths</GetTargetPathDependsOn>
+	</PropertyGroup>
+
+	<Target Name="GetDependencyTargetPaths">
+		<ItemGroup>
+			<TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)\..\MintPlayer.Mapper.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.Mapper.Attributes.dll" IncludeRuntimeDependency="true" />
+		</ItemGroup>
+	</Target>
+
+	<PropertyGroup>
+		<Version>6.1.0</Version>
+		<Authors>Pieterjan De Clippel</Authors>
+		<Company>MintPlayer</Company>
+		<Description>This package automatically generates mappers for you</Description>
+		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/SourceGenerators/Mapper/MintPlayer.Mapper</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageId>MintPlayer.Mapper</PackageId>
+		<PackageTags>Mapper, SourceGenerators</PackageTags>
+		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<!--<DebugType>embedded</DebugType>-->
+		<IncludeSymbols>false</IncludeSymbols>
+		<!--<SymbolPackageFormat>snupkg</SymbolPackageFormat>-->
+		<!--<AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>-->
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- Dependency DLLs -->
+		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.Mapper.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\MintPlayer.Mapper.Attributes\MintPlayer.Mapper.Attributes.csproj" />
+	</ItemGroup>
+
+	<Import Project="..\..\eng\sourcegenerator.targets" />
+	<Import Project="..\..\eng\valuecomparergenerator.targets" />
+</Project>

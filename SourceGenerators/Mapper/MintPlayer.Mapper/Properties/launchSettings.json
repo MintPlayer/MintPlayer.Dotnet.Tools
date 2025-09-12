@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Debug Mapper Generators on MapperDebugging": {
+      "commandName": "DebugRoslynComponent",
+      "targetProject": "..\\..\\TestProjects\\MapperDebugging\\MapperDebugging.csproj"
+    }
+  }
+}
