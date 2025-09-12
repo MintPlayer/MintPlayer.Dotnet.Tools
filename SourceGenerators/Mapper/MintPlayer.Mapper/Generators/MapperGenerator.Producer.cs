@@ -138,7 +138,7 @@ public sealed class MapperProducer : Producer
 
     private static bool IsPrimitiveOrString(string type)
     {
-        switch (type.RemoveBegin("global::"))
+        switch (type.WithoutGlobal())
         {
             case "string":
             case "System.String":
@@ -180,6 +180,9 @@ public sealed class MapperProducer : Producer
         }
     }
 
+    /// <summary>
+    /// Computes the fully-qualified name of the element type of a collection type.
+    /// </summary>
     private static string GetElementType(string collectionType)
     {
         int start = collectionType.IndexOf('<');
@@ -212,7 +215,8 @@ public sealed class MapperProducer : Producer
             }
             else
             {
-                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{source.PropertyTypeName}()).ToArray(),");
+                var shortName = elementType.WithoutGlobal().Split('.').Last();
+                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToArray(),");
             }
         }
         // Handle List<T>
@@ -225,7 +229,8 @@ public sealed class MapperProducer : Producer
             }
             else
             {
-                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{elementType}()).ToList(),");
+                var shortName = elementType.WithoutGlobal().Split('.').Last();
+                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToList(),");
             }
         }
         // Handle ICollection<T>
@@ -238,7 +243,8 @@ public sealed class MapperProducer : Producer
             }
             else
             {
-                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{elementType}()).ToList(),");
+                var shortName = elementType.WithoutGlobal().Split('.').Last();
+                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToList(),");
             }
         }
         // Handle nullable reference types
