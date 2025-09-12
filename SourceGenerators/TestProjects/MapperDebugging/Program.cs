@@ -3,6 +3,25 @@ using MintPlayer.Mapper.Attributes;
 
 Console.WriteLine("Hello, World!");
 
+public static class Conversions
+{
+    [MapperConversion]
+    public static int? StringToNullableInt(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return null;
+        if (int.TryParse(input, out int result))
+            return result;
+        return null;
+    }
+
+    [MapperConversion]
+    public static string? NullableIntToString(int? input)
+    {
+        return input?.ToString();
+    }
+}
+
 [GenerateMapper(typeof(PersonDto))]
 public class Person
 {

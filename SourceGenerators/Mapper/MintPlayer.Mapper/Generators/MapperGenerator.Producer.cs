@@ -9,9 +9,11 @@ namespace MintPlayer.Mapper.Generators;
 public sealed class MapperProducer : Producer
 {
     private readonly IEnumerable<TypeWithMappedProperties> typesToMap;
-    public MapperProducer(IEnumerable<TypeWithMappedProperties> typesToMap, string rootNamespace) : base(rootNamespace, "Mappers.g.cs")
+    private readonly IEnumerable<ClassDeclaration> staticClasses;
+    public MapperProducer(IEnumerable<TypeWithMappedProperties> typesToMap, IEnumerable<ClassDeclaration> staticClasses, string rootNamespace) : base(rootNamespace, "Mappers.g.cs")
     {
         this.typesToMap = typesToMap;
+        this.staticClasses = staticClasses;
     }
 
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
