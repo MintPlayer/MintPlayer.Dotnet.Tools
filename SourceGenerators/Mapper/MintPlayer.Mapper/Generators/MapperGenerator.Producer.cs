@@ -50,6 +50,25 @@ public sealed class MapperProducer : Producer
         writer.WriteLine("{");
         writer.Indent++;
 
+        //writer.WriteLine("public ")
+
+
+        /***
+         * 
+         * GOAL: generate the following from all conversion methods:
+         * 
+         * switch (sourcePropertyType, destinationPropertyType) {
+         *      case (string, int?): return Conversions.StringToNullableInt(input);
+         *      case (int?, string): return Conversions.NullableIntToString(input);
+         *      case (string, long?): return OtherConversions.StringToNullableLong(input);
+         *      case (long?, string): return OtherConversions.NullableLongToString(input);
+         * }
+         * 
+         * 
+         * 
+         */
+
+
         foreach (var type in typesToMap)
         {
             writer.WriteLine($"public static {type.TypeToMap.DeclaredType} MapTo{type.TypeToMap.DeclaredTypeName}(this {type.TypeToMap.MappingType} input)");

@@ -30,6 +30,7 @@ public class Person
     public Address Address { get; set; }
     public List<ContactInfo> ContactInfos { get; set; } = [];
     public List<string> Notes { get; set; }
+    public double Weight { get; set; }
 }
 
 public class PersonDto
@@ -48,6 +49,9 @@ public class PersonDto
 
     [MapperAlias(nameof(Person.Notes))]
     public List<string> Notities { get; set; }
+
+    [MapperAlias(nameof(Person.Weight))]
+    public string Gewicht { get; set; }
 }
 
 [GenerateMapper(typeof(AddressDto))]
