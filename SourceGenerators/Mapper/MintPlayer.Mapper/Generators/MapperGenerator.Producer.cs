@@ -1,5 +1,6 @@
 ﻿using MintPlayer.Mapper.Models;
 using MintPlayer.SourceGenerators.Tools;
+using MintPlayer.SourceGenerators.Tools.Extensions;
 using System.CodeDom.Compiler;
 using System.Diagnostics;
 
@@ -135,6 +136,65 @@ public sealed class MapperProducer : Producer
         return type.EndsWith("?") || type.StartsWith("System.Nullable<");
     }
 
+    private static bool IsPrimitiveOrString(string type)
+    {
+        switch (type.RemoveBegin("global::"))
+        {
+            case "string":
+            case "System.String":
+            case "System.DateTime":
+            case "System.DateTimeOffset":
+            case "bool":
+            case "System.Boolean":
+            case "byte":
+            case "System.Byte":
+            case "sbyte":
+            case "System.SByte":
+            case "char":
+            case "System.Char":
+            case "decimal":
+            case "System.Decimal":
+            case "double":
+            case "System.Double":
+            case "float":
+            case "System.Single":
+            case "int":
+            case "System.Int32":
+            case "uint":
+            case "System.UInt32":
+            case "nint":
+            case "nuint":
+            case "long":
+            case "System.Int64":
+            case "ulong":
+            case "System.UInt64":
+            case "short":
+            case "System.Int16":
+            case "ushort":
+            case "System.UInt16":
+            case "System.IntPtr":
+            case "System.UIntPtr":
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static string GetElementType(string collectionType)
+    {
+        int start = collectionType.IndexOf('<');
+        int end = collectionType.LastIndexOf('>');
+        if (start >= 0 && end > start)
+        {
+            return collectionType.Substring(start + 1, end - start - 1).Trim();
+        }
+        if (collectionType.EndsWith("[]"))
+        {
+            return collectionType.Substring(0, collectionType.Length - 2);
+        }
+        return collectionType;
+    }
+
     private static void HandleProperty(IndentedTextWriter writer, PropertyDeclaration source, PropertyDeclaration destination)
     {
         // Handle primitive types
@@ -145,17 +205,41 @@ public sealed class MapperProducer : Producer
         // Handle arrays
         else if (IsArrayType(source.PropertyType) && IsArrayType(destination.PropertyType))
         {
-            writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{source.PropertyTypeName}()).ToArray(),");
+            var elementType = GetElementType(source.PropertyType);
+            if (IsPrimitiveOrString(elementType))
+            {
+                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToArray(),");
+            }
+            else
+            {
+                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{source.PropertyTypeName}()).ToArray(),");
+            }
         }
         // Handle List<T>
         else if (IsListType(source.PropertyType) && IsListType(destination.PropertyType))
         {
-            writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{source.PropertyTypeName}()).ToList(),");
+            var elementType = GetElementType(source.PropertyType);
+            if (IsPrimitiveOrString(elementType))
+            {
+                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToList(),");
+            }
+            else
+            {
+                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{elementType}()).ToList(),");
+            }
         }
         // Handle ICollection<T>
         else if (IsCollectionType(source.PropertyType) && IsCollectionType(destination.PropertyType))
         {
-            writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{source.PropertyTypeName}()).ToList(),");
+            var elementType = GetElementType(source.PropertyType);
+            if (IsPrimitiveOrString(elementType))
+            {
+                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToList(),");
+            }
+            else
+            {
+                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{elementType}()).ToList(),");
+            }
         }
         // Handle nullable reference types
         else if (IsNullableType(source.PropertyType) && IsNullableType(destination.PropertyType))
