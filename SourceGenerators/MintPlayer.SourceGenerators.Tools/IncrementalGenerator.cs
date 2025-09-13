@@ -9,14 +9,7 @@ public abstract partial class IncrementalGenerator : IIncrementalGenerator
         RegisterComparers();
 
         var config = context.AnalyzerConfigOptionsProvider
-            .Select(static (p, ct) =>
-            {
-                p.GlobalOptions.TryGetValue("build_property.rootnamespace", out var rootNamespace);
-                return new Settings
-                {
-                    RootNamespace = rootNamespace,
-                };
-            })
+            .Select(static (p, ct) => Settings.FromGlobalOptions(p.GlobalOptions))
             .WithComparer(SettingsValueComparer.Instance);
 
         Initialize(context, config);
