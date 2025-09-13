@@ -32,5 +32,5 @@
 		</PackageReference>
 	</ItemGroup>
 
-	<Import Project="../eng/filenesting.targets"/>
+	<Import Project="../eng/filenesting.targets" />
 </Project>

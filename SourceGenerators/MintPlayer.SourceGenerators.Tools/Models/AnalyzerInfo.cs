@@ -1,11 +1,11 @@
 ﻿using Microsoft.CodeAnalysis.Diagnostics;
 
-namespace MintPlayer.SourceGenerators.Tools;
+namespace MintPlayer.SourceGenerators.Tools.Models;
 
-[ValueComparer(typeof(SettingsValueComparer))]
-public sealed class Settings
+[ValueComparer(typeof(AnalyzerInfoComparer))]
+internal class AnalyzerInfo
 {
-    private Settings() { }
+    private AnalyzerInfo() { }
 
     public string? RootNamespace { get; private set; }
     public string? ProjectTypeGuids { get; private set; }
@@ -24,7 +24,7 @@ public sealed class Settings
     public string? SupportedPlatformList { get; private set; }
     public string? UsingMicrosoftNETSdkWeb { get; private set; }
 
-    public static Settings FromGlobalOptions(AnalyzerConfigOptions options)
+    public static AnalyzerInfo FromGlobalOptions(AnalyzerConfigOptions options)
     {
         options.TryGetValue("build_property.rootnamespace", out var rootNamespace);
         options.TryGetValue("build_property.projecttypeguids", out var projectTypeGuids);
@@ -42,7 +42,7 @@ public sealed class Settings
         options.TryGetValue("build_property.enablegeneratedcominterfacecomimportinterop", out var enableGeneratedCOMIinterfaceCOMImportInterop);
         options.TryGetValue("build_property._supportedplatformlist", out var supportedPlatformList);
         options.TryGetValue("build_property.usingmicrosoftnetsdkweb", out var usingMicrosoftNETSdkWeb);
-        return new Settings
+        return new AnalyzerInfo
         {
             RootNamespace = rootNamespace,
             ProjectTypeGuids = projectTypeGuids,
