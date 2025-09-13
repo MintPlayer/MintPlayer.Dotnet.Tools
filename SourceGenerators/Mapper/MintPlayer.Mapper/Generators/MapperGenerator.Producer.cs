@@ -50,8 +50,37 @@ public sealed class MapperProducer : Producer
         writer.WriteLine("{");
         writer.Indent++;
 
-        //writer.WriteLine("public ")
+        writer.WriteLine("public static TDest ConvertProperty<TSource, TDest>(TSource source)");
+        writer.WriteLine("{");
+        writer.Indent++;
 
+        writer.WriteLine($"switch ((typeof(TSource), typeof(TDest))");
+        writer.WriteLine("{");
+        writer.Indent++;
+
+        writer.WriteLine($"case (global::System.Type source, global::System.Type dest) when source == typeof(string) && dest == typeof(int?):");
+        writer.Indent++;
+
+
+        switch ((typeof(string), typeof(int)))
+        {
+            case (Type source, Type dest) when source == typeof(string) && dest == typeof(int?):
+                
+                writer.WriteLine("return Conversions.StringToNullableInt(source);");
+                break;
+            case (Type source, Type dest) when source == typeof(int?) && dest == typeof(string):
+                writer.WriteLine("return Conversions.NullableIntToString(source);");
+                break;
+            case (Type source, Type dest) when source == typeof(string) && dest == typeof(long?):
+                writer.WriteLine("return OtherConversions.StringToNullableLong(source);");
+                break;
+            case (Type source, Type dest) when source == typeof(long?) && dest == typeof(string):
+                writer.WriteLine("return OtherConversions.NullableLongToString(source);");
+                break;
+            default:
+                writer.WriteLine("throw new NotImplementedException();");
+                break;
+        }
 
         /***
          * 
