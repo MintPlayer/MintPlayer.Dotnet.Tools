@@ -1,8 +1,8 @@
 ﻿using Microsoft.CodeAnalysis.CSharp;
 
-namespace MintPlayer.SourceGenerators.Tools.Models;
+namespace MintPlayer.SourceGenerators.Tools;
 
-[ValueComparer(typeof(SettingsValueComparer))]
+[ValueComparer(typeof(Models.SettingsValueComparer))]
 public sealed class Settings
 {
     private Settings() { }
@@ -25,7 +25,7 @@ public sealed class Settings
     public string? SupportedPlatformList { get; private set; }
     public string? UsingMicrosoftNETSdkWeb { get; private set; }
 
-    internal static Settings FromAnalyzerAndLangVersion(AnalyzerInfo left, LanguageVersion right)
+    internal static Settings FromAnalyzerAndLangVersion(Models.AnalyzerInfo left, LanguageVersion right)
     {
         return new Settings
         {
