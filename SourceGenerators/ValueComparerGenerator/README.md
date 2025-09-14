@@ -38,3 +38,44 @@ public partial class Context
     }
 }
 ```
+
+## WithComparer
+The source generator also generates a `.WithComparer()` and `.WithNullableComparer()` extension method that doesn't require parameters. This allows you to minimize your source-generator code like this:
+
+```csharp
+[Generator(LanguageNames.CSharp)]
+public class MapperGenerator : IncrementalGenerator
+{
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
+    {
+        var typesToMapProvider = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                "MintPlayer.Mapper.Attributes.GenerateMapperAttribute",
+                static (node, ct) => node is not null,
+                static (ctx, ct) =>
+                {
+                    if (ctx.SemanticModel.GetDeclaredSymbol(ctx.TargetNode, ct) is INamedTypeSymbol typeSymbol &&
+                        ctx.Attributes.FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute") is { ConstructorArguments.Length: > 0 } attr &&
+                        attr.ConstructorArguments.FirstOrDefault().Value is INamedTypeSymbol mapType)
+                    {
+                        return new Models.TypeToMap
+                        {
+                            ...
+                        };
+                    }
+                    return null;
+                }
+            )
+            .WithComparer(); // <-- No need to pass in the reference to the value-comparer
+
+        var typesToMapSourceProvider = typesToMapProvider
+            .Select(static Producer (p, ct) => new MapperProducer(p));
+
+        context.ProduceCode(typesToMapSourceProvider);
+    }
+
+    public override void RegisterComparers()
+    {
+    }
+}
+```
