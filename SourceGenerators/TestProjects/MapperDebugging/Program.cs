@@ -20,6 +20,20 @@ public static class Conversions
     {
         return input?.ToString();
     }
+
+    [MapperConversion]
+    public static double StringToDouble(string input)
+    {
+        if (double.TryParse(input, out double result))
+            return result;
+        return 0;
+    }
+
+    [MapperConversion]
+    public static string DoubleToString(double input)
+    {
+        return input.ToString();
+    }
 }
 
 //public static class Test
