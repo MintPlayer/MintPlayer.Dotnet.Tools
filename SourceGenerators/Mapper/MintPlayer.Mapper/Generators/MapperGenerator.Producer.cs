@@ -18,30 +18,6 @@ public sealed class MapperProducer : Producer
 
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
     {
-        //foreach (var type in typesToMap)
-        //{
-        //    if (!string.IsNullOrEmpty(type.DestinationNamespace))
-        //    {
-        //        writer.WriteLine($"namespace {type.DestinationNamespace}");
-        //        writer.WriteLine("{");
-        //        writer.Indent++;
-        //    }
-
-        //    writer.WriteLine($"public sealed class {type.DeclaredTypeName}Mapper");
-        //    writer.WriteLine("{");
-        //    writer.Indent++;
-
-
-        //    writer.Indent--;
-        //    writer.WriteLine("}");
-
-        //    if (!string.IsNullOrEmpty(type.DestinationNamespace))
-        //    {
-        //        writer.Indent--;
-        //        writer.WriteLine("}");
-        //    }
-        //}
-
         writer.WriteLine($"namespace {RootNamespace}");
         writer.WriteLine("{");
         writer.Indent++;
@@ -101,30 +77,6 @@ public sealed class MapperProducer : Producer
 
         writer.Indent--;
         writer.WriteLine("}");
-
-
-        /// ---------------------------------------
-
-
-        //switch ((typeof(string), typeof(int)))
-        //{
-        //    case (Type source, Type dest) when source == typeof(string) && dest == typeof(int?):
-
-        //        writer.WriteLine("return Conversions.StringToNullableInt(source);");
-        //        break;
-        //    case (Type source, Type dest) when source == typeof(int?) && dest == typeof(string):
-        //        writer.WriteLine("return Conversions.NullableIntToString(source);");
-        //        break;
-        //    case (Type source, Type dest) when source == typeof(string) && dest == typeof(long?):
-        //        writer.WriteLine("return OtherConversions.StringToNullableLong(source);");
-        //        break;
-        //    case (Type source, Type dest) when source == typeof(long?) && dest == typeof(string):
-        //        writer.WriteLine("return OtherConversions.NullableLongToString(source);");
-        //        break;
-        //    default:
-        //        writer.WriteLine("throw new NotImplementedException();");
-        //        break;
-        //}
 
 
         foreach (var type in typesToMap)
@@ -282,7 +234,10 @@ public sealed class MapperProducer : Producer
         // Handle primitive types
         if (source.IsPrimitive && destination.IsPrimitive)
         {
-            writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName},");
+            if (source.PropertyType == destination.PropertyType)
+                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName},");
+            else
+                writer.WriteLine($"{source.PropertyName} = ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}),");
         }
         // Handle arrays
         else if (IsArrayType(source.PropertyType) && IsArrayType(destination.PropertyType))
@@ -329,12 +284,18 @@ public sealed class MapperProducer : Producer
         // Handle nullable reference types
         else if (IsNullableType(source.PropertyType) && IsNullableType(destination.PropertyType))
         {
-            writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(),");
+            //if (source.PropertyType == destination.PropertyType)
+                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(),");
+            //else
+            //    writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}),");
         }
         // Handle complex types
         else
         {
-            writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(),");
+            //if (source.PropertyType == destination.PropertyType)
+                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(),");
+            //else
+            //    writer.WriteLine($"{source.PropertyName} = ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}),");
         }
     }
 }
