@@ -56,9 +56,8 @@ public abstract partial class IncrementalGenerator : IIncrementalGenerator
                 }))
             .WithComparer(LangVersionComparer.Instance)
             .Collect()
-            .Select(static (p, ct) => p.OrderBy(x => x.Weight)
-                .FirstOrDefault()?.LanguageVersion
-                ?? LanguageVersion.Default);
+            .Select(static (p, ct) => p.OrderBy(x => x.Weight).FirstOrDefault())
+            .WithComparer(LangVersionComparer.Instance);
 
         var settingsProvider = analyzerInfo
             .Combine(languageVersionProvider)

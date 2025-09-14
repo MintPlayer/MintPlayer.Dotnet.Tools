@@ -25,11 +25,11 @@ public sealed class Settings
     public string? SupportedPlatformList { get; private set; }
     public string? UsingMicrosoftNETSdkWeb { get; private set; }
 
-    internal static Settings FromAnalyzerAndLangVersion(Models.AnalyzerInfo left, LanguageVersion right)
+    internal static Settings FromAnalyzerAndLangVersion(Models.AnalyzerInfo left, Models.LangVersion? right)
     {
         return new Settings
         {
-            LanguageVersion = right,
+            LanguageVersion = right?.LanguageVersion ?? LanguageVersion.Default,
             RootNamespace = left.RootNamespace,
             ProjectTypeGuids = left.ProjectTypeGuids,
             EnforceExtendedAnalyzerRules = left.EnforceExtendedAnalyzerRules,
