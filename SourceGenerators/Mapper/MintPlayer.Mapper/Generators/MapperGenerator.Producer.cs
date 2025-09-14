@@ -50,43 +50,57 @@ public sealed class MapperProducer : Producer
         writer.WriteLine("{");
         writer.Indent++;
 
-        //writer.WriteLine("public static TDest? ConvertProperty<TSource, TDest>(TSource? source)");
-        //writer.WriteLine("{");
-        //writer.Indent++;
+        writer.WriteLine("public static TDest? ConvertProperty<TSource, TDest>(TSource? source)");
+        writer.WriteLine("{");
+        writer.Indent++;
 
-        //writer.WriteLine("// TSource can be Nullable<>");
-        //writer.WriteLine($"switch ((typeof(TSource), typeof(TDest)))");
-        //writer.WriteLine("{");
-        //writer.Indent++;
+        writer.WriteLine("if (source is null)");
+        writer.Indent++;
+        writer.WriteLine("return default;");
+        writer.Indent--;
 
-        //foreach (var staticClass in staticClasses)
-        //{
-        //    foreach (var method in staticClass.ConversionMethods)
-        //    {
-        //        var sourceType = method.SourceType;
-        //        var destinationType = method.DestinationType;
-        //        writer.WriteLine($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({sourceType}) && destType == typeof({destinationType}):");
-        //        writer.Indent++;
-        //        if (method.SourceTypeNullable)
-        //            //writer.WriteLine($"return ({destinationType})(object?){staticClass.FullyQualifiedName}.{method.MethodName}(({sourceType})(object?)source);");
-        //            writer.WriteLine($"return {staticClass.FullyQualifiedName}.{method.MethodName}(({sourceType})(object?)source) as TDest?;");
-        //        else
-        //            //writer.WriteLine($"return ({destinationType})(object?){staticClass.FullyQualifiedName}.{method.MethodName}(({sourceType})(object)source);");
-        //            writer.WriteLine($"return {staticClass.FullyQualifiedName}.{method.MethodName}(({sourceType})(object)source) as TDest?;");
-        //        writer.Indent--;
-        //    }
-        //}
+        writer.WriteLine();
+        writer.WriteLine("object? result;");
+        writer.WriteLine();
 
-        //writer.WriteLine("default:");
-        //writer.Indent++;
-        //writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
+        writer.WriteLine($"switch ((typeof(TSource), typeof(TDest)))");
+        writer.WriteLine("{");
+        writer.Indent++;
 
-        //writer.Indent--;
-        //writer.Indent--;
-        //writer.WriteLine("}");
+        foreach (var staticClass in staticClasses)
+        {
+            foreach (var method in staticClass.ConversionMethods)
+            {
+                var sourceType = method.SourceType;
+                var destinationType = method.DestinationType;
+                writer.WriteLine($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({sourceType}) && destType == typeof({destinationType}):");
+                writer.Indent++;
+                writer.WriteLine($"result = {staticClass.FullyQualifiedName}.{method.MethodName}(({sourceType})(object)source);");
+                writer.WriteLine("break;");
 
-        //writer.Indent--;
-        //writer.WriteLine("}");
+                //if (method.SourceTypeNullable)
+                //    //writer.WriteLine($"return ({destinationType})(object?){staticClass.FullyQualifiedName}.{method.MethodName}(({sourceType})(object?)source);");
+                //    writer.WriteLine($"return {staticClass.FullyQualifiedName}.{method.MethodName}(({sourceType})(object?)source) as TDest?;");
+                //else
+                //    //writer.WriteLine($"return ({destinationType})(object?){staticClass.FullyQualifiedName}.{method.MethodName}(({sourceType})(object)source);");
+                //    writer.WriteLine($"return {staticClass.FullyQualifiedName}.{method.MethodName}(({sourceType})(object)source) as TDest?;");
+                writer.Indent--;
+            }
+        }
+
+        writer.WriteLine("default:");
+        writer.Indent++;
+        writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
+
+        writer.Indent--;
+        writer.Indent--;
+        writer.WriteLine("}");
+
+        writer.WriteLine();
+        writer.WriteLine("return (TDest?)(object?)result;");
+
+        writer.Indent--;
+        writer.WriteLine("}");
 
 
         /// ---------------------------------------
@@ -95,7 +109,7 @@ public sealed class MapperProducer : Producer
         //switch ((typeof(string), typeof(int)))
         //{
         //    case (Type source, Type dest) when source == typeof(string) && dest == typeof(int?):
-                
+
         //        writer.WriteLine("return Conversions.StringToNullableInt(source);");
         //        break;
         //    case (Type source, Type dest) when source == typeof(int?) && dest == typeof(string):
