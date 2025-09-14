@@ -1,4 +1,6 @@
 ﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.Tools.Extensions;
 
@@ -92,9 +94,47 @@ public class MapperGenerator : IncrementalGenerator
             .WithComparer()
             .Collect();
 
+        var staticClassesProvider = context.SyntaxProvider
+            .CreateSyntaxProvider(
+                static (node, ct) => node is ClassDeclarationSyntax classDeclaration && classDeclaration.Modifiers.Any(SyntaxKind.StaticKeyword),
+                static (context2, ct) =>
+                {
+                    if (context2.Node is ClassDeclarationSyntax classDeclaration &&
+                        context2.SemanticModel.GetDeclaredSymbol(classDeclaration, ct) is INamedTypeSymbol classSymbol)
+                    {
+                        return new Models.ClassDeclaration
+                        {
+                            Namespace = classSymbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                            FullyQualifiedName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
+                            Name = classSymbol.Name,
+                            ConversionMethods = classSymbol.GetMembers()
+                                .OfType<IMethodSymbol>()
+                                .Where(m => !m.IsImplicitlyDeclared && m.IsStatic && m.DeclaredAccessibility == Accessibility.Public && m.Parameters.Length == 1 && !m.ReturnsVoid)
+                                .Select(m => new Models.ConversionMethod
+                                {
+                                    MethodName = m.Name,
+                                    SourceType = m.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
+                                    SourceTypeName = m.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
+                                    SourceTypeNullable = m.Parameters[0].NullableAnnotation == NullableAnnotation.Annotated,
+                                    DestinationType = m.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
+                                    DestinationTypeName = m.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
+                                })
+                                .ToArray(),
+                        };
+                    }
+                    return null;
+                }
+            )
+            .Where(static (m) => m.ConversionMethods.Any())
+            .WithNullableComparer()
+            .Collect();
+
+
         var typesToMapSourceProvider = distinctTypesToMapProvider
+            .Join(staticClassesProvider)
             .Join(settingsProvider)
-            .Select(static Producer (p, ct) => new MapperProducer(p.Item1, p.Item2.RootNamespace!));
+            .Select(static Producer (p, ct) => new MapperProducer(p.Item1, p.Item2, p.Item3.RootNamespace!));
+
 
         context.ProduceCode(typesToMapSourceProvider);
     }

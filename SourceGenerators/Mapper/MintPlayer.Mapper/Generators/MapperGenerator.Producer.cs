@@ -2,44 +2,21 @@
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.Tools.Extensions;
 using System.CodeDom.Compiler;
-using System.Diagnostics;
 
 namespace MintPlayer.Mapper.Generators;
 
 public sealed class MapperProducer : Producer
 {
     private readonly IEnumerable<TypeWithMappedProperties> typesToMap;
-    public MapperProducer(IEnumerable<TypeWithMappedProperties> typesToMap, string rootNamespace) : base(rootNamespace, "Mappers.g.cs")
+    private readonly IEnumerable<ClassDeclaration> staticClasses;
+    public MapperProducer(IEnumerable<TypeWithMappedProperties> typesToMap, IEnumerable<ClassDeclaration> staticClasses, string rootNamespace) : base(rootNamespace, "Mappers.g.cs")
     {
         this.typesToMap = typesToMap;
+        this.staticClasses = staticClasses;
     }
 
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
     {
-        //foreach (var type in typesToMap)
-        //{
-        //    if (!string.IsNullOrEmpty(type.DestinationNamespace))
-        //    {
-        //        writer.WriteLine($"namespace {type.DestinationNamespace}");
-        //        writer.WriteLine("{");
-        //        writer.Indent++;
-        //    }
-
-        //    writer.WriteLine($"public sealed class {type.DeclaredTypeName}Mapper");
-        //    writer.WriteLine("{");
-        //    writer.Indent++;
-
-
-        //    writer.Indent--;
-        //    writer.WriteLine("}");
-
-        //    if (!string.IsNullOrEmpty(type.DestinationNamespace))
-        //    {
-        //        writer.Indent--;
-        //        writer.WriteLine("}");
-        //    }
-        //}
-
         writer.WriteLine($"namespace {RootNamespace}");
         writer.WriteLine("{");
         writer.Indent++;
@@ -47,6 +24,51 @@ public sealed class MapperProducer : Producer
         writer.WriteLine("public static class MapperExtensions");
         writer.WriteLine("{");
         writer.Indent++;
+
+        writer.WriteLine("public static TDest? ConvertProperty<TSource, TDest>(TSource? source)");
+        writer.WriteLine("{");
+        writer.Indent++;
+
+        writer.WriteLine("if (source is null)");
+        writer.Indent++;
+        writer.WriteLine("return default;");
+        writer.Indent--;
+
+        writer.WriteLine();
+        writer.WriteLine("object? result;");
+        writer.WriteLine();
+
+        writer.WriteLine($"switch ((typeof(TSource), typeof(TDest)))");
+        writer.WriteLine("{");
+        writer.Indent++;
+
+        foreach (var staticClass in staticClasses)
+        {
+            foreach (var method in staticClass.ConversionMethods)
+            {
+                writer.WriteLine($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({method.SourceType}) && destType == typeof({method.DestinationType}):");
+                writer.Indent++;
+                writer.WriteLine($"result = {staticClass.FullyQualifiedName}.{method.MethodName}(({method.SourceType})(object)source);");
+                writer.WriteLine("break;");
+
+                writer.Indent--;
+            }
+        }
+
+        writer.WriteLine("default:");
+        writer.Indent++;
+        writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
+
+        writer.Indent--;
+        writer.Indent--;
+        writer.WriteLine("}");
+
+        writer.WriteLine();
+        writer.WriteLine("return (TDest?)(object?)result;");
+
+        writer.Indent--;
+        writer.WriteLine("}");
+
 
         foreach (var type in typesToMap)
         {
@@ -203,7 +225,10 @@ public sealed class MapperProducer : Producer
         // Handle primitive types
         if (source.IsPrimitive && destination.IsPrimitive)
         {
-            writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName},");
+            if (source.PropertyType == destination.PropertyType)
+                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName},");
+            else
+                writer.WriteLine($"{source.PropertyName} = ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}),");
         }
         // Handle arrays
         else if (IsArrayType(source.PropertyType) && IsArrayType(destination.PropertyType))
