@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+	<ItemGroup Condition=" '$(ManagePackageVersionsCentrally)' == 'true' ">
+		<PackageReference Include="Newtonsoft.Json" PrivateAssets="all" GeneratePathProperty="true" />
+		<PackageReference Include="MintPlayer.ValueComparers.NewtonsoftJson" />
+	</ItemGroup>
+
+	<ItemGroup Condition=" '$(ManagePackageVersionsCentrally)' != 'true' ">
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" PrivateAssets="all" GeneratePathProperty="true" />
+		<PackageReference Include="MintPlayer.ValueComparers.NewtonsoftJson" PrivateAssets="all" GeneratePathProperty="true" />
+	</ItemGroup>
+
+	<PropertyGroup>
+		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsNewtonsoftJson</GetTargetPathDependsOn>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- Put the assets for this project in the correct package path -->
+		<!-- Rolsyn 4.0 -->
+		<None Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="false" />
+		<None Include="$(PkgMintPlayer_ValueComparers_NewtonsoftJson)\lib\netstandard2.0\MintPlayer.ValueComparers.NewtonsoftJson.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="false" />
+		<!-- Rolsyn 4.9 -->
+		<None Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="false" />
+		<None Include="$(PkgMintPlayer_ValueComparers_NewtonsoftJson)\lib\netstandard2.0\MintPlayer.ValueComparers.NewtonsoftJson.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="false" />
+	</ItemGroup>
+
+	<Target Name="GetDependencyTargetPathsNewtonsoftJson">
+		<!-- Include dependency DLLs and put them in the correct package path -->
+		<ItemGroup>
+			<TargetPathWithTargetPlatformMoniker Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\Newtonsoft.Json.dll" IncludeRuntimeDependency="false" />
+			<TargetPathWithTargetPlatformMoniker Include="$(PkgMintPlayer_ValueComparers_NewtonsoftJson)\lib\netstandard2.0\MintPlayer.ValueComparers.NewtonsoftJson.dll" IncludeRuntimeDependency="false" />
+		</ItemGroup>
+	</Target>
+</Project>

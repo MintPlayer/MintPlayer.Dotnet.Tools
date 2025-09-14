@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+	<ItemGroup Condition=" '$(ManagePackageVersionsCentrally)' == 'true' ">
+		<PackageReference Include="MintPlayer.Mapper" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" GeneratePathProperty="true" />
+		<PackageReference Include="MintPlayer.Mapper.Attributes" />
+	</ItemGroup>
+
+	<ItemGroup Condition=" '$(ManagePackageVersionsCentrally)' != 'true' ">
+		<PackageReference Include="MintPlayer.Mapper" Version="6.2.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" GeneratePathProperty="true" />
+		<PackageReference Include="MintPlayer.Mapper.Attributes" Version="6.1.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Put the assets for this project in the correct package path -->
+		<!-- Rolsyn 4.0 + Rolsyn 4.9 -->
+		<None Include="$(PkgMintPlayer_Mapper_Attributes)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
+	</ItemGroup>
+
+	<PropertyGroup>
+		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsMapper</GetTargetPathDependsOn>
+	</PropertyGroup>
+
+	<Target Name="GetDependencyTargetPathsMapper">
+		<!-- Include dependency DLLs and put them in the correct package path -->
+		<ItemGroup>
+			<TargetPathWithTargetPlatformMoniker Include="$(PkgMintPlayer_Mapper_Attributes)\lib\netstandard2.0\MintPlayer.Mapper.Attributes.dll" IncludeRuntimeDependency="true" />
+		</ItemGroup>
+	</Target>
+</Project>
