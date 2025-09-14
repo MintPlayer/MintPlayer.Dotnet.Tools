@@ -10,4 +10,5 @@ public partial class ConversionMethod
     public string? SourceTypeName { get; internal set; }
     public string? DestinationType { get; internal set; }
     public string? DestinationTypeName { get; internal set; }
+    public bool SourceTypeNullable { get; internal set; }
 }

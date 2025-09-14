@@ -50,52 +50,67 @@ public sealed class MapperProducer : Producer
         writer.WriteLine("{");
         writer.Indent++;
 
-        writer.WriteLine("public static TDest ConvertProperty<TSource, TDest>(TSource source)");
-        writer.WriteLine("{");
-        writer.Indent++;
+        //writer.WriteLine("public static TDest? ConvertProperty<TSource, TDest>(TSource? source)");
+        //writer.WriteLine("{");
+        //writer.Indent++;
 
-        writer.WriteLine($"switch ((typeof(TSource), typeof(TDest))");
-        writer.WriteLine("{");
-        writer.Indent++;
+        //writer.WriteLine("// TSource can be Nullable<>");
+        //writer.WriteLine($"switch ((typeof(TSource), typeof(TDest)))");
+        //writer.WriteLine("{");
+        //writer.Indent++;
 
-        writer.WriteLine($"case (global::System.Type source, global::System.Type dest) when source == typeof(string) && dest == typeof(int?):");
-        writer.Indent++;
+        //foreach (var staticClass in staticClasses)
+        //{
+        //    foreach (var method in staticClass.ConversionMethods)
+        //    {
+        //        var sourceType = method.SourceType;
+        //        var destinationType = method.DestinationType;
+        //        writer.WriteLine($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({sourceType}) && destType == typeof({destinationType}):");
+        //        writer.Indent++;
+        //        if (method.SourceTypeNullable)
+        //            //writer.WriteLine($"return ({destinationType})(object?){staticClass.FullyQualifiedName}.{method.MethodName}(({sourceType})(object?)source);");
+        //            writer.WriteLine($"return {staticClass.FullyQualifiedName}.{method.MethodName}(({sourceType})(object?)source) as TDest?;");
+        //        else
+        //            //writer.WriteLine($"return ({destinationType})(object?){staticClass.FullyQualifiedName}.{method.MethodName}(({sourceType})(object)source);");
+        //            writer.WriteLine($"return {staticClass.FullyQualifiedName}.{method.MethodName}(({sourceType})(object)source) as TDest?;");
+        //        writer.Indent--;
+        //    }
+        //}
+
+        //writer.WriteLine("default:");
+        //writer.Indent++;
+        //writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
+
+        //writer.Indent--;
+        //writer.Indent--;
+        //writer.WriteLine("}");
+
+        //writer.Indent--;
+        //writer.WriteLine("}");
 
 
-        switch ((typeof(string), typeof(int)))
-        {
-            case (Type source, Type dest) when source == typeof(string) && dest == typeof(int?):
+        /// ---------------------------------------
+
+
+        //switch ((typeof(string), typeof(int)))
+        //{
+        //    case (Type source, Type dest) when source == typeof(string) && dest == typeof(int?):
                 
-                writer.WriteLine("return Conversions.StringToNullableInt(source);");
-                break;
-            case (Type source, Type dest) when source == typeof(int?) && dest == typeof(string):
-                writer.WriteLine("return Conversions.NullableIntToString(source);");
-                break;
-            case (Type source, Type dest) when source == typeof(string) && dest == typeof(long?):
-                writer.WriteLine("return OtherConversions.StringToNullableLong(source);");
-                break;
-            case (Type source, Type dest) when source == typeof(long?) && dest == typeof(string):
-                writer.WriteLine("return OtherConversions.NullableLongToString(source);");
-                break;
-            default:
-                writer.WriteLine("throw new NotImplementedException();");
-                break;
-        }
-
-        /***
-         * 
-         * GOAL: generate the following from all conversion methods:
-         * 
-         * switch (sourcePropertyType, destinationPropertyType) {
-         *      case (string, int?): return Conversions.StringToNullableInt(input);
-         *      case (int?, string): return Conversions.NullableIntToString(input);
-         *      case (string, long?): return OtherConversions.StringToNullableLong(input);
-         *      case (long?, string): return OtherConversions.NullableLongToString(input);
-         * }
-         * 
-         * 
-         * 
-         */
+        //        writer.WriteLine("return Conversions.StringToNullableInt(source);");
+        //        break;
+        //    case (Type source, Type dest) when source == typeof(int?) && dest == typeof(string):
+        //        writer.WriteLine("return Conversions.NullableIntToString(source);");
+        //        break;
+        //    case (Type source, Type dest) when source == typeof(string) && dest == typeof(long?):
+        //        writer.WriteLine("return OtherConversions.StringToNullableLong(source);");
+        //        break;
+        //    case (Type source, Type dest) when source == typeof(long?) && dest == typeof(string):
+        //        writer.WriteLine("return OtherConversions.NullableLongToString(source);");
+        //        break;
+        //    default:
+        //        writer.WriteLine("throw new NotImplementedException();");
+        //        break;
+        //}
 
 
         foreach (var type in typesToMap)

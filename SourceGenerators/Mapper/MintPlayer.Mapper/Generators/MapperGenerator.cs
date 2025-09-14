@@ -105,17 +105,18 @@ public class MapperGenerator : IncrementalGenerator
                         return new Models.ClassDeclaration
                         {
                             Namespace = classSymbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                            FullyQualifiedName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                            FullyQualifiedName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
                             Name = classSymbol.Name,
                             ConversionMethods = classSymbol.GetMembers()
                                 .OfType<IMethodSymbol>()
-                                .Where(m => !m.IsImplicitlyDeclared && m.IsStatic && m.DeclaredAccessibility == Accessibility.Public && m.Parameters.Length == 1)
+                                .Where(m => !m.IsImplicitlyDeclared && m.IsStatic && m.DeclaredAccessibility == Accessibility.Public && m.Parameters.Length == 1 && !m.ReturnsVoid)
                                 .Select(m => new Models.ConversionMethod
                                 {
                                     MethodName = m.Name,
-                                    SourceType = m.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                                    SourceType = m.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
                                     SourceTypeName = m.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
-                                    DestinationType = m.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                                    SourceTypeNullable = m.Parameters[0].NullableAnnotation == NullableAnnotation.Annotated,
+                                    DestinationType = m.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
                                     DestinationTypeName = m.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
                                 })
                                 .ToArray(),
