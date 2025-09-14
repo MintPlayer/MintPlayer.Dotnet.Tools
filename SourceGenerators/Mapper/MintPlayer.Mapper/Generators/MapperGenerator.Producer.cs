@@ -2,7 +2,6 @@
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.Tools.Extensions;
 using System.CodeDom.Compiler;
-using System.Diagnostics;
 
 namespace MintPlayer.Mapper.Generators;
 
@@ -47,19 +46,11 @@ public sealed class MapperProducer : Producer
         {
             foreach (var method in staticClass.ConversionMethods)
             {
-                var sourceType = method.SourceType;
-                var destinationType = method.DestinationType;
-                writer.WriteLine($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({sourceType}) && destType == typeof({destinationType}):");
+                writer.WriteLine($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({method.SourceType}) && destType == typeof({method.DestinationType}):");
                 writer.Indent++;
-                writer.WriteLine($"result = {staticClass.FullyQualifiedName}.{method.MethodName}(({sourceType})(object)source);");
+                writer.WriteLine($"result = {staticClass.FullyQualifiedName}.{method.MethodName}(({method.SourceType})(object)source);");
                 writer.WriteLine("break;");
 
-                //if (method.SourceTypeNullable)
-                //    //writer.WriteLine($"return ({destinationType})(object?){staticClass.FullyQualifiedName}.{method.MethodName}(({sourceType})(object?)source);");
-                //    writer.WriteLine($"return {staticClass.FullyQualifiedName}.{method.MethodName}(({sourceType})(object?)source) as TDest?;");
-                //else
-                //    //writer.WriteLine($"return ({destinationType})(object?){staticClass.FullyQualifiedName}.{method.MethodName}(({sourceType})(object)source);");
-                //    writer.WriteLine($"return {staticClass.FullyQualifiedName}.{method.MethodName}(({sourceType})(object)source) as TDest?;");
                 writer.Indent--;
             }
         }
@@ -284,18 +275,12 @@ public sealed class MapperProducer : Producer
         // Handle nullable reference types
         else if (IsNullableType(source.PropertyType) && IsNullableType(destination.PropertyType))
         {
-            //if (source.PropertyType == destination.PropertyType)
-                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(),");
-            //else
-            //    writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}),");
+            writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(),");
         }
         // Handle complex types
         else
         {
-            //if (source.PropertyType == destination.PropertyType)
-                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(),");
-            //else
-            //    writer.WriteLine($"{source.PropertyName} = ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}),");
+            writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(),");
         }
     }
 }
