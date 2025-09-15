@@ -18,11 +18,11 @@
 	<ItemGroup>
 		<!-- Put the assets for this project in the correct package path -->
 		<!-- Rolsyn 4.0 -->
-		<None Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="false" />
-		<None Include="$(PkgMintPlayer_ValueComparers_NewtonsoftJson)\lib\netstandard2.0\MintPlayer.ValueComparers.NewtonsoftJson.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="false" />
+		<None Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="true" />
+		<None Include="$(PkgMintPlayer_ValueComparers_NewtonsoftJson)\lib\netstandard2.0\MintPlayer.ValueComparers.NewtonsoftJson.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="true" />
 		<!-- Rolsyn 4.9 -->
-		<None Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="false" />
-		<None Include="$(PkgMintPlayer_ValueComparers_NewtonsoftJson)\lib\netstandard2.0\MintPlayer.ValueComparers.NewtonsoftJson.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="false" />
+		<None Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="true" />
+		<None Include="$(PkgMintPlayer_ValueComparers_NewtonsoftJson)\lib\netstandard2.0\MintPlayer.ValueComparers.NewtonsoftJson.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="true" />
 	</ItemGroup>
 
 	<Target Name="GetDependencyTargetPathsNewtonsoftJson">
