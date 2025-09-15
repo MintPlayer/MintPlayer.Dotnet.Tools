@@ -3,12 +3,12 @@
 
 	<ItemGroup Condition=" '$(ManagePackageVersionsCentrally)' == 'true' ">
 		<PackageReference Include="MintPlayer.ValueComparerGenerator" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" GeneratePathProperty="true" />
-		<PackageReference Include="MintPlayer.ValueComparerGenerator.Attributes" />
+		<PackageReference Include="MintPlayer.ValueComparerGenerator.Attributes" GeneratePathProperty="true" />
 	</ItemGroup>
 
 	<ItemGroup Condition=" '$(ManagePackageVersionsCentrally)' != 'true' ">
 		<PackageReference Include="MintPlayer.ValueComparerGenerator" Version="5.8.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" GeneratePathProperty="true" />
-		<PackageReference Include="MintPlayer.ValueComparerGenerator.Attributes" Version="5.2.0" />
+		<PackageReference Include="MintPlayer.ValueComparerGenerator.Attributes" Version="5.2.0" GeneratePathProperty="true" />
 	</ItemGroup>
 
 	<ItemGroup>
