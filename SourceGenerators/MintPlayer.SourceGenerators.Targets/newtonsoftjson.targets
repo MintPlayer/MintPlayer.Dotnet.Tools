@@ -3,7 +3,7 @@
 
 	<ItemGroup Condition=" '$(ManagePackageVersionsCentrally)' == 'true' ">
 		<PackageReference Include="Newtonsoft.Json" PrivateAssets="all" GeneratePathProperty="true" />
-		<PackageReference Include="MintPlayer.ValueComparers.NewtonsoftJson" />
+		<PackageReference Include="MintPlayer.ValueComparers.NewtonsoftJson" GeneratePathProperty="true" />
 	</ItemGroup>
 
 	<ItemGroup Condition=" '$(ManagePackageVersionsCentrally)' != 'true' ">
