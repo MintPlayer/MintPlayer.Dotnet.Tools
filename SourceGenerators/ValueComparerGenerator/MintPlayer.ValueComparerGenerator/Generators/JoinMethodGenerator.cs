@@ -1,6 +1,7 @@
 ﻿using Microsoft.CodeAnalysis;
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.ValueComparerGenerator.Attributes;
+using MintPlayer.ValueComparerGenerator.Models;
 
 namespace MintPlayer.ValueComparerGenerator.Generators;
 
@@ -16,25 +17,27 @@ public class JoinMethodGenerator : IncrementalGenerator
         var numberOfJoinMethodsProvider = context.SyntaxProvider.ForAttributeWithMetadataName(
             typeof(GenerateJoinMethodsAttribute).FullName,
             static (node, ct) => node is Microsoft.CodeAnalysis.CSharp.Syntax.CompilationUnitSyntax,
-            static uint? (context, ct) =>
+            static (context, ct) =>
             {
-                var attributeData = context.Attributes.FirstOrDefault(ad =>
-                    ad.AttributeClass?.ToDisplayString() == typeof(GenerateJoinMethodsAttribute).FullName);
-                if (attributeData == null)
-                    return null;
-                if (attributeData.ConstructorArguments.Length != 1)
-                    return null;
-                var numberOfParameters = attributeData.ConstructorArguments[0].Value;
-                if (numberOfParameters is not uint numParams)
-                    return null;
-                return numParams;
+                var hasCodeAnalysisReferenceProvider = context.SemanticModel.Compilation.ReferencedAssemblyNames
+                    .Any(a => a.Name == "Microsoft.CodeAnalysis");
+
+
+                var attributeData = context.Attributes.FirstOrDefault(ad => ad.AttributeClass?.ToDisplayString() == typeof(GenerateJoinMethodsAttribute).FullName);
+                if (attributeData is { ConstructorArguments.Length: 1 } && attributeData.ConstructorArguments[0].Value is uint numParamsArg)
+                {
+                    return new JoinMethodInfo { HasCodeAnalysisReference = hasCodeAnalysisReferenceProvider, NumberOfJoinMethods = numParamsArg };
+                }
+
+                return new JoinMethodInfo { HasCodeAnalysisReference = hasCodeAnalysisReferenceProvider };
             })
-            .Collect()
-            .Select(static (numParams, ct) => numParams.FirstOrDefault() ?? 5u);
+            .WithComparer(JoinMethodInfoComparer.Instance)
+            .Collect();
+
 
         var numberOfJoinMethodsSourceProvider = numberOfJoinMethodsProvider
             .Join(settingsProvider)
-            .Select(static Producer (provider, ct) => new JoinMethodProducer(provider.Item1, provider.Item2.RootNamespace));
+            .Select(static Producer (provider, ct) => new JoinMethodProducer(provider.Item1.Single(), provider.Item2.RootNamespace!));
 
         context.ProduceCode(numberOfJoinMethodsSourceProvider);
     }
