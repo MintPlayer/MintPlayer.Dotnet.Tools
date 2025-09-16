@@ -84,7 +84,7 @@ public sealed class TreeValueComparerProducer : Producer
             foreach (var baseType in namespaceGrouping.Types)
             {
                 // Nested partial classes for each parent type
-                foreach (var parentType in baseType.PathSpec.Parents)
+                foreach (var parentType in baseType.PathSpec.Parents.Reverse())
                 {
                     writer.WriteLine($"partial class {parentType.Name}");
                     writer.WriteLine("{");
