@@ -79,3 +79,27 @@ public class MapperGenerator : IncrementalGenerator
     }
 }
 ```
+
+## Joining providers
+The MintPlayer.SourceGenerators.Tools package already contains 4 extension methods that help you join providers.
+
+```csharp
+var typeTreeSourceProvider = typeProvider
+    .Join(typeTreeProvider)
+    .Join(childrenWithoutDerived)
+    .Join(settingsProvider)
+    .Join(hasCodeAnalysisReference)
+    .Select(static Producer (p, ct) => new Producers.TreeValueComparerProducer(
+        p.Item1.Where(t => t.HasAutoValueComparerAttribute),
+        p.Item2,
+        p.Item3,
+        p.Item4.RootNamespace!,
+        valueComparerType,
+        valueComparerAttributeType,
+        p.Item5
+    ));
+```
+
+By using this extension method, you can avoid the nested tuples that would require you to write `p.Left.Left.Left.Left.Right` to access a value.
+If you want to join more than 5 providers, you can apply the `[assembly: GenerateJoinMethods(n)]` attribute on a namespace.
+The ValueComparerGenerator package contains a source-generator that will generate the necessary extension methods for you.
