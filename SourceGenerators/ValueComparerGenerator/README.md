@@ -101,5 +101,5 @@ var typeTreeSourceProvider = typeProvider
 ```
 
 By using this extension method, you can avoid the nested tuples that would require you to write `p.Left.Left.Left.Left.Right` to access a value.
-If you want to join more than 5 providers, you can apply the `[GenerateJoinMethods(n)]` attribute.
-This package contains a source-generator that will generate the necessary extension methods for you.
+If you want to join more than 5 providers, you can apply the `[assembly: GenerateJoinMethods(n)]` attribute on a namespace.
+The ValueComparerGenerator package contains a source-generator that will generate the necessary extension methods for you.
