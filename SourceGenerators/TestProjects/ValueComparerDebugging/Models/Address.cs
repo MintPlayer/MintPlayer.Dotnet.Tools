@@ -1,6 +1,5 @@
 ﻿using MintPlayer.ValueComparerGenerator.Attributes;
 
-[assembly: GenerateJoinMethods(10)]
 namespace ValueComparerDebugging.Models;
 
 public partial class Context

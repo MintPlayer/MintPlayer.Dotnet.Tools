@@ -1,4 +1,7 @@
-﻿namespace ValueComparerDebugging
+﻿using MintPlayer.ValueComparerGenerator.Attributes;
+
+[assembly: GenerateJoinMethods(20)]
+namespace ValueComparerDebugging
 {
     internal class Program
     {

@@ -12,7 +12,7 @@
 	</Target>
 
 	<PropertyGroup>
-		<Version>5.9.0</Version>
+		<Version>5.9.1</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains a source generator that generates value-comparers for you</Description>

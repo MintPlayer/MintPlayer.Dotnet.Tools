@@ -36,7 +36,7 @@ internal class JoinMethodProducer : Producer
                 var typeParametersBraced = $"({typeParameters})";                                                   // (T1, T2, T3, T4, ...)
                 var previousTypeParameters = string.Join(", ", Enumerable.Range(1, i - 1).Select(n => $"T{n}"));    // T1, T2, T3, ...
                 var previousTuple = $"({previousTypeParameters})";                                                  // (T1, T2, T3, ...)
-                var methodParameters = string.Join(", ", Enumerable.Range(1, i).Select(n => n == 1 ? $"this global::Microsoft.CodeAnalysis.IncrementalValueProvider<T{previousTuple}> previous" : $"global::Microsoft.CodeAnalysis.IncrementalValueProvider<T{n}> p{n}"));
+                var methodParameters = string.Join(", ", Enumerable.Range(1, i).Select(n => n == 1 ? $"this global::Microsoft.CodeAnalysis.IncrementalValueProvider<{previousTuple}> previous" : $"global::Microsoft.CodeAnalysis.IncrementalValueProvider<T{n}> p{n}"));
                 var selectParameters = string.Join(", ", Enumerable.Range(1, i).Select(n => n == i ? "t.Right" : $"t.Left.Item{n}"));
                 writer.WriteLine($"public static global::Microsoft.CodeAnalysis.IncrementalValueProvider<({typeParameters})> Join<{typeParameters}>(");
                 writer.Indent++;
