@@ -32,16 +32,19 @@ public static class StringExtensions
         return str;
     }
 
-    public static string WithGlobal(this string str)
+    public static string EnsureStartsWith(this string str, string value)
     {
         if (string.IsNullOrWhiteSpace(str))
             return str;
 
-        if (str.StartsWith(globalPrefix))
+        if (str.StartsWith(value))
             return str;
 
-        return globalPrefix + str;
+        return value + str;
     }
+
+    public static string WithGlobal(this string str)
+        => str.EnsureStartsWith(globalPrefix);
 
     public static string WithoutGlobal(this string str)
         => str.RemoveBegin(globalPrefix);

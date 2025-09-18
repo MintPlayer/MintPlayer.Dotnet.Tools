@@ -36,7 +36,6 @@ public static class Conversions
     }
 }
 
-//[GenerateMapper(typeof(AddressDto))]
 [GenerateMapper(typeof(PersonDto))]
 public class Person
 {

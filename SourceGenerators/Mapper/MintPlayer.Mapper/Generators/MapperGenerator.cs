@@ -19,15 +19,18 @@ public class MapperGenerator : IncrementalGenerator
                 {
                     if (ctx.SemanticModel.GetDeclaredSymbol(ctx.TargetNode, ct) is INamedTypeSymbol typeSymbol &&
                         ctx.Attributes.FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute") is { } attr &&
-                        attr.ConstructorArguments.FirstOrDefault().Value is INamedTypeSymbol mapType)
+                        attr.ConstructorArguments.FirstOrDefault().Value is INamedTypeSymbol mapType &&
+                        attr.ConstructorArguments.ElementAtOrDefault(1) is { } methodName)
                     {
                         return new Models.TypeToMap
                         {
                             DestinationNamespace = typeSymbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
                             DeclaredType = typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                             DeclaredTypeName = typeSymbol.Name,
+                            PreferredDeclaredMethodName = CreateMethodName(methodName, typeSymbol),
                             MappingType = mapType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                             MappingTypeName = mapType.Name,
+                            PreferredMappingMethodName = $"MapTo{mapType.Name}",
                             AreBothDecorated = mapType.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute"),
 
                             DeclaredProperties = typeSymbol.GetAllProperties()
@@ -138,6 +141,12 @@ public class MapperGenerator : IncrementalGenerator
 
 
         context.ProduceCode(typesToMapSourceProvider);
+    }
+
+    private static string CreateMethodName(TypedConstant preferred, INamedTypeSymbol type)
+    {
+        var preferredMappingMethodName = (preferred.Value as string) ?? type.Name;
+        return preferredMappingMethodName.EnsureStartsWith("MapTo");
     }
 
     public override void RegisterComparers()

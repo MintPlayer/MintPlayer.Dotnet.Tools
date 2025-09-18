@@ -27,6 +27,8 @@ public partial class TypeToMap
     public string MappingTypeName { get; set; }
     public PropertyDeclaration[] MappingProperties { get; set; } = [];
 
+    public string PreferredMappingMethodName { get; set; }
+    public string PreferredDeclaredMethodName { get; set; }
     public string DestinationNamespace { get; set; }
 
     /// <summary>
