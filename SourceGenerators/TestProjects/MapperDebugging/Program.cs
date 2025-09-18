@@ -36,19 +36,7 @@ public static class Conversions
     }
 }
 
-//public static class Test
-//{
-//    public static TDest? ConvertProperty<TSource, TDest>(TSource? source)
-//    {
-//        return (typeof(TSource), typeof(TDest)) switch
-//        {
-//            (Type t1, Type t2) when t1 == typeof(string) && t2 == typeof(int?) => (TDest?)(object?)Conversions.StringToNullableInt((string?)(object?)source),
-//            (Type t1, Type t2) when t1 == typeof(int?) && t2 == typeof(string) => (TDest?)(object?)Conversions.NullableIntToString((int?)(object?)source),
-//            _ => throw new NotSupportedException($"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported."),
-//        };
-//    }
-//}
-
+//[GenerateMapper(typeof(AddressDto))]
 [GenerateMapper(typeof(PersonDto))]
 public class Person
 {
@@ -60,6 +48,7 @@ public class Person
     public double Weight { get; set; }
 }
 
+[GenerateMapper(typeof(Person))]
 public class PersonDto
 {
     [MapperAlias(nameof(Person.Name))]

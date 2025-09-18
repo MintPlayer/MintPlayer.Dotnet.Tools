@@ -28,4 +28,9 @@ public partial class TypeToMap
     public PropertyDeclaration[] MappingProperties { get; set; } = [];
 
     public string DestinationNamespace { get; set; }
+
+    /// <summary>
+    /// Indicates whether both types are decorated with the <see cref="Attributes.GenerateMapperAttribute"/>
+    /// </summary>
+    public bool AreBothDecorated { get; set; }
 }

@@ -28,6 +28,7 @@ public class MapperGenerator : IncrementalGenerator
                             DeclaredTypeName = typeSymbol.Name,
                             MappingType = mapType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                             MappingTypeName = mapType.Name,
+                            AreBothDecorated = mapType.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute"),
 
                             DeclaredProperties = typeSymbol.GetAllProperties()
                                 .Where(p => !p.IsIndexer && !p.IsImplicitlyDeclared && !p.IsStatic)

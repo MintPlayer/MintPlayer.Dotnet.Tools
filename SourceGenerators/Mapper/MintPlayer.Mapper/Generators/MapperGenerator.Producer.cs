@@ -91,25 +91,28 @@ public sealed class MapperProducer : Producer
             writer.Indent--;
             writer.WriteLine("}");
 
-            writer.WriteLine($"public static {type.TypeToMap.MappingType} MapTo{type.TypeToMap.MappingTypeName}(this {type.TypeToMap.DeclaredType} input)");
-            writer.WriteLine("{");
-            writer.Indent++;
-
-            writer.WriteLine($"return new {type.TypeToMap.MappingType}()");
-            writer.WriteLine("{");
-            writer.Indent++;
-
-            // TODO: add properties
-            foreach (var (source, destination) in type.MappedProperties)
+            if (!type.TypeToMap.AreBothDecorated)
             {
-                HandleProperty(writer, destination, source);
+                writer.WriteLine($"public static {type.TypeToMap.MappingType} MapTo{type.TypeToMap.MappingTypeName}(this {type.TypeToMap.DeclaredType} input)");
+                writer.WriteLine("{");
+                writer.Indent++;
+
+                writer.WriteLine($"return new {type.TypeToMap.MappingType}()");
+                writer.WriteLine("{");
+                writer.Indent++;
+
+                // TODO: add properties
+                foreach (var (source, destination) in type.MappedProperties)
+                {
+                    HandleProperty(writer, destination, source);
+                }
+
+                writer.Indent--;
+                writer.WriteLine("};");
+
+                writer.Indent--;
+                writer.WriteLine("}");
             }
-
-            writer.Indent--;
-            writer.WriteLine("};");
-
-            writer.Indent--;
-            writer.WriteLine("}");
 
             writer.WriteLine($"public static global::System.Collections.Generic.IEnumerable<{type.TypeToMap.DeclaredType}> MapTo{type.TypeToMap.DeclaredTypeName}(this global::System.Collections.Generic.IEnumerable<{type.TypeToMap.MappingType}> input)");
             writer.WriteLine("{");
@@ -120,14 +123,17 @@ public sealed class MapperProducer : Producer
             writer.Indent--;
             writer.WriteLine("}");
 
-            writer.WriteLine($"public static global::System.Collections.Generic.IEnumerable<{type.TypeToMap.MappingType}> MapTo{type.TypeToMap.MappingTypeName}(this global::System.Collections.Generic.IEnumerable<{type.TypeToMap.DeclaredType}> input)");
-            writer.WriteLine("{");
-            writer.Indent++;
+            if (!type.TypeToMap.AreBothDecorated)
+            {
+                writer.WriteLine($"public static global::System.Collections.Generic.IEnumerable<{type.TypeToMap.MappingType}> MapTo{type.TypeToMap.MappingTypeName}(this global::System.Collections.Generic.IEnumerable<{type.TypeToMap.DeclaredType}> input)");
+                writer.WriteLine("{");
+                writer.Indent++;
 
-            writer.WriteLine($"return input.Select(x => x.MapTo{type.TypeToMap.MappingTypeName}());");
+                writer.WriteLine($"return input.Select(x => x.MapTo{type.TypeToMap.MappingTypeName}());");
 
-            writer.Indent--;
-            writer.WriteLine("}");
+                writer.Indent--;
+                writer.WriteLine("}");
+            }
         }
 
         writer.Indent--;
@@ -139,24 +145,16 @@ public sealed class MapperProducer : Producer
 
     // Helper methods for type checks
     private static bool IsArrayType(string type)
-    {
-        return type.EndsWith("[]");
-    }
+        => type.EndsWith("[]");
 
     private static bool IsListType(string type)
-    {
-        return type.StartsWith("global::System.Collections.Generic.List<") || type.StartsWith("List<");
-    }
+        => type.StartsWith("global::System.Collections.Generic.List<") || type.StartsWith("List<");
 
     private static bool IsCollectionType(string type)
-    {
-        return type.StartsWith("global::System.Collections.Generic.ICollection<") || type.StartsWith("ICollection<");
-    }
+        => type.StartsWith("global::System.Collections.Generic.ICollection<") || type.StartsWith("ICollection<");
 
     private static bool IsNullableType(string type)
-    {
-        return type.EndsWith("?") || type.StartsWith("System.Nullable<");
-    }
+        => type.EndsWith("?") || type.StartsWith("System.Nullable<");
 
     private static bool IsPrimitiveOrString(string type)
     {
