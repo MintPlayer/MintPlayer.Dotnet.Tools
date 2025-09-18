@@ -72,7 +72,7 @@ public sealed class MapperProducer : Producer
 
         foreach (var type in typesToMap)
         {
-            writer.WriteLine($"public static {type.TypeToMap.DeclaredType} MapTo{type.TypeToMap.DeclaredTypeName}(this {type.TypeToMap.MappingType} input)");
+            writer.WriteLine($"public static {type.TypeToMap.DeclaredType} {type.TypeToMap.PreferredDeclaredMethodName}(this {type.TypeToMap.MappingType} input)");
             writer.WriteLine("{");
             writer.Indent++;
 
@@ -93,7 +93,7 @@ public sealed class MapperProducer : Producer
 
             if (!type.TypeToMap.AreBothDecorated)
             {
-                writer.WriteLine($"public static {type.TypeToMap.MappingType} MapTo{type.TypeToMap.MappingTypeName}(this {type.TypeToMap.DeclaredType} input)");
+                writer.WriteLine($"public static {type.TypeToMap.MappingType} {type.TypeToMap.PreferredMappingMethodName}(this {type.TypeToMap.DeclaredType} input)");
                 writer.WriteLine("{");
                 writer.Indent++;
 
@@ -114,22 +114,22 @@ public sealed class MapperProducer : Producer
                 writer.WriteLine("}");
             }
 
-            writer.WriteLine($"public static global::System.Collections.Generic.IEnumerable<{type.TypeToMap.DeclaredType}> MapTo{type.TypeToMap.DeclaredTypeName}(this global::System.Collections.Generic.IEnumerable<{type.TypeToMap.MappingType}> input)");
+            writer.WriteLine($"public static global::System.Collections.Generic.IEnumerable<{type.TypeToMap.DeclaredType}> {type.TypeToMap.PreferredDeclaredMethodName}(this global::System.Collections.Generic.IEnumerable<{type.TypeToMap.MappingType}> input)");
             writer.WriteLine("{");
             writer.Indent++;
 
-            writer.WriteLine($"return input.Select(x => x.MapTo{type.TypeToMap.DeclaredTypeName}());");
+            writer.WriteLine($"return input.Select(x => x.{type.TypeToMap.PreferredDeclaredMethodName}());");
 
             writer.Indent--;
             writer.WriteLine("}");
 
             if (!type.TypeToMap.AreBothDecorated)
             {
-                writer.WriteLine($"public static global::System.Collections.Generic.IEnumerable<{type.TypeToMap.MappingType}> MapTo{type.TypeToMap.MappingTypeName}(this global::System.Collections.Generic.IEnumerable<{type.TypeToMap.DeclaredType}> input)");
+                writer.WriteLine($"public static global::System.Collections.Generic.IEnumerable<{type.TypeToMap.MappingType}> {type.TypeToMap.PreferredMappingMethodName}(this global::System.Collections.Generic.IEnumerable<{type.TypeToMap.DeclaredType}> input)");
                 writer.WriteLine("{");
                 writer.Indent++;
 
-                writer.WriteLine($"return input.Select(x => x.MapTo{type.TypeToMap.MappingTypeName}());");
+                writer.WriteLine($"return input.Select(x => x.{type.TypeToMap.PreferredMappingMethodName}());");
 
                 writer.Indent--;
                 writer.WriteLine("}");

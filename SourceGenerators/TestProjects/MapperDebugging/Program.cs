@@ -36,8 +36,7 @@ public static class Conversions
     }
 }
 
-//[GenerateMapper(typeof(AddressDto))]
-[GenerateMapper(typeof(PersonDto))]
+[GenerateMapper(typeof(PersonDto), "Persoon")]
 public class Person
 {
     public string? Name { get; set; }
@@ -48,7 +47,7 @@ public class Person
     public double Weight { get; set; }
 }
 
-[GenerateMapper(typeof(Person))]
+[GenerateMapper(typeof(Person), "PersoonDto")]
 public class PersonDto
 {
     [MapperAlias(nameof(Person.Name))]
