@@ -1,6 +1,6 @@
 ﻿using MintPlayer.ValueComparerGenerator.Attributes;
 
-[assembly: GenerateJoinMethods(20)]
+//[assembly: GenerateJoinMethods(10)]
 namespace ValueComparerDebugging
 {
     internal class Program
@@ -8,7 +8,7 @@ namespace ValueComparerDebugging
         static void Main(string[] args)
         {
             Console.WriteLine("Hello, World!");
-            //global::Microsoft.cod
+            //global::Microsoft.CodeAnalysis
         }
     }
 }

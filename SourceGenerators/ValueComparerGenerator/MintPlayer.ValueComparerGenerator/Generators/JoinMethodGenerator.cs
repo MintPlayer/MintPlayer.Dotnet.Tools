@@ -1,5 +1,6 @@
 ﻿using Microsoft.CodeAnalysis;
 using MintPlayer.SourceGenerators.Tools;
+using MintPlayer.SourceGenerators.Tools.ValueComparers;
 using MintPlayer.ValueComparerGenerator.Attributes;
 using MintPlayer.ValueComparerGenerator.Models;
 
@@ -19,26 +20,25 @@ public class JoinMethodGenerator : IncrementalGenerator
             static (node, ct) => node is Microsoft.CodeAnalysis.CSharp.Syntax.CompilationUnitSyntax,
             static (context, ct) =>
             {
-                var hasCodeAnalysisReferenceProvider = context.SemanticModel.Compilation.ReferencedAssemblyNames
-                    .Any(a => a.Name == "Microsoft.CodeAnalysis");
-
-
                 var attributeData = context.Attributes.FirstOrDefault(ad => ad.AttributeClass?.ToDisplayString() == typeof(GenerateJoinMethodsAttribute).FullName);
                 if (attributeData is { ConstructorArguments.Length: 1 } && attributeData.ConstructorArguments[0].Value is uint numParamsArg)
-                {
-                    return new JoinMethodInfo { HasCodeAnalysisReference = hasCodeAnalysisReferenceProvider, NumberOfJoinMethods = numParamsArg };
-                }
+                    return numParamsArg;
 
-                return new JoinMethodInfo { HasCodeAnalysisReference = hasCodeAnalysisReferenceProvider };
+                return 5u;
             })
-            .WithComparer(JoinMethodInfoComparer.Instance)
-            .Collect();
+            .WithComparer(ValueComparer<uint>.Instance)
+            .Collect()
+            .Select((x, ct) => x.Any() ? x.First() : 5u);
 
+        var hasCodeAnalysisReferenceProvider = context.CompilationProvider
+            .Select(static (compilation, ct) => compilation.ReferencedAssemblyNames
+                .Any(a => a.Name == "Microsoft.CodeAnalysis"));
 
-        var numberOfJoinMethodsSourceProvider = numberOfJoinMethodsProvider
+        var joinMethodsSourceProvider = numberOfJoinMethodsProvider
+            .Join(hasCodeAnalysisReferenceProvider)
             .Join(settingsProvider)
-            .Select(static Producer (provider, ct) => new JoinMethodProducer(provider.Item1.Single(), provider.Item2.RootNamespace!));
+            .Select(static Producer (provider, ct) => new JoinMethodProducer(provider.Item1, provider.Item2, provider.Item3.RootNamespace!));
 
-        context.ProduceCode(numberOfJoinMethodsSourceProvider);
+        context.ProduceCode(joinMethodsSourceProvider);
     }
 }

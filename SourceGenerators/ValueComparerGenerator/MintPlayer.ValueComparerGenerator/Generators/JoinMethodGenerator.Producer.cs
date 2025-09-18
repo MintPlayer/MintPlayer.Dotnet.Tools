@@ -1,15 +1,16 @@
 ﻿using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.ValueComparerGenerator.Models;
 using System.CodeDom.Compiler;
 
 namespace MintPlayer.ValueComparerGenerator.Generators;
 
 internal class JoinMethodProducer : Producer
 {
-    private readonly JoinMethodInfo info;
-    public JoinMethodProducer(JoinMethodInfo info, string rootNamespace) : base(rootNamespace, "JoinMethods.g.cs")
+    private readonly uint numberOfJoinMethods;
+    private readonly bool hasCodeAnalysisReference;
+    public JoinMethodProducer(uint numberOfJoinMethods, bool hasCodeAnalysisReference, string rootNamespace) : base(rootNamespace, "JoinMethods.g.cs")
     {
-        this.info = info;
+        this.numberOfJoinMethods = numberOfJoinMethods;
+        this.hasCodeAnalysisReference = hasCodeAnalysisReference;
     }
 
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
@@ -23,14 +24,13 @@ internal class JoinMethodProducer : Producer
         writer.WriteLine("{");
         writer.Indent++;
 
-        if (info.HasCodeAnalysisReference)
+        if (hasCodeAnalysisReference)
         {
             writer.WriteLine("public static class IncrementalValueProviderAdditionalEx");
             writer.WriteLine("{");
             writer.Indent++;
 
-            info.NumberOfJoinMethods ??= 5;
-            for (var i = 6; i <= info.NumberOfJoinMethods; i++)
+            for (var i = 6; i <= numberOfJoinMethods; i++)
             {
                 var typeParameters = string.Join(", ", Enumerable.Range(1, i).Select(n => $"T{n}"));                // T1, T2, T3, T4, ...
                 var typeParametersBraced = $"({typeParameters})";                                                   // (T1, T2, T3, T4, ...)
