@@ -17,20 +17,23 @@ public class MapperGenerator : IncrementalGenerator
                 static (node, ct) => node is not null,
                 static (ctx, ct) =>
                 {
-                    if (ctx.SemanticModel.GetDeclaredSymbol(ctx.TargetNode, ct) is INamedTypeSymbol typeSymbol &&
+                    if (ctx.TargetSymbol is INamedTypeSymbol typeSymbol &&
                         ctx.Attributes.FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute") is { } attr &&
                         attr.ConstructorArguments.FirstOrDefault().Value is INamedTypeSymbol mapType &&
-                        attr.ConstructorArguments.ElementAtOrDefault(1) is { } methodName)
+                        attr.ConstructorArguments.ElementAtOrDefault(1) is { } typeMethodName)
                     {
+                        var destAttr = mapType.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute");
+                        var destTypeMethodName = destAttr?.ConstructorArguments.ElementAtOrDefault(1);
+                        var mappingMethodName = destTypeMethodName is null ? mapType.Name.EnsureStartsWith("MapTo") : CreateMethodName((TypedConstant)destTypeMethodName, mapType);
                         return new Models.TypeToMap
                         {
                             DestinationNamespace = typeSymbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
                             DeclaredType = typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                             DeclaredTypeName = typeSymbol.Name,
-                            PreferredDeclaredMethodName = CreateMethodName(methodName, typeSymbol),
+                            PreferredDeclaredMethodName = CreateMethodName(typeMethodName, typeSymbol),
                             MappingType = mapType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                             MappingTypeName = mapType.Name,
-                            PreferredMappingMethodName = $"MapTo{mapType.Name}",
+                            PreferredMappingMethodName = mappingMethodName,
                             AreBothDecorated = mapType.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute"),
 
                             DeclaredProperties = typeSymbol.GetAllProperties()
