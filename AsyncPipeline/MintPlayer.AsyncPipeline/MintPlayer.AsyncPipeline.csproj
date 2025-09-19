@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net9.0</TargetFramework>
+		<TargetFramework>net10.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<OutputType>Library</OutputType>
@@ -11,7 +11,7 @@
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 
 		<IsPackable>true</IsPackable>
-		<Version>9.0.1</Version>
+		<Version>10.0.0-rc.1</Version>
 		<Description>Simplify paging through an API (HasMorePages) while performing more async operations with the result</Description>
 		<Company>MintPlayer</Company>
 		<Authors>Pieterjan De Clippel</Authors>
