@@ -48,6 +48,13 @@ public static class HttpResponseMessageExtensions
         return (T?)serializer.Deserialize(s);
     }
 
+    public static async Task<string> ReadTextAsync(this HttpResponseMessage response, CancellationToken ct = default)
+    {
+        await response.EnsureSuccessWithBodyAsync(ct);
+        var s = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        return s;
+    }
+
     public static EntityTagHeaderValue? GetETag(this HttpResponseMessage response)
         => response.Headers.ETag;
 
