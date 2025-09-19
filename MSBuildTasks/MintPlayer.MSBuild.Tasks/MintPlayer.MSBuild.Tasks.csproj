@@ -17,7 +17,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.Build.Utilities.Core" Version="17.14.8" />
+		<PackageReference Include="Microsoft.Build.Utilities.Core" Version="17.15.0-preview-25277-114" />
 	</ItemGroup>
 
 </Project>
