@@ -36,51 +36,8 @@ public class MapperGenerator : IncrementalGenerator
                             PreferredMappingMethodName = mappingMethodName,
                             AreBothDecorated = mapType.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute"),
 
-                            DeclaredProperties = typeSymbol.GetAllProperties()
-                                .Where(p => !p.IsIndexer && !p.IsImplicitlyDeclared && !p.IsStatic)
-                                .Select(p => new Models.PropertyDeclaration
-                                {
-                                    PropertyName = p.Name,
-                                    PropertyType = p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                    PropertyTypeName = p.Type is INamedTypeSymbol namedType && namedType.IsGenericType && namedType.Name == "List" && namedType.TypeArguments.Length == 1
-                                        ? namedType.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)
-                                        : p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
-
-                                    Alias = p.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperAliasAttribute")
-                                        is { ConstructorArguments.Length: > 0 } aliasAttr
-                                        && aliasAttr.ConstructorArguments[0].Value is string aliasName
-                                        ? aliasName : p.Name,
-                                    //IsNullable = p.NullableAnnotation == NullableAnnotation.Annotated,
-                                    //IsReadOnly = p.IsReadOnly,
-                                    IsStatic = p.IsStatic,
-                                    //IsVirtual = p.IsVirtual,
-                                    //IsAbstract = p.IsAbstract,
-                                    //IsOverride = p.IsOverride,
-                                    IsPrimitive = p.Type.IsValueType || p.Type.SpecialType == SpecialType.System_String,
-                                })
-                                .ToArray(),
-                            MappingProperties = mapType.GetAllProperties()
-                                .Where(p => !p.IsIndexer && !p.IsImplicitlyDeclared && !p.IsStatic)
-                                .Select(p => new Models.PropertyDeclaration
-                                {
-                                    PropertyName = p.Name,
-                                    PropertyType = p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                    PropertyTypeName = p.Type is INamedTypeSymbol namedType && namedType.IsGenericType && namedType.Name == "List" && namedType.TypeArguments.Length == 1
-                                        ? namedType.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)
-                                        : p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
-                                    Alias = p.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperAliasAttribute")
-                                        is { ConstructorArguments.Length: > 0 } aliasAttr
-                                        && aliasAttr.ConstructorArguments[0].Value is string aliasName
-                                        ? aliasName : p.Name,
-                                    //IsNullable = p.NullableAnnotation == NullableAnnotation.Annotated,
-                                    //IsReadOnly = p.IsReadOnly,
-                                    IsStatic = p.IsStatic,
-                                    //IsVirtual = p.IsVirtual,
-                                    //IsAbstract = p.IsAbstract,
-                                    //IsOverride = p.IsOverride,
-                                    IsPrimitive = p.Type.IsValueType || p.Type.SpecialType == SpecialType.System_String,
-                                })
-                                .ToArray(),
+                            DeclaredProperties = ProcessProperties(typeSymbol).ToArray(),
+                            MappingProperties = ProcessProperties(mapType).ToArray(),
                         };
                     }
                     return null;
@@ -150,6 +107,32 @@ public class MapperGenerator : IncrementalGenerator
     {
         var preferredMappingMethodName = (preferred.Value as string) ?? type.Name;
         return preferredMappingMethodName.EnsureStartsWith("MapTo");
+    }
+
+    private static IEnumerable<Models.PropertyDeclaration> ProcessProperties(INamedTypeSymbol typeSymbol)
+    {
+        return typeSymbol.GetAllProperties()
+            .Where(p => !p.IsIndexer && !p.IsImplicitlyDeclared && !p.IsStatic)
+            .Select(p => new Models.PropertyDeclaration
+            {
+                PropertyName = p.Name,
+                PropertyType = p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                PropertyTypeName = p.Type is INamedTypeSymbol namedType && namedType.IsGenericType && namedType.Name == "List" && namedType.TypeArguments.Length == 1
+                    ? namedType.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)
+                    : p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+
+                Alias = p.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperAliasAttribute")
+                    is { ConstructorArguments.Length: > 0 } aliasAttr
+                    && aliasAttr.ConstructorArguments[0].Value is string aliasName
+                    ? aliasName : p.Name,
+                //IsNullable = p.NullableAnnotation == NullableAnnotation.Annotated,
+                //IsReadOnly = p.IsReadOnly,
+                IsStatic = p.IsStatic,
+                //IsVirtual = p.IsVirtual,
+                //IsAbstract = p.IsAbstract,
+                //IsOverride = p.IsOverride,
+                IsPrimitive = p.Type.IsValueType || p.Type.SpecialType == SpecialType.System_String,
+            });
     }
 
     public override void RegisterComparers()
