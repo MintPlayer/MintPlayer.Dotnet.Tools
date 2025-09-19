@@ -29,6 +29,15 @@ public static class HttpResponseMessageExtensions
         return await JsonSerializer.DeserializeAsync<T>(s, options, ct).ConfigureAwait(false);
     }
 
+    public static async Task<HttpResult<T?>> ReadJsonWithMetaAsync<T>(this HttpResponseMessage response, JsonSerializerOptions? options = null, CancellationToken ct = default)
+    {
+        await response.EnsureSuccessWithBodyAsync(ct);
+        await using var s = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        var data = await JsonSerializer.DeserializeAsync<T>(s, options, ct).ConfigureAwait(false);
+
+        return new(data, response.StatusCode, response.Version, response.Headers, response.ReasonPhrase, response.GetLocation());
+    }
+
     public static async Task<(bool ok, T? value)> TryReadJsonAsync<T>(this HttpResponseMessage response, JsonSerializerOptions? options = null, CancellationToken ct = default)
     {
         try
@@ -48,11 +57,29 @@ public static class HttpResponseMessageExtensions
         return (T?)serializer.Deserialize(s);
     }
 
+    public static async Task<HttpResult<T?>> ReadXmlWithMetaAsync<T>(this HttpResponseMessage response, CancellationToken ct = default)
+    {
+        await response.EnsureSuccessWithBodyAsync(ct);
+        var serializer = new System.Xml.Serialization.XmlSerializer(typeof(T));
+        await using var s = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        var data = (T?)serializer.Deserialize(s);
+
+        return new(data, response.StatusCode, response.Version, response.Headers, response.ReasonPhrase, response.GetLocation());
+    }
+
     public static async Task<string> ReadTextAsync(this HttpResponseMessage response, CancellationToken ct = default)
     {
         await response.EnsureSuccessWithBodyAsync(ct);
         var s = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         return s;
+    }
+
+    public static async Task<HttpResult<string>> ReadTextWithMetaAsync(this HttpResponseMessage response, CancellationToken ct = default)
+    {
+        await response.EnsureSuccessWithBodyAsync(ct);
+        var data = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+
+        return new(data, response.StatusCode, response.Version, response.Headers, response.ReasonPhrase, response.GetLocation());
     }
 
     public static EntityTagHeaderValue? GetETag(this HttpResponseMessage response)
