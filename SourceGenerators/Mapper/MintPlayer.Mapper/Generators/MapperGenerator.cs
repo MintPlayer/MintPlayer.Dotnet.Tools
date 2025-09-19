@@ -112,7 +112,7 @@ public class MapperGenerator : IncrementalGenerator
     private static IEnumerable<Models.PropertyDeclaration> ProcessProperties(INamedTypeSymbol typeSymbol)
     {
         return typeSymbol.GetAllProperties()
-            .Where(p => !p.IsIndexer && !p.IsImplicitlyDeclared && !p.IsStatic)
+            .Where(p => !p.IsIndexer && !p.IsImplicitlyDeclared && !p.IsStatic && !p.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperIgnoreAttribute"))
             .Select(p => new Models.PropertyDeclaration
             {
                 PropertyName = p.Name,
