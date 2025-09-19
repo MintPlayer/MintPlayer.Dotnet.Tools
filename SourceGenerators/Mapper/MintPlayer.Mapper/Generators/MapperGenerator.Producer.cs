@@ -64,7 +64,7 @@ public sealed class MapperProducer : Producer
         writer.WriteLine("}");
 
         writer.WriteLine();
-        writer.WriteLine("return (TDest?)(object?)result;");
+        writer.WriteLine("return (TDest?)result;");
 
         writer.Indent--;
         writer.WriteLine("}");
