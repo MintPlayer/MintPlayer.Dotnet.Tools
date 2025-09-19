@@ -39,6 +39,7 @@ public static class Conversions
 [GenerateMapper(typeof(PersonDto), "Persoon")]
 public class Person
 {
+    [MapperIgnore]
     public string? Name { get; set; }
     public int? Age { get; set; }
     public Address Address { get; set; }
