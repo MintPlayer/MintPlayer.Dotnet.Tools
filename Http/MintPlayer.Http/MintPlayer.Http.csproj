@@ -8,7 +8,7 @@
 		<OutputType>Library</OutputType>
 
 		<IsPackable>true</IsPackable>
-		<Version>10.0.0-rc.4</Version>
+		<Version>10.0.0-rc.5</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>Fluent API to send HTTP requests</Description>

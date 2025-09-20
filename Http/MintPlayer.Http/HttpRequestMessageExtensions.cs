@@ -6,6 +6,24 @@ namespace MintPlayer.Http;
 
 public static class HttpRequestMessageExtensions
 {
+    public static HttpRequestMessage WithCookie(this HttpRequestMessage message, string name, string value)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        string newValue;
+        if (message.Headers.TryGetValues("Cookie", out var existing))
+        {
+            newValue = string.Join("; ", existing) + $"; {name}={value}";
+            message.Headers.Remove("Cookie");
+        }
+        else
+        {
+            newValue = $"{name}={value}";
+        }
+
+        message.Headers.TryAddWithoutValidation("Cookie", newValue);
+        return message;
+    }
+
     public static HttpRequestMessage WithHeader(this HttpRequestMessage message, string name, string value)
     {
         ArgumentNullException.ThrowIfNull(message);
@@ -37,6 +55,12 @@ public static class HttpRequestMessageExtensions
             message.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(mt));
         return message;
     }
+
+    public static HttpRequestMessage AcceptJson(this HttpRequestMessage message)
+        => message.WithAccept("application/json");
+
+    public static HttpRequestMessage AcceptXml(this HttpRequestMessage message)
+        => message.WithAccept("application/xml", "text/xml");
 
     public static HttpRequestMessage WithUserAgent(this HttpRequestMessage message, string product, string version)
     {

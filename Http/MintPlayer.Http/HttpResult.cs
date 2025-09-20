@@ -9,4 +9,15 @@ public sealed record HttpResult<T>(
     HttpResponseHeaders Headers,
     string? ReasonPhrase = null,
     Uri? Location = null
-);
+)
+{
+    public void Deconstruct(
+        out T? result,
+        out System.Net.HttpStatusCode statusCode,
+        out HttpResponseHeaders headers)
+    {
+        result = Value;
+        statusCode = StatusCode;
+        headers = Headers;
+    }
+}
