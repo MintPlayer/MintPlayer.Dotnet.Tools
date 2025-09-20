@@ -1,4 +1,5 @@
 ﻿using System.Net.Http.Headers;
+using System.Reflection.PortableExecutable;
 using System.Text.Json;
 
 namespace MintPlayer.Http;
