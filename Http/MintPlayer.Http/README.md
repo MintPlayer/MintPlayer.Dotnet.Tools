@@ -48,6 +48,7 @@ WidgetDto created = await client.FromJsonAsync<WidgetDto>(req, null, ct);
 ### Need status code and headers too? Use `…WithMeta`
 
 ```csharp
+using var client = new HttpClient();
 var req = new HttpRequestMessage(HttpMethod.Post, "https://api.example.com/widgets")
     .WithAuthorizationBearer("your_jwt_here")               // ← auth
     .WithHeader("X-TraceId", Guid.NewGuid().ToString())     // ← any header
@@ -68,6 +69,7 @@ Uri location                  = result.Location;       // recirect url
 You can also easily deconstruct the result tuple-style:
 
 ```csharp
+using var client = new HttpClient();
 var req = new HttpRequestMessage(HttpMethod.Post, "https://api.example.com/widgets")
     .WithAuthorizationBearer("your_jwt_here")               // ← auth
     .WithHeader("X-TraceId", Guid.NewGuid().ToString())     // ← any header
