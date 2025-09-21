@@ -12,6 +12,12 @@
 
 ---
 
+## Simple example
+I created a simple example in [this repository](https://github.com/PieterjanDeClippel/HttpClientExample)
+
+
+---
+
 ## Install
 
 ```powershell
