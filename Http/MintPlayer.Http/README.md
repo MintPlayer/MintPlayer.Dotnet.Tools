@@ -161,6 +161,18 @@ await using var stream = await res.Content.ReadAsStreamAsync(ct);
 
 ---
 
+### C) Get response stream directly
+```csharp
+using var client = new HttpClient();
+var httpStream = await client.FromStreamAsync(new HttpRequestMessage(HttpMethod.Get, download.resultDatasetDownloadUrl)
+    .WithHeader("Authorization", $"token {app.token}"));
+
+using var archive = new ZipArchive(httpStream, ZipArchiveMode.Read, true);
+var entry = archive.Entries.First();
+```
+
+---
+
 ## Error handling
 
 `EnsureSuccessWithBodyAsync()` is like `EnsureSuccessStatusCode()` but **includes the response body** in the exception message when possible—hugely helpful when APIs return details in JSON/text.

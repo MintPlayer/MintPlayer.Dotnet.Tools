@@ -43,4 +43,12 @@ public static class HttpClientExtensions
         var value = await response.ReadTextWithMetaAsync(ct).ConfigureAwait(false);
         return value;
     }
+
+    public static async Task<Stream> FromStreamAsync(this HttpClient client, HttpRequestMessage message, CancellationToken ct = default)
+    {
+        var response = await client.SendAsync(message, ct).ConfigureAwait(false);
+        var fileContents = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        fileContents.Position = 0;
+        return fileContents;
+    }
 }
