@@ -1,0 +1,3 @@
+﻿# Only affect test/playground files that purposely trigger MP001
+[*.cs]
+dotnet_diagnostic.MP001.severity = warning

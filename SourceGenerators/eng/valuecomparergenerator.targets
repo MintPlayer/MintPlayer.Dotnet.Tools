@@ -8,7 +8,7 @@
 
 	<ItemGroup>
 		<!-- Put the assets for this project in the correct package path -->
-		<None Condition="'$(Configuration)' == 'Release' " Include="$(MSBuildThisFileDirectory)\..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
+		<None Include="$(MSBuildThisFileDirectory)\..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
 	</ItemGroup>
 
 </Project>

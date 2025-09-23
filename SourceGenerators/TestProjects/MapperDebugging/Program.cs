@@ -1,7 +1,9 @@
-﻿// See https://aka.ms/new-console-template for more information
-using MintPlayer.Mapper.Attributes;
+﻿using MintPlayer.Mapper.Attributes;
+
+[assembly: GenerateMapper(typeof(ContactInfo), typeof(ContactInfoDto), "MapTo")]
 
 Console.WriteLine("Hello, World!");
+
 
 public static class Conversions
 {
@@ -48,7 +50,7 @@ public class Person
     public double Weight { get; set; }
 }
 
-[GenerateMapper(typeof(Person), "PersoonDto")]
+[GenerateMapper(typeof(Person), typeof(PersonDto), "PersoonDto")]
 public class PersonDto
 {
     [MapperAlias(nameof(Person.Name))]
@@ -92,7 +94,7 @@ public class ContactInfo
     public string Value { get; set; }
 }
 
-[GenerateMapper(typeof(ContactInfo))]
+//[GenerateMapper(typeof(ContactInfo))]
 public class ContactInfoDto
 {
     [MapperAlias(nameof(ContactInfo.Type))]
