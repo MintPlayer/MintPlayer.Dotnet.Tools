@@ -400,7 +400,6 @@ public sealed class MapperEntrypointProducer : Producer
                 OutType = p.TypeToMap.DeclaredType,
                 Method = p.TypeToMap.PreferredDeclaredMethodName,
             }))
-            //.Distinct()
             .GroupBy(p => p.InType);
 
         writer.WriteLine("#nullable enable");
@@ -410,7 +409,6 @@ public sealed class MapperEntrypointProducer : Producer
         writer.WriteLine($"namespace {RootNamespace}");
         writer.WriteLine("{");
         writer.Indent++;
-
 
         writer.WriteLine("public interface IMapper");
         writer.WriteLine("{");
@@ -448,13 +446,14 @@ public sealed class MapperEntrypointProducer : Producer
         {
             writer.WriteLine($"case {mappedClassGrouping.Key} sourceValue:");
             writer.Indent++;
-            
+
             writer.WriteLine($"switch (typeof(TDest))");
             writer.WriteLine("{");
             writer.Indent++;
 
             foreach (var mappedClass in mappedClassGrouping)
             {
+                // mappedClass.OutType must be unique here !!!
                 writer.WriteLine($"case global::System.Type destType when destType == typeof({mappedClass.OutType}):");
                 writer.Indent++;
                 writer.WriteLine($"result = global::{RootNamespace}.MapperExtensions.{mappedClass.Method}(sourceValue);");
@@ -465,7 +464,6 @@ public sealed class MapperEntrypointProducer : Producer
             writer.WriteLine("default:");
             writer.Indent++;
             writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
-
             writer.Indent--;
             writer.Indent--;
             writer.WriteLine("}");
@@ -476,7 +474,6 @@ public sealed class MapperEntrypointProducer : Producer
         writer.WriteLine("default:");
         writer.Indent++;
         writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
-
         writer.Indent--;
         writer.Indent--;
         writer.WriteLine("}");
@@ -488,17 +485,12 @@ public sealed class MapperEntrypointProducer : Producer
         writer.WriteLine("}");
         writer.WriteLine();
 
-        writer.WriteLine("public TDest? Map<TSource, TDest>(TSource? source, TDest destination)");
+        writer.WriteLine("public void Map<TSource, TDest>(TSource? source, TDest destination)");
         writer.WriteLine("{");
         writer.Indent++;
 
-        writer.WriteLine("if (source is null)");
-        writer.Indent++;
-        writer.WriteLine("return default;");
-        writer.Indent--;
+        writer.WriteLine("if (source is null) return;");
 
-        writer.WriteLine();
-        writer.WriteLine("object? result = null;");
         writer.WriteLine();
 
         writer.WriteLine($"switch (source)");
@@ -517,9 +509,10 @@ public sealed class MapperEntrypointProducer : Producer
 
             foreach (var mappedClass in mappedClassGrouping)
             {
+                // mappedClass.OutType must be unique here !!!
                 writer.WriteLine($"case {mappedClass.OutType} dest:");
                 writer.Indent++;
-                writer.WriteLine($"result = global::{RootNamespace}.MapperExtensions.{mappedClass.Method}(sourceValue, dest);");
+                writer.WriteLine($"global::{RootNamespace}.MapperExtensions.{mappedClass.Method}(sourceValue, dest);");
                 writer.WriteLine("break;");
                 writer.Indent--;
             }
@@ -542,9 +535,6 @@ public sealed class MapperEntrypointProducer : Producer
         writer.Indent--;
         writer.Indent--;
         writer.WriteLine("}");
-
-        writer.WriteLine();
-        writer.WriteLine("return (TDest?)result;");
 
         writer.Indent--;
         writer.WriteLine("}");
