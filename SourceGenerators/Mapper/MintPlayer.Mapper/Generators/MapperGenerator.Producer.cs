@@ -451,7 +451,7 @@ public sealed class MapperEntrypointProducer : Producer
             writer.WriteLine("{");
             writer.Indent++;
 
-            foreach (var mappedClass in mappedClassGrouping)
+            foreach (var mappedClass in mappedClassGrouping.GroupBy(mc => mc.OutType, StringComparer.Ordinal).Select(g => g.First()))
             {
                 // mappedClass.OutType must be unique here !!!
                 writer.WriteLine($"case global::System.Type destType when destType == typeof({mappedClass.OutType}):");
@@ -507,7 +507,7 @@ public sealed class MapperEntrypointProducer : Producer
             writer.WriteLine("{");
             writer.Indent++;
 
-            foreach (var mappedClass in mappedClassGrouping)
+            foreach (var mappedClass in mappedClassGrouping.GroupBy(mc => mc.OutType, StringComparer.Ordinal).Select(g => g.First()))
             {
                 // mappedClass.OutType must be unique here !!!
                 writer.WriteLine($"case {mappedClass.OutType} dest:");
