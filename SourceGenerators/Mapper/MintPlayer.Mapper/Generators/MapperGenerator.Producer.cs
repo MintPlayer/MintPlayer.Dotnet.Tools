@@ -4,6 +4,7 @@ using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.Tools.Extensions;
 using System.CodeDom.Compiler;
 using System.Collections.Immutable;
+using System.Linq;
 
 namespace MintPlayer.Mapper.Generators;
 
@@ -432,27 +433,77 @@ public sealed class MapperEntrypointProducer : Producer
         writer.WriteLine("object? result;");
         writer.WriteLine();
 
-        writer.WriteLine($"switch ((typeof(TSource), typeof(TDest)))");
+        writer.WriteLine($"switch (source)");
         writer.WriteLine("{");
         writer.Indent++;
 
-        foreach (var mappedClass in properties)
-        {
-            writer.WriteLine($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({mappedClass.TypeToMap.DeclaredType}) && destType == typeof({mappedClass.TypeToMap.MappingType}):");
-            writer.Indent++;
-            writer.WriteLine($"result = global::{RootNamespace}.MapperExtensions.{mappedClass.TypeToMap.PreferredMappingMethodName}(({mappedClass.TypeToMap.DeclaredType})(object)source);");
-            writer.WriteLine("break;");
-            writer.Indent--;
 
-            if (!mappedClass.TypeToMap.AreBothDecorated)
+        var propsInBothDirections = properties
+            .Select(p => new
             {
-                writer.WriteLine($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({mappedClass.TypeToMap.MappingType}) && destType == typeof({mappedClass.TypeToMap.DeclaredType}):");
+                InType = p.TypeToMap.DeclaredType,
+                OutType = p.TypeToMap.MappingType,
+                Method = p.TypeToMap.PreferredMappingMethodName,
+            })
+            .Concat(properties.Select(p => new
+            {
+                InType = p.TypeToMap.MappingType,
+                OutType = p.TypeToMap.DeclaredType,
+                Method = p.TypeToMap.PreferredDeclaredMethodName,
+            }))
+            //.Distinct()
+            .GroupBy(p => p.InType);
+
+        foreach (var mappedClassGrouping in propsInBothDirections)
+        {
+            writer.WriteLine($"case {mappedClassGrouping.Key} sourceValue:");
+            writer.Indent++;
+            
+            writer.WriteLine($"switch (typeof(TDest))");
+            writer.WriteLine("{");
+            writer.Indent++;
+
+            foreach (var mappedClass in mappedClassGrouping)
+            {
+                writer.WriteLine($"case global::System.Type destType when destType == typeof({mappedClass.OutType}):");
                 writer.Indent++;
-                writer.WriteLine($"result = global::{RootNamespace}.MapperExtensions.{mappedClass.TypeToMap.PreferredDeclaredMethodName}(({mappedClass.TypeToMap.MappingType})(object)source);");
+                writer.WriteLine($"result = global::{RootNamespace}.MapperExtensions.{mappedClass.Method}(sourceValue);");
                 writer.WriteLine("break;");
                 writer.Indent--;
             }
+
+            writer.WriteLine("default:");
+            writer.Indent++;
+            writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
+
+            writer.Indent--;
+            writer.Indent--;
+            writer.WriteLine("}");
+            writer.WriteLine("break;");
+            writer.Indent--;
         }
+
+        //writer.WriteLine($"switch ((typeof(TSource), typeof(TDest)))");
+        //writer.WriteLine("{");
+        //writer.Indent++;
+
+        //foreach (var mappedClass in properties)
+        //{
+        //    writer.WriteLine($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({mappedClass.TypeToMap.DeclaredType}) && destType == typeof({mappedClass.TypeToMap.MappingType}):");
+        //    writer.Indent++;
+        //    writer.WriteLine($"result = global::{RootNamespace}.MapperExtensions.{mappedClass.TypeToMap.PreferredMappingMethodName}(({mappedClass.TypeToMap.DeclaredType})(object)source);");
+        //    writer.WriteLine("break;");
+        //    writer.Indent--;
+
+        //    if (!mappedClass.TypeToMap.AreBothDecorated)
+        //    {
+        //        writer.WriteLine($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({mappedClass.TypeToMap.MappingType}) && destType == typeof({mappedClass.TypeToMap.DeclaredType}):");
+        //        writer.Indent++;
+        //        writer.WriteLine($"result = global::{RootNamespace}.MapperExtensions.{mappedClass.TypeToMap.PreferredDeclaredMethodName}(({mappedClass.TypeToMap.MappingType})(object)source);");
+        //        writer.WriteLine("break;");
+        //        writer.Indent--;
+        //    }
+        //}
 
         writer.WriteLine("default:");
         writer.Indent++;
@@ -479,7 +530,7 @@ public sealed class MapperEntrypointProducer : Producer
         writer.Indent--;
 
         writer.WriteLine();
-        writer.WriteLine("object? result;");
+        writer.WriteLine("object? result = null;");
         writer.WriteLine();
 
 
