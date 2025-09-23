@@ -1,4 +1,5 @@
-﻿using MintPlayer.ValueComparerGenerator.Attributes;
+﻿using Microsoft.CodeAnalysis;
+using MintPlayer.ValueComparerGenerator.Attributes;
 
 namespace MintPlayer.Mapper.Models;
 
@@ -35,4 +36,18 @@ public partial class TypeToMap
     /// Indicates whether both types are decorated with the <see cref="Attributes.GenerateMapperAttribute"/>
     /// </summary>
     public bool AreBothDecorated { get; set; }
+
+    public EAppliedOn AppliedOn { get; set; }
+
+    public bool HasError { get; set; }
+
+    public Location? Location { get; set; }
+}
+
+[Flags]
+public enum EAppliedOn
+{
+    None = 0,
+    Class = 1,
+    Assembly = 2,
 }

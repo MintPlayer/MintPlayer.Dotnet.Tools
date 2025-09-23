@@ -1,11 +1,12 @@
-﻿using MintPlayer.Mapper.Models;
+﻿using Microsoft.CodeAnalysis;
+using MintPlayer.Mapper.Models;
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.Tools.Extensions;
 using System.CodeDom.Compiler;
 
 namespace MintPlayer.Mapper.Generators;
 
-public sealed class MapperProducer : Producer
+public sealed class MapperProducer : Producer, IDiagnosticReporter
 {
     private readonly IEnumerable<TypeWithMappedProperties> typesToMap;
     private readonly IEnumerable<ClassDeclaration> staticClasses;
@@ -13,6 +14,31 @@ public sealed class MapperProducer : Producer
     {
         this.typesToMap = typesToMap;
         this.staticClasses = staticClasses;
+    }
+
+    public IEnumerable<Diagnostic> GetDiagnostics()
+    {
+        foreach (var type in typesToMap.Where(t => t.TypeToMap.HasError))
+        {
+            yield return Diagnostic.Create(new DiagnosticDescriptor(
+                    id: "MP001",
+                    title: type.TypeToMap.AppliedOn switch
+                    {
+                        EAppliedOn.Assembly => "When applied to assembly, [GenerateMapper] must have 2 types as parameters",
+                        EAppliedOn.Class => "When applied to type, [GenerateMapper] must have 1 type as parameter",
+                        _ => "Invalid usage of [GenerateMapper]"
+                    },
+                    messageFormat: type.TypeToMap.AppliedOn switch
+                    {
+                        EAppliedOn.Assembly => "When applied to assembly, [GenerateMapper] must have 2 types as parameters",
+                        EAppliedOn.Class => "When applied to type, [GenerateMapper] must have 1 type as parameter",
+                        _ => "Invalid usage of [GenerateMapper]"
+                    },
+                    category: "MapperGenerator",
+                    DiagnosticSeverity.Error,
+                    isEnabledByDefault: true),
+                type.TypeToMap.Location);
+        }
     }
 
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
@@ -70,7 +96,7 @@ public sealed class MapperProducer : Producer
         writer.WriteLine("}");
 
 
-        foreach (var type in typesToMap)
+        foreach (var type in typesToMap.Where(t => !t.TypeToMap.HasError))
         {
             writer.WriteLine($"public static {type.TypeToMap.DeclaredType} {type.TypeToMap.PreferredDeclaredMethodName}(this {type.TypeToMap.MappingType} input)");
             writer.WriteLine("{");
