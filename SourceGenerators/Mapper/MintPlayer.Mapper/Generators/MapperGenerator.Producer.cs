@@ -103,6 +103,27 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
 
         foreach (var type in typesToMap.Where(t => !t.TypeToMap.HasError))
         {
+            writer.WriteLine($"public static {type.TypeToMap.DeclaredType} {type.TypeToMap.PreferredDeclaredMethodName}(this {type.TypeToMap.MappingType} input, {type.TypeToMap.DeclaredType} output)");
+            writer.WriteLine("{");
+            writer.Indent++;
+
+            writer.WriteLine("if ((input is { } inValue) && (output is { }))");
+            writer.WriteLine("{");
+            writer.Indent++;
+
+            foreach (var (source, destination) in type.MappedProperties)
+            {
+                HandleProperty(writer, source, destination, EWriteType.Assignment);
+            }
+
+            writer.Indent--;
+            writer.WriteLine("}");
+
+            writer.WriteLine("return output;");
+
+            writer.Indent--;
+            writer.WriteLine("}");
+
             writer.WriteLine($"public static {type.TypeToMap.DeclaredType} {type.TypeToMap.PreferredDeclaredMethodName}(this {type.TypeToMap.MappingType} input)");
             writer.WriteLine("{");
             writer.Indent++;
@@ -116,7 +137,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
 
             foreach (var (source, destination) in type.MappedProperties)
             {
-                HandleProperty(writer, source, destination);
+                HandleProperty(writer, source, destination, EWriteType.Initializer);
             }
 
             writer.Indent--;
@@ -127,6 +148,27 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
 
             if (!type.TypeToMap.AreBothDecorated)
             {
+                writer.WriteLine($"public static {type.TypeToMap.MappingType} {type.TypeToMap.PreferredMappingMethodName}(this {type.TypeToMap.DeclaredType} input, {type.TypeToMap.MappingType} output)");
+                writer.WriteLine("{");
+                writer.Indent++;
+
+                writer.WriteLine("if ((input is { } inValue) && (output is { }))");
+                writer.WriteLine("{");
+                writer.Indent++;
+
+                foreach (var (source, destination) in type.MappedProperties)
+                {
+                    HandleProperty(writer, destination, source, EWriteType.Assignment);
+                }
+
+                writer.Indent--;
+                writer.WriteLine("}");
+
+                writer.WriteLine("return output;");
+
+                writer.Indent--;
+                writer.WriteLine("}");
+
                 writer.WriteLine($"public static {type.TypeToMap.MappingType} {type.TypeToMap.PreferredMappingMethodName}(this {type.TypeToMap.DeclaredType} input)");
                 writer.WriteLine("{");
                 writer.Indent++;
@@ -141,7 +183,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
                 // TODO: add properties
                 foreach (var (source, destination) in type.MappedProperties)
                 {
-                    HandleProperty(writer, destination, source);
+                    HandleProperty(writer, destination, source, EWriteType.Initializer);
                 }
 
                 writer.Indent--;
@@ -255,15 +297,29 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         return collectionType;
     }
 
-    private static void HandleProperty(IndentedTextWriter writer, PropertyDeclaration source, PropertyDeclaration destination)
+    private static void HandleProperty(IndentedTextWriter writer, PropertyDeclaration source, PropertyDeclaration destination, EWriteType writeType)
     {
+        var prefix = writeType switch
+        {
+            EWriteType.Initializer => $"{source.PropertyName} = ",
+            EWriteType.Assignment => $"output.{source.PropertyName} = ",
+            _ => throw new NotImplementedException(),
+        };
+
+        var suffix = writeType switch
+        {
+            EWriteType.Initializer => ",",
+            EWriteType.Assignment => ";",
+            _ => throw new NotImplementedException(),
+        };
+
         // Handle primitive types
         if (source.IsPrimitive && destination.IsPrimitive)
         {
             if (source.PropertyType == destination.PropertyType)
-                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName},");
+                writer.WriteLine($"{prefix}input.{destination.PropertyName}{suffix}");
             else
-                writer.WriteLine($"{source.PropertyName} = ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}),");
+                writer.WriteLine($"{prefix}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}){suffix}");
         }
         // Handle arrays
         else if (IsArrayType(source.PropertyType) && IsArrayType(destination.PropertyType))
@@ -271,12 +327,12 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
             var elementType = GetElementType(source.PropertyType);
             if (IsPrimitiveOrString(elementType))
             {
-                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToArray(),");
+                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToArray(){suffix}");
             }
             else
             {
                 var shortName = elementType.WithoutGlobal().Split('.').Last();
-                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToArray(),");
+                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToArray(){suffix}");
             }
         }
         // Handle List<T>
@@ -285,12 +341,12 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
             var elementType = GetElementType(source.PropertyType);
             if (IsPrimitiveOrString(elementType))
             {
-                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToList(),");
+                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToList(){suffix}");
             }
             else
             {
                 var shortName = elementType.WithoutGlobal().Split('.').Last();
-                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToList(),");
+                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToList(){suffix}");
             }
         }
         // Handle ICollection<T>
@@ -299,26 +355,36 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
             var elementType = GetElementType(source.PropertyType);
             if (IsPrimitiveOrString(elementType))
             {
-                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToList(),");
+                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToList(){suffix}");
             }
             else
             {
                 var shortName = elementType.WithoutGlobal().Split('.').Last();
-                writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToList(),");
+                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToList(){suffix}");
             }
         }
         // Handle nullable reference types
         else if (IsNullableType(source.PropertyType) && IsNullableType(destination.PropertyType))
         {
-            writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(),");
+            writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(){suffix}");
         }
         // Handle complex types
         else
         {
-            writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(),");
+            writer.WriteLine($"{prefix}input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(){suffix}");
         }
     }
 }
+
+//public class MapperWriteOptions
+//{
+//    public MapperWriteOptions(string sourcePropertyName)
+//    {
+//        SourcePropertyName = sourcePropertyName;
+//    }
+
+//    public string SourcePropertyName { get; }
+//}
 
 public sealed class MapperEntrypointProducer : Producer
 {
@@ -412,7 +478,14 @@ public sealed class MapperEntrypointProducer : Producer
         writer.WriteLine("return default;");
         writer.Indent--;
 
+        writer.WriteLine();
+        writer.WriteLine("object? result;");
+        writer.WriteLine();
 
+
+
+        writer.WriteLine();
+        writer.WriteLine("return (TDest?)result;");
 
         writer.Indent--;
         writer.WriteLine("}");
@@ -426,4 +499,10 @@ public sealed class MapperEntrypointProducer : Producer
         writer.WriteLine("}");
         writer.WriteLine();
     }
+}
+
+public enum EWriteType
+{
+    Initializer,
+    Assignment,
 }
