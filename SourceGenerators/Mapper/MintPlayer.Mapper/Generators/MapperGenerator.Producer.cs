@@ -377,16 +377,6 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
     }
 }
 
-//public class MapperWriteOptions
-//{
-//    public MapperWriteOptions(string sourcePropertyName)
-//    {
-//        SourcePropertyName = sourcePropertyName;
-//    }
-
-//    public string SourcePropertyName { get; }
-//}
-
 public sealed class MapperEntrypointProducer : Producer
 {
     private readonly ImmutableArray<TypeWithMappedProperties> properties;
