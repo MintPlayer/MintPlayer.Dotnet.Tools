@@ -50,7 +50,8 @@ public class Person
     public double Weight { get; set; }
 }
 
-[GenerateMapper(typeof(Person), typeof(PersonDto), "PersoonDto")]
+//[GenerateMapper(typeof(Person), typeof(PersonDto), "PersoonDto")]
+[GenerateMapper(typeof(Person), "PersoonDto")]
 public class PersonDto
 {
     [MapperAlias(nameof(Person.Name))]

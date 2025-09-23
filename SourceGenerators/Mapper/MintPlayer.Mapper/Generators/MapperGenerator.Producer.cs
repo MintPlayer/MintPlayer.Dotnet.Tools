@@ -3,6 +3,7 @@ using MintPlayer.Mapper.Models;
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.Tools.Extensions;
 using System.CodeDom.Compiler;
+using System.Collections.Immutable;
 
 namespace MintPlayer.Mapper.Generators;
 
@@ -43,6 +44,10 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
 
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
     {
+        writer.WriteLine("#nullable enable");
+        writer.WriteLine(Header);
+        writer.WriteLine();
+
         writer.WriteLine($"namespace {RootNamespace}");
         writer.WriteLine("{");
         writer.Indent++;
@@ -102,6 +107,9 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
             writer.WriteLine("{");
             writer.Indent++;
 
+            writer.WriteLine("if (input is null) return default;");
+            writer.WriteLine();
+
             writer.WriteLine($"return new {type.TypeToMap.DeclaredType}()");
             writer.WriteLine("{");
             writer.Indent++;
@@ -122,6 +130,9 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
                 writer.WriteLine($"public static {type.TypeToMap.MappingType} {type.TypeToMap.PreferredMappingMethodName}(this {type.TypeToMap.DeclaredType} input)");
                 writer.WriteLine("{");
                 writer.Indent++;
+
+                writer.WriteLine("if (input is null) return default;");
+                writer.WriteLine();
 
                 writer.WriteLine($"return new {type.TypeToMap.MappingType}()");
                 writer.WriteLine("{");
@@ -306,5 +317,113 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         {
             writer.WriteLine($"{source.PropertyName} = input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(),");
         }
+    }
+}
+
+public sealed class MapperEntrypointProducer : Producer
+{
+    private readonly ImmutableArray<TypeWithMappedProperties> properties;
+    public MapperEntrypointProducer(ImmutableArray<TypeWithMappedProperties> properties, string rootNamespace) : base(rootNamespace, "MapperEntrypoint.g.cs")
+    {
+        this.properties = properties;
+    }
+
+    protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
+    {
+        writer.WriteLine("#nullable enable");
+        writer.WriteLine(Header);
+        writer.WriteLine();
+
+        writer.WriteLine($"namespace {RootNamespace}");
+        writer.WriteLine("{");
+        writer.Indent++;
+
+
+        writer.WriteLine("public interface IMapper");
+        writer.WriteLine("{");
+        writer.Indent++;
+
+        writer.WriteLine("TDest? Map<TSource, TDest>(TSource? source);");
+
+        writer.Indent--;
+        writer.WriteLine("}");
+        writer.WriteLine();
+
+        writer.WriteLine("public class Mapper : IMapper");
+        writer.WriteLine("{");
+        writer.Indent++;
+
+        writer.WriteLine("public TDest? Map<TSource, TDest>(TSource? source)");
+        writer.WriteLine("{");
+        writer.Indent++;
+
+        writer.WriteLine("if (source is null)");
+        writer.Indent++;
+        writer.WriteLine("return default;");
+        writer.Indent--;
+
+        writer.WriteLine();
+        writer.WriteLine("object? result;");
+        writer.WriteLine();
+
+        writer.WriteLine($"switch ((typeof(TSource), typeof(TDest)))");
+        writer.WriteLine("{");
+        writer.Indent++;
+
+        foreach (var mappedClass in properties)
+        {
+            writer.WriteLine($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({mappedClass.TypeToMap.DeclaredType}) && destType == typeof({mappedClass.TypeToMap.MappingType}):");
+            writer.Indent++;
+            writer.WriteLine($"result = global::{RootNamespace}.MapperExtensions.{mappedClass.TypeToMap.PreferredMappingMethodName}(({mappedClass.TypeToMap.DeclaredType})(object)source);");
+            writer.WriteLine("break;");
+            writer.Indent--;
+
+            if (!mappedClass.TypeToMap.AreBothDecorated)
+            {
+                writer.WriteLine($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({mappedClass.TypeToMap.MappingType}) && destType == typeof({mappedClass.TypeToMap.DeclaredType}):");
+                writer.Indent++;
+                writer.WriteLine($"result = global::{RootNamespace}.MapperExtensions.{mappedClass.TypeToMap.PreferredDeclaredMethodName}(({mappedClass.TypeToMap.MappingType})(object)source);");
+                writer.WriteLine("break;");
+                writer.Indent--;
+            }
+        }
+
+        writer.WriteLine("default:");
+        writer.Indent++;
+        writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
+
+        writer.Indent--;
+        writer.Indent--;
+        writer.WriteLine("}");
+
+        writer.WriteLine();
+        writer.WriteLine("return (TDest?)result;");
+
+        writer.Indent--;
+        writer.WriteLine("}");
+        writer.WriteLine();
+
+        writer.WriteLine("public TDest? Map<TSource, TDest>(TSource? source, TDest destination)");
+        writer.WriteLine("{");
+        writer.Indent++;
+
+        writer.WriteLine("if (source is null)");
+        writer.Indent++;
+        writer.WriteLine("return default;");
+        writer.Indent--;
+
+
+
+        writer.Indent--;
+        writer.WriteLine("}");
+        writer.WriteLine();
+
+        writer.Indent--;
+        writer.WriteLine("}");
+        writer.WriteLine();
+
+        writer.Indent--;
+        writer.WriteLine("}");
+        writer.WriteLine();
     }
 }
