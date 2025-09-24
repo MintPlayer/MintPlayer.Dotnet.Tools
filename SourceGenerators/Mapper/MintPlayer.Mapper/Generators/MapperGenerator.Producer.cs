@@ -411,6 +411,7 @@ public sealed class MapperEntrypointProducer : Producer
         writer.Indent++;
 
         writer.WriteLine("TDest? Map<TSource, TDest>(TSource? source);");
+        writer.WriteLine("void Map<TSource, TDest>(TSource? source, TDest destination);");
 
         writer.Indent--;
         writer.WriteLine("}");
