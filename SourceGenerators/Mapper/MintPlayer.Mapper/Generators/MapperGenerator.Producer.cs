@@ -104,7 +104,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
 
         foreach (var type in typesToMap.Where(t => !t.TypeToMap.HasError))
         {
-            writer.WriteLine($"public static {type.TypeToMap.DeclaredType} {type.TypeToMap.PreferredDeclaredMethodName}(this {type.TypeToMap.MappingType} input, {type.TypeToMap.DeclaredType} output)");
+            writer.WriteLine($"public static void {type.TypeToMap.PreferredDeclaredMethodName}(this {type.TypeToMap.MappingType} input, {type.TypeToMap.DeclaredType} output)");
             writer.WriteLine("{");
             writer.Indent++;
 
@@ -119,8 +119,6 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
 
             writer.Indent--;
             writer.WriteLine("}");
-
-            writer.WriteLine("return output;");
 
             writer.Indent--;
             writer.WriteLine("}");
@@ -149,7 +147,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
 
             if (!type.TypeToMap.AreBothDecorated)
             {
-                writer.WriteLine($"public static {type.TypeToMap.MappingType} {type.TypeToMap.PreferredMappingMethodName}(this {type.TypeToMap.DeclaredType} input, {type.TypeToMap.MappingType} output)");
+                writer.WriteLine($"public static void {type.TypeToMap.PreferredMappingMethodName}(this {type.TypeToMap.DeclaredType} input, {type.TypeToMap.MappingType} output)");
                 writer.WriteLine("{");
                 writer.Indent++;
 
@@ -164,8 +162,6 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
 
                 writer.Indent--;
                 writer.WriteLine("}");
-
-                writer.WriteLine("return output;");
 
                 writer.Indent--;
                 writer.WriteLine("}");
