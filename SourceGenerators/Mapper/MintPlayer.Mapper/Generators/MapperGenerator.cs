@@ -41,7 +41,7 @@ public class MapperGenerator : IncrementalGenerator
                                 AreBothDecorated = destType1.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute"),
                                 AppliedOn = Models.EAppliedOn.Assembly,
                                 HasError = false,
-                                Location = ctx.TargetSymbol.Locations.FirstOrDefault(),
+                                Location = attr1.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
 
                                 DeclaredProperties = ProcessProperties(sourceType).ToArray(),
                                 MappingProperties = ProcessProperties(destType1).ToArray(),
@@ -53,18 +53,18 @@ public class MapperGenerator : IncrementalGenerator
                             {
                                 AppliedOn = Models.EAppliedOn.Assembly,
                                 HasError = true,
-                                Location = ctx.TargetSymbol.Locations.FirstOrDefault(),
+                                Location = attr1.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
                             };
                         }
                     }
 
 
                     if (ctx.TargetSymbol is INamedTypeSymbol typeSymbol &&
-                        ctx.Attributes.FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute") is { } attr)
+                        ctx.Attributes.FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute") is { } attr2)
                     {
                         // Applied on class or struct
-                        if (attr.ConstructorArguments.FirstOrDefault().Value is INamedTypeSymbol destType2 &&
-                            attr.ConstructorArguments.ElementAtOrDefault(1) is TypedConstant { Kind: TypedConstantKind.Primitive, Type.SpecialType: SpecialType.System_String } typeMethodName2)
+                        if (attr2.ConstructorArguments.FirstOrDefault().Value is INamedTypeSymbol destType2 &&
+                            attr2.ConstructorArguments.ElementAtOrDefault(1) is TypedConstant { Kind: TypedConstantKind.Primitive, Type.SpecialType: SpecialType.System_String } typeMethodName2)
                         {
                             var destAttr = destType2.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute");
                             var destTypeMethodName = destAttr?.ConstructorArguments.ElementAtOrDefault(1);
@@ -81,7 +81,7 @@ public class MapperGenerator : IncrementalGenerator
                                 AreBothDecorated = destType2.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute"),
                                 AppliedOn = Models.EAppliedOn.Class,
                                 HasError = false,
-                                Location = ctx.TargetSymbol.Locations.FirstOrDefault(),
+                                Location = attr2.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
 
                                 DeclaredProperties = ProcessProperties(typeSymbol).ToArray(),
                                 MappingProperties = ProcessProperties(destType2).ToArray(),
@@ -93,7 +93,7 @@ public class MapperGenerator : IncrementalGenerator
                             {
                                 AppliedOn = Models.EAppliedOn.Class,
                                 HasError = true,
-                                Location = ctx.TargetSymbol.Locations.FirstOrDefault(),
+                                Location = attr2.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
                             };
                         }
                     }
