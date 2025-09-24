@@ -161,8 +161,11 @@ public class MapperGenerator : IncrementalGenerator
             .Join(settingsProvider)
             .Select(static IDiagnosticReporter (p, ct) => new MapperProducer(p.Item1, p.Item2, p.Item3.RootNamespace!));
 
+        var mapperEntrypointSourceProvider = distinctTypesToMapProvider
+            .Join(settingsProvider)
+            .Select(static Producer (p, ct) => new MapperEntrypointProducer(p.Item1, p.Item2.RootNamespace!));
 
-        context.ProduceCode(typesToMapSourceProvider);
+        context.ProduceCode(typesToMapSourceProvider, mapperEntrypointSourceProvider);
         context.ReportDiagnostics(typesToMapDiagnosticProvider);
     }
 
