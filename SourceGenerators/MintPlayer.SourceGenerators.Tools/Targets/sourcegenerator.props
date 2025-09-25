@@ -2,10 +2,6 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
 
 	<PropertyGroup>
-		<TargetFramework>netstandard2.0</TargetFramework>
-		<LangVersion>13</LangVersion>
-		<Nullable>enable</Nullable>
-		<ImplicitUsings>enable</ImplicitUsings>
 		<DevelopmentDependency>true</DevelopmentDependency>
 		<IncludeBuildOutput>false</IncludeBuildOutput>
 		<IsRoslynComponent>true</IsRoslynComponent>
@@ -37,34 +33,16 @@
 			</PropertyGroup>
 		</Otherwise>
 	</Choose>
-	<ItemGroup>
-	</ItemGroup>
-
-	<ItemGroup>
-		<ProjectReference Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj" PrivateAssets="all" />
-	</ItemGroup>
-
-	<PropertyGroup>
-		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsCommon</GetTargetPathDependsOn>
-	</PropertyGroup>
 
 	<ItemGroup>
 		<!-- Put the assets for this project in the correct package path -->
 		<!-- Rolsyn 4.0 -->
-		<None Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="false" />
-		<None Condition="'$(Configuration)' == 'Release' " Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="false" />
+		<None Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="true" />
+		<None Include="$(PkgMintPlayer_SourceGenerators_Tools)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="true" />
 
 		<!-- Rolsyn 4.9 -->
-		<None Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="false" />
-		<None Condition="'$(Configuration)' == 'Release' " Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="false" />
+		<None Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="true" />
+		<None Include="$(PkgMintPlayer_SourceGenerators_Tools)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="true" />
 	</ItemGroup>
 
-	<Target Name="GetDependencyTargetPathsCommon">
-		<!-- Include dependency DLLs and put them in the correct package path -->
-		<ItemGroup>
-			<TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Tools.dll" IncludeRuntimeDependency="false" />
-		</ItemGroup>
-	</Target>
-
-	<Import Project="./filenesting.targets"/>
 </Project>
