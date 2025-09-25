@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+	<!--
+	This file does the following:
+		- Only runs when the package is installed as a PackageReference, not in this solution
+		- Defines properties for building a source generator package
+		- References the necessary Roslyn packages based on the selected Roslyn version
+		- Puts the built DLL and its dependencies in the correct package path for Roslyn analyzers
+	-->
 
 	<PropertyGroup>
 		<DevelopmentDependency>true</DevelopmentDependency>
