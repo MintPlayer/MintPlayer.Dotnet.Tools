@@ -12,7 +12,8 @@
 		</ItemGroup>
 	</Target>
 
-	<Target Name="ShowMessage" BeforeTargets="Build">
-		<Message Condition="'$(PkgMintPlayer_SourceGenerators_Tools)' == ''">Please add GeneratePathProperty="true" on the MintPlayer.SourceGenerators.Tools PackageReference</Message>
+	<Target Name="MintPlayer_CheckGeneratePathProperty" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
+		<Error Condition="'$(PkgMintPlayer_SourceGenerators_Tools)' == ''"
+			   Text="Please add GeneratePathProperty=&quot;true&quot; on the MintPlayer.SourceGenerators.Tools PackageReference." />
 	</Target>
 </Project>

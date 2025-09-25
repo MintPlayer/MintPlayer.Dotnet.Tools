@@ -8,7 +8,7 @@
 	</PropertyGroup>
 
 	<PropertyGroup>
-		<Version>7.2.0-preview.4</Version>
+		<Version>7.2.0-preview.10</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains useful tools for building source generators</Description>
@@ -24,8 +24,8 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<Content Include="Targets\sourcegenerator.props" Pack="true" PackagePath="build/$(AssemblyName).props" />
-		<Content Include="Targets\sourcegenerator.targets" Pack="true" PackagePath="build/$(AssemblyName).props" />
+		<None Include="Targets\sourcegenerator.props" Pack="true" PackagePath="build/$(PackageId).props" />
+		<None Include="Targets\sourcegenerator.targets" Pack="true" PackagePath="build/$(PackageId).targets" />
 	</ItemGroup>
 
 	<ItemGroup>
