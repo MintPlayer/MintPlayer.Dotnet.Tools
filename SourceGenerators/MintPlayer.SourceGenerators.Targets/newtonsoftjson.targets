@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
 
-	<ItemGroup Condition=" '$(ManagePackageVersionsCentrally)' == 'true' ">
-		<PackageReference Include="Newtonsoft.Json" PrivateAssets="all" GeneratePathProperty="true" />
-		<PackageReference Include="MintPlayer.ValueComparers.NewtonsoftJson" GeneratePathProperty="true" />
-	</ItemGroup>
-
-	<ItemGroup Condition=" '$(ManagePackageVersionsCentrally)' != 'true' ">
-		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" PrivateAssets="all" GeneratePathProperty="true" />
-		<PackageReference Include="MintPlayer.ValueComparers.NewtonsoftJson" Version="5.3.0" PrivateAssets="all" GeneratePathProperty="true" />
-	</ItemGroup>
-
 	<PropertyGroup>
 		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsNewtonsoftJson</GetTargetPathDependsOn>
 	</PropertyGroup>
@@ -31,5 +21,12 @@
 			<TargetPathWithTargetPlatformMoniker Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\Newtonsoft.Json.dll" IncludeRuntimeDependency="false" />
 			<TargetPathWithTargetPlatformMoniker Include="$(PkgMintPlayer_ValueComparers_NewtonsoftJson)\lib\netstandard2.0\MintPlayer.ValueComparers.NewtonsoftJson.dll" IncludeRuntimeDependency="false" />
 		</ItemGroup>
+	</Target>
+
+	<Target Name="MintPlayer_NewtonsoftJson_CheckGeneratePathProperty" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
+		<Error Condition="'$(PkgNewtonsoft_Json)' == ''"
+			   Text="Please add GeneratePathProperty=&quot;true&quot; on the Newtonsoft.Json PackageReference." />
+		<Error Condition="'$(PkgMintPlayer_ValueComparers_NewtonsoftJson)' == ''"
+			   Text="Please add GeneratePathProperty=&quot;true&quot; on the MintPlayer.ValueComparers.NewtonsoftJson PackageReference." />
 	</Target>
 </Project>

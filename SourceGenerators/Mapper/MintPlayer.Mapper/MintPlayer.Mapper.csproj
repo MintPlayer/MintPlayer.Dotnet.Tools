@@ -28,6 +28,11 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<None Include="Targets\mappergenerator.props" Pack="true" PackagePath="build/$(PackageId).props" />
+		<None Include="Targets\mappergenerator.targets" Pack="true" PackagePath="build/$(PackageId).targets" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<!-- Dependency DLLs -->
 		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.Mapper.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
 	</ItemGroup>

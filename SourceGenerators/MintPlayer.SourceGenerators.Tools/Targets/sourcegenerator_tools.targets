@@ -13,8 +13,11 @@
 
 	<Target Name="GetDependencyTargetPathsCommon">
 		<!-- Include dependency DLLs and put them in the correct package path -->
-		<ItemGroup>
+		<ItemGroup Condition="'$(PkgMintPlayer_SourceGenerators_Tools)' != ''">
 			<TargetPathWithTargetPlatformMoniker Include="$(PkgMintPlayer_SourceGenerators_Tools)\lib\netstandard2.0\MintPlayer.SourceGenerators.Tools.dll" IncludeRuntimeDependency="false" />
+		</ItemGroup>
+		<ItemGroup Condition="'$(PkgMintPlayer_SourceGenerators_Tools)' == '' and Exists('$(MSBuildThisFileDirectory)..\MintPlayer.SourceGenerators.Tools')">
+			<TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)..\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Tools.dll" IncludeRuntimeDependency="false" />
 		</ItemGroup>
 	</Target>
 

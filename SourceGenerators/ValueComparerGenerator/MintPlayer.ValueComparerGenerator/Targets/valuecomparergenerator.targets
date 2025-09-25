@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+	<PropertyGroup>
+		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsValueComparer</GetTargetPathDependsOn>
+	</PropertyGroup>
+
+	<Target Name="GetDependencyTargetPathsValueComparer">
+		<!-- Include dependency DLLs and put them in the correct package path -->
+		<ItemGroup Condition="'$(PkgMintPlayer_ValueComparerGenerator_Attributes)' != ''">
+			<TargetPathWithTargetPlatformMoniker Include="$(PkgMintPlayer_ValueComparerGenerator_Attributes)\lib\netstandard2.0\MintPlayer.ValueComparerGenerator.Attributes.dll" IncludeRuntimeDependency="true" />
+		</ItemGroup>
+		<ItemGroup Condition="'$(PkgMintPlayer_ValueComparerGenerator_Attributes)' == '' and Exists('$(MSBuildThisFileDirectory)..\MintPlayer.ValueComparerGenerator.Attributes')">
+			<TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)..\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.ValueComparerGenerator.Attributes.dll" IncludeRuntimeDependency="true" />
+		</ItemGroup>
+	</Target>
+
+	<Target Name="ValueComparerGenerator_CheckGeneratePathProperty" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
+		<Error Condition="'$(PkgMintPlayer_ValueComparerGenerator_Attributes)' == ''"
+			   Text="Please add GeneratePathProperty=&quot;true&quot; on the MintPlayer.ValueComparerGenerator.Attributes PackageReference." />
+	</Target>
+</Project>
