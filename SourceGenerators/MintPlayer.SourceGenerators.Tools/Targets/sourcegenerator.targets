@@ -6,12 +6,13 @@
 	</PropertyGroup>
 
 	<Target Name="GetDependencyTargetPathsCommon">
-		<Message Condition="'$(PkgMintPlayer_SourceGenerators_Tools)' == ''">Please add GeneratePathProperty="true" on the MintPlayer.SourceGenerators.Tools PackageReference</Message>
-		
 		<!-- Include dependency DLLs and put them in the correct package path -->
 		<ItemGroup>
 			<TargetPathWithTargetPlatformMoniker Include="$(PkgMintPlayer_SourceGenerators_Tools)\lib\netstandard2.0\MintPlayer.SourceGenerators.Tools.dll" IncludeRuntimeDependency="false" />
 		</ItemGroup>
 	</Target>
-	
+
+	<Target Name="ShowMessage" BeforeTargets="Build">
+		<Message Condition="'$(PkgMintPlayer_SourceGenerators_Tools)' == ''">Please add GeneratePathProperty="true" on the MintPlayer.SourceGenerators.Tools PackageReference</Message>
+	</Target>
 </Project>
