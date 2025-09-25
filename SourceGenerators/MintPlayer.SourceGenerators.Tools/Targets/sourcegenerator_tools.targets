@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+	<PropertyGroup>
+		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsCommon</GetTargetPathDependsOn>
+	</PropertyGroup>
+
+	<Target Name="GetDependencyTargetPathsCommon">
+		<!-- Include dependency DLLs and put them in the correct package path -->
+		<ItemGroup Condition="'$(PkgMintPlayer_SourceGenerators_Tools)' != ''">
+			<TargetPathWithTargetPlatformMoniker Include="$(PkgMintPlayer_SourceGenerators_Tools)\lib\netstandard2.0\MintPlayer.SourceGenerators.Tools.dll" IncludeRuntimeDependency="false" />
+		</ItemGroup>
+		<ItemGroup Condition="'$(PkgMintPlayer_SourceGenerators_Tools)' == '' and Exists('$(MSBuildThisFileDirectory)..\MintPlayer.SourceGenerators.Tools')">
+			<TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)..\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Tools.dll" IncludeRuntimeDependency="false" />
+		</ItemGroup>
+	</Target>
+
+	<Target Name="MintPlayer_Tools_CheckGeneratePathProperty" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
+		<Error Condition="'$(PkgMintPlayer_SourceGenerators_Tools)' == '' and !Exists('$(MSBuildThisFileDirectory)..\MintPlayer.SourceGenerators.Tools')"
+			   Text="Please add GeneratePathProperty=&quot;true&quot; on the MintPlayer.SourceGenerators.Tools PackageReference." />
+	</Target>
+</Project>

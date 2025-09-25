@@ -13,33 +13,6 @@
 		<RoslynVersion></RoslynVersion>
 	</PropertyGroup>
 
-	<Choose>
-		<When Condition="$(RoslynVersion) == 'roslyn4.0'">
-			<ItemGroup>
-				<PackageReference Include="Microsoft.CodeAnalysis" Version="4.14.0" PrivateAssets="all" />
-				<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
-				<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
-				<!--<PackageReference Include="Microsoft.CodeAnalysis.Features" Version="4.0.1" PrivateAssets="all" />-->
-			</ItemGroup>
-			<PropertyGroup>
-				<DefineConstants>$(DefineConstants);ROSLYN_4_0;ROSLYN_4_0_OR_GREATER</DefineConstants>
-			</PropertyGroup>
-		</When>
-		<Otherwise>
-			<ItemGroup>
-				<PackageReference Include="Microsoft.CodeAnalysis" Version="4.14.0" PrivateAssets="all" />
-				<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
-				<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
-				<!--<PackageReference Include="Microsoft.CodeAnalysis.Features" Version="4.9.2" PrivateAssets="all" />-->
-			</ItemGroup>
-			<PropertyGroup>
-				<DefineConstants>$(DefineConstants);ROSLYN_4_9;ROSLYN_4_0_OR_GREATER;ROSLYN_4_9_OR_GREATER</DefineConstants>
-			</PropertyGroup>
-		</Otherwise>
-	</Choose>
-	<ItemGroup>
-	</ItemGroup>
-
 	<ItemGroup>
 		<ProjectReference Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj" PrivateAssets="all" />
 	</ItemGroup>
@@ -47,17 +20,6 @@
 	<PropertyGroup>
 		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsCommon</GetTargetPathDependsOn>
 	</PropertyGroup>
-
-	<ItemGroup>
-		<!-- Put the assets for this project in the correct package path -->
-		<!-- Rolsyn 4.0 -->
-		<None Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="false" />
-		<None Condition="'$(Configuration)' == 'Release' " Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="false" />
-
-		<!-- Rolsyn 4.9 -->
-		<None Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="false" />
-		<None Condition="'$(Configuration)' == 'Release' " Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="false" />
-	</ItemGroup>
 
 	<Target Name="GetDependencyTargetPathsCommon">
 		<!-- Include dependency DLLs and put them in the correct package path -->
