@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+	<PropertyGroup>
+		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsMapper</GetTargetPathDependsOn>
+	</PropertyGroup>
+
+	<Target Name="GetDependencyTargetPathsMapper">
+		<!-- Include dependency DLLs and put them in the correct package path -->
+		<ItemGroup>
+			<TargetPathWithTargetPlatformMoniker Include="$(PkgMintPlayer_Mapper_Attributes)\lib\netstandard2.0\MintPlayer.Mapper.Attributes.dll" IncludeRuntimeDependency="true" />
+		</ItemGroup>
+	</Target>
+
+	<Target Name="MapperGenerator_CheckGeneratePathProperty" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
+		<Error Condition="'$(PkgMintPlayer_MapperGenerator_Attributes)' == ''"
+			   Text="Please add GeneratePathProperty=&quot;true&quot; on the MintPlayer.MapperGenerator.Attributes PackageReference." />
+	</Target>
+</Project>

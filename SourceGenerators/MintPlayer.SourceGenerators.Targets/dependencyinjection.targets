@@ -1,14 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
 
-	<ItemGroup Condition=" '$(ManagePackageVersionsCentrally)' == 'true' ">
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" PrivateAssets="all" GeneratePathProperty="true" />
-	</ItemGroup>
-
-	<ItemGroup Condition=" '$(ManagePackageVersionsCentrally)' != 'true' ">
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0-rc.1.25451.107" PrivateAssets="all" GeneratePathProperty="true" />
-	</ItemGroup>
-
 	<PropertyGroup>
 		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsDependencyInjection</GetTargetPathDependsOn>
 	</PropertyGroup>
@@ -26,5 +18,10 @@
 		<ItemGroup>
 			<TargetPathWithTargetPlatformMoniker Include="$(PKGMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\Microsoft.Extensions.DependencyInjection.Abstractions.dll" IncludeRuntimeDependency="false" />
 		</ItemGroup>
+	</Target>
+
+	<Target Name="MintPlayer_DependencyInjection_CheckGeneratePathProperty" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
+		<Error Condition="'$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)' == ''"
+			   Text="Please add GeneratePathProperty=&quot;true&quot; on the Microsoft.Extensions.DependencyInjection.Abstractions PackageReference." />
 	</Target>
 </Project>
