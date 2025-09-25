@@ -18,90 +18,96 @@ public class MapperGenerator : IncrementalGenerator
                 static (ctx, ct) =>
                 {
                     if (ctx.TargetSymbol is IAssemblySymbol assemblySymbol &&
-                        ctx.Attributes.FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute") is { } attr1)
+                        ctx.Attributes.Where(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute").ToArray() is { Length: > 0 } attributes1)
                     {
                         // Applied on assembly
-                        if (attr1.ConstructorArguments.FirstOrDefault().Value is INamedTypeSymbol sourceType &&
-                            attr1.ConstructorArguments.ElementAtOrDefault(1).Value is INamedTypeSymbol destType1 &&
-                            attr1.ConstructorArguments.ElementAtOrDefault(2) is TypedConstant { Kind: TypedConstantKind.Primitive, Type.SpecialType: SpecialType.System_String } methodNamePrefix)
+                        return attributes1.Select(attr1 =>
                         {
-                            var destAttr = destType1.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute");
-                            //var destTypeMethodName = destAttr?.ConstructorArguments.ElementAtOrDefault(1);
-                            var mappingMethodName = destType1.Name.EnsureStartsWith("MapTo");
-                            var declaredMethodName = sourceType.Name.EnsureStartsWith("MapTo");
-                            return new Models.TypeToMap
+                            if (attr1.ConstructorArguments.FirstOrDefault().Value is INamedTypeSymbol sourceType &&
+                                attr1.ConstructorArguments.ElementAtOrDefault(1).Value is INamedTypeSymbol destType1 &&
+                                attr1.ConstructorArguments.ElementAtOrDefault(2) is TypedConstant { Kind: TypedConstantKind.Primitive, Type.SpecialType: SpecialType.System_String } methodNamePrefix)
                             {
-                                DestinationNamespace = sourceType.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
-                                DeclaredType = sourceType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                DeclaredTypeName = sourceType.Name,
-                                PreferredDeclaredMethodName = declaredMethodName,
-                                MappingType = destType1.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                MappingTypeName = destType1.Name,
-                                PreferredMappingMethodName = mappingMethodName,
-                                AreBothDecorated = destType1.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute"),
-                                AppliedOn = Models.EAppliedOn.Assembly,
-                                HasError = false,
-                                Location = attr1.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
+                                var destAttr = destType1.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute");
+                                //var destTypeMethodName = destAttr?.ConstructorArguments.ElementAtOrDefault(1);
+                                var mappingMethodName = destType1.Name.EnsureStartsWith("MapTo");
+                                var declaredMethodName = sourceType.Name.EnsureStartsWith("MapTo");
+                                return new Models.TypeToMap
+                                {
+                                    DestinationNamespace = sourceType.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
+                                    DeclaredType = sourceType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                                    DeclaredTypeName = sourceType.Name,
+                                    PreferredDeclaredMethodName = declaredMethodName,
+                                    MappingType = destType1.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                                    MappingTypeName = destType1.Name,
+                                    PreferredMappingMethodName = mappingMethodName,
+                                    AreBothDecorated = destType1.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute"),
+                                    AppliedOn = Models.EAppliedOn.Assembly,
+                                    HasError = false,
+                                    Location = attr1.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
 
-                                DeclaredProperties = ProcessProperties(sourceType).ToArray(),
-                                MappingProperties = ProcessProperties(destType1).ToArray(),
-                            };
-                        }
-                        else
-                        {
-                            return new Models.TypeToMap
+                                    DeclaredProperties = ProcessProperties(sourceType).ToArray(),
+                                    MappingProperties = ProcessProperties(destType1).ToArray(),
+                                };
+                            }
+                            else
                             {
-                                AppliedOn = Models.EAppliedOn.Assembly,
-                                HasError = true,
-                                Location = attr1.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
-                            };
-                        }
+                                return new Models.TypeToMap
+                                {
+                                    AppliedOn = Models.EAppliedOn.Assembly,
+                                    HasError = true,
+                                    Location = attr1.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
+                                };
+                            }
+                        });
                     }
 
 
                     if (ctx.TargetSymbol is INamedTypeSymbol typeSymbol &&
-                        ctx.Attributes.FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute") is { } attr2)
+                        ctx.Attributes.Where(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute").ToArray() is { Length: > 0 } attributes2)
                     {
                         // Applied on class or struct
-                        if (attr2.ConstructorArguments.FirstOrDefault().Value is INamedTypeSymbol destType2 &&
-                            attr2.ConstructorArguments.ElementAtOrDefault(1) is TypedConstant { Kind: TypedConstantKind.Primitive, Type.SpecialType: SpecialType.System_String } typeMethodName2)
+                        return attributes2.Select(attr2 =>
                         {
-                            var destAttr = destType2.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute");
-                            var destTypeMethodName = destAttr?.ConstructorArguments.ElementAtOrDefault(1);
-                            var mappingMethodName = destTypeMethodName is null ? destType2.Name.EnsureStartsWith("MapTo") : CreateMethodName((TypedConstant)destTypeMethodName, destType2);
-                            return new Models.TypeToMap
+                            if (attr2.ConstructorArguments.FirstOrDefault().Value is INamedTypeSymbol destType2 &&
+                                attr2.ConstructorArguments.ElementAtOrDefault(1) is TypedConstant { Kind: TypedConstantKind.Primitive, Type.SpecialType: SpecialType.System_String } typeMethodName2)
                             {
-                                DestinationNamespace = typeSymbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
-                                DeclaredType = typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                DeclaredTypeName = typeSymbol.Name,
-                                PreferredDeclaredMethodName = CreateMethodName(typeMethodName2, typeSymbol),
-                                MappingType = destType2.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                MappingTypeName = destType2.Name,
-                                PreferredMappingMethodName = mappingMethodName,
-                                AreBothDecorated = destType2.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute"),
-                                AppliedOn = Models.EAppliedOn.Class,
-                                HasError = false,
-                                Location = attr2.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
+                                var destAttr = destType2.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute");
+                                var destTypeMethodName = destAttr?.ConstructorArguments.ElementAtOrDefault(1);
+                                var mappingMethodName = destTypeMethodName is null ? destType2.Name.EnsureStartsWith("MapTo") : CreateMethodName((TypedConstant)destTypeMethodName, destType2);
+                                return new Models.TypeToMap
+                                {
+                                    DestinationNamespace = typeSymbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
+                                    DeclaredType = typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                                    DeclaredTypeName = typeSymbol.Name,
+                                    PreferredDeclaredMethodName = CreateMethodName(typeMethodName2, typeSymbol),
+                                    MappingType = destType2.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                                    MappingTypeName = destType2.Name,
+                                    PreferredMappingMethodName = mappingMethodName,
+                                    AreBothDecorated = destType2.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute"),
+                                    AppliedOn = Models.EAppliedOn.Class,
+                                    HasError = false,
+                                    Location = attr2.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
 
-                                DeclaredProperties = ProcessProperties(typeSymbol).ToArray(),
-                                MappingProperties = ProcessProperties(destType2).ToArray(),
-                            };
-                        }
-                        else
-                        {
-                            return new Models.TypeToMap
+                                    DeclaredProperties = ProcessProperties(typeSymbol).ToArray(),
+                                    MappingProperties = ProcessProperties(destType2).ToArray(),
+                                };
+                            }
+                            else
                             {
-                                AppliedOn = Models.EAppliedOn.Class,
-                                HasError = true,
-                                Location = attr2.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
-                            };
-                        }
+                                return new Models.TypeToMap
+                                {
+                                    AppliedOn = Models.EAppliedOn.Class,
+                                    HasError = true,
+                                    Location = attr2.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
+                                };
+                            }
+                        });
                     }
-                    return null;
+                    return [];
                 }
             )
             .Where(static (i) => i is { })
-            .Select(static (i, ct) => i!)
+            .SelectMany(static (i, ct) => i)
             .WithComparer();
 
         var distinctTypesToMapProvider = typesToMapProvider

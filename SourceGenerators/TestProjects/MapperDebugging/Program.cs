@@ -1,5 +1,6 @@
 ﻿using MintPlayer.Mapper.Attributes;
 
+[assembly: GenerateMapper(typeof(Person), typeof(PersonDto), "Persoon")]
 [assembly: GenerateMapper(typeof(ContactInfo), typeof(ContactInfoDto), "MapTo")]
 
 Console.WriteLine("Hello, World!");
@@ -38,7 +39,7 @@ public static class Conversions
     }
 }
 
-[GenerateMapper(typeof(PersonDto), "Persoon")]
+//[GenerateMapper(typeof(PersonDto), "Persoon")]
 public class Person
 {
     [MapperIgnore]
@@ -51,7 +52,7 @@ public class Person
 }
 
 //[GenerateMapper(typeof(Person), typeof(PersonDto), "PersoonDto")]
-[GenerateMapper(typeof(Person), "PersoonDto")]
+//[GenerateMapper(typeof(Person), "PersoonDto")]
 public class PersonDto
 {
     [MapperAlias(nameof(Person.Name))]
