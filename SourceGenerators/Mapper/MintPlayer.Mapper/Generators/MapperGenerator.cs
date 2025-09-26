@@ -110,6 +110,47 @@ public class MapperGenerator : IncrementalGenerator
             .SelectMany(static (i, ct) => i)
             .WithComparer();
 
+        //var mapperConversionMethodsProvider = context.SyntaxProvider
+        //    .ForAttributeWithMetadataName(
+        //        "MintPlayer.Mapper.Attributes.MapperConversionAttribute",
+        //        static (node, ct) => node is MethodDeclarationSyntax methodDeclaration && methodDeclaration.ParameterList.Parameters.Count == 1 && !methodDeclaration.ReturnType.IsKind(SyntaxKind.VoidKeyword),
+        //        static (ctx, ct) =>
+        //        {
+        //            if (ctx.TargetSymbol is IMethodSymbol methodSymbol &&
+        //                methodSymbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperConversionAttribute") is { } attribute)
+        //            {
+        //                return new Models.ConversionMethod
+        //                {
+        //                    MethodName = methodSymbol.Name,
+        //                };
+        //            }
+        //            return null;
+        //        }
+        //    )
+
+
+        //var mapperConversionMethodsProvider = context.SyntaxProvider
+        //    .CreateSyntaxProvider(
+        //        static (node, ct) => node is MethodDeclarationSyntax methodDeclaration && methodDeclaration.AttributeLists.Count > 0,
+        //        static (context2, ct) =>
+        //        {
+        //            if (context2.Node is MethodDeclarationSyntax methodDeclaration &&
+        //                context2.SemanticModel.GetDeclaredSymbol(methodDeclaration, ct) is IMethodSymbol methodSymbol &&
+        //                methodSymbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperConversionAttribute") is { } attribute)
+        //            {
+        //                return new
+        //                {
+        //                    Method = methodSymbol,
+        //                    Attribute = attribute,
+        //                };
+        //            }
+        //            return null;
+        //        }
+        //    )
+        //    .Where(static (m) => m is not null)
+        //    .WithNullableComparer()
+        //    .Collect();
+
         var distinctTypesToMapProvider = typesToMapProvider
             .Select(static (i, ct) => new Models.TypeWithMappedProperties
             {
@@ -165,6 +206,16 @@ public class MapperGenerator : IncrementalGenerator
             .WithNullableComparer()
             .Collect();
 
+        var conversionMethodsWithMissingStateProvider = staticClassesProvider
+            .SelectMany(static (c, ct) => c.SelectMany(cl => cl.ConversionMethods.Where(m => string.IsNullOrWhiteSpace(m.SourceState) || string.IsNullOrWhiteSpace(m.DestinationState))))
+            .Where(static (m) => m.SourceType == m.DestinationType)
+            .WithComparer();
+
+        var conversionMethodsWithUnnecessaryStateProvider = staticClassesProvider
+            .SelectMany(static (c, ct) => c.SelectMany(cl => cl.ConversionMethods.Where(m => !string.IsNullOrWhiteSpace(m.SourceState) || !string.IsNullOrWhiteSpace(m.DestinationState))))
+            .Where(static (m) => m.SourceType != m.DestinationType)
+            .WithComparer();
+
 
         var typesToMapSourceProvider = distinctTypesToMapProvider
             .Join(staticClassesProvider)
@@ -180,8 +231,15 @@ public class MapperGenerator : IncrementalGenerator
             .Join(settingsProvider)
             .Select(static Producer (p, ct) => new MapperEntrypointProducer(p.Item1, p.Item2.RootNamespace!));
 
+        var conversionMethodsWithMissingStateDiagnosticProvider = conversionMethodsWithMissingStateProvider
+            .Select(static IDiagnosticReporter (m, ct) => new Diagnostics.ConversionMethodMissingStateDiagnostic(m.MethodName, m.SourceType, m.SourceState, m.DestinationState));
+
+        var conversionMethodsWithUnnecessaryStateDiagnosticProvider = conversionMethodsWithUnnecessaryStateProvider
+            .Select(static IDiagnosticReporter (m, ct) => new Diagnostics.ConversionMethodUnnecessaryStateDiagnostic(m.MethodName, m.SourceType, m.SourceState, m.DestinationState));
+
+
         context.ProduceCode(typesToMapSourceProvider, mapperEntrypointSourceProvider);
-        context.ReportDiagnostics(typesToMapDiagnosticProvider);
+        context.ReportDiagnostics(typesToMapDiagnosticProvider, conversionMethodsWithMissingStateDiagnosticProvider, conversionMethodsWithUnnecessaryStateDiagnosticProvider);
     }
 
     private static string CreateMethodName(TypedConstant preferred, INamedTypeSymbol type)
