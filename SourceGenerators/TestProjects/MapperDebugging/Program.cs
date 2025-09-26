@@ -1,9 +1,33 @@
 ﻿using MintPlayer.Mapper.Attributes;
+using MapperDebugging;
+using System.Diagnostics;
 
 [assembly: GenerateMapper(typeof(Person), typeof(PersonDto), "Persoon")]
 [assembly: GenerateMapper(typeof(ContactInfo), typeof(ContactInfoDto), "MapTo")]
 
-Console.WriteLine("Hello, World!");
+
+var person = new Person
+{
+    Name = "John Doe",
+    Age = 30,
+    Address = new Address
+    {
+        Street = "123 Main St",
+        City = "Anytown"
+    },
+    ContactInfos = new List<ContactInfo>
+    {
+        new ContactInfo { Type = "Email", Value = "info@example.com" },
+        new ContactInfo { Type = "Phone", Value = "123-456-7890" }
+    },
+    Notes = new List<string> { "Note 1", "Note 2" },
+    Weight = 70.5,
+    Password = "QWJjMTIzIQ==",
+};
+var dto = person.MapToPersonDto();
+var entity = dto.MapToPerson();
+Debugger.Break();
+
 
 
 public static class Conversions

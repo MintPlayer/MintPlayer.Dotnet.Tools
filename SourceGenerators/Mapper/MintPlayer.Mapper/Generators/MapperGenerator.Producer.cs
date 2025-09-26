@@ -316,12 +316,12 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         // Handle primitive types
         if (source.IsPrimitive && destination.IsPrimitive)
         {
-            if (source.PropertyType == destination.PropertyType)
-                writer.WriteLine($"{prefix}input.{destination.PropertyName}{suffix}");
+            if (source.PropertyType != destination.PropertyType)
+                writer.WriteLine($"{prefix}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}){suffix}");
             else if (source.StateName != null && destination.StateName != null)
                 writer.WriteLine($"""{prefix}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}, "{source.StateName}", "{destination.StateName}"){suffix}""");
             else
-                writer.WriteLine($"{prefix}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}){suffix}");
+                writer.WriteLine($"{prefix}input.{destination.PropertyName}{suffix}");
         }
         // Handle arrays
         else if (IsArrayType(source.PropertyType) && IsArrayType(destination.PropertyType))
