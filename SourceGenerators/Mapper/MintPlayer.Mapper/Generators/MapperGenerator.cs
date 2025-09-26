@@ -149,8 +149,11 @@ public class MapperGenerator : IncrementalGenerator
                                     SourceType = m.Method.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
                                     SourceTypeName = m.Method.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
                                     SourceTypeNullable = m.Method.Parameters[0].NullableAnnotation == NullableAnnotation.Annotated,
+                                    SourceState = m.Attribute!.ConstructorArguments.Length >= 1 && m.Attribute.ConstructorArguments[0].Value is string sourceState ? sourceState : null,
+
                                     DestinationType = m.Method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
                                     DestinationTypeName = m.Method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
+                                    DestinationState = m.Attribute.ConstructorArguments.Length >= 2 && m.Attribute.ConstructorArguments[1].Value is string destState ? destState : null,
                                 })
                                 .ToArray(),
                         };
@@ -203,6 +206,11 @@ public class MapperGenerator : IncrementalGenerator
                     is { ConstructorArguments.Length: > 0 } aliasAttr
                     && aliasAttr.ConstructorArguments[0].Value is string aliasName
                     ? aliasName : p.Name,
+
+                StateName = p.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperStateAttribute")
+                    is { ConstructorArguments.Length: > 0 } stateAttr
+                    && stateAttr.ConstructorArguments[0].Value is string stateName
+                    ? stateName : null,
                 //IsNullable = p.NullableAnnotation == NullableAnnotation.Annotated,
                 //IsReadOnly = p.IsReadOnly,
                 IsStatic = p.IsStatic,
