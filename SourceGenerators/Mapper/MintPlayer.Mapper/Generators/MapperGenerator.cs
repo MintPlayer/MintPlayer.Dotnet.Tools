@@ -137,14 +137,20 @@ public class MapperGenerator : IncrementalGenerator
                             ConversionMethods = classSymbol.GetMembers()
                                 .OfType<IMethodSymbol>()
                                 .Where(m => !m.IsImplicitlyDeclared && m.IsStatic && m.DeclaredAccessibility == Accessibility.Public && m.Parameters.Length == 1 && !m.ReturnsVoid)
+                                .Select(m => new
+                                {
+                                    Method = m,
+                                    Attribute = m.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperConversionAttribute"),
+                                })
+                                .Where(m => m.Attribute is not null)
                                 .Select(m => new Models.ConversionMethod
                                 {
-                                    MethodName = m.Name,
-                                    SourceType = m.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
-                                    SourceTypeName = m.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
-                                    SourceTypeNullable = m.Parameters[0].NullableAnnotation == NullableAnnotation.Annotated,
-                                    DestinationType = m.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
-                                    DestinationTypeName = m.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
+                                    MethodName = m.Method.Name,
+                                    SourceType = m.Method.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
+                                    SourceTypeName = m.Method.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
+                                    SourceTypeNullable = m.Method.Parameters[0].NullableAnnotation == NullableAnnotation.Annotated,
+                                    DestinationType = m.Method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
+                                    DestinationTypeName = m.Method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
                                 })
                                 .ToArray(),
                         };
