@@ -37,6 +37,20 @@ public static class Conversions
     {
         return input.ToString();
     }
+
+    [MapperConversion("plaintext", "base64")]
+    public static string StringToBase64(string input)
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(input);
+        return Convert.ToBase64String(bytes);
+    }
+
+    [MapperConversion("base64", "plaintext")]
+    public static string Base64ToString(string input)
+    {
+        var bytes = Convert.FromBase64String(input);
+        return System.Text.Encoding.UTF8.GetString(bytes);
+    }
 }
 
 //[GenerateMapper(typeof(PersonDto), "Persoon")]
@@ -49,6 +63,9 @@ public class Person
     public List<ContactInfo> ContactInfos { get; set; } = [];
     public List<string> Notes { get; set; }
     public double Weight { get; set; }
+
+    [MapperAlias(nameof(Person.Password), "plaintext")]
+    public string Password { get; set; }
 }
 
 //[GenerateMapper(typeof(Person), typeof(PersonDto), "PersoonDto")]
@@ -72,6 +89,9 @@ public class PersonDto
 
     [MapperAlias(nameof(Person.Weight))]
     public string Gewicht { get; set; }
+
+    [MapperAlias(nameof(Person.Password), "base64")]
+    public string Password { get; set; }
 }
 
 [GenerateMapper(typeof(AddressDto))]
