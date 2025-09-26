@@ -64,7 +64,7 @@ public class Person
     public List<string> Notes { get; set; }
     public double Weight { get; set; }
 
-    [MapperAlias(nameof(Person.Password), "plaintext")]
+    [MapperAlias(nameof(Person.Password)), MapperState("plaintext")]
     public string Password { get; set; }
 }
 
@@ -90,7 +90,7 @@ public class PersonDto
     [MapperAlias(nameof(Person.Weight))]
     public string Gewicht { get; set; }
 
-    [MapperAlias(nameof(Person.Password), "base64")]
+    [MapperAlias(nameof(Person.Password)), MapperState("base64")]
     public string Password { get; set; }
 }
 
