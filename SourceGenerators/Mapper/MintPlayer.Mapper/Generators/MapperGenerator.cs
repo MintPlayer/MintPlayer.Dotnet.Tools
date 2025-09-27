@@ -232,7 +232,7 @@ public class MapperGenerator : IncrementalGenerator
             .Select(static Producer (p, ct) => new MapperEntrypointProducer(p.Item1, p.Item2.RootNamespace!));
 
         var conversionMethodsWithMissingStateDiagnosticProvider = conversionMethodsWithMissingStateProvider
-            .Select(static IDiagnosticReporter (m, ct) => new Diagnostics.ConversionMethodMissingStateDiagnostic(m.MethodName, m.SourceType, m.SourceState, m.DestinationState));
+            .Select(static IDiagnosticReporter (m, ct) => DiagnosticRules.ConversionMethodMissingStateRule.Create(m.l, m.MethodName, m.SourceType, m.SourceState, m.DestinationState));
 
         var conversionMethodsWithUnnecessaryStateDiagnosticProvider = conversionMethodsWithUnnecessaryStateProvider
             .Select(static IDiagnosticReporter (m, ct) => new Diagnostics.ConversionMethodUnnecessaryStateDiagnostic(m.MethodName, m.SourceType, m.SourceState, m.DestinationState));
