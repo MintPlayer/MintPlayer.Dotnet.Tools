@@ -4,7 +4,6 @@ using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.Tools.Extensions;
 using System.CodeDom.Compiler;
 using System.Collections.Immutable;
-using System.Linq;
 
 namespace MintPlayer.Mapper.Generators;
 
@@ -20,27 +19,14 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
 
     public IEnumerable<Diagnostic> GetDiagnostics()
     {
-        foreach (var type in typesToMap.Where(t => t.TypeToMap.HasError))
-        {
-            yield return Diagnostic.Create(new DiagnosticDescriptor(
-                    id: "MP001",
-                    title: type.TypeToMap.AppliedOn switch
-                    {
-                        EAppliedOn.Assembly => "When applied to assembly, [GenerateMapper] must have 2 types as parameters",
-                        EAppliedOn.Class => "When applied to type, [GenerateMapper] must have 1 type as parameter",
-                        _ => "Invalid usage of [GenerateMapper]"
-                    },
-                    messageFormat: type.TypeToMap.AppliedOn switch
-                    {
-                        EAppliedOn.Assembly => "When applied to assembly, [GenerateMapper] must have 2 types as parameters",
-                        EAppliedOn.Class => "When applied to type, [GenerateMapper] must have 1 type as parameter",
-                        _ => "Invalid usage of [GenerateMapper]"
-                    },
-                    category: "MapperGenerator",
-                    DiagnosticSeverity.Error,
-                    isEnabledByDefault: true),
-                type.TypeToMap.Location);
-        }
+        return typesToMap.Where(t => t.TypeToMap.HasError)
+            .Select(type => type.TypeToMap.AppliedOn switch
+            {
+                EAppliedOn.Class => DiagnosticRules.GenerateMapperOneParameter.Create(type.TypeToMap.Location),
+                EAppliedOn.Assembly => DiagnosticRules.GenerateMapperTwoParameters.Create(type.TypeToMap.Location),
+                _ => null,
+            })
+            .NotNull();
     }
 
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
@@ -57,7 +43,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         writer.WriteLine("{");
         writer.Indent++;
 
-        writer.WriteLine("public static TDest? ConvertProperty<TSource, TDest>(TSource? source)");
+        writer.WriteLine("public static TDest? ConvertProperty<TSource, TDest>(TSource? source, string? sourceState = null, string? destState = null)");
         writer.WriteLine("{");
         writer.Indent++;
 
@@ -78,7 +64,10 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         {
             foreach (var method in staticClass.ConversionMethods)
             {
-                writer.WriteLine($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({method.SourceType}) && destType == typeof({method.DestinationType}):");
+                if (method.SourceState != null && method.DestinationState != null)
+                    writer.WriteLine($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({method.SourceType}) && destType == typeof({method.DestinationType}) && sourceState == \"{method.SourceState}\" && destState == \"{method.DestinationState}\":");
+                else
+                    writer.WriteLine($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({method.SourceType}) && destType == typeof({method.DestinationType}):");
                 writer.Indent++;
                 writer.WriteLine($"result = {staticClass.FullyQualifiedName}.{method.MethodName}(({method.SourceType})(object)source);");
                 writer.WriteLine("break;");
@@ -313,10 +302,12 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         // Handle primitive types
         if (source.IsPrimitive && destination.IsPrimitive)
         {
-            if (source.PropertyType == destination.PropertyType)
-                writer.WriteLine($"{prefix}input.{destination.PropertyName}{suffix}");
-            else
+            if (source.PropertyType != destination.PropertyType)
                 writer.WriteLine($"{prefix}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}){suffix}");
+            else if (source.StateName != null && destination.StateName != null)
+                writer.WriteLine($"""{prefix}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}, "{source.StateName}", "{destination.StateName}"){suffix}""");
+            else
+                writer.WriteLine($"{prefix}input.{destination.PropertyName}{suffix}");
         }
         // Handle arrays
         else if (IsArrayType(source.PropertyType) && IsArrayType(destination.PropertyType))

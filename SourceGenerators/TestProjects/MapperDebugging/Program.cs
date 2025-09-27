@@ -1,9 +1,33 @@
 ﻿using MintPlayer.Mapper.Attributes;
+using MapperDebugging;
+using System.Diagnostics;
 
 [assembly: GenerateMapper(typeof(Person), typeof(PersonDto), "Persoon")]
 [assembly: GenerateMapper(typeof(ContactInfo), typeof(ContactInfoDto), "MapTo")]
 
-Console.WriteLine("Hello, World!");
+
+var person = new Person
+{
+    Name = "John Doe",
+    Age = 30,
+    Address = new Address
+    {
+        Street = "123 Main St",
+        City = "Anytown"
+    },
+    ContactInfos =
+    [
+        new ContactInfo { Type = "Email", Value = "info@example.com" },
+        new ContactInfo { Type = "Phone", Value = "123-456-7890" }
+    ],
+    Notes = ["Note 1", "Note 2"],
+    Weight = 70.5,
+    Password = "QWJjMTIzIQ==",
+};
+var dto = person.MapToPersonDto();
+var entity = dto.MapToPerson();
+Debugger.Break();
+
 
 
 public static class Conversions
@@ -37,6 +61,26 @@ public static class Conversions
     {
         return input.ToString();
     }
+
+    [MapperConversion("plaintext", "base64")]
+    public static string StringToBase64(string input)
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(input);
+        return Convert.ToBase64String(bytes);
+    }
+
+    [MapperConversion("base64", "plaintext")]
+    public static string Base64ToString(string input)
+    {
+        var bytes = Convert.FromBase64String(input);
+        return System.Text.Encoding.UTF8.GetString(bytes);
+    }
+}
+
+public enum EPasswordState
+{
+    Plaintext,
+    Base64
 }
 
 //[GenerateMapper(typeof(PersonDto), "Persoon")]
@@ -49,6 +93,9 @@ public class Person
     public List<ContactInfo> ContactInfos { get; set; } = [];
     public List<string> Notes { get; set; }
     public double Weight { get; set; }
+
+    [MapperAlias(nameof(Person.Password)), MapperState<EPasswordState>(EPasswordState.Plaintext)]
+    public string Password { get; set; }
 }
 
 //[GenerateMapper(typeof(Person), typeof(PersonDto), "PersoonDto")]
@@ -72,6 +119,9 @@ public class PersonDto
 
     [MapperAlias(nameof(Person.Weight))]
     public string Gewicht { get; set; }
+
+    [MapperAlias(nameof(Person.Password)), MapperState<EPasswordState>(EPasswordState.Base64)]
+    public string Password { get; set; }
 }
 
 [GenerateMapper(typeof(AddressDto))]

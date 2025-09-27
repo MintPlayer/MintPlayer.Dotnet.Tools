@@ -110,6 +110,47 @@ public class MapperGenerator : IncrementalGenerator
             .SelectMany(static (i, ct) => i)
             .WithComparer();
 
+        //var mapperConversionMethodsProvider = context.SyntaxProvider
+        //    .ForAttributeWithMetadataName(
+        //        "MintPlayer.Mapper.Attributes.MapperConversionAttribute",
+        //        static (node, ct) => node is MethodDeclarationSyntax methodDeclaration && methodDeclaration.ParameterList.Parameters.Count == 1 && !methodDeclaration.ReturnType.IsKind(SyntaxKind.VoidKeyword),
+        //        static (ctx, ct) =>
+        //        {
+        //            if (ctx.TargetSymbol is IMethodSymbol methodSymbol &&
+        //                methodSymbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperConversionAttribute") is { } attribute)
+        //            {
+        //                return new Models.ConversionMethod
+        //                {
+        //                    MethodName = methodSymbol.Name,
+        //                };
+        //            }
+        //            return null;
+        //        }
+        //    )
+
+
+        //var mapperConversionMethodsProvider = context.SyntaxProvider
+        //    .CreateSyntaxProvider(
+        //        static (node, ct) => node is MethodDeclarationSyntax methodDeclaration && methodDeclaration.AttributeLists.Count > 0,
+        //        static (context2, ct) =>
+        //        {
+        //            if (context2.Node is MethodDeclarationSyntax methodDeclaration &&
+        //                context2.SemanticModel.GetDeclaredSymbol(methodDeclaration, ct) is IMethodSymbol methodSymbol &&
+        //                methodSymbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperConversionAttribute") is { } attribute)
+        //            {
+        //                return new
+        //                {
+        //                    Method = methodSymbol,
+        //                    Attribute = attribute,
+        //                };
+        //            }
+        //            return null;
+        //        }
+        //    )
+        //    .Where(static (m) => m is not null)
+        //    .WithNullableComparer()
+        //    .Collect();
+
         var distinctTypesToMapProvider = typesToMapProvider
             .Select(static (i, ct) => new Models.TypeWithMappedProperties
             {
@@ -137,14 +178,25 @@ public class MapperGenerator : IncrementalGenerator
                             ConversionMethods = classSymbol.GetMembers()
                                 .OfType<IMethodSymbol>()
                                 .Where(m => !m.IsImplicitlyDeclared && m.IsStatic && m.DeclaredAccessibility == Accessibility.Public && m.Parameters.Length == 1 && !m.ReturnsVoid)
+                                .Select(m => new
+                                {
+                                    Method = m,
+                                    Attribute = m.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperConversionAttribute"),
+                                })
+                                .Where(m => m.Attribute is not null)
                                 .Select(m => new Models.ConversionMethod
                                 {
-                                    MethodName = m.Name,
-                                    SourceType = m.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
-                                    SourceTypeName = m.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
-                                    SourceTypeNullable = m.Parameters[0].NullableAnnotation == NullableAnnotation.Annotated,
-                                    DestinationType = m.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
-                                    DestinationTypeName = m.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
+                                    MethodName = m.Method.Name,
+                                    SourceType = m.Method.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
+                                    SourceTypeName = m.Method.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
+                                    SourceTypeNullable = m.Method.Parameters[0].NullableAnnotation == NullableAnnotation.Annotated,
+                                    SourceState = m.Attribute!.ConstructorArguments.Length >= 1 && m.Attribute.ConstructorArguments[0].Value is string sourceState ? sourceState : null,
+
+                                    DestinationType = m.Method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
+                                    DestinationTypeName = m.Method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
+                                    DestinationState = m.Attribute.ConstructorArguments.Length >= 2 && m.Attribute.ConstructorArguments[1].Value is string destState ? destState : null,
+
+                                    AttributeLocation = m.Attribute.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
                                 })
                                 .ToArray(),
                         };
@@ -155,6 +207,16 @@ public class MapperGenerator : IncrementalGenerator
             .Where(static (m) => m.ConversionMethods.Any())
             .WithNullableComparer()
             .Collect();
+
+        var conversionMethodsWithMissingStateProvider = staticClassesProvider
+            .SelectMany(static (c, ct) => c.SelectMany(cl => cl is null ? [] : cl.ConversionMethods.Where(m => string.IsNullOrWhiteSpace(m.SourceState) || string.IsNullOrWhiteSpace(m.DestinationState))))
+            .Where(static (m) => m.SourceType == m.DestinationType)
+            .WithComparer();
+
+        var conversionMethodsWithUnnecessaryStateProvider = staticClassesProvider
+            .SelectMany(static (c, ct) => c.SelectMany(cl => cl is null ? [] : cl.ConversionMethods.Where(m => !string.IsNullOrWhiteSpace(m.SourceState) || !string.IsNullOrWhiteSpace(m.DestinationState))))
+            .Where(static (m) => m.SourceType != m.DestinationType)
+            .WithComparer();
 
 
         var typesToMapSourceProvider = distinctTypesToMapProvider
@@ -171,8 +233,17 @@ public class MapperGenerator : IncrementalGenerator
             .Join(settingsProvider)
             .Select(static Producer (p, ct) => new MapperEntrypointProducer(p.Item1, p.Item2.RootNamespace!));
 
+        var conversionMethodsWithMissingStateDiagnosticProvider = conversionMethodsWithMissingStateProvider
+            .Collect()
+            .Select(static IDiagnosticReporter (m, ct) => new ConversionMethodMissingStateDiagnostic(m));
+
+        var conversionMethodsWithUnnecessaryStateDiagnosticProvider = conversionMethodsWithUnnecessaryStateProvider
+            .Collect()
+            .Select(static IDiagnosticReporter (m, ct) => new ConversionMethodUnnecessaryStateDiagnostic(m));
+
+
         context.ProduceCode(typesToMapSourceProvider, mapperEntrypointSourceProvider);
-        context.ReportDiagnostics(typesToMapDiagnosticProvider);
+        context.ReportDiagnostics(typesToMapDiagnosticProvider, conversionMethodsWithMissingStateDiagnosticProvider, conversionMethodsWithUnnecessaryStateDiagnosticProvider);
     }
 
     private static string CreateMethodName(TypedConstant preferred, INamedTypeSymbol type)
@@ -197,6 +268,11 @@ public class MapperGenerator : IncrementalGenerator
                     is { ConstructorArguments.Length: > 0 } aliasAttr
                     && aliasAttr.ConstructorArguments[0].Value is string aliasName
                     ? aliasName : p.Name,
+
+                StateName = p.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperStateAttribute")
+                    is { ConstructorArguments.Length: > 0 } stateAttr
+                    && stateAttr.ConstructorArguments[0].Value is string stateName
+                    ? stateName : null,
                 //IsNullable = p.NullableAnnotation == NullableAnnotation.Annotated,
                 //IsReadOnly = p.IsReadOnly,
                 IsStatic = p.IsStatic,
