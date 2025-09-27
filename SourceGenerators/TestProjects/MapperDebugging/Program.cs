@@ -15,12 +15,12 @@ var person = new Person
         Street = "123 Main St",
         City = "Anytown"
     },
-    ContactInfos = new List<ContactInfo>
-    {
+    ContactInfos =
+    [
         new ContactInfo { Type = "Email", Value = "info@example.com" },
         new ContactInfo { Type = "Phone", Value = "123-456-7890" }
-    },
-    Notes = new List<string> { "Note 1", "Note 2" },
+    ],
+    Notes = ["Note 1", "Note 2"],
     Weight = 70.5,
     Password = "QWJjMTIzIQ==",
 };
@@ -77,6 +77,12 @@ public static class Conversions
     }
 }
 
+public enum EPasswordState
+{
+    Plaintext,
+    Base64
+}
+
 //[GenerateMapper(typeof(PersonDto), "Persoon")]
 public class Person
 {
@@ -88,7 +94,7 @@ public class Person
     public List<string> Notes { get; set; }
     public double Weight { get; set; }
 
-    [MapperAlias(nameof(Person.Password)), MapperState("plaintext")]
+    [MapperAlias(nameof(Person.Password)), MapperState<EPasswordState>(EPasswordState.Plaintext)]
     public string Password { get; set; }
 }
 
@@ -114,7 +120,7 @@ public class PersonDto
     [MapperAlias(nameof(Person.Weight))]
     public string Gewicht { get; set; }
 
-    [MapperAlias(nameof(Person.Password)), MapperState("base64")]
+    [MapperAlias(nameof(Person.Password)), MapperState<EPasswordState>(EPasswordState.Base64)]
     public string Password { get; set; }
 }
 

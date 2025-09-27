@@ -6,6 +6,7 @@
 /// </summary>
 /// <param name="state">Indicate what state this property holds (plaintext, base64, ...)</param>
 [AttributeUsage(AttributeTargets.Property, AllowMultiple = false)]
-public class MapperStateAttribute(string state) : Attribute
+public class MapperStateAttribute<TEnum>(TEnum state) : Attribute
+    where TEnum : struct, Enum
 {
 }
