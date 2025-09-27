@@ -1,4 +1,5 @@
-﻿using MintPlayer.ValueComparerGenerator.Attributes;
+﻿using Microsoft.CodeAnalysis;
+using MintPlayer.ValueComparerGenerator.Attributes;
 
 namespace MintPlayer.Mapper.Models;
 
@@ -13,4 +14,5 @@ public partial class ConversionMethod
     public string? DestinationTypeName { get; internal set; }
     public bool SourceTypeNullable { get; internal set; }
     public string? DestinationState { get; internal set; }
+    public Location? AttributeLocation { get; internal set; }
 }

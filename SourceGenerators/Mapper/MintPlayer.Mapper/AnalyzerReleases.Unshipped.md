@@ -5,5 +5,7 @@
 
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
-MAPC001 | Empty | Error | DiagnosticRules
-MAPC002 | Empty | Error | DiagnosticRules
+MAPC001 | MapperGenerator | Error | DiagnosticRules
+MAPC002 | MapperGenerator | Error | DiagnosticRules
+MAPC003 | MapperGenerator | Error | DiagnosticRules
+MAPC004 | MapperGenerator | Error | DiagnosticRules

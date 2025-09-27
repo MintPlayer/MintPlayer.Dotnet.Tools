@@ -195,6 +195,8 @@ public class MapperGenerator : IncrementalGenerator
                                     DestinationType = m.Method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
                                     DestinationTypeName = m.Method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
                                     DestinationState = m.Attribute.ConstructorArguments.Length >= 2 && m.Attribute.ConstructorArguments[1].Value is string destState ? destState : null,
+
+                                    AttributeLocation = m.Attribute.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
                                 })
                                 .ToArray(),
                         };
@@ -207,12 +209,12 @@ public class MapperGenerator : IncrementalGenerator
             .Collect();
 
         var conversionMethodsWithMissingStateProvider = staticClassesProvider
-            .SelectMany(static (c, ct) => c.SelectMany(cl => cl.ConversionMethods.Where(m => string.IsNullOrWhiteSpace(m.SourceState) || string.IsNullOrWhiteSpace(m.DestinationState))))
+            .SelectMany(static (c, ct) => c.SelectMany(cl => cl is null ? [] : cl.ConversionMethods.Where(m => string.IsNullOrWhiteSpace(m.SourceState) || string.IsNullOrWhiteSpace(m.DestinationState))))
             .Where(static (m) => m.SourceType == m.DestinationType)
             .WithComparer();
 
         var conversionMethodsWithUnnecessaryStateProvider = staticClassesProvider
-            .SelectMany(static (c, ct) => c.SelectMany(cl => cl.ConversionMethods.Where(m => !string.IsNullOrWhiteSpace(m.SourceState) || !string.IsNullOrWhiteSpace(m.DestinationState))))
+            .SelectMany(static (c, ct) => c.SelectMany(cl => cl is null ? [] : cl.ConversionMethods.Where(m => !string.IsNullOrWhiteSpace(m.SourceState) || !string.IsNullOrWhiteSpace(m.DestinationState))))
             .Where(static (m) => m.SourceType != m.DestinationType)
             .WithComparer();
 
@@ -232,10 +234,12 @@ public class MapperGenerator : IncrementalGenerator
             .Select(static Producer (p, ct) => new MapperEntrypointProducer(p.Item1, p.Item2.RootNamespace!));
 
         var conversionMethodsWithMissingStateDiagnosticProvider = conversionMethodsWithMissingStateProvider
-            .Select(static IDiagnosticReporter (m, ct) => DiagnosticRules.ConversionMethodMissingStateRule.Create(m.l, m.MethodName, m.SourceType, m.SourceState, m.DestinationState));
+            .Collect()
+            .Select(static IDiagnosticReporter (m, ct) => new ConversionMethodMissingStateDiagnostic(m));
 
         var conversionMethodsWithUnnecessaryStateDiagnosticProvider = conversionMethodsWithUnnecessaryStateProvider
-            .Select(static IDiagnosticReporter (m, ct) => new Diagnostics.ConversionMethodUnnecessaryStateDiagnostic(m.MethodName, m.SourceType, m.SourceState, m.DestinationState));
+            .Collect()
+            .Select(static IDiagnosticReporter (m, ct) => new ConversionMethodUnnecessaryStateDiagnostic(m));
 
 
         context.ProduceCode(typesToMapSourceProvider, mapperEntrypointSourceProvider);
