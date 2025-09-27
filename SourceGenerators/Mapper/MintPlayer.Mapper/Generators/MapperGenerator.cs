@@ -269,7 +269,7 @@ public class MapperGenerator : IncrementalGenerator
                     && aliasAttr.ConstructorArguments[0].Value is string aliasName
                     ? aliasName : p.Name,
 
-                StateName = p.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperStateAttribute")
+                StateName = p.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted).WithGenericsOptions(SymbolDisplayGenericsOptions.None)) == "MintPlayer.Mapper.Attributes.MapperStateAttribute")
                     is { ConstructorArguments.Length: > 0 } stateAttr
                     && stateAttr.ConstructorArguments[0].Value is string stateName
                     ? stateName : null,
