@@ -4,5 +4,11 @@
 public class MapperConversionAttribute : Attribute
 {
     public MapperConversionAttribute() { }
-    public MapperConversionAttribute(int inState, int outState) { }
+}
+
+[AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = true)]
+public class MapperConversionAttribute<TEnum> : Attribute
+    where TEnum : struct, Enum
+{
+    public MapperConversionAttribute(TEnum inState, TEnum outState) { }
 }

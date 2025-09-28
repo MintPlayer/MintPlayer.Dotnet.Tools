@@ -62,15 +62,15 @@ public static class Conversions
         return input.ToString();
     }
 
-    [MapperConversion("plaintext", "base64")]
-    public static string StringToBase64(string input)
+    [MapperConversion<EPasswordState>(EPasswordState.Plaintext, EPasswordState.Base64)]
+    public static string StringToBase64(string input, EPasswordState inState, EPasswordState outState)
     {
         var bytes = System.Text.Encoding.UTF8.GetBytes(input);
         return Convert.ToBase64String(bytes);
     }
 
-    [MapperConversion("base64", "plaintext")]
-    public static string Base64ToString(string input)
+    [MapperConversion<EPasswordState>(EPasswordState.Base64, EPasswordState.Plaintext)]
+    public static string Base64ToString(string input, EPasswordState inState, EPasswordState outState)
     {
         var bytes = Convert.FromBase64String(input);
         return System.Text.Encoding.UTF8.GetString(bytes);

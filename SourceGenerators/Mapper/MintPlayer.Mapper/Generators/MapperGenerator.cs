@@ -181,7 +181,7 @@ public class MapperGenerator : IncrementalGenerator
                                 .Select(m => new
                                 {
                                     Method = m,
-                                    Attribute = m.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperConversionAttribute"),
+                                    Attribute = m.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.None)) == "MintPlayer.Mapper.Attributes.MapperConversionAttribute"),
                                 })
                                 .Where(m => m.Attribute is not null)
                                 .Select(m => new Models.ConversionMethod
@@ -233,17 +233,9 @@ public class MapperGenerator : IncrementalGenerator
             .Join(settingsProvider)
             .Select(static Producer (p, ct) => new MapperEntrypointProducer(p.Item1, p.Item2.RootNamespace!));
 
-        var conversionMethodsWithMissingStateDiagnosticProvider = conversionMethodsWithMissingStateProvider
-            .Collect()
-            .Select(static IDiagnosticReporter (m, ct) => new ConversionMethodMissingStateDiagnostic(m));
-
-        var conversionMethodsWithUnnecessaryStateDiagnosticProvider = conversionMethodsWithUnnecessaryStateProvider
-            .Collect()
-            .Select(static IDiagnosticReporter (m, ct) => new ConversionMethodUnnecessaryStateDiagnostic(m));
-
 
         context.ProduceCode(typesToMapSourceProvider, mapperEntrypointSourceProvider);
-        context.ReportDiagnostics(typesToMapDiagnosticProvider, conversionMethodsWithMissingStateDiagnosticProvider, conversionMethodsWithUnnecessaryStateDiagnosticProvider);
+        context.ReportDiagnostics(typesToMapDiagnosticProvider);
     }
 
     private static string CreateMethodName(TypedConstant preferred, INamedTypeSymbol type)
