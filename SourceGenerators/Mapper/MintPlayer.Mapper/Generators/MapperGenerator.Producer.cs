@@ -65,13 +65,22 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
             foreach (var method in staticClass.ConversionMethods)
             {
                 if (method.SourceState is not null && method.DestinationState is not null)
+                {
                     writer.WriteLine($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({method.SourceType}) && destType == typeof({method.DestinationType}) && sourceState == {method.SourceState} && destState == {method.DestinationState}:");
+                    writer.Indent++;
+                    if (method.MethodParameterCount == 3)
+                        writer.WriteLine($"result = {staticClass.FullyQualifiedName}.{method.MethodName}(({method.SourceType})(object)source, ({method.StateType})sourceState, ({method.StateType})destState);");
+                    else
+                        writer.WriteLine($"result = {staticClass.FullyQualifiedName}.{method.MethodName}(({method.SourceType})(object)source);");
+                }
                 else
+                {
                     writer.WriteLine($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({method.SourceType}) && destType == typeof({method.DestinationType}):");
-                writer.Indent++;
-                writer.WriteLine($"result = {staticClass.FullyQualifiedName}.{method.MethodName}(({method.SourceType})(object)source);");
-                writer.WriteLine("break;");
+                    writer.Indent++;
+                    writer.WriteLine($"result = {staticClass.FullyQualifiedName}.{method.MethodName}(({method.SourceType})(object)source);");
+                }
 
+                writer.WriteLine("break;");
                 writer.Indent--;
             }
         }

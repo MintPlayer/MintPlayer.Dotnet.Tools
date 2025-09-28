@@ -187,6 +187,7 @@ public class MapperGenerator : IncrementalGenerator
                                 .Select(m => new Models.ConversionMethod
                                 {
                                     MethodName = m.Method.Name,
+                                    MethodParameterCount = m.Method.Parameters.Length,
                                     SourceType = m.Method.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
                                     SourceTypeName = m.Method.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
                                     SourceTypeNullable = m.Method.Parameters[0].NullableAnnotation == NullableAnnotation.Annotated,
@@ -195,6 +196,8 @@ public class MapperGenerator : IncrementalGenerator
                                     DestinationType = m.Method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
                                     DestinationTypeName = m.Method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
                                     DestinationState = m.Attribute.ConstructorArguments.Length >= 2 && m.Attribute.ConstructorArguments[1].Value is int destState ? destState : null,
+                                    StateType = m.Attribute.AttributeConstructor?.ContainingType?.TypeArguments.FirstOrDefault()?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
+                                    StateTypeName = m.Attribute.AttributeConstructor?.ContainingType?.TypeArguments.FirstOrDefault()?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
 
                                     AttributeLocation = m.Attribute.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
                                 })
