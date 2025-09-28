@@ -4,5 +4,5 @@
 public class MapperConversionAttribute : Attribute
 {
     public MapperConversionAttribute() { }
-    public MapperConversionAttribute(string inState, string outState) { }
+    public MapperConversionAttribute(int inState, int outState) { }
 }
