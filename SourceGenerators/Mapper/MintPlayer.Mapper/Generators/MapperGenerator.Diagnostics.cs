@@ -16,7 +16,7 @@ public class ConversionMethodMissingStateDiagnostic : IDiagnosticReporter
     public IEnumerable<Diagnostic> GetDiagnostics()
     {
         return conversionMethods
-            .Where(cm => string.IsNullOrWhiteSpace(cm.SourceState) || string.IsNullOrWhiteSpace(cm.DestinationState))
+            .Where(cm => cm.SourceState is null || cm.DestinationState is null)
             .Select(cm => DiagnosticRules.ConversionMethodMissingStateRule.Create(cm.AttributeLocation ?? Location.None));
     }
 }
@@ -32,7 +32,7 @@ public class ConversionMethodUnnecessaryStateDiagnostic : IDiagnosticReporter
     public IEnumerable<Diagnostic> GetDiagnostics()
     {
         return conversionMethods
-            .Where(cm => string.IsNullOrWhiteSpace(cm.SourceState) || string.IsNullOrWhiteSpace(cm.DestinationState))
+            .Where(cm => cm.SourceState is null || cm.DestinationState is null)
             .Select(cm => DiagnosticRules.ConversionMethodUnnecessaryStateRule.Create(cm.AttributeLocation ?? Location.None));
     }
 }

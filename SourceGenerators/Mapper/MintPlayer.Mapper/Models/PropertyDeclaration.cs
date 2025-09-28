@@ -9,7 +9,7 @@ public partial class PropertyDeclaration
     public string PropertyType { get; set; }
     public string PropertyTypeName { get; set; }
     public string? Alias { get; set; }
-    public string? StateName { get; set; }
+    public int? StateName { get; set; }
     public bool IsStatic { get; set; }
     public bool IsPrimitive { get; set; }
 

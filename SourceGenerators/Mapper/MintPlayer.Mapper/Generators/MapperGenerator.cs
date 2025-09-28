@@ -190,11 +190,11 @@ public class MapperGenerator : IncrementalGenerator
                                     SourceType = m.Method.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
                                     SourceTypeName = m.Method.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
                                     SourceTypeNullable = m.Method.Parameters[0].NullableAnnotation == NullableAnnotation.Annotated,
-                                    SourceState = m.Attribute!.ConstructorArguments.Length >= 1 && m.Attribute.ConstructorArguments[0].Value is string sourceState ? sourceState : null,
+                                    SourceState = m.Attribute!.ConstructorArguments.Length >= 1 && m.Attribute.ConstructorArguments[0].Value is int sourceState ? sourceState : null,
 
                                     DestinationType = m.Method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
                                     DestinationTypeName = m.Method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
-                                    DestinationState = m.Attribute.ConstructorArguments.Length >= 2 && m.Attribute.ConstructorArguments[1].Value is string destState ? destState : null,
+                                    DestinationState = m.Attribute.ConstructorArguments.Length >= 2 && m.Attribute.ConstructorArguments[1].Value is int destState ? destState : null,
 
                                     AttributeLocation = m.Attribute.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
                                 })
@@ -209,12 +209,12 @@ public class MapperGenerator : IncrementalGenerator
             .Collect();
 
         var conversionMethodsWithMissingStateProvider = staticClassesProvider
-            .SelectMany(static (c, ct) => c.SelectMany(cl => cl is null ? [] : cl.ConversionMethods.Where(m => string.IsNullOrWhiteSpace(m.SourceState) || string.IsNullOrWhiteSpace(m.DestinationState))))
+            .SelectMany(static (c, ct) => c.SelectMany(cl => cl is null ? [] : cl.ConversionMethods.Where(m => m.SourceState is null || m.DestinationState is null)))
             .Where(static (m) => m.SourceType == m.DestinationType)
             .WithComparer();
 
         var conversionMethodsWithUnnecessaryStateProvider = staticClassesProvider
-            .SelectMany(static (c, ct) => c.SelectMany(cl => cl is null ? [] : cl.ConversionMethods.Where(m => !string.IsNullOrWhiteSpace(m.SourceState) || !string.IsNullOrWhiteSpace(m.DestinationState))))
+            .SelectMany(static (c, ct) => c.SelectMany(cl => cl is null ? [] : cl.ConversionMethods.Where(m => m.SourceState is not null || m.DestinationState is not null)))
             .Where(static (m) => m.SourceType != m.DestinationType)
             .WithComparer();
 
@@ -271,8 +271,10 @@ public class MapperGenerator : IncrementalGenerator
 
                 StateName = p.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted).WithGenericsOptions(SymbolDisplayGenericsOptions.None)) == "MintPlayer.Mapper.Attributes.MapperStateAttribute")
                     is { ConstructorArguments.Length: > 0 } stateAttr
-                    && stateAttr.ConstructorArguments[0].Value is string stateName
-                    ? stateName : null,
+                    && stateAttr.ConstructorArguments[0] is TypedConstant stateRef
+                    && stateRef.Kind == TypedConstantKind.Enum
+                    && stateRef.Value is int stateValue
+                    ? stateValue : null,
                 //IsNullable = p.NullableAnnotation == NullableAnnotation.Annotated,
                 //IsReadOnly = p.IsReadOnly,
                 IsStatic = p.IsStatic,
