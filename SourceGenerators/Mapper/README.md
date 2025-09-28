@@ -29,8 +29,14 @@ public class Person
     public double Weight { get; set; }
     
     // Property with a state (plaintext, base64, ...)
-    [MapperState("plain")]
+    [MapperState(EKeyType.Plain)]
     public string Key { get; set; }
+}
+
+public enum EKeyType
+{
+    Plain,
+    Base64
 }
 
 public class PersonDto
@@ -41,7 +47,7 @@ public class PersonDto
     public string Gewicht { get; set; }
     
     // Property with a state (plaintext, base64, ...)
-    [MapperState("base64")]
+    [MapperState(EKeyType.Base64)]
     public string Key { get; set; }
 }
 
@@ -62,14 +68,14 @@ public static class Conversions
     }
 
     // Conversion inbetween states, same property types
-    [MapperConversion("plaintext", "base64")]
+    [MapperConversion<EKeyType>(EKeyType.Plain, EKeyType.Base64)]
     public static string StringToBase64(string input)
     {
         var bytes = System.Text.Encoding.UTF8.GetBytes(input);
         return Convert.ToBase64String(bytes);
     }
 
-    [MapperConversion("base64", "plaintext")]
+    [MapperConversion<EKeyType>(EKeyType.Base64, EKeyType.Plain)]
     public static string Base64ToString(string input)
     {
         var bytes = Convert.FromBase64String(input);
@@ -123,26 +129,32 @@ You can explicitly mark such properties with a **`[MapperState("statename")]`** 
 This ensures that the mapping will still go through the `ConvertProperty<>` method and apply the appropriate `MapperConversion`.
 
 ```csharp
+public enum EKeyType
+{
+    Plain,
+    Base64
+}
+
 public class PlainKeyDto
 {
-    [MapperState("plain")]
+    [MapperState(EKeyType.Plain)]
     public string Key { get; set; }
 }
 
 public class Base64KeyDto
 {
-    [MapperState("base64")]
+    [MapperState(EKeyType.Base64)]
     public string Key { get; set; }
 }
 
 public static class Conversions
 {
-    [MapperConversion("base64")]
-    public static string ToBase64([MapperState("plain")] string plain)
+    [MapperConversion(EKeyType.Plain, EKeyType.Base64)]
+    public static string ToBase64(string plain, EKeyType inType, EKeyType outType)
         => Convert.ToBase64String(Encoding.UTF8.GetBytes(plain));
 
-    [MapperConversion("plain")]
-    public static string FromBase64([MapperState("base64")] string base64)
+    [MapperConversion(EKeyType.Base64, EKeyType.Plain)]
+    public static string FromBase64(string base64, EKeyType inType, EKeyType outType)
         => Encoding.UTF8.GetString(Convert.FromBase64String(base64));
 }
 ```
