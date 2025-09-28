@@ -177,11 +177,11 @@ public class MapperGenerator : IncrementalGenerator
                             Name = classSymbol.Name,
                             ConversionMethods = classSymbol.GetMembers()
                                 .OfType<IMethodSymbol>()
-                                .Where(m => !m.IsImplicitlyDeclared && m.IsStatic && m.DeclaredAccessibility == Accessibility.Public && m.Parameters.Length == 1 && !m.ReturnsVoid)
+                                .Where(m => !m.IsImplicitlyDeclared && m.IsStatic && m.DeclaredAccessibility == Accessibility.Public && (m.Parameters.Length is 1 or 3) && !m.ReturnsVoid)
                                 .Select(m => new
                                 {
                                     Method = m,
-                                    Attribute = m.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.None)) == "MintPlayer.Mapper.Attributes.MapperConversionAttribute"),
+                                    Attribute = m.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.None).WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)) == "MintPlayer.Mapper.Attributes.MapperConversionAttribute"),
                                 })
                                 .Where(m => m.Attribute is not null)
                                 .Select(m => new Models.ConversionMethod
