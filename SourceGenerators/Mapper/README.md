@@ -168,3 +168,152 @@ In this example:
   - `base64 → plain` calls `FromBase64`
 
 This makes it possible to handle format-specific conversions even when the property types are identical.
+
+## Complete example
+
+```csharp
+using MintPlayer.Mapper.Attributes;
+using System.Diagnostics;
+using MapperDemo;
+
+
+var person = new Person
+{
+    Name = "John Doe",
+    MainAddress = new Address
+    {
+        Street = "123 Main St",
+        City = "Anytown",
+        Country = "USA",
+        Number = "A1",
+        PostalCode = "12345",
+    },
+    ContactInfos = [
+        new ContactInfo { Type = "Email", Value = "info@example.com" },
+        new ContactInfo { Type = "Phone", Value = "123-456-7890" }
+    ],
+    Notes = ["Note 1", "Note 2"],
+    Weight = 70.5,
+    Key = "QWJjMTIzIQ==",
+};
+var dto = person.MapToPersonDto();
+var entity = dto.MapToPerson();
+Debugger.Break();
+
+namespace MapperDemo
+{
+    [GenerateMapper(typeof(PersonDto))]
+    public class Person
+    {
+        [MapperAlias(nameof(PersonDto.Naam))]
+        public string Name { get; set; }
+
+        [MapperAlias(nameof(PersonDto.HoofdAdres))]
+        public Address MainAddress { get; set; }
+
+        [MapperAlias(nameof(PersonDto.Notities))]
+        public string[] Notes { get; set; }
+
+        [MapperAlias(nameof(PersonDto.ContactGegevens))]
+        public ContactInfo[] ContactInfos { get; set; }
+
+        [MapperAlias(nameof(PersonDto.Gewicht))]
+        public double Weight { get; set; }
+
+        // Property with a state (plaintext, base64, ...)
+        [MapperState<EKeyType>(EKeyType.Plain)]
+        public string Key { get; set; }
+    }
+
+    [GenerateMapper(typeof(AddressDto))]
+    public class Address
+    {
+        [MapperAlias(nameof(AddressDto.Straat))]
+        public string Street { get; set; }
+        [MapperAlias(nameof(AddressDto.Nummer))]
+        public string Number { get; set; }
+        [MapperAlias(nameof(AddressDto.Gemeente))]
+        public string City { get; set; }
+        [MapperAlias(nameof(AddressDto.Postcode))]
+        public string PostalCode { get; set; }
+        [MapperAlias(nameof(AddressDto.Land))]
+        public string Country { get; set; }
+    }
+
+    [GenerateMapper(typeof(ContactInfoDto))]
+    public class ContactInfo
+    {
+        [MapperAlias(nameof(ContactInfoDto.Type))]
+        public string Type { get; set; }
+        [MapperAlias(nameof(ContactInfoDto.Waarde))]
+        public string Value { get; set; }
+    }
+
+    public class PersonDto
+    {
+        public string Naam { get; set; }
+        public AddressDto HoofdAdres { get; set; }
+        public string[] Notities { get; set; }
+        public ContactInfoDto[] ContactGegevens { get; set; }
+        public string Gewicht { get; set; }
+
+        // Property with a state (plaintext, base64, ...)
+        [MapperState<EKeyType>(EKeyType.Base64)]
+        public string Key { get; set; }
+    }
+
+    public class AddressDto
+    {
+        public string Straat { get; set; }
+        public string Nummer { get; set; }
+        public string Gemeente { get; set; }
+        public string Postcode { get; set; }
+        public string Land { get; set; }
+    }
+
+    public class ContactInfoDto
+    {
+        public string Type { get; set; }
+        public string Waarde { get; set; }
+    }
+
+    public enum EKeyType
+    {
+        Plain,
+        Base64
+    }
+
+
+    public static class Conversions
+    {
+        [MapperConversion]
+        public static double StringToDouble(string input)
+        {
+            if (double.TryParse(input, out double result))
+                return result;
+            return 0;
+        }
+
+        [MapperConversion]
+        public static string DoubleToString(double input)
+        {
+            return input.ToString();
+        }
+
+        // Conversion inbetween states, same property types
+        [MapperConversion<EKeyType>(EKeyType.Plain, EKeyType.Base64)]
+        public static string StringToBase64(string input)
+        {
+            var bytes = System.Text.Encoding.UTF8.GetBytes(input);
+            return Convert.ToBase64String(bytes);
+        }
+
+        [MapperConversion<EKeyType>(EKeyType.Base64, EKeyType.Plain)]
+        public static string Base64ToString(string input)
+        {
+            var bytes = Convert.FromBase64String(input);
+            return System.Text.Encoding.UTF8.GetString(bytes);
+        }
+    }
+}
+```
