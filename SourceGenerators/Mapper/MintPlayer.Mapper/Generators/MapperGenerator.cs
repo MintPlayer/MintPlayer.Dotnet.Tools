@@ -277,6 +277,8 @@ public class MapperGenerator : IncrementalGenerator
                 //IsAbstract = p.IsAbstract,
                 //IsOverride = p.IsOverride,
                 IsPrimitive = p.Type.IsValueType || p.Type.SpecialType == SpecialType.System_String,
+                HasStringIndexer = p.Type is INamedTypeSymbol namedType2 && namedType2.GetMembers().OfType<IPropertySymbol>().Any(pi => pi.IsIndexer && pi.Parameters.Length == 1 && pi.Parameters[0].Type.SpecialType == SpecialType.System_String),
+                ShouldMapAsDictionary = p.Type.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapAsDictionaryAttribute"),
             });
     }
 

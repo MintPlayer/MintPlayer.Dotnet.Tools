@@ -128,17 +128,22 @@ public class PersonDto
 [GenerateMapper(typeof(AddressDto))]
 public class Address
 {
+    [MapperAlias("Straatnaam")]
     public string? Street { get; set; }
+    [MapperAlias("Stad")]
     public string? City { get; set; }
 }
 
+[MapAsDictionary]
 public class AddressDto
 {
-    [MapperAlias(nameof(Address.Street))]
-    public string? Straatnaam { get; set; }
+    private readonly Dictionary<string, object?> data = new();
 
-    [MapperAlias(nameof(Address.City))]
-    public string? Stad { get; set; }
+    public object? this[string key]
+    {
+        get => data.TryGetValue(key, out object? value) ? value : null;
+        set => data[key] = value;
+    }
 }
 
 public class ContactInfo
