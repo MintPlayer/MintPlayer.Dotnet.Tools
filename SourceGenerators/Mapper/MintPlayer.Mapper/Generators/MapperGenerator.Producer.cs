@@ -112,7 +112,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
 
             foreach (var (source, destination) in type.MappedProperties)
             {
-                HandleProperty(writer, source, destination, EWriteType.Assignment);
+                HandleProperty(writer, source, destination, type.TypeToMap.SourceTypeHasIndexer, type.TypeToMap.DestinationTypeHasIndexer, EWriteType.Assignment);
             }
 
             writer.Indent--;
@@ -134,7 +134,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
 
             foreach (var (source, destination) in type.MappedProperties)
             {
-                HandleProperty(writer, source, destination, EWriteType.Initializer);
+                HandleProperty(writer, source, destination, type.TypeToMap.SourceTypeHasIndexer, type.TypeToMap.DestinationTypeHasIndexer, EWriteType.Initializer);
             }
 
             writer.Indent--;
@@ -155,7 +155,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
 
                 foreach (var (source, destination) in type.MappedProperties)
                 {
-                    HandleProperty(writer, destination, source, EWriteType.Assignment);
+                    HandleProperty(writer, destination, source, type.TypeToMap.DestinationTypeHasIndexer, type.TypeToMap.SourceTypeHasIndexer, EWriteType.Assignment);
                 }
 
                 writer.Indent--;
@@ -178,7 +178,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
                 // TODO: add properties
                 foreach (var (source, destination) in type.MappedProperties)
                 {
-                    HandleProperty(writer, destination, source, EWriteType.Initializer);
+                    HandleProperty(writer, destination, source, type.TypeToMap.DestinationTypeHasIndexer, type.TypeToMap.SourceTypeHasIndexer, EWriteType.Initializer);
                 }
 
                 writer.Indent--;
@@ -292,14 +292,22 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         return collectionType;
     }
 
-    private static void HandleProperty(IndentedTextWriter writer, PropertyDeclaration source, PropertyDeclaration destination, EWriteType writeType)
+    private static void HandleProperty(IndentedTextWriter writer, PropertyDeclaration? source, PropertyDeclaration? destination, bool sourceWithIndexer, bool destinationWithIndexer, EWriteType writeType)
     {
-        var prefix = writeType switch
+        var sourceValueAccessor = (sourceWithIndexer, writeType) switch
         {
-            EWriteType.Initializer => $"{source.PropertyName} = ",
-            EWriteType.Assignment => $"output.{source.PropertyName} = ",
+            (true, EWriteType.Initializer) => $"{source.PropertyName} = ",
+            (true, EWriteType.Assignment) => $"output.{source.PropertyName} = ",
+            (false, EWriteType.Initializer) => $"[{destination!.PropertyName}] = ",
+            (false, EWriteType.Assignment) => $"output.{source.PropertyName} = ",
             _ => throw new NotImplementedException(),
         };
+
+        var destinationValueAccessor = $"input.{destination.PropertyName}";
+
+        //var destinationValueAccessor = destination.ShouldMapAsDictionary
+        //    ? $"input[\"{destination.Alias ?? destination.PropertyName}\"] as {destination.PropertyType}"
+        //    : $"input.{destination.PropertyName}";
 
         var suffix = writeType switch
         {
@@ -312,29 +320,29 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         if (source.IsPrimitive && destination.IsPrimitive)
         {
             if (source.PropertyType != destination.PropertyType)
-                writer.WriteLine($"{prefix}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}){suffix}");
+                writer.WriteLine($"{sourceValueAccessor}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>({destinationValueAccessor}){suffix}");
             else if (source.StateName != null && destination.StateName != null)
-                writer.WriteLine($"""{prefix}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}, {source.StateName}, {destination.StateName}){suffix}""");
+                writer.WriteLine($"""{sourceValueAccessor}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>({destinationValueAccessor}, {source.StateName}, {destination.StateName}){suffix}""");
             else
-                writer.WriteLine($"{prefix}input.{destination.PropertyName}{suffix}");
+                writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor}{suffix}");
         }
         else if (source.HasStringIndexer && destination.IsPrimitive)
         {
-            //if (source.PropertyType != destination.PropertyType)
-            //    writer.WriteLine($"{prefix}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}){suffix}");
-            //else if (source.StateName != null && destination.StateName != null)
-            //    writer.WriteLine($"""{prefix}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}, {source.StateName}, {destination.StateName}){suffix}""");
-            //else
-            //    writer.WriteLine($"{prefix}input.{destination.PropertyName}{suffix}");
+            if (source.PropertyType != destination.PropertyType)
+                writer.WriteLine($"{sourceValueAccessor}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>({destinationValueAccessor}){suffix}");
+            else if (source.StateName != null && destination.StateName != null)
+                writer.WriteLine($"""{sourceValueAccessor}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>({destinationValueAccessor}, {source.StateName}, {destination.StateName}){suffix}""");
+            else
+                writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor}{suffix}");
         }
         else if (source.IsPrimitive && destination.HasStringIndexer)
         {
-            //if (source.PropertyType != destination.PropertyType)
-            //    writer.WriteLine($"{prefix}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}){suffix}");
-            //else if (source.StateName != null && destination.StateName != null)
-            //    writer.WriteLine($"""{prefix}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}, {source.StateName}, {destination.StateName}){suffix}""");
-            //else
-            //    writer.WriteLine($"{prefix}input.{destination.PropertyName}{suffix}");
+            if (source.PropertyType != destination.PropertyType)
+                writer.WriteLine($"{sourceValueAccessor}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>({destinationValueAccessor}){suffix}");
+            else if (source.StateName != null && destination.StateName != null)
+                writer.WriteLine($"""{sourceValueAccessor}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>({destinationValueAccessor}, {source.StateName}, {destination.StateName}){suffix}""");
+            else
+                writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor}{suffix}");
         }
         // Handle arrays
         else if (IsArrayType(source.PropertyType) && IsArrayType(destination.PropertyType))
@@ -342,12 +350,12 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
             var elementType = GetElementType(source.PropertyType);
             if (IsPrimitiveOrString(elementType))
             {
-                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToArray(){suffix}");
+                writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor} == null ? null : {destinationValueAccessor}.ToArray(){suffix}");
             }
             else
             {
                 var shortName = elementType.WithoutGlobal().Split('.').Last();
-                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToArray(){suffix}");
+                writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor} == null ? null : {destinationValueAccessor}.Select(x => x.MapTo{shortName}()).ToArray(){suffix}");
             }
         }
         // Handle List<T>
@@ -356,12 +364,12 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
             var elementType = GetElementType(source.PropertyType);
             if (IsPrimitiveOrString(elementType))
             {
-                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToList(){suffix}");
+                writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor} == null ? null : {destinationValueAccessor}.ToList(){suffix}");
             }
             else
             {
                 var shortName = elementType.WithoutGlobal().Split('.').Last();
-                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToList(){suffix}");
+                writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor} == null ? null : {destinationValueAccessor}.Select(x => x.MapTo{shortName}()).ToList(){suffix}");
             }
         }
         // Handle ICollection<T>
@@ -370,23 +378,23 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
             var elementType = GetElementType(source.PropertyType);
             if (IsPrimitiveOrString(elementType))
             {
-                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToList(){suffix}");
+                writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor} == null ? null : {destinationValueAccessor}.ToList(){suffix}");
             }
             else
             {
                 var shortName = elementType.WithoutGlobal().Split('.').Last();
-                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToList(){suffix}");
+                writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor} == null ? null : {destinationValueAccessor}.Select(x => x.MapTo{shortName}()).ToList(){suffix}");
             }
         }
         // Handle nullable reference types
         else if (IsNullableType(source.PropertyType) && IsNullableType(destination.PropertyType))
         {
-            writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(){suffix}");
+            writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor} == null ? null : {destinationValueAccessor}.MapTo{source.PropertyTypeName}(){suffix}");
         }
         // Handle complex types
         else
         {
-            writer.WriteLine($"{prefix}input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(){suffix}");
+            writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor}.MapTo{source.PropertyTypeName}(){suffix}");
         }
     }
 }

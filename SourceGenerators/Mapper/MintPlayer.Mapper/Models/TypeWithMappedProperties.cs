@@ -6,5 +6,5 @@ namespace MintPlayer.Mapper.Models;
 public partial class TypeWithMappedProperties
 {
     public TypeToMap TypeToMap { get; set; } = null!;
-    public IEnumerable<(PropertyDeclaration Source, PropertyDeclaration Destination)> MappedProperties { get; set; } = [];
+    public IEnumerable<(PropertyDeclaration? Source, PropertyDeclaration? Destination)> MappedProperties { get; set; } = [];
 }

@@ -37,6 +37,16 @@ public partial class TypeToMap
     /// </summary>
     public bool AreBothDecorated { get; set; }
 
+    /// <summary>
+    /// Indicates that the source type has an indexer
+    /// </summary>
+    public bool SourceTypeHasIndexer { get; set; }
+
+    /// <summary>
+    /// Indicates that the destination type has an indexer
+    /// </summary>
+    public bool DestinationTypeHasIndexer { get; set; }
+
     public EAppliedOn AppliedOn { get; set; }
 
     public bool HasError { get; set; }

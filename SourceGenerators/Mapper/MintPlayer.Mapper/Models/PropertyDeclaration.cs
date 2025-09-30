@@ -13,7 +13,7 @@ public partial class PropertyDeclaration
     public bool IsStatic { get; set; }
     public bool IsPrimitive { get; set; }
     public bool HasStringIndexer { get; set; }
-    public bool ShouldMapAsDictionary { get; set; }
+    //public bool ShouldMapAsDictionary { get; set; }
 
     public override string ToString() => $"{PropertyName} ({PropertyType})";
 }
