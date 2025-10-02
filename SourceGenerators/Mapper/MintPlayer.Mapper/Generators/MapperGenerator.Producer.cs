@@ -218,21 +218,21 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
     }
 
     // Helper methods for type checks
-    private static bool IsArrayType(string type)
-        => type.EndsWith("[]");
+    private static bool IsArrayType(string? type)
+        => type is not null && type.EndsWith("[]");
 
-    private static bool IsListType(string type)
-        => type.StartsWith("global::System.Collections.Generic.List<") || type.StartsWith("List<");
+    private static bool IsListType(string? type)
+        => type is not null && (type.StartsWith("global::System.Collections.Generic.List<") || type.StartsWith("List<"));
 
-    private static bool IsCollectionType(string type)
-        => type.StartsWith("global::System.Collections.Generic.ICollection<") || type.StartsWith("ICollection<");
+    private static bool IsCollectionType(string? type)
+        => type is not null && (type.StartsWith("global::System.Collections.Generic.ICollection<") || type.StartsWith("ICollection<"));
 
-    private static bool IsNullableType(string type)
-        => type.EndsWith("?") || type.StartsWith("System.Nullable<");
+    private static bool IsNullableType(string? type)
+        => type is not null && (type.EndsWith("?") || type.StartsWith("System.Nullable<"));
 
-    private static bool IsPrimitiveOrString(string type)
+    private static bool IsPrimitiveOrString(string? type)
     {
-        switch (type.WithoutGlobal())
+        switch (type?.WithoutGlobal())
         {
             case "string":
             case "System.String":
@@ -294,20 +294,24 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
 
     private static void HandleProperty(IndentedTextWriter writer, PropertyDeclaration? source, PropertyDeclaration? destination, bool sourceWithIndexer, bool destinationWithIndexer, EWriteType writeType)
     {
+        var destProp = destination is { } ? destination.Alias ?? destination.PropertyName : null;
+        var sourceProp = source is { } ? source.Alias ?? source.PropertyName : null;
+
+        destProp ??= sourceProp;
+        sourceProp ??= destProp;
+
         var sourceValueAccessor = (sourceWithIndexer, writeType) switch
         {
-            (true, EWriteType.Initializer) => $"{source.PropertyName} = ",
-            (true, EWriteType.Assignment) => $"output.{source.PropertyName} = ",
-            (false, EWriteType.Initializer) => $"[{destination!.PropertyName}] = ",
-            (false, EWriteType.Assignment) => $"output.{source.PropertyName} = ",
+            (true, EWriteType.Initializer) => $"[{destProp}] = ",
+            (true, EWriteType.Assignment) => $"output[{destProp}] = ",
+            (false, EWriteType.Initializer) => $"{destProp} = ",
+            (false, EWriteType.Assignment) => $"output.{destProp} = ",
             _ => throw new NotImplementedException(),
         };
 
-        var destinationValueAccessor = $"input.{destination.PropertyName}";
-
-        //var destinationValueAccessor = destination.ShouldMapAsDictionary
-        //    ? $"input[\"{destination.Alias ?? destination.PropertyName}\"] as {destination.PropertyType}"
-        //    : $"input.{destination.PropertyName}";
+        var destinationValueAccessor = destinationWithIndexer
+            ? $""""input["{destProp}"]""""
+            : $"input.{destProp}";
 
         var suffix = writeType switch
         {
@@ -317,25 +321,9 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         };
 
         // Handle primitive types
-        if (source.IsPrimitive && destination.IsPrimitive)
-        {
-            if (source.PropertyType != destination.PropertyType)
-                writer.WriteLine($"{sourceValueAccessor}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>({destinationValueAccessor}){suffix}");
-            else if (source.StateName != null && destination.StateName != null)
-                writer.WriteLine($"""{sourceValueAccessor}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>({destinationValueAccessor}, {source.StateName}, {destination.StateName}){suffix}""");
-            else
-                writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor}{suffix}");
-        }
-        else if (source.HasStringIndexer && destination.IsPrimitive)
-        {
-            if (source.PropertyType != destination.PropertyType)
-                writer.WriteLine($"{sourceValueAccessor}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>({destinationValueAccessor}){suffix}");
-            else if (source.StateName != null && destination.StateName != null)
-                writer.WriteLine($"""{sourceValueAccessor}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>({destinationValueAccessor}, {source.StateName}, {destination.StateName}){suffix}""");
-            else
-                writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor}{suffix}");
-        }
-        else if (source.IsPrimitive && destination.HasStringIndexer)
+        if ((source is { IsPrimitive: true } && destination is { IsPrimitive: true }) ||
+            (source is { HasStringIndexer: true } && destination is { IsPrimitive: true }) ||
+            (source is { IsPrimitive: true } && destination is { HasStringIndexer: true }))
         {
             if (source.PropertyType != destination.PropertyType)
                 writer.WriteLine($"{sourceValueAccessor}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>({destinationValueAccessor}){suffix}");
@@ -345,7 +333,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
                 writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor}{suffix}");
         }
         // Handle arrays
-        else if (IsArrayType(source.PropertyType) && IsArrayType(destination.PropertyType))
+        else if (source is not null && IsArrayType(source.PropertyType) && IsArrayType(destination?.PropertyType))
         {
             var elementType = GetElementType(source.PropertyType);
             if (IsPrimitiveOrString(elementType))
@@ -359,7 +347,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
             }
         }
         // Handle List<T>
-        else if (IsListType(source.PropertyType) && IsListType(destination.PropertyType))
+        else if (source is not null && IsListType(source.PropertyType) && IsListType(destination?.PropertyType))
         {
             var elementType = GetElementType(source.PropertyType);
             if (IsPrimitiveOrString(elementType))
@@ -373,7 +361,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
             }
         }
         // Handle ICollection<T>
-        else if (IsCollectionType(source.PropertyType) && IsCollectionType(destination.PropertyType))
+        else if (source is not null && IsCollectionType(source.PropertyType) && IsCollectionType(destination?.PropertyType))
         {
             var elementType = GetElementType(source.PropertyType);
             if (IsPrimitiveOrString(elementType))
@@ -387,14 +375,15 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
             }
         }
         // Handle nullable reference types
-        else if (IsNullableType(source.PropertyType) && IsNullableType(destination.PropertyType))
+        else if (source is not null && IsNullableType(source.PropertyType) && IsNullableType(destination?.PropertyType))
         {
             writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor} == null ? null : {destinationValueAccessor}.MapTo{source.PropertyTypeName}(){suffix}");
         }
         // Handle complex types
         else
         {
-            writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor}.MapTo{source.PropertyTypeName}(){suffix}");
+            var type = source?.PropertyTypeName ?? destination?.PropertyTypeName ?? throw new InvalidOperationException("Both source and destination are null");
+            writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor}.MapTo{type}(){suffix}");
         }
     }
 }
