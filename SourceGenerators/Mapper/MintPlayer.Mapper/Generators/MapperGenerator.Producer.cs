@@ -112,7 +112,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
 
             foreach (var (source, destination) in type.MappedProperties)
             {
-                HandleProperty(writer, source, destination, EWriteType.Assignment);
+                HandleProperty(writer, source, destination, type.TypeToMap.SourceTypeHasIndexer, type.TypeToMap.DestinationTypeHasIndexer, EWriteType.Assignment);
             }
 
             writer.Indent--;
@@ -134,7 +134,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
 
             foreach (var (source, destination) in type.MappedProperties)
             {
-                HandleProperty(writer, source, destination, EWriteType.Initializer);
+                HandleProperty(writer, source, destination, type.TypeToMap.SourceTypeHasIndexer, type.TypeToMap.DestinationTypeHasIndexer, EWriteType.Initializer);
             }
 
             writer.Indent--;
@@ -155,7 +155,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
 
                 foreach (var (source, destination) in type.MappedProperties)
                 {
-                    HandleProperty(writer, destination, source, EWriteType.Assignment);
+                    HandleProperty(writer, destination, source, type.TypeToMap.DestinationTypeHasIndexer, type.TypeToMap.SourceTypeHasIndexer, EWriteType.Assignment);
                 }
 
                 writer.Indent--;
@@ -178,7 +178,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
                 // TODO: add properties
                 foreach (var (source, destination) in type.MappedProperties)
                 {
-                    HandleProperty(writer, destination, source, EWriteType.Initializer);
+                    HandleProperty(writer, destination, source, type.TypeToMap.DestinationTypeHasIndexer, type.TypeToMap.SourceTypeHasIndexer, EWriteType.Initializer);
                 }
 
                 writer.Indent--;
@@ -218,21 +218,21 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
     }
 
     // Helper methods for type checks
-    private static bool IsArrayType(string type)
-        => type.EndsWith("[]");
+    private static bool IsArrayType(string? type)
+        => type is not null && type.EndsWith("[]");
 
-    private static bool IsListType(string type)
-        => type.StartsWith("global::System.Collections.Generic.List<") || type.StartsWith("List<");
+    private static bool IsListType(string? type)
+        => type is not null && (type.StartsWith("global::System.Collections.Generic.List<") || type.StartsWith("List<"));
 
-    private static bool IsCollectionType(string type)
-        => type.StartsWith("global::System.Collections.Generic.ICollection<") || type.StartsWith("ICollection<");
+    private static bool IsCollectionType(string? type)
+        => type is not null && (type.StartsWith("global::System.Collections.Generic.ICollection<") || type.StartsWith("ICollection<"));
 
-    private static bool IsNullableType(string type)
-        => type.EndsWith("?") || type.StartsWith("System.Nullable<");
+    private static bool IsNullableType(string? type)
+        => type is not null && (type.EndsWith("?") || type.StartsWith("System.Nullable<"));
 
-    private static bool IsPrimitiveOrString(string type)
+    private static bool IsPrimitiveOrString(string? type)
     {
-        switch (type.WithoutGlobal())
+        switch (type?.WithoutGlobal())
         {
             case "string":
             case "System.String":
@@ -292,14 +292,26 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         return collectionType;
     }
 
-    private static void HandleProperty(IndentedTextWriter writer, PropertyDeclaration source, PropertyDeclaration destination, EWriteType writeType)
+    private static void HandleProperty(IndentedTextWriter writer, PropertyDeclaration? source, PropertyDeclaration? destination, bool sourceWithIndexer, bool destinationWithIndexer, EWriteType writeType)
     {
-        var prefix = writeType switch
+        var destProp = destination is { } ? destination.Alias ?? destination.PropertyName : null;
+        var sourceProp = source is { } ? source.Alias ?? source.PropertyName : null;
+
+        destProp ??= sourceProp;
+        sourceProp ??= destProp;
+
+        var sourceValueAccessor = (sourceWithIndexer, writeType) switch
         {
-            EWriteType.Initializer => $"{source.PropertyName} = ",
-            EWriteType.Assignment => $"output.{source.PropertyName} = ",
+            (true, EWriteType.Initializer) => $"[{destProp}] = ",
+            (true, EWriteType.Assignment) => $"output[{destProp}] = ",
+            (false, EWriteType.Initializer) => $"{destProp} = ",
+            (false, EWriteType.Assignment) => $"output.{destProp} = ",
             _ => throw new NotImplementedException(),
         };
+
+        var destinationValueAccessor = destinationWithIndexer
+            ? $""""input["{destProp}"]""""
+            : $"input.{destProp}";
 
         var suffix = writeType switch
         {
@@ -309,66 +321,69 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         };
 
         // Handle primitive types
-        if (source.IsPrimitive && destination.IsPrimitive)
+        if ((source is { IsPrimitive: true } && destination is { IsPrimitive: true }) ||
+            (source is { HasStringIndexer: true } && destination is { IsPrimitive: true }) ||
+            (source is { IsPrimitive: true } && destination is { HasStringIndexer: true }))
         {
             if (source.PropertyType != destination.PropertyType)
-                writer.WriteLine($"{prefix}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}){suffix}");
+                writer.WriteLine($"{sourceValueAccessor}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>({destinationValueAccessor}){suffix}");
             else if (source.StateName != null && destination.StateName != null)
-                writer.WriteLine($"""{prefix}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}, {source.StateName}, {destination.StateName}){suffix}""");
+                writer.WriteLine($"""{sourceValueAccessor}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>({destinationValueAccessor}, {source.StateName}, {destination.StateName}){suffix}""");
             else
-                writer.WriteLine($"{prefix}input.{destination.PropertyName}{suffix}");
+                writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor}{suffix}");
         }
         // Handle arrays
-        else if (IsArrayType(source.PropertyType) && IsArrayType(destination.PropertyType))
+        else if (source is not null && IsArrayType(source.PropertyType) && IsArrayType(destination?.PropertyType))
         {
             var elementType = GetElementType(source.PropertyType);
             if (IsPrimitiveOrString(elementType))
             {
-                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToArray(){suffix}");
+                writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor} == null ? null : {destinationValueAccessor}.ToArray(){suffix}");
             }
             else
             {
                 var shortName = elementType.WithoutGlobal().Split('.').Last();
-                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToArray(){suffix}");
+                writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor} == null ? null : {destinationValueAccessor}.Select(x => x.MapTo{shortName}()).ToArray(){suffix}");
             }
         }
         // Handle List<T>
-        else if (IsListType(source.PropertyType) && IsListType(destination.PropertyType))
+        else if (source is not null && IsListType(source.PropertyType) && IsListType(destination?.PropertyType))
         {
             var elementType = GetElementType(source.PropertyType);
             if (IsPrimitiveOrString(elementType))
             {
-                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToList(){suffix}");
+                writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor} == null ? null : {destinationValueAccessor}.ToList(){suffix}");
             }
             else
             {
                 var shortName = elementType.WithoutGlobal().Split('.').Last();
-                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToList(){suffix}");
+                writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor} == null ? null : {destinationValueAccessor}.Select(x => x.MapTo{shortName}()).ToList(){suffix}");
             }
         }
         // Handle ICollection<T>
-        else if (IsCollectionType(source.PropertyType) && IsCollectionType(destination.PropertyType))
+        else if (source is not null && IsCollectionType(source.PropertyType) && IsCollectionType(destination?.PropertyType))
         {
             var elementType = GetElementType(source.PropertyType);
             if (IsPrimitiveOrString(elementType))
             {
-                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToList(){suffix}");
+                writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor} == null ? null : {destinationValueAccessor}.ToList(){suffix}");
             }
             else
             {
                 var shortName = elementType.WithoutGlobal().Split('.').Last();
-                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToList(){suffix}");
+                writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor} == null ? null : {destinationValueAccessor}.Select(x => x.MapTo{shortName}()).ToList(){suffix}");
             }
         }
         // Handle nullable reference types
-        else if (IsNullableType(source.PropertyType) && IsNullableType(destination.PropertyType))
+        else if (source is not null && IsNullableType(source.PropertyType) && IsNullableType(destination?.PropertyType))
         {
-            writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(){suffix}");
+            writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor} == null ? null : {destinationValueAccessor}.MapTo{source.PropertyTypeName}(){suffix}");
         }
         // Handle complex types
         else
         {
-            writer.WriteLine($"{prefix}input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(){suffix}");
+            var type = source?.PropertyTypeName ?? destination?.PropertyTypeName ?? throw new InvalidOperationException("Both source and destination are null");
+            writer.WriteLine($"{sourceValueAccessor}{destinationValueAccessor}.MapTo{type}(){suffix}");
         }
     }
 }

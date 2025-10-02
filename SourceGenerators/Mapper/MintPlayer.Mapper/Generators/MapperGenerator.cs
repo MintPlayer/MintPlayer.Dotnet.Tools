@@ -1,6 +1,7 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using MintPlayer.Mapper.Models;
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.Tools.Extensions;
 
@@ -31,7 +32,7 @@ public class MapperGenerator : IncrementalGenerator
                                 //var destTypeMethodName = destAttr?.ConstructorArguments.ElementAtOrDefault(1);
                                 var mappingMethodName = destType1.Name.EnsureStartsWith("MapTo");
                                 var declaredMethodName = sourceType.Name.EnsureStartsWith("MapTo");
-                                return new Models.TypeToMap
+                                var res = new Models.TypeToMap
                                 {
                                     DestinationNamespace = sourceType.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
                                     DeclaredType = sourceType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
@@ -44,10 +45,13 @@ public class MapperGenerator : IncrementalGenerator
                                     AppliedOn = Models.EAppliedOn.Assembly,
                                     HasError = false,
                                     Location = attr1.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
+                                    SourceTypeHasIndexer = sourceType.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapAsDictionaryAttribute"),
+                                    DestinationTypeHasIndexer = destType1.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapAsDictionaryAttribute"),
 
                                     DeclaredProperties = ProcessProperties(sourceType).ToArray(),
                                     MappingProperties = ProcessProperties(destType1).ToArray(),
                                 };
+                                return res;
                             }
                             else
                             {
@@ -74,7 +78,7 @@ public class MapperGenerator : IncrementalGenerator
                                 var destAttr = destType2.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute");
                                 var destTypeMethodName = destAttr?.ConstructorArguments.ElementAtOrDefault(1);
                                 var mappingMethodName = destTypeMethodName is null ? destType2.Name.EnsureStartsWith("MapTo") : CreateMethodName((TypedConstant)destTypeMethodName, destType2);
-                                return new Models.TypeToMap
+                                var res = new Models.TypeToMap
                                 {
                                     DestinationNamespace = typeSymbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
                                     DeclaredType = typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
@@ -87,10 +91,13 @@ public class MapperGenerator : IncrementalGenerator
                                     AppliedOn = Models.EAppliedOn.Class,
                                     HasError = false,
                                     Location = attr2.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
+                                    SourceTypeHasIndexer = typeSymbol.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapAsDictionaryAttribute"),
+                                    DestinationTypeHasIndexer = destType2.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapAsDictionaryAttribute"),
 
                                     DeclaredProperties = ProcessProperties(typeSymbol).ToArray(),
                                     MappingProperties = ProcessProperties(destType2).ToArray(),
                                 };
+                                return res;
                             }
                             else
                             {
@@ -155,9 +162,26 @@ public class MapperGenerator : IncrementalGenerator
             .Select(static (i, ct) => new Models.TypeWithMappedProperties
             {
                 TypeToMap = i,
-                MappedProperties = i.DeclaredProperties
-                    .Select(dp => (Source: dp, Destination: i.MappingProperties.FirstOrDefault(mp => mp.Alias == dp.Alias)))
-                    .Where(p => p.Source is { IsStatic: false } && p.Destination is { IsStatic: false })
+                //MappedProperties = i.DeclaredProperties
+                //    .Select(dp => (Source: dp, Destination: i.MappingProperties.FirstOrDefault(mp => mp.Alias == dp.Alias)))
+                //    .Where(p => p.Source is { IsStatic: false } && p.Destination is { IsStatic: false })
+
+                MappedProperties = (i.SourceTypeHasIndexer, i.DestinationTypeHasIndexer) switch
+                {
+                    (true, true) => [],
+                    (true, false) => i.MappingProperties
+                        .Where(mp => !mp.IsStatic)
+                        .Select(mp => (Source: (PropertyDeclaration?)null, Destination: mp.AsNullable()))
+                        .Where(p => p.Destination is { IsStatic: false }),
+                    (false, true) => i.DeclaredProperties
+                        .Where(dp => !dp.IsStatic)
+                        .Select(dp => (Source: dp.AsNullable(), Destination: (PropertyDeclaration?)null))
+                        .Where(p => p.Source is { IsStatic: false }),
+                    (false, false) => i.DeclaredProperties
+                        .Where(dp => !dp.IsStatic)
+                        .Select(dp => (Source: dp.AsNullable(), Destination: (PropertyDeclaration?)i.MappingProperties.FirstOrDefault(mp => mp.Alias == dp.Alias)))
+                        .Where(p => p.Source is { IsStatic: false } && p.Destination is { IsStatic: false }),
+                }
             })
             .WithComparer()
             .Collect();
@@ -277,6 +301,8 @@ public class MapperGenerator : IncrementalGenerator
                 //IsAbstract = p.IsAbstract,
                 //IsOverride = p.IsOverride,
                 IsPrimitive = p.Type.IsValueType || p.Type.SpecialType == SpecialType.System_String,
+                HasStringIndexer = p.Type is INamedTypeSymbol namedType2 && namedType2.GetMembers().OfType<IPropertySymbol>().Any(pi => pi.IsIndexer && pi.Parameters.Length == 1 && pi.Parameters[0].Type.SpecialType == SpecialType.System_String),
+                //ShouldMapAsDictionary = p.Type.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapAsDictionaryAttribute"),
             });
     }
 
