@@ -5,6 +5,6 @@
 /// </summary>
 /// <param name="alias">The generated mapper will map properties with the same alias.</param>
 [AttributeUsage(AttributeTargets.Property, AllowMultiple = false)]
-public sealed class MapperAliasAttribute(string alias) : Attribute
+public sealed class MapToAttribute(string alias) : Attribute
 {
 }
