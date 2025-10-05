@@ -250,7 +250,7 @@ public class MapperGenerator : IncrementalGenerator
     private static IEnumerable<Models.PropertyDeclaration> ProcessProperties(INamedTypeSymbol typeSymbol)
     {
         return typeSymbol.GetAllProperties()
-            .Where(p => !p.IsIndexer && !p.IsImplicitlyDeclared && !p.IsStatic && !p.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperIgnoreAttribute"))
+            .Where(p => !p.IsIndexer && !p.IsImplicitlyDeclared && !p.IsStatic && !p.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.IgnoreMapAttribute"))
             .Select(p => new Models.PropertyDeclaration
             {
                 PropertyName = p.Name,
@@ -259,7 +259,7 @@ public class MapperGenerator : IncrementalGenerator
                     ? namedType.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)
                     : p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
 
-                Alias = p.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperAliasAttribute")
+                Alias = p.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapToAttribute")
                     is { ConstructorArguments.Length: > 0 } aliasAttr
                     && aliasAttr.ConstructorArguments[0].Value is string aliasName
                     ? aliasName : p.Name,

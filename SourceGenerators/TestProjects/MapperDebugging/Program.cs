@@ -87,7 +87,7 @@ public enum EPasswordState
 //[GenerateMapper(typeof(PersonDto), "Persoon")]
 public class Person
 {
-    [MapperIgnore]
+    [IgnoreMap]
     public string? Name { get; set; }
     public int? Age { get; set; }
     public Address Address { get; set; }
@@ -95,7 +95,7 @@ public class Person
     public List<string> Notes { get; set; }
     public double Weight { get; set; }
 
-    [MapperAlias(nameof(Person.Password)), MapperState<EPasswordState>(EPasswordState.Plaintext)]
+    [MapTo(nameof(Person.Password)), MapperState<EPasswordState>(EPasswordState.Plaintext)]
     public string Password { get; set; }
 }
 
@@ -103,25 +103,25 @@ public class Person
 //[GenerateMapper(typeof(Person), "PersoonDto")]
 public class PersonDto
 {
-    [MapperAlias(nameof(Person.Name))]
+    [MapTo(nameof(Person.Name))]
     public string? Naam { get; set; }
 
-    [MapperAlias(nameof(Person.Age))]
+    [MapTo(nameof(Person.Age))]
     public int? Leeftijd { get; set; }
 
-    [MapperAlias(nameof(Person.Address))]
+    [MapTo(nameof(Person.Address))]
     public AddressDto Adres { get; set; }
 
-    [MapperAlias(nameof(Person.ContactInfos))]
+    [MapTo(nameof(Person.ContactInfos))]
     public List<ContactInfoDto> Contactgegevens { get; set; } = [];
 
-    [MapperAlias(nameof(Person.Notes))]
+    [MapTo(nameof(Person.Notes))]
     public List<string> Notities { get; set; }
 
-    [MapperAlias(nameof(Person.Weight))]
+    [MapTo(nameof(Person.Weight))]
     public string Gewicht { get; set; }
 
-    [MapperAlias(nameof(Person.Password)), MapperState<EPasswordState>(EPasswordState.Base64)]
+    [MapTo(nameof(Person.Password)), MapperState<EPasswordState>(EPasswordState.Base64)]
     public string Password { get; set; }
 }
 
@@ -134,10 +134,10 @@ public class Address
 
 public class AddressDto
 {
-    [MapperAlias(nameof(Address.Street))]
+    [MapTo(nameof(Address.Street))]
     public string? Straatnaam { get; set; }
 
-    [MapperAlias(nameof(Address.City))]
+    [MapTo(nameof(Address.City))]
     public string? Stad { get; set; }
 }
 
@@ -150,9 +150,9 @@ public class ContactInfo
 //[GenerateMapper(typeof(ContactInfo))]
 public class ContactInfoDto
 {
-    [MapperAlias(nameof(ContactInfo.Type))]
+    [MapTo(nameof(ContactInfo.Type))]
     public string Soort { get; set; }
 
-    [MapperAlias(nameof(ContactInfo.Value))]
+    [MapTo(nameof(ContactInfo.Value))]
     public string Waarde { get; set; }
 }
