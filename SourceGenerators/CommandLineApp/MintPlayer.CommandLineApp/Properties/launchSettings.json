@@ -1,6 +1,6 @@
 {
   "profiles": {
-    "Debug Mapper Generators on CommandLineAppDebugging": {
+    "Debug CommandLineApp Generators on CommandLineAppDebugging": {
       "commandName": "DebugRoslynComponent",
       "targetProject": "..\\..\\TestProjects\\CommandLineAppDebugging\\CommandLineAppDebugging.csproj"
     }
