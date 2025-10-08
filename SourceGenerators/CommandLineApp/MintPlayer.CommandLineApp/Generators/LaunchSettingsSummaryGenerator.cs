@@ -12,6 +12,10 @@ namespace MintPlayer.CommandLineApp.Generators
 
         public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
         {
+            var alreadyHasTopLevelStatements = context.CompilationProvider
+                .Select((compilation, ct) => compilation.SyntaxTrees.Any(st => st.GetRoot(ct).DescendantNodesAndSelf().OfType<GlobalStatementSyntax>().Any()))
+                .WithDefaultComparer();
+
             var consoleAppsProvider = context.SyntaxProvider.ForAttributeWithMetadataName(
                 consoleAppAttribute,
                 (node, ct) => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 },
@@ -33,8 +37,9 @@ namespace MintPlayer.CommandLineApp.Generators
                 .Collect();
 
             var consoleAppsSourceProvider = consoleAppsProvider
+                .Join(alreadyHasTopLevelStatements)
                 .Join(settingsProvider)
-                .Select(Producer (prov, ct) => new LaunchSettingsSummaryProducer(prov.Item1, prov.Item2.RootNamespace!));
+                .Select(Producer (prov, ct) => new LaunchSettingsSummaryProducer(prov.Item1, prov.Item2, prov.Item3.RootNamespace!));
 
             context.ProduceCode(consoleAppsSourceProvider);
         }
