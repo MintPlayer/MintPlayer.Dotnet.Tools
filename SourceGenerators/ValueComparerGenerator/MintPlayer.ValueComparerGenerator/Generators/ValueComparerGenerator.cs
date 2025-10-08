@@ -49,7 +49,7 @@ public class ValueComparerGenerator : IncrementalGenerator
                                 IsAbstract = baseType.IsAbstract,
                                 IsPartial = baseType.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is ClassDeclarationSyntax baseClassDeclaration && baseClassDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
                                 // TODO: replace "Namespace" with "BaseTypePathspec"
-                                PathSpec = baseType.GetPathSpec(),
+                                PathSpec = baseType.GetPathSpec(ct),
                                 Properties = baseType.GetMembers().OfType<IPropertySymbol>().Select(property => new Models.PropertyDeclaration
                                 {
                                     Name = property.Name,
@@ -78,7 +78,7 @@ public class ValueComparerGenerator : IncrementalGenerator
                                 })
                                 .ToArray() ?? [],
                             //Namespace = symbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
-                            PathSpec = symbol.GetPathSpec(),
+                            PathSpec = symbol.GetPathSpec(ct),
                             Properties = symbol.GetMembers().OfType<IPropertySymbol>()
                                 .Where(p => !p.IsIndexer && !p.IsImplicitlyDeclared)
                                 .Select(property => new Models.PropertyDeclaration
@@ -114,7 +114,7 @@ public class ValueComparerGenerator : IncrementalGenerator
                                 })
                                 .ToArray() ?? [],
                             //Namespace = symbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
-                            PathSpec = symbol.GetPathSpec(),
+                            PathSpec = symbol.GetPathSpec(ct),
                             Properties = symbol.GetMembers().OfType<IPropertySymbol>()
                                 .Where(p => !p.IsIndexer && !p.IsImplicitlyDeclared)
                                 .Select(property => new Models.PropertyDeclaration

@@ -18,6 +18,7 @@ public class PathSpecElementValueComparer : ValueComparer<Extensions.PathSpecEle
     {
         if (!IsEquals(x.Name, y.Name)) return false;
         if (!IsEquals(x.Type, y.Type)) return false;
+        if (!IsEquals(x.IsPartial, y.IsPartial)) return false;
         return true;
     }
 }

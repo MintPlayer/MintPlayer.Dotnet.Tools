@@ -1,4 +1,6 @@
 ﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 namespace MintPlayer.SourceGenerators.Tools.Extensions;
@@ -22,18 +24,41 @@ public static class SymbolExtensions
         }
     }
 
-    public static PathSpec? GetPathSpec(this INamedTypeSymbol typeSymbol)
+    /// <summary>
+    /// Creates a path specification representing the namespace and parent type hierarchy for the specified named type
+    /// symbol.
+    /// </summary>
+    /// <remarks>The returned path specification includes the fully qualified namespace and all containing
+    /// parent types that are classes or structs. Partial type information is included for parent types declared as
+    /// partial. This method throws an <see cref="OperationCanceledException"/> if the operation is canceled via the
+    /// provided <paramref name="cancellationToken"/>.</remarks>
+    /// <param name="typeSymbol">The named type symbol for which to generate the path specification. Must not be null.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
+    /// <returns>A <see cref="PathSpec"/> instance containing the namespace and parent type information for <paramref
+    /// name="typeSymbol"/>; or <see langword="null"/> if the path specification cannot be determined.</returns>
+    public static PathSpec? GetPathSpec(this INamedTypeSymbol typeSymbol, CancellationToken cancellationToken = default)
     {
         var parents = new List<PathSpecElement>();
         var ns = string.Empty;
         while (typeSymbol is { })
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             ns = typeSymbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted));
-            if (typeSymbol.ContainingSymbol is INamedTypeSymbol namedTypeSymbol &&
-                    new[] { TypeKind.Class, TypeKind.Struct }.Contains(namedTypeSymbol.TypeKind))
-                parents.Add(new PathSpecElement { Name = namedTypeSymbol.Name, Type = namedTypeSymbol.TypeKind switch { TypeKind.Class => EPathSpecType.Class, _ => EPathSpecType.Struct } });
-            //else
-            //    return null;
+            if (typeSymbol.ContainingSymbol is INamedTypeSymbol namedTypeSymbol && new[] { TypeKind.Class, TypeKind.Struct }.Contains(namedTypeSymbol.TypeKind))
+            {
+                parents.Add(new PathSpecElement
+                {
+                    Name = namedTypeSymbol.Name,
+                    IsPartial = namedTypeSymbol.DeclaringSyntaxReferences.Select(r => r.GetSyntax(cancellationToken)).All(s => s switch
+                    {
+                        ClassDeclarationSyntax cds => cds.Modifiers.Any(m => m.IsKind(SyntaxKind.PartialKeyword)),
+                        StructDeclarationSyntax sds => sds.Modifiers.Any(m => m.IsKind(SyntaxKind.PartialKeyword)),
+                        _ => false
+                    }),
+                    Type = namedTypeSymbol.TypeKind switch { TypeKind.Class => EPathSpecType.Class, _ => EPathSpecType.Struct },
+                });
+            }
 
             typeSymbol = typeSymbol.ContainingType;
         }
@@ -58,6 +83,7 @@ public class PathSpecElement
 {
     public string? Name { get; set; }
     public EPathSpecType Type { get; set; }
+    public bool IsPartial { get; set; }
 }
 
 public enum EPathSpecType
