@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPaths</GetTargetPathDependsOn>
+	</PropertyGroup>
+
+	<Target Name="GetDependencyTargetPaths">
+		<ItemGroup>
+			<TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)\..\MintPlayer.CommandLineApp.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.CommandLineApp.Attributes.dll" IncludeRuntimeDependency="true" />
+		</ItemGroup>
+	</Target>
+
+	<ItemGroup>
+		<!-- Dependency DLLs -->
+		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.CommandLineApp.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\MintPlayer.CommandLineApp.Attributes\MintPlayer.CommandLineApp.Attributes.csproj" />
+	</ItemGroup>
+
+	<Import Project="..\..\eng\sourcegenerator.targets" />
+	<Import Project="..\..\eng\valuecomparergenerator.targets" />
+</Project>
