@@ -1,7 +1,9 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
 using MintPlayer.SourceGenerators.Tools;
+using MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 namespace MintPlayer.CommandLineApp.Generators
 {
@@ -12,14 +14,17 @@ namespace MintPlayer.CommandLineApp.Generators
 
         public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
         {
-            var alreadyHasTopLevelStatements = context.CompilationProvider
-                .Select((compilation, ct) => compilation.SyntaxTrees.Any(st => st.GetRoot(ct).DescendantNodesAndSelf().OfType<GlobalStatementSyntax>().Any()))
-                .WithDefaultComparer();
+            var filesWithTopLevelStatements = context.CompilationProvider
+                .SelectMany(static (compilation, ct) => compilation.SyntaxTrees
+                    .Where(st => st.GetRoot(ct).DescendantNodesAndSelf().OfType<GlobalStatementSyntax>().Any())
+                    .Select(f => f.GetLocation(TextSpan.FromBounds(0, f.Length - 1))))
+                .WithComparer(ValueComparer<Location>.Instance)
+                .Collect();
 
             var consoleAppsProvider = context.SyntaxProvider.ForAttributeWithMetadataName(
                 consoleAppAttribute,
-                (node, ct) => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 },
-                (context, ct) =>
+                static (node, ct) => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 },
+                static (context, ct) =>
                 {
                     if (context.TargetNode is ClassDeclarationSyntax classDeclaration &&
                         context.SemanticModel.GetDeclaredSymbol(classDeclaration, ct) is INamedTypeSymbol classSymbol)
@@ -37,11 +42,17 @@ namespace MintPlayer.CommandLineApp.Generators
                 .Collect();
 
             var consoleAppsSourceProvider = consoleAppsProvider
-                .Join(alreadyHasTopLevelStatements)
+                .Join(filesWithTopLevelStatements)
                 .Join(settingsProvider)
-                .Select(Producer (prov, ct) => new LaunchSettingsSummaryProducer(prov.Item1, prov.Item2, prov.Item3.RootNamespace!));
+                .Select(static Producer (prov, ct) => new LaunchSettingsSummaryProducer(prov.Item1, prov.Item2, prov.Item3.RootNamespace!));
+
+            var consoleAppsDiagnosticProvider = consoleAppsProvider
+                .Join(filesWithTopLevelStatements)
+                .Join(settingsProvider)
+                .Select(static IDiagnosticReporter (prov, ct) => new LaunchSettingsSummaryProducer(prov.Item1, prov.Item2, prov.Item3.RootNamespace!));
 
             context.ProduceCode(consoleAppsSourceProvider);
+            context.ReportDiagnostics(consoleAppsDiagnosticProvider);
         }
 
         public override void RegisterComparers()
