@@ -1,10 +1,9 @@
 ﻿// See https://aka.ms/new-console-template for more information
 using MintPlayer.CommandLineApp.Attributes;
 
-Console.WriteLine("Hello, World!");
+await ListAspnetcoreAppsApp.Run(args);
 
-[ConsoleApp]
+[ConsoleApp("Lists all ASP.NET Core apps under the current folder")]
 public class ListAspnetcoreApps
 {
-
 }

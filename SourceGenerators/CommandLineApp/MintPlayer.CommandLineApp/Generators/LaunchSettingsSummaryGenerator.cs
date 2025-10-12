@@ -31,8 +31,11 @@ namespace MintPlayer.CommandLineApp.Generators
                     {
                         return new Models.ConsoleApp
                         {
+                            Description = context.Attributes.FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == consoleAppAttribute)
+                                ?.ConstructorArguments.FirstOrDefault().Value?.ToString() ?? string.Empty,
                             ClassName = classSymbol.Name,
-                            Namespace = classSymbol.ContainingNamespace?.ToDisplayString() ?? string.Empty,
+                            Namespace = classSymbol.ContainingNamespace.IsGlobalNamespace ? string.Empty : classSymbol.ContainingNamespace?.ToDisplayString(),
+                            ClassSymbolLocation = classSymbol.Locations.FirstOrDefault(),
                         };
                     }
 

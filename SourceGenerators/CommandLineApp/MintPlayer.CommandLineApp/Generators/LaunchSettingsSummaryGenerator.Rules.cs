@@ -11,4 +11,12 @@ public static partial class DiagnosticRules
         category: "ConsoleAppGenerator",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor OnlyOneConsoleAppAllowed = new(
+        id: "COMLAPP002",
+        title: "Only one console app with the [ConsoleApp] attribute is allowed",
+        messageFormat: "Only one console app with the [ConsoleApp] attribute is allowed",
+        category: "ConsoleAppGenerator",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }
