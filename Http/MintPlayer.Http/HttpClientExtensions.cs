@@ -2,46 +2,40 @@
 
 public static class HttpClientExtensions
 {
-    public static async Task<T?> FromJsonAsync<T>(this HttpClient client, HttpRequestMessage message, System.Text.Json.JsonSerializerOptions? options = null, CancellationToken ct = default)
+    public static async Task<HttpResult<T?>> SendAsync<T>(this HttpClient client, HttpRequestMessage message, System.Text.Json.JsonSerializerOptions? options = null, CancellationToken ct = default)
     {
         var response = await client.SendAsync(message, ct).ConfigureAwait(false);
-        var value = await response.ReadJsonAsync<T>(options, ct).ConfigureAwait(false);
-        return value;
-    }
+        if (response.IsSuccessStatusCode)
+        {
+            // TODO: response.EnsureSuccessStatusCode();
+            switch (response.Content.Headers.ContentType?.MediaType)
+            {
+                case null:
+                    throw new NotSupportedException("Missing content type");
+                case "application/json":
+                    return await response.ReadJsonAsync<T>(options, ct).ConfigureAwait(false);
+                case "text/xml":
+                case "application/xml":
+                    return await response.ReadXmlAsync<T>(ct).ConfigureAwait(false);
+                case "text/plain":
+                    return await response.ReadTextAsync(ct).ConfigureAwait(false);
+                default:
+                    throw new NotSupportedException("Unsupported content type");
+            }
+        }
+        else
+        {
+            throw new HttpRequestException($"""
+                HTTP {(int)response.StatusCode} {response.ReasonPhrase}
+                URL: {response.RequestMessage?.RequestUri}
 
-    public static async Task<HttpResult<T?>> FromJsonWithMetaAsync<T>(this HttpClient client, HttpRequestMessage message, System.Text.Json.JsonSerializerOptions? options = null, CancellationToken ct = default)
-    {
-        var response = await client.SendAsync(message, ct).ConfigureAwait(false);
-        var value = await response.ReadJsonWithMetaAsync<T>(options, ct).ConfigureAwait(false);
-        return value;
-    }
+                HEADERS
+                {string.Join(Environment.NewLine, response.Headers.Select(h => $"{h.Key}: {h.Value}"))}
 
-    public static async Task<T?> FromXmlAsync<T>(this HttpClient client, HttpRequestMessage message, CancellationToken ct = default)
-    {
-        var response = await client.SendAsync(message.WithAccept("text/xml"), ct).ConfigureAwait(false);
-        var value = await response.ReadXmlAsync<T>(ct).ConfigureAwait(false);
-        return value;
-    }
-
-    public static async Task<HttpResult<T?>> FromXmlWithMetaAsync<T>(this HttpClient client, HttpRequestMessage message, CancellationToken ct = default)
-    {
-        var response = await client.SendAsync(message.WithAccept("text/xml"), ct).ConfigureAwait(false);
-        var value = await response.ReadXmlWithMetaAsync<T>(ct).ConfigureAwait(false);
-        return value;
-    }
-
-    public static async Task<string> FromTextAsync(this HttpClient client, HttpRequestMessage message, CancellationToken ct = default)
-    {
-        var response = await client.SendAsync(message.WithAccept("application/json"), ct).ConfigureAwait(false);
-        var value = await response.ReadTextAsync(ct).ConfigureAwait(false);
-        return value;
-    }
-
-    public static async Task<HttpResult<string>> FromTextWithMetaAsync(this HttpClient client, HttpRequestMessage message, CancellationToken ct = default)
-    {
-        var response = await client.SendAsync(message.WithAccept("application/json"), ct).ConfigureAwait(false);
-        var value = await response.ReadTextWithMetaAsync(ct).ConfigureAwait(false);
-        return value;
+                BODY
+                {await response.Content.ReadAsStringAsync(ct)}
+                """, null, response.StatusCode);
+        }
     }
 
     public static async Task<Stream> FromStreamAsync(this HttpClient client, HttpRequestMessage message, CancellationToken ct = default)

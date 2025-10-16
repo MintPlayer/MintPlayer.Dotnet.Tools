@@ -1,0 +1,43 @@
+@WidgetApi_HostAddress = https://localhost:7189
+
+### JSON request, JSON response
+POST {{WidgetApi_HostAddress}}/Widget
+Accept: application/json
+Content-Type: application/json
+
+{
+    "Name": "Test widget",
+    "Color": "Yellow"
+}
+
+### JSON request, XML response
+POST {{WidgetApi_HostAddress}}/Widget
+Accept: text/xml
+Content-Type: application/json
+
+{
+    "Name": "Test widget",
+    "Color": "Yellow"
+}
+
+### XML request, JSON response
+POST {{WidgetApi_HostAddress}}/Widget
+Accept: application/json
+Content-Type: text/xml
+
+<CreateWidget xmlns="http://schemas.example.com/widgets">
+  <!-- The DataContract Serializer requires the properties to be in alphabetical order -->
+  <Color>Yellow</Color>
+  <Name>Test widget</Name>
+</CreateWidget>
+
+### XML request, XML response
+POST {{WidgetApi_HostAddress}}/Widget
+Accept: text/xml
+Content-Type: text/xml
+
+<CreateWidget xmlns="http://schemas.example.com/widgets">
+  <!-- The DataContract Serializer requires the properties to be in alphabetical order -->
+  <Color>Yellow</Color>
+  <Name>Test widget</Name>
+</CreateWidget>

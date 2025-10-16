@@ -1,4 +1,5 @@
 ﻿using System.Net.Http.Headers;
+using System.Runtime.Serialization;
 using System.Text;
 using System.Text.Json;
 
@@ -129,10 +130,19 @@ public static class HttpRequestMessageExtensions
 
     public static HttpRequestMessage WithXmlContent<T>(this HttpRequestMessage message, T content, Encoding? encoding = null, string? mediaType = null)
     {
-        var serializer = new System.Xml.Serialization.XmlSerializer(typeof(T));
-        using var sw = new StringWriter();
-        serializer.Serialize(sw, content);
-        message.Content = new StringContent(sw.ToString(), encoding ?? Encoding.UTF8, mediaType ?? "application/xml");
+        //var serializer = new System.Xml.Serialization.XmlSerializer(typeof(T));
+        using var ms = new MemoryStream();
+        encoding ??= Encoding.UTF8;
+        using var xmlWriter = System.Xml.XmlWriter.Create(ms, new System.Xml.XmlWriterSettings { OmitXmlDeclaration = false, Indent = false, Encoding = encoding });
+        //serializer.Serialize(sw, content);
+        //var stringContent = sw.ToString();
+
+        var serializer = new DataContractSerializer(typeof(T));
+        serializer.WriteObject(xmlWriter, content);
+        xmlWriter.Flush();
+        var stringContent = Encoding.UTF8.GetString(ms.ToArray());
+
+        message.Content = new StringContent(stringContent, encoding, mediaType ?? "application/xml");
         return message;
     }
 
