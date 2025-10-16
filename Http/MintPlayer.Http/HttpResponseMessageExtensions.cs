@@ -1,4 +1,5 @@
 ﻿using System.Net.Http.Headers;
+using System.Runtime.Serialization;
 using System.Text.Json;
 
 namespace MintPlayer.Http;
@@ -25,8 +26,11 @@ public static class HttpResponseMessageExtensions
     public static async Task<HttpResult<T?>> ReadJsonAsync<T>(this HttpResponseMessage response, JsonSerializerOptions? options = null, CancellationToken ct = default)
     {
         await response.EnsureSuccessWithBodyAsync(ct);
-        await using var s = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-        var data = await JsonSerializer.DeserializeAsync<T>(s, options, ct).ConfigureAwait(false);
+        await using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        options ??= new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        options.PropertyNameCaseInsensitive = true;
+
+        var data = await JsonSerializer.DeserializeAsync<T>(stream, options, ct).ConfigureAwait(false);
 
         return new(data, response.StatusCode, response.Version, response.Headers, response.ReasonPhrase, response.GetLocation());
     }
@@ -34,9 +38,11 @@ public static class HttpResponseMessageExtensions
     public static async Task<HttpResult<T?>> ReadXmlAsync<T>(this HttpResponseMessage response, CancellationToken ct = default)
     {
         await response.EnsureSuccessWithBodyAsync(ct);
-        var serializer = new System.Xml.Serialization.XmlSerializer(typeof(T));
-        await using var s = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-        var data = (T?)serializer.Deserialize(s);
+        //var serializer = new System.Xml.Serialization.XmlSerializer(typeof(T));
+        var serializer = new DataContractSerializer(typeof(T));
+        await using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        //using var xmlReader = System.Xml.XmlReader.Create(stream, new System.Xml.XmlReaderSettings { Async = true });
+        var data = (T?)serializer.ReadObject(stream);
 
         return new(data, response.StatusCode, response.Version, response.Headers, response.ReasonPhrase, response.GetLocation());
     }

@@ -1,12 +1,19 @@
 using Microsoft.AspNetCore.Mvc;
-using System.Runtime.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services
     .AddControllers(options => options.RespectBrowserAcceptHeader = true)
-    .AddXmlDataContractSerializerFormatters();
+    .AddXmlDataContractSerializerFormatters()
+    .AddMvcOptions(options =>
+    {
+        if (options.OutputFormatters.OfType<Microsoft.AspNetCore.Mvc.Formatters.XmlDataContractSerializerOutputFormatter>().FirstOrDefault() is { } xmlFormatter)
+        {
+            xmlFormatter.WriterSettings.Indent = true;
+            xmlFormatter.WriterSettings.OmitXmlDeclaration = false;
+        }
+    });
 
 var app = builder.Build();
 
@@ -19,30 +26,6 @@ app.MapControllers();
 
 app.Run();
 
-namespace WidgetApi.Contracts
-{
-    [DataContract(Name = nameof(CreateWidget), Namespace = "http://schemas.example.com/widgets")]
-    public class CreateWidget
-    {
-        [DataMember] public string Name { get; set; } = default!;
-        [DataMember] public string Color { get; set; } = default!;
-    }
-
-    [DataContract(Name = nameof(WidgetDto), Namespace = "http://schemas.example.com/widgets")]
-    public class WidgetDto
-    {
-        [DataMember] public string Id { get; set; } = default!;
-        [DataMember] public string Name { get; set; } = default!;
-        [DataMember] public string Color { get; set; } = default!;
-    }
-
-    [DataContract(Name = nameof(WidgetCreatedResponse), Namespace = "http://schemas.example.com/widgets")]
-    public class WidgetCreatedResponse
-    {
-        [DataMember] public WidgetDto Widget { get; set; } = default!;
-        [DataMember] public Dictionary<string, string> Headers { get; set; } = default!;
-    }
-}
 
 [ApiController]
 [Route("[controller]")]

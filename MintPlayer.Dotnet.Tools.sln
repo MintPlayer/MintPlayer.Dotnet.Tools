@@ -180,6 +180,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HttpDemo", "Http\HttpDemo\H
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WidgetApi", "Http\WidgetApi\WidgetApi.csproj", "{F46DDBEC-F535-48E6-B94C-4A62F63512BF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WidgetApi.Contracts", "Http\WidgetApi.Contracts\WidgetApi.Contracts.csproj", "{54AE95B1-CFF1-4453-BA0C-2A0DD92BEF73}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -410,6 +412,10 @@ Global
 		{F46DDBEC-F535-48E6-B94C-4A62F63512BF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F46DDBEC-F535-48E6-B94C-4A62F63512BF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F46DDBEC-F535-48E6-B94C-4A62F63512BF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{54AE95B1-CFF1-4453-BA0C-2A0DD92BEF73}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{54AE95B1-CFF1-4453-BA0C-2A0DD92BEF73}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{54AE95B1-CFF1-4453-BA0C-2A0DD92BEF73}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{54AE95B1-CFF1-4453-BA0C-2A0DD92BEF73}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -480,6 +486,7 @@ Global
 		{CC34556F-529A-4186-AD6C-5F986808D8A5} = {41AC5E0E-BCB6-4F0F-A991-C5D19C66828C}
 		{1B7D12B7-A830-477A-A8DD-456D9355B9C5} = {BE967E23-E7A7-4A55-912D-38FD21068E1D}
 		{F46DDBEC-F535-48E6-B94C-4A62F63512BF} = {BE967E23-E7A7-4A55-912D-38FD21068E1D}
+		{54AE95B1-CFF1-4453-BA0C-2A0DD92BEF73} = {BE967E23-E7A7-4A55-912D-38FD21068E1D}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D5378D43-9246-4355-8C4B-880DB15B07DA}

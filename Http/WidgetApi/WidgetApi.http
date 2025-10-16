@@ -12,6 +12,16 @@ Content-Type: application/json
 
 ### JSON request, XML response
 POST {{WidgetApi_HostAddress}}/Widget
+Accept: text/xml
+Content-Type: application/json
+
+{
+    "Name": "Test widget",
+    "Color": "Yellow"
+}
+
+### XML request, JSON response
+POST {{WidgetApi_HostAddress}}/Widget
 Accept: application/json
 Content-Type: text/xml
 
@@ -20,16 +30,6 @@ Content-Type: text/xml
   <Color>Yellow</Color>
   <Name>Test widget</Name>
 </CreateWidget>
-
-### XML request, JSON response
-POST {{WidgetApi_HostAddress}}/Widget
-Accept: text/xml
-Content-Type: application/json
-
-{
-    "Name": "Test widget",
-    "Color": "Yellow"
-}
 
 ### XML request, XML response
 POST {{WidgetApi_HostAddress}}/Widget

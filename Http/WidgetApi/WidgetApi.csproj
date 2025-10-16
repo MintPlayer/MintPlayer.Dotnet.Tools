@@ -7,4 +7,8 @@
 		<IsPackable>false</IsPackable>
 	</PropertyGroup>
 
+	<ItemGroup>
+	  <ProjectReference Include="..\WidgetApi.Contracts\WidgetApi.Contracts.csproj" />
+	</ItemGroup>
+
 </Project>
