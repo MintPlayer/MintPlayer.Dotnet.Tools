@@ -1,5 +1,4 @@
 ﻿using System.Net.Http.Headers;
-using System.Reflection.PortableExecutable;
 using System.Text.Json;
 
 namespace MintPlayer.Http;
@@ -23,14 +22,7 @@ public static class HttpResponseMessageExtensions
         throw new HttpRequestException(msg, null, response.StatusCode);
     }
 
-    public static async Task<T?> ReadJsonAsync<T>(this HttpResponseMessage response, JsonSerializerOptions? options = null, CancellationToken ct = default)
-    {
-        await response.EnsureSuccessWithBodyAsync(ct);
-        await using var s = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-        return await JsonSerializer.DeserializeAsync<T>(s, options, ct).ConfigureAwait(false);
-    }
-
-    public static async Task<HttpResult<T?>> ReadJsonWithMetaAsync<T>(this HttpResponseMessage response, JsonSerializerOptions? options = null, CancellationToken ct = default)
+    public static async Task<HttpResult<T?>> ReadJsonAsync<T>(this HttpResponseMessage response, JsonSerializerOptions? options = null, CancellationToken ct = default)
     {
         await response.EnsureSuccessWithBodyAsync(ct);
         await using var s = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
@@ -39,26 +31,7 @@ public static class HttpResponseMessageExtensions
         return new(data, response.StatusCode, response.Version, response.Headers, response.ReasonPhrase, response.GetLocation());
     }
 
-    public static async Task<(bool ok, T? value)> TryReadJsonAsync<T>(this HttpResponseMessage response, JsonSerializerOptions? options = null, CancellationToken ct = default)
-    {
-        try
-        {
-            await using var s = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-            var v = await JsonSerializer.DeserializeAsync<T>(s, options, ct).ConfigureAwait(false);
-            return (true, v);
-        }
-        catch { return (false, default); }
-    }
-
-    public static async Task<T?> ReadXmlAsync<T>(this HttpResponseMessage response, CancellationToken ct = default)
-    {
-        await response.EnsureSuccessWithBodyAsync(ct);
-        var serializer = new System.Xml.Serialization.XmlSerializer(typeof(T));
-        await using var s = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-        return (T?)serializer.Deserialize(s);
-    }
-
-    public static async Task<HttpResult<T?>> ReadXmlWithMetaAsync<T>(this HttpResponseMessage response, CancellationToken ct = default)
+    public static async Task<HttpResult<T?>> ReadXmlAsync<T>(this HttpResponseMessage response, CancellationToken ct = default)
     {
         await response.EnsureSuccessWithBodyAsync(ct);
         var serializer = new System.Xml.Serialization.XmlSerializer(typeof(T));
@@ -68,14 +41,7 @@ public static class HttpResponseMessageExtensions
         return new(data, response.StatusCode, response.Version, response.Headers, response.ReasonPhrase, response.GetLocation());
     }
 
-    public static async Task<string> ReadTextAsync(this HttpResponseMessage response, CancellationToken ct = default)
-    {
-        await response.EnsureSuccessWithBodyAsync(ct);
-        var s = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        return s;
-    }
-
-    public static async Task<HttpResult<string>> ReadTextWithMetaAsync(this HttpResponseMessage response, CancellationToken ct = default)
+    public static async Task<HttpResult<string?>> ReadTextAsync(this HttpResponseMessage response, CancellationToken ct = default)
     {
         await response.EnsureSuccessWithBodyAsync(ct);
         var data = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
