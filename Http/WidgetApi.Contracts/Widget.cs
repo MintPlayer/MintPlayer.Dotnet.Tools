@@ -21,5 +21,5 @@ public class WidgetDto
 public class WidgetCreatedResponse
 {
     [DataMember(Order = 1)] public WidgetDto Widget { get; set; } = default!;
-    [DataMember(Order = 2)] public Dictionary<string, string> Headers { get; set; } = default!;
+    [DataMember(Order = 2)] public Dictionary<string, string> RequestHeaders { get; set; } = default!;
 }

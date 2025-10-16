@@ -42,7 +42,7 @@ public class WidgetController : ControllerBase
                 Name = input.Name,
                 Color = input.Color,
             },
-            Headers = Request.Headers.ToDictionary(h => h.Key, h => string.Join(", ", h.Value.Select(x => x))),
+            RequestHeaders = Request.Headers.ToDictionary(h => h.Key, h => string.Join(", ", h.Value.Select(x => x))),
         });
     }
 }

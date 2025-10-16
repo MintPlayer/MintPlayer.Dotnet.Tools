@@ -15,7 +15,7 @@ var (result1, status1) = await client.SendAsync<WidgetCreatedResponse>(new HttpR
     .WithAuthorizationBearer("your_jwt_here")
     .WithHeader("X-TraceId", Guid.NewGuid().ToString())
     .WithJsonContent(new CreateWidget { Name = "Minty", Color = "green" })
-    .AcceptJson());
+    .AcceptXml());
 
 var (result2, status2, headers2) = await client.SendAsync<WidgetCreatedResponse>(new HttpRequestMessage(HttpMethod.Post, requestUrl)
     .WithAuthorizationBearer("your_jwt_here")
@@ -27,6 +27,6 @@ var (result3, status3, headers3, redirect3) = await client.SendAsync<WidgetCreat
     .WithAuthorizationBearer("your_jwt_here")
     .WithHeader("X-TraceId", Guid.NewGuid().ToString())
     .WithXmlContent(new CreateWidget { Name = "Minty", Color = "green" })
-    .AcceptJson());
+    .AcceptXml());
 
 Debugger.Break();
