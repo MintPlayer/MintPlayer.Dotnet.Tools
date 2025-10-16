@@ -1,0 +1,6 @@
+@WidgetApi_HostAddress = http://localhost:5194
+
+GET {{WidgetApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
