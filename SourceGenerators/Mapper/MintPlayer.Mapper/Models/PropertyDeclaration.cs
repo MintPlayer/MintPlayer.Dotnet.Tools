@@ -12,6 +12,7 @@ public partial class PropertyDeclaration
     public int? StateName { get; set; }
     public bool IsStatic { get; set; }
     public bool IsPrimitive { get; set; }
+    public bool IsInitOnly { get; set; }
 
     public override string ToString() => $"{PropertyName} ({PropertyType})";
 }

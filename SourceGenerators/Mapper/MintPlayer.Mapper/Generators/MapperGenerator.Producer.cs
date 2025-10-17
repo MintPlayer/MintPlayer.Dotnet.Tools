@@ -26,7 +26,9 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
                 EAppliedOn.Assembly => DiagnosticRules.GenerateMapperTwoParameters.Create(type.TypeToMap.Location),
                 _ => null,
             })
-            .NotNull();
+            .NotNull()
+            .Concat()
+            ;
     }
 
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
@@ -294,6 +296,9 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
 
     private static void HandleProperty(IndentedTextWriter writer, PropertyDeclaration source, PropertyDeclaration destination, EWriteType writeType)
     {
+        // Skip init-only properties for assignment
+        if (destination.IsInitOnly) return;
+
         var prefix = writeType switch
         {
             EWriteType.Initializer => $"{source.PropertyName} = ",
