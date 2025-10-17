@@ -1,17 +1,17 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.ValueComparers.NewtonsoftJson;
+//using MintPlayer.ValueComparers.NewtonsoftJson;
 
 namespace MintPlayer.SourceGenerators.Generators;
 
 [Generator(LanguageNames.CSharp)]
 public class InjectSourceGenerator : IncrementalGenerator
 {
-    public override void RegisterComparers()
-    {
-        NewtonsoftJsonComparers.Register();
-    }
+    //public override void RegisterComparers()
+    //{
+    //    NewtonsoftJsonComparers.Register();
+    //}
 
     // Measure performance of the Analyzer
     // https://www.meziantou.net/measuring-performance-of-roslyn-source-generators.htm

@@ -93,7 +93,7 @@ TypeToMap.cs
 ```csharp
 namespace MintPlayer.Mapper.Models;
 
-[AutoValueComparer]
+// [AutoValueComparer]
 public partial class TypeToMap
 {
     public string DeclaredType { get; set; }

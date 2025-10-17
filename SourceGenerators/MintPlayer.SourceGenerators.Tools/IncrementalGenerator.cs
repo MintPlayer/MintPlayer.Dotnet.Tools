@@ -8,11 +8,11 @@ public abstract partial class IncrementalGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        RegisterComparers();
+        //RegisterComparers();
 
         var analyzerInfo = context.AnalyzerConfigOptionsProvider
-            .Select(static (p, ct) => AnalyzerInfo.FromGlobalOptions(p.GlobalOptions))
-            .WithComparer(AnalyzerInfoComparer.Instance);
+            .Select(static (p, ct) => AnalyzerInfo.FromGlobalOptions(p.GlobalOptions));
+        //.WithComparer(AnalyzerInfoComparer.Instance);
 
         var languageVersionProvider = context.CompilationProvider
             .SelectMany(static (p, ct) => p.SyntaxTrees.Select(t => t.Options).OfType<CSharpParseOptions>()
@@ -54,20 +54,42 @@ public abstract partial class IncrementalGenerator : IIncrementalGenerator
                         };
                     }
                 }))
-            .WithComparer(LangVersionComparer.Instance)
+            //.WithComparer(LangVersionComparer.Instance)
             .Collect()
-            .Select(static (p, ct) => p.OrderBy(x => x.Weight).FirstOrDefault())
-            .WithComparer(LangVersionComparer.Instance);
+            .Select(static (p, ct) => p.OrderBy(x => x.Weight).FirstOrDefault());
+            //.WithComparer(LangVersionComparer.Instance);
 
         var settingsProvider = analyzerInfo
             .Combine(languageVersionProvider)
-            .Select(static (p, ct) => Settings.FromAnalyzerAndLangVersion(p.Left, p.Right))
-            .WithComparer(SettingsValueComparer.Instance);
+            .Select(static (p, ct) => Settings.FromAnalyzerAndLangVersion(p.Left, p.Right));
+            //.WithComparer(SettingsValueComparer.Instance);
 
         Initialize(context, settingsProvider);
+
+        //try
+        //{
+        //    Initialize(context, settingsProvider);
+        //}
+        //catch (Exception ex)
+        //{
+        //    //var descriptor = new DiagnosticDescriptor(
+        //    //    id: "MPSG0001",
+        //    //    title: "Generator Initialization Error",
+        //    //    messageFormat: "An exception occurred during generator initialization: {0}",
+        //    //    category: "MintPlayer.SourceGenerators.Tools",
+        //    //    DiagnosticSeverity.Error,
+        //    //    isEnabledByDefault: true);
+
+        //    Console.WriteLine($"An exception occurred during generator initialization: {ex}");
+
+        //    //context.log
+        //    ////context.RegisterSourceOutput(providers[0], static (c, d) => c.ReportDiagnostic(d.GetDiagnostics()));
+        //    ////context.ReportDiagnostics(Diagnostic.Create(descriptor, Location.None, ex.Message));
+        //    throw;
+        //}
     }
 
-    public abstract void RegisterComparers();
+    //public abstract void RegisterComparers();
 
     public abstract void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider);
 }

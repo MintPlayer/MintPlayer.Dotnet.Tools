@@ -1,8 +1,8 @@
-﻿using MintPlayer.ValueComparerGenerator.Attributes;
+﻿//using MintPlayer.ValueComparerGenerator.Attributes;
 
 namespace MintPlayer.SourceGenerators.Models;
 
-[AutoValueComparer]
+// [AutoValueComparer]
 public partial class ClassWithBaseDependenciesAndInjectFields
 {
     public string FileName { get; set; } = string.Empty;

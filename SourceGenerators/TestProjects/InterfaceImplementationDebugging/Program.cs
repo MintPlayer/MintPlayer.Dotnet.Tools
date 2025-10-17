@@ -1,10 +1,10 @@
-﻿using Newtonsoft.Json.Serialization;
+﻿//using Newtonsoft.Json.Serialization;
 using System.Text.RegularExpressions;
 
 // See https://aka.ms/new-console-template for more information
 Console.WriteLine("Hello, World!");
 
-public interface IFaceBase : IValueProvider
+public interface IFaceBase // : IValueProvider
 {
     public string? Name { get; set; }
 }

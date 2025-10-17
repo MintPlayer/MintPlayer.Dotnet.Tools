@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
 
-	<ItemGroup>
+	<!--<ItemGroup>
 		<ProjectReference Include="$(MSBuildThisFileDirectory)\..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator.Attributes\MintPlayer.ValueComparerGenerator.Attributes.csproj" />
 		<ProjectReference Include="$(MSBuildThisFileDirectory)\..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator\MintPlayer.ValueComparerGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<!-- Put the assets for this project in the correct package path -->
+		<!- Put the assets for this project in the correct package path ->
 		<None Include="$(MSBuildThisFileDirectory)\..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
-	</ItemGroup>
+	</ItemGroup>-->
 
 </Project>

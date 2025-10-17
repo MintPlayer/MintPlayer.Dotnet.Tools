@@ -1,9 +1,9 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
-using MintPlayer.ValueComparerGenerator.Attributes;
+//using MintPlayer.ValueComparerGenerator.Attributes;
 
 namespace MintPlayer.SourceGenerators.Models;
 
-[AutoValueComparer]
+// [AutoValueComparer]
 public partial class ServiceRegistration
 {
     public string? ServiceTypeName { get; set; }

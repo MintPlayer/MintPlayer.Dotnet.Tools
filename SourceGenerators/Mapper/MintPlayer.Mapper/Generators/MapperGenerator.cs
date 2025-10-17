@@ -107,8 +107,8 @@ public class MapperGenerator : IncrementalGenerator
                 }
             )
             .Where(static (i) => i is { })
-            .SelectMany(static (i, ct) => i)
-            .WithComparer();
+            .SelectMany(static (i, ct) => i);
+            //.WithComparer();
 
         //var mapperConversionMethodsProvider = context.SyntaxProvider
         //    .ForAttributeWithMetadataName(
@@ -159,7 +159,7 @@ public class MapperGenerator : IncrementalGenerator
                     .Select(dp => (Source: dp, Destination: i.MappingProperties.FirstOrDefault(mp => mp.Alias == dp.Alias)))
                     .Where(p => p.Source is { IsStatic: false } && p.Destination is { IsStatic: false })
             })
-            .WithComparer()
+            //.WithComparer()
             .Collect();
 
         var staticClassesProvider = context.SyntaxProvider
@@ -208,18 +208,18 @@ public class MapperGenerator : IncrementalGenerator
                 }
             )
             .Where(static (m) => m.ConversionMethods.Any())
-            .WithNullableComparer()
+            //.WithNullableComparer()
             .Collect();
 
         var conversionMethodsWithMissingStateProvider = staticClassesProvider
             .SelectMany(static (c, ct) => c.SelectMany(cl => cl is null ? [] : cl.ConversionMethods.Where(m => m.SourceState is null || m.DestinationState is null)))
-            .Where(static (m) => m.SourceType == m.DestinationType)
-            .WithComparer();
+            .Where(static (m) => m.SourceType == m.DestinationType);
+            //.WithComparer();
 
         var conversionMethodsWithUnnecessaryStateProvider = staticClassesProvider
             .SelectMany(static (c, ct) => c.SelectMany(cl => cl is null ? [] : cl.ConversionMethods.Where(m => m.SourceState is not null || m.DestinationState is not null)))
-            .Where(static (m) => m.SourceType != m.DestinationType)
-            .WithComparer();
+            .Where(static (m) => m.SourceType != m.DestinationType);
+            //.WithComparer();
 
 
         var typesToMapSourceProvider = distinctTypesToMapProvider
@@ -280,7 +280,7 @@ public class MapperGenerator : IncrementalGenerator
             });
     }
 
-    public override void RegisterComparers()
-    {
-    }
+    //public override void RegisterComparers()
+    //{
+    //}
 }

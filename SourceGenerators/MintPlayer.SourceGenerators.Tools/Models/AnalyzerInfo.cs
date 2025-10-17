@@ -2,7 +2,7 @@
 
 namespace MintPlayer.SourceGenerators.Tools.Models;
 
-[ValueComparer(typeof(AnalyzerInfoComparer))]
+//[ValueComparer(typeof(AnalyzerInfoComparer))]
 internal class AnalyzerInfo
 {
     private AnalyzerInfo() { }

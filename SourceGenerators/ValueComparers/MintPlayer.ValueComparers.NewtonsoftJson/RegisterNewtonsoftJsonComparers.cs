@@ -10,12 +10,12 @@ public static class NewtonsoftJsonComparers
 
     public static void Register()
     {
-        lock (mutex)
-        {
-            if (isRegistered) return;
-            isRegistered = true;
+        //lock (mutex)
+        //{
+        //    if (isRegistered) return;
+        //    isRegistered = true;
 
-            ValueComparer<JObject>.RegisterCustomComparer<JObjectValueComparer>();
-        }
+        //    ValueComparer<JObject>.RegisterCustomComparer<JObjectValueComparer>();
+        //}
     }
 }

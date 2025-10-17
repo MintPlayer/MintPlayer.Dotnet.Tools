@@ -1,4 +1,4 @@
-﻿using MintPlayer.ValueComparerGenerator.Attributes;
+﻿//using MintPlayer.ValueComparerGenerator.Attributes;
 
 namespace ValueComparerDebugging.Models;
 
@@ -6,7 +6,7 @@ public partial class Context
 {
     public partial class Models
     {
-        [AutoValueComparer]
+        // [AutoValueComparer]
         public partial class Address
         {
             public string Street { get; set; } = string.Empty;

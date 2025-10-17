@@ -9,7 +9,7 @@ namespace MintPlayer.ValueComparerGenerator.Generators;
 [Generator(LanguageNames.CSharp)]
 public class ValueComparerGenerator : IncrementalGenerator
 {
-    public override void RegisterComparers() { }
+    //public override void RegisterComparers() { }
 
     public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {

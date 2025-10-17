@@ -71,14 +71,14 @@ public static class SymbolExtensions
     }
 }
 
-[ValueComparer(typeof(PathSpecValueComparer))]
+//[ValueComparer(typeof(PathSpecValueComparer))]
 public class PathSpec
 {
     public string? ContainingNamespace { get; set; }
     public PathSpecElement[] Parents { get; set; }
 }
 
-[ValueComparer(typeof(PathSpecElementValueComparer))]
+//[ValueComparer(typeof(PathSpecElementValueComparer))]
 public class PathSpecElement
 {
     public string? Name { get; set; }

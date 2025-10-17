@@ -43,6 +43,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         writer.WriteLine("{");
         writer.Indent++;
 
+        #region ConvertProperty method
         writer.WriteLine("public static TDest? ConvertProperty<TSource, TDest>(TSource? source, int? sourceState = null, int? destState = null)");
         writer.WriteLine("{");
         writer.Indent++;
@@ -52,6 +53,10 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         writer.WriteLine("return default;");
         writer.Indent--;
 
+
+
+        writer.WriteLine();
+        writer.WriteLine();
         writer.WriteLine();
         writer.WriteLine("object? result;");
         writer.WriteLine();
@@ -99,6 +104,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         writer.Indent--;
         writer.WriteLine("}");
 
+        #endregion
 
         foreach (var type in typesToMap.Where(t => !t.TypeToMap.HasError))
         {
@@ -142,6 +148,22 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
 
             writer.Indent--;
             writer.WriteLine("}");
+
+
+
+            writer.WriteLine("/* Test */");
+            writer.WriteLine("/* Test */");
+            writer.WriteLine("/* Test */");
+            //writer.WriteLine();
+
+            //writer.WriteLine($"public static global::System.Collections.Generic.IEnumerable<{type.TypeToMap.DeclaredType}> {type.TypeToMap.PreferredDeclaredMethodName}(this global::System.Collections.Generic.IEnumerable<{type.TypeToMap.MappingType}> input)");
+            //writer.WriteLine("{");
+            //writer.Indent++;
+
+            //writer.WriteLine($"return input.Select(x => x.{type.TypeToMap.PreferredDeclaredMethodName}());");
+
+            //writer.Indent--;
+            //writer.WriteLine("}");
 
             if (!type.TypeToMap.AreBothDecorated)
             {
@@ -187,6 +209,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
                 writer.Indent--;
                 writer.WriteLine("}");
             }
+            //NewMethod(writer, type);
 
             writer.WriteLine($"public static global::System.Collections.Generic.IEnumerable<{type.TypeToMap.DeclaredType}> {type.TypeToMap.PreferredDeclaredMethodName}(this global::System.Collections.Generic.IEnumerable<{type.TypeToMap.MappingType}> input)");
             writer.WriteLine("{");
@@ -216,6 +239,19 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         writer.Indent--;
         writer.WriteLine("}");
     }
+
+    //private static void NewMethod(IndentedTextWriter writer, TypeWithMappedProperties type)
+    //{
+    //    // Remove below
+    //    writer.WriteLine($"public static global::System.Collections.Generic.IEnumerable<{type.TypeToMap.DeclaredType}> {type.TypeToMap.PreferredDeclaredMethodName}(this global::System.Collections.Generic.IEnumerable<{type.TypeToMap.MappingType}> input)");
+    //    writer.WriteLine("{");
+    //    writer.Indent++;
+
+    //    writer.WriteLine($"return input.Select(x => x.{type.TypeToMap.PreferredDeclaredMethodName}());");
+
+    //    writer.Indent--;
+    //    writer.WriteLine("}");
+    //}
 
     // Helper methods for type checks
     private static bool IsArrayType(string type)

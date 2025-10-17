@@ -1,4 +1,4 @@
-﻿using MintPlayer.ValueComparerGenerator.Attributes;
+﻿//using MintPlayer.ValueComparerGenerator.Attributes;
 
 //[assembly: GenerateJoinMethods(10)]
 namespace ValueComparerDebugging

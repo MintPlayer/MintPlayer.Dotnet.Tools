@@ -1,14 +1,14 @@
-﻿using Microsoft.CodeAnalysis.Text;
+﻿//using Microsoft.CodeAnalysis.Text;
 
-namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
+//namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
 
-/// <summary>
-/// Value Comparer for SourceText
-/// </summary>
-public sealed class SourceTextValueComparer : ValueComparer<SourceText>
-{
-    protected override bool AreEqual(SourceText x, SourceText y)
-    {
-        return x.ContentEquals(y);
-    }
-}
+///// <summary>
+///// Value Comparer for SourceText
+///// </summary>
+//public sealed class SourceTextValueComparer : ValueComparer<SourceText>
+//{
+//    protected override bool AreEqual(SourceText x, SourceText y)
+//    {
+//        return x.ContentEquals(y);
+//    }
+//}

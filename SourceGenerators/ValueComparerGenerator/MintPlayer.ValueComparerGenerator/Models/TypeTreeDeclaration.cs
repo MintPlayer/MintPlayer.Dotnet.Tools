@@ -3,7 +3,7 @@ using MintPlayer.SourceGenerators.Tools.Extensions;
 
 namespace MintPlayer.ValueComparerGenerator.Models;
 
-[ValueComparer(typeof(TypeTreeDeclarationComparer))]
+//[ValueComparer(typeof(TypeTreeDeclarationComparer))]
 public class TypeTreeDeclaration
 {
     public BaseType BaseType { get; set; } = null!;
@@ -12,7 +12,7 @@ public class TypeTreeDeclaration
     public override string ToString() => $"Tree: {BaseType}";
 }
 
-[ValueComparer(typeof(DerivedTypeValueComparer))]
+//[ValueComparer(typeof(DerivedTypeValueComparer))]
 public class DerivedType
 {
     public string? Type { get; set; }
@@ -23,7 +23,7 @@ public class DerivedType
     public override string ToString() => Type ?? string.Empty;
 }
 
-[ValueComparer(typeof(BaseTypeValueComparer))]
+//[ValueComparer(typeof(BaseTypeValueComparer))]
 public class BaseType
 {
     public string? Name { get; set; }

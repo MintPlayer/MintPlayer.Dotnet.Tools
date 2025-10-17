@@ -37,8 +37,8 @@ public abstract class Producer
         using var textWriter = new StringWriter();
         using var writer = new IndentedTextWriter(textWriter);
 
-        try
-        {
+        //try
+        //{
             ProduceSource(writer, context.CancellationToken);
 
             //if (producedSource.FileName == "FieldNameList.g.cs") Debugger.Break();
@@ -48,9 +48,16 @@ public abstract class Producer
             var code = textWriter.ToString();
             if (!string.IsNullOrEmpty(code))
                 context.AddSource(Filename, SourceText.From(code, Encoding.UTF8));
-        }
-        catch (System.Exception)
-        {
-        }
+        //}
+        //catch (Exception ex)
+        //{
+        //    context.ReportDiagnostic(Diagnostic.Create(new(
+        //        id: "MPSG0001",
+        //        title: "Generator Initialization Error",
+        //        messageFormat: "An exception occurred during generator initialization: {0}",
+        //        category: "MintPlayer.SourceGenerators.Tools",
+        //        DiagnosticSeverity.Warning,
+        //        isEnabledByDefault: true), Location.None, ex.Message));
+        //}
     }
 }

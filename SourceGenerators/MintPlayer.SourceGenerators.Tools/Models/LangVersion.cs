@@ -2,7 +2,7 @@
 
 namespace MintPlayer.SourceGenerators.Tools.Models;
 
-[ValueComparer(typeof(LangVersionComparer))]
+//[ValueComparer(typeof(LangVersionComparer))]
 internal class LangVersion
 {
     public LanguageVersion LanguageVersion { get; set; }

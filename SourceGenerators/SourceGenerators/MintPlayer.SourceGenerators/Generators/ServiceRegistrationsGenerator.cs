@@ -4,17 +4,17 @@ using Microsoft.Extensions.DependencyInjection;
 using MintPlayer.SourceGenerators.Attributes;
 using MintPlayer.SourceGenerators.Models;
 using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.ValueComparers.NewtonsoftJson;
+//using MintPlayer.ValueComparers.NewtonsoftJson;
 
 namespace MintPlayer.SourceGenerators.Generators;
 
 [Generator(LanguageNames.CSharp)]
 public class ServiceRegistrationsGenerator : IncrementalGenerator
 {
-    public override void RegisterComparers()
-    {
-        NewtonsoftJsonComparers.Register();
-    }
+    //public override void RegisterComparers()
+    //{
+    //    NewtonsoftJsonComparers.Register();
+    //}
 
     public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {

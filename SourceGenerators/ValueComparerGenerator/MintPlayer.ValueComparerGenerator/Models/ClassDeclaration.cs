@@ -4,7 +4,7 @@ using MintPlayer.SourceGenerators.Tools.Extensions;
 
 namespace MintPlayer.ValueComparerGenerator.Models;
 
-[ValueComparer(typeof(ClassDeclarationValueComparer))]
+//[ValueComparer(typeof(ClassDeclarationValueComparer))]
 public class ClassDeclaration
 {
     public string? Name { get; set; }

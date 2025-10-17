@@ -2,17 +2,17 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.ValueComparers.NewtonsoftJson;
+//using MintPlayer.ValueComparers.NewtonsoftJson;
 
 namespace MintPlayer.SourceGenerators.Generators;
 
 [Generator(LanguageNames.CSharp)]
 public class ClassNamesSourceGenerator : IncrementalGenerator
 {
-    public override void RegisterComparers()
-    {
-        NewtonsoftJsonComparers.Register();
-    }
+    //public override void RegisterComparers()
+    //{
+    //    NewtonsoftJsonComparers.Register();
+    //}
 
     public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {
@@ -38,7 +38,7 @@ public class ClassNamesSourceGenerator : IncrementalGenerator
                     }
                 }
             )
-            .WithNullableComparer()
+            //.WithNullableComparer()
             .Collect();
 
         var fieldDeclarationsProvider = context.SyntaxProvider
@@ -72,7 +72,7 @@ public class ClassNamesSourceGenerator : IncrementalGenerator
                     return default;
                 }
             )
-            .WithNullableComparer()
+            //.WithNullableComparer()
             .Collect();
 
         var classNamesSourceProvider = classDeclarationsProvider

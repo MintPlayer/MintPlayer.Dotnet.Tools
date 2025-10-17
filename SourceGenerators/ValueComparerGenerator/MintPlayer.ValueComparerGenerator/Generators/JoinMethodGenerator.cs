@@ -1,17 +1,17 @@
 ﻿using Microsoft.CodeAnalysis;
 using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.SourceGenerators.Tools.ValueComparers;
+//using MintPlayer.SourceGenerators.Tools.ValueComparers;
 using MintPlayer.ValueComparerGenerator.Attributes;
-using MintPlayer.ValueComparerGenerator.Models;
+//using MintPlayer.ValueComparerGenerator.Models;
 
 namespace MintPlayer.ValueComparerGenerator.Generators;
 
 [Generator(LanguageNames.CSharp)]
 public class JoinMethodGenerator : IncrementalGenerator
 {
-    public override void RegisterComparers()
-    {
-    }
+    //public override void RegisterComparers()
+    //{
+    //}
 
     public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {
@@ -26,7 +26,7 @@ public class JoinMethodGenerator : IncrementalGenerator
 
                 return 5u;
             })
-            .WithComparer(ValueComparer<uint>.Instance)
+            //.WithComparer(ValueComparer<uint>.Instance)
             .Collect()
             .Select((x, ct) => x.Any() ? x.First() : 5u);
 

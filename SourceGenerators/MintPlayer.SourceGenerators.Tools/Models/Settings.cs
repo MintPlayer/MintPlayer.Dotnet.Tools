@@ -2,7 +2,7 @@
 
 namespace MintPlayer.SourceGenerators.Tools;
 
-[ValueComparer(typeof(Models.SettingsValueComparer))]
+//[ValueComparer(typeof(Models.SettingsValueComparer))]
 public sealed class Settings
 {
     private Settings() { }

@@ -1,8 +1,8 @@
-﻿using MintPlayer.ValueComparerGenerator.Attributes;
+﻿//using MintPlayer.ValueComparerGenerator.Attributes;
 
 namespace MintPlayer.Mapper.Models;
 
-[AutoValueComparer]
+// [AutoValueComparer]
 public partial class ClassDeclaration
 {
     public string? Name { get; set; }
