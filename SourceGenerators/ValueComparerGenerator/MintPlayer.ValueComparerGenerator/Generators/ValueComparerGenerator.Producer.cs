@@ -67,13 +67,21 @@ public sealed class TreeValueComparerProducer : Producer
                     d.AllProperties,
                 }
             ))
-            .GroupBy(d => d.PathSpec.ContainingNamespace)
+            .GroupBy(d => d.PathSpec?.ContainingNamespace ?? RootNamespace)
             .Select(ns => new
             {
                 Namespace = ns.Key,
                 Types = ns.ToArray(),
             });
 
+
+        // Adding lines here only breaks the MapperDebugging project build, alternatingly.
+        // Add line => Build breaks => Add line => Build works => Add line => Build breaks ...
+        // The MapperGenerator project build keeps working all the time
+        writer.WriteLine();
+        writer.WriteLine();
+        writer.WriteLine();
+        writer.WriteLine();
 
         foreach (var namespaceGrouping in treeGrouped)
         {
@@ -84,11 +92,14 @@ public sealed class TreeValueComparerProducer : Producer
             foreach (var baseType in namespaceGrouping.Types)
             {
                 // Nested partial classes for each parent type
-                foreach (var parentType in baseType.PathSpec.Parents.Reverse())
+                if (baseType.PathSpec is { } pathSpec1)
                 {
-                    writer.WriteLine($"partial class {parentType.Name}");
-                    writer.WriteLine("{");
-                    writer.Indent++;
+                    foreach (var parentType in pathSpec1.Parents.Reverse())
+                    {
+                        writer.WriteLine($"partial class {parentType.Name}");
+                        writer.WriteLine("{");
+                        writer.Indent++;
+                    }
                 }
 
                 writer.WriteLine($"[{comparerAttributeType}(typeof({baseType.Name}ValueComparer))]");
@@ -142,10 +153,14 @@ public sealed class TreeValueComparerProducer : Producer
                 writer.WriteLine();
 
                 // Nested partial classes for each parent type
-                foreach (var parentType in baseType.PathSpec.Parents)
+
+                if (baseType.PathSpec is { } pathSpec2)
                 {
-                    writer.Indent--;
-                    writer.WriteLine("}");
+                    foreach (var parentType in pathSpec2.Parents)
+                    {
+                        writer.Indent--;
+                        writer.WriteLine("}");
+                    }
                 }
             }
             writer.Indent--;
