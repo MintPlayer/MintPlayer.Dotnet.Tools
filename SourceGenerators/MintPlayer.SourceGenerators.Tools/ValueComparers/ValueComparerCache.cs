@@ -92,6 +92,9 @@ internal static class ValueComparerCache
             if (comparerTypeFromAttribute is { })
                 return comparerTypeFromAttribute;
 
+            // TODO: instead of this CustomComparers list, call a class where you register your custom comparers, if it exists
+            // Optionally a class decorated with an attribute
+
             // customComparers must be filled before Cache<TValue> is called
             return customComparers.FirstOrDefault()?.ComparerType;
         }
