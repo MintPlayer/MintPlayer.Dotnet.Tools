@@ -66,6 +66,9 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         writer.WriteLine();
         writer.WriteLine();
         writer.WriteLine();
+        writer.WriteLine();
+        writer.WriteLine();
+        writer.WriteLine();
 
         foreach (var staticClass in staticClasses)
         {

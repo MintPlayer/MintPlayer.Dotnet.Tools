@@ -199,7 +199,7 @@ public class MapperGenerator : IncrementalGenerator
                                     StateType = m.Attribute.AttributeConstructor?.ContainingType?.TypeArguments.FirstOrDefault()?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
                                     StateTypeName = m.Attribute.AttributeConstructor?.ContainingType?.TypeArguments.FirstOrDefault()?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
 
-                                    AttributeLocation = m.Attribute.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation().AsKey() ?? LocationKey.Null,
+                                    AttributeLocation = (m.Attribute.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation()).AsKey(),
                                 })
                                 .ToArray(),
                         };
@@ -207,7 +207,7 @@ public class MapperGenerator : IncrementalGenerator
                     return null;
                 }
             )
-            .Where(static (m) => m.ConversionMethods.Any())
+            .Where(static (m) => m is { ConversionMethods.Length: > 0 })
             .WithNullableComparer()
             .Collect();
 

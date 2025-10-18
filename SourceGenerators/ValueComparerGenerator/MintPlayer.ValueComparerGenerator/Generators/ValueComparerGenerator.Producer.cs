@@ -82,6 +82,17 @@ public sealed class TreeValueComparerProducer : Producer
         writer.WriteLine();
         writer.WriteLine();
         writer.WriteLine();
+        writer.WriteLine();
+        writer.WriteLine();
+        writer.WriteLine();
+        writer.WriteLine();
+        writer.WriteLine();
+        writer.WriteLine();
+        writer.WriteLine();
+        writer.WriteLine();
+        writer.WriteLine();
+        writer.WriteLine();
+        writer.WriteLine();
 
         foreach (var namespaceGrouping in treeGrouped)
         {
