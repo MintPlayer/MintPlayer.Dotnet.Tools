@@ -4,6 +4,6 @@ namespace MintPlayer.SourceGenerators.Tools;
 
 public interface IDiagnosticReporter
 {
-    IEnumerable<Diagnostic> GetDiagnostics();
+    IEnumerable<Diagnostic> GetDiagnostics(Compilation compilation);
     //protected abstract void SuggestCodeFixes(CancellationToken cancellationToken);
 }

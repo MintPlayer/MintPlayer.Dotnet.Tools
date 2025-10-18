@@ -1,5 +1,4 @@
 ﻿using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Text;
 using System.Reflection;
 
 namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
@@ -66,10 +65,10 @@ internal static class ValueComparerCache
                 { IsGenericType: true } when underlyingType is not null && type.GetGenericTypeDefinition() == typeof(KeyValuePair<,>) => typeof(NullableKeyValuePairValueComparer<,>).MakeGenericType(arg1, arg2),
 
                 // Object Comparers
-                { } locationType when locationType == typeof(Location) => typeof(LocationValueComparer),
-                { } syntaxType when syntaxType == typeof(SyntaxNode) => typeof(SyntaxValueComparer),
+                { } locationType when locationType == typeof(LocationKey) => typeof(LocationKeyValueComparer),
+                //{ } syntaxType when syntaxType == typeof(SyntaxNode) => typeof(SyntaxValueComparer),
                 { } symbolType when typeof(ISymbol).IsAssignableFrom(symbolType) => typeof(SymbolValueComparer),
-                { } sourceTextType when sourceTextType == typeof(SourceText) => typeof(SourceTextValueComparer),
+                //{ } sourceTextType when sourceTextType == typeof(SourceText) => typeof(SourceTextValueComparer),
 
                 // Default Value Comparers
                 { } stringType when stringType == typeof(string) => typeof(DefaultValueComparer<>).MakeGenericType(type),

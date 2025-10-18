@@ -36,7 +36,7 @@ public class ValueComparerGenerator : IncrementalGenerator
                         return new
                         {
                             symbol.Name,
-                            Location = symbol.Locations.FirstOrDefault(),
+                            Location = symbol.Locations.FirstOrDefault()?.AsKey(),
                             Type = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                             IsPartial = classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
                             IsAbstract = symbol.IsAbstract,
@@ -97,7 +97,7 @@ public class ValueComparerGenerator : IncrementalGenerator
                         return new
                         {
                             symbol.Name,
-                            Location = symbol.Locations.FirstOrDefault(),
+                            Location = symbol.Locations.FirstOrDefault()?.AsKey(),
                             Type = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                             IsPartial = classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
                             IsAbstract = symbol.IsAbstract,
@@ -145,7 +145,7 @@ public class ValueComparerGenerator : IncrementalGenerator
                     PathSpec = t.PathSpec,
                     IsPartial = t.IsPartial,
                     IsAbstract = t.IsAbstract,
-                    Location = t.Location,
+                    //Location = t.Location,
                     Properties = t.Properties,
                     AllProperties = t.AllProperties,
                     HasAutoValueComparerAttribute = t.HasAttribute,
