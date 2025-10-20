@@ -12,4 +12,11 @@ public class PropertyDeclarationValueComparer : ValueComparer<PropertyDeclaratio
 
         return true;
     }
+
+    protected override void AddHash(ref HashCode h, PropertyDeclaration? obj)
+    {
+        AddHash(ref h, obj?.Name);
+        AddHash(ref h, obj?.Type);
+        AddHash(ref h, obj?.HasComparerIgnore);
+    }
 }

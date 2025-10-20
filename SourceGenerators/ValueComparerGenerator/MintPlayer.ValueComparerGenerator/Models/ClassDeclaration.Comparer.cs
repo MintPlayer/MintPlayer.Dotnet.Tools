@@ -15,4 +15,17 @@ public class ClassDeclarationValueComparer : ValueComparer<ClassDeclaration>
 
         return true;
     }
+
+    protected override void AddHash(ref HashCode h, ClassDeclaration? obj)
+    {
+        AddHash(ref h, obj?.Name);
+        AddHash(ref h, obj?.FullName);
+        AddHash(ref h, obj?.PathSpec);
+        AddHash(ref h, obj?.IsPartial);
+        AddHash(ref h, obj?.IsAbstract);
+        AddHash(ref h, obj?.HasAutoValueComparerAttribute);
+        AddHash(ref h, obj?.Properties);
+        AddHash(ref h, obj?.AllProperties);
+        AddHash(ref h, obj?.Location);
+    }
 }

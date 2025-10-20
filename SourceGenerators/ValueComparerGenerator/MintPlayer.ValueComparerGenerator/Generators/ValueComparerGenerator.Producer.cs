@@ -125,6 +125,8 @@ public sealed class TreeValueComparerProducer : Producer
                 writer.WriteLine("{");
                 writer.Indent++;
 
+                writer.WriteLine($"public static readonly {baseType.FullName}ValueComparer Instance = new {baseType.FullName}ValueComparer();");
+
                 writer.WriteLine($"protected override bool AreEqual({baseType.FullName} x, {baseType.FullName} y)");
                 writer.WriteLine("{");
                 writer.Indent++;
@@ -155,6 +157,22 @@ public sealed class TreeValueComparerProducer : Producer
                 {
                     writer.WriteLine("return true;");
                 }
+
+                writer.Indent--;
+                writer.WriteLine("}");
+
+                writer.WriteLine($"protected override void AddHash(ref global::System.HashCode h, {baseType.FullName} obj)");
+                writer.WriteLine("{");
+                writer.Indent++;
+
+                foreach (var prop in baseType.AllProperties)
+                {
+                    writer.WriteLine($"{comparerType}<{baseType.FullName}>.AddHash(ref h, obj.{prop.Name});");
+                }
+
+
+
+
 
                 writer.Indent--;
                 writer.WriteLine("}");

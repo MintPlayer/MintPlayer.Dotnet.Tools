@@ -10,6 +10,12 @@ public class TypeTreeDeclarationComparer : ValueComparer<TypeTreeDeclaration>
         if (!IsEquals(x.DerivedTypes, y.DerivedTypes)) return false;
         return true;
     }
+
+    protected override void AddHash(ref HashCode h, TypeTreeDeclaration? obj)
+    {
+        AddHash(ref h, obj?.BaseType);
+        AddHash(ref h, obj?.DerivedTypes);
+    }
 }
 
 public class DerivedTypeValueComparer : ValueComparer<DerivedType>
@@ -21,6 +27,14 @@ public class DerivedTypeValueComparer : ValueComparer<DerivedType>
         if (!IsEquals(x.PathSpec, y.PathSpec)) return false;
         if (!IsEquals(x.AllProperties, y.AllProperties)) return false;
         return true;
+    }
+
+    protected override void AddHash(ref HashCode h, DerivedType? obj)
+    {
+        AddHash(ref h, obj?.Type);
+        AddHash(ref h, obj?.Name);
+        AddHash(ref h, obj?.PathSpec);
+        AddHash(ref h, obj?.AllProperties);
     }
 }
 
@@ -36,5 +50,16 @@ public class BaseTypeValueComparer : ValueComparer<BaseType>
         if (!IsEquals(x.AllProperties, y.AllProperties)) return false;
         if (!IsEquals(x.HasAttribute, y.HasAttribute)) return false;
         return true;
+    }
+
+    protected override void AddHash(ref HashCode h, BaseType? obj)
+    {
+        AddHash(ref h, obj?.Name);
+        AddHash(ref h, obj?.FullName);
+        AddHash(ref h, obj?.IsPartial);
+        AddHash(ref h, obj?.PathSpec);
+        AddHash(ref h, obj?.Properties);
+        AddHash(ref h, obj?.AllProperties);
+        AddHash(ref h, obj?.HasAttribute);
     }
 }
