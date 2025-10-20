@@ -75,23 +75,10 @@ public sealed class TreeValueComparerProducer : Producer
             });
 
 
-        // Adding lines here only breaks the MapperDebugging project build, alternatingly.
+        // Adding lines here used to break the MapperDebugging project build, alternatingly.
         // Add line => Build breaks => Add line => Build works => Add line => Build breaks ...
-        // The MapperGenerator project build keeps working all the time
-        writer.WriteLine();
-        writer.WriteLine();
-        writer.WriteLine();
-        writer.WriteLine();
-        writer.WriteLine();
-        writer.WriteLine();
-        writer.WriteLine();
-        writer.WriteLine();
-        writer.WriteLine();
-        writer.WriteLine();
-        writer.WriteLine();
-        writer.WriteLine();
-        writer.WriteLine();
-        writer.WriteLine();
+        // The MapperGenerator project build keeps working all the time.
+        // Using the new value-comparer-cache mechanism seems to have fixed this issue.
         writer.WriteLine();
 
         foreach (var namespaceGrouping in treeGrouped)

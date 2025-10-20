@@ -63,12 +63,6 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         // Adding lines here breaks the MapperDebugging project build, alternatingly.
         // Add line => Build breaks => Add line => Build works => Add line => Build breaks ...
         writer.WriteLine();
-        writer.WriteLine();
-        writer.WriteLine();
-        writer.WriteLine();
-        writer.WriteLine();
-        writer.WriteLine();
-        writer.WriteLine();
 
         foreach (var staticClass in staticClasses)
         {
@@ -149,14 +143,6 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
 
             writer.Indent--;
             writer.WriteLine("};");
-
-            writer.WriteLine();
-            writer.WriteLine();
-            writer.WriteLine();
-            writer.WriteLine();
-            writer.WriteLine();
-            writer.WriteLine();
-            writer.WriteLine();
 
             writer.Indent--;
             writer.WriteLine("}");
