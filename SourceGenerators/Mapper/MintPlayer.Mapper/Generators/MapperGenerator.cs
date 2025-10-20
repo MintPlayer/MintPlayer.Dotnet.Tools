@@ -3,13 +3,14 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.Tools.Extensions;
+using MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 namespace MintPlayer.Mapper.Generators;
 
 [Generator(LanguageNames.CSharp)]
 public class MapperGenerator : IncrementalGenerator
 {
-    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<PerCompilationCache> cacheProvider)
     {
         var typesToMapProvider = context.SyntaxProvider
             .ForAttributeWithMetadataName(
@@ -280,7 +281,7 @@ public class MapperGenerator : IncrementalGenerator
             });
     }
 
-    public override void RegisterComparers()
-    {
-    }
+    //public override void RegisterComparers()
+    //{
+    //}
 }

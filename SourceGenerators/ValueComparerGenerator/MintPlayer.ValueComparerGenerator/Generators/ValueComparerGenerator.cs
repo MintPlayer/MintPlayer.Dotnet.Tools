@@ -3,15 +3,16 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.Tools.Extensions;
+using MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 namespace MintPlayer.ValueComparerGenerator.Generators;
 
 [Generator(LanguageNames.CSharp)]
 public class ValueComparerGenerator : IncrementalGenerator
 {
-    public override void RegisterComparers() { }
+    //public override void RegisterComparers() { }
 
-    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<PerCompilationCache> cacheProvider)
     {
         const string valueComparerType = "global::MintPlayer.SourceGenerators.Tools.ValueComparers.ValueComparer";
         // ValueComparerAttribute is within the Tools project, AutoValueComparerAttribute is within the ValueComparerGenerator project

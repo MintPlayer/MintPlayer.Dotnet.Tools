@@ -8,8 +8,8 @@ public abstract class ValueComparer<T> : IEqualityComparer<T?>
     /// <summary>
     /// Register a custom comparer for <typeparamref name="T"/>, where you cannot use the <see cref="ValueComparerAttribute"/>.
     /// </summary>
-    public static void RegisterCustomComparer<TComparer>() where TComparer : ValueComparer<T>
-        => ValueComparerCache.AddCustomComparer<T, TComparer>();
+    //public static void RegisterCustomComparer<TComparer>() where TComparer : ValueComparer<T>
+    //    => ValueComparerCache.AddCustomComparer<T, TComparer>();
 
     public static IEqualityComparer<T?> Instance { get; } = ValueComparerCache.GetComparer<T>();
 
