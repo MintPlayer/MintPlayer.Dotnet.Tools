@@ -22,7 +22,8 @@ public abstract partial class ValueComparer<T> : IEqualityComparer<T?>
         return h.ToHashCode();
     }
 
-    protected abstract bool AreEqual(T x, T y);
+    protected virtual bool AreEqual(T x, T y) => true;
+
     /// <summary>
     /// Override to contribute a stable hash from all fields you compare in AreEqual.
     /// If you don’t override, we’ll try a best-effort default.
