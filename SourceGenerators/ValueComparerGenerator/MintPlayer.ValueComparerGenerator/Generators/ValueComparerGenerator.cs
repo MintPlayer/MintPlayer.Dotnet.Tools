@@ -151,7 +151,7 @@ public class ValueComparerGenerator : IncrementalGenerator
                     AllProperties = t.AllProperties,
                     HasAutoValueComparerAttribute = t.HasAttribute,
                 })
-        );
+            );
 
         // This provider retrieves all types that have derived types
         var typeTreeProvider = allTypesProvider
