@@ -3,15 +3,16 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.Tools.Extensions;
+using MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 namespace MintPlayer.ValueComparerGenerator.Generators;
 
 [Generator(LanguageNames.CSharp)]
 public class ValueComparerGenerator : IncrementalGenerator
 {
-    public override void RegisterComparers() { }
+    //public override void RegisterComparers() { }
 
-    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<PerCompilationCache> cacheProvider)
     {
         const string valueComparerType = "global::MintPlayer.SourceGenerators.Tools.ValueComparers.ValueComparer";
         // ValueComparerAttribute is within the Tools project, AutoValueComparerAttribute is within the ValueComparerGenerator project
@@ -36,7 +37,7 @@ public class ValueComparerGenerator : IncrementalGenerator
                         return new
                         {
                             symbol.Name,
-                            Location = symbol.Locations.FirstOrDefault(),
+                            Location = symbol.Locations.FirstOrDefault()?.AsKey(),
                             Type = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                             IsPartial = classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
                             IsAbstract = symbol.IsAbstract,
@@ -97,7 +98,7 @@ public class ValueComparerGenerator : IncrementalGenerator
                         return new
                         {
                             symbol.Name,
-                            Location = symbol.Locations.FirstOrDefault(),
+                            Location = symbol.Locations.FirstOrDefault()?.AsKey(),
                             Type = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                             IsPartial = classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
                             IsAbstract = symbol.IsAbstract,
@@ -145,12 +146,12 @@ public class ValueComparerGenerator : IncrementalGenerator
                     PathSpec = t.PathSpec,
                     IsPartial = t.IsPartial,
                     IsAbstract = t.IsAbstract,
-                    Location = t.Location,
+                    //Location = t.Location,
                     Properties = t.Properties,
                     AllProperties = t.AllProperties,
                     HasAutoValueComparerAttribute = t.HasAttribute,
                 })
-        );
+            );
 
         // This provider retrieves all types that have derived types
         var typeTreeProvider = allTypesProvider

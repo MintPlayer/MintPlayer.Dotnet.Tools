@@ -17,13 +17,13 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         this.staticClasses = staticClasses;
     }
 
-    public IEnumerable<Diagnostic> GetDiagnostics()
+    public IEnumerable<Diagnostic> GetDiagnostics(Compilation compilation)
     {
         return typesToMap.Where(t => t.TypeToMap.HasError)
             .Select(type => type.TypeToMap.AppliedOn switch
             {
-                EAppliedOn.Class => DiagnosticRules.GenerateMapperOneParameter.Create(type.TypeToMap.Location),
-                EAppliedOn.Assembly => DiagnosticRules.GenerateMapperTwoParameters.Create(type.TypeToMap.Location),
+                EAppliedOn.Class => DiagnosticRules.GenerateMapperOneParameter.Create(type.TypeToMap.Location?.ToLocation(compilation)),
+                EAppliedOn.Assembly => DiagnosticRules.GenerateMapperTwoParameters.Create(type.TypeToMap.Location?.ToLocation(compilation)),
                 _ => null,
             })
             .NotNull();
@@ -59,6 +59,10 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         writer.WriteLine($"switch ((typeof(TSource), typeof(TDest)))");
         writer.WriteLine("{");
         writer.Indent++;
+
+        // Adding lines here breaks the MapperDebugging project build, alternatingly.
+        // Add line => Build breaks => Add line => Build works => Add line => Build breaks ...
+        writer.WriteLine();
 
         foreach (var staticClass in staticClasses)
         {

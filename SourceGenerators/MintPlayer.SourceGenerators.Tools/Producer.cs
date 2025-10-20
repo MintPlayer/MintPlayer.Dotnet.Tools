@@ -29,7 +29,7 @@ public abstract class Producer
 
     protected abstract void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken);
 
-    public void Produce(SourceProductionContext context)
+    public void Produce(SourceProductionContext context, Compilation compilation)
     {
         context.CancellationToken.ThrowIfCancellationRequested();
         if (string.IsNullOrEmpty(Filename)) return;

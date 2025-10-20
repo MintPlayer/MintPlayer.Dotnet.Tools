@@ -1,4 +1,5 @@
-﻿using MintPlayer.SourceGenerators.Tools;
+﻿using Microsoft.CodeAnalysis;
+using MintPlayer.SourceGenerators.Tools;
 using System.CodeDom.Compiler;
 
 namespace MintPlayer.SourceGenerators.Generators;
@@ -11,7 +12,7 @@ public class ClassNamesProducer : Producer, IDiagnosticReporter
         this.declarations = declarations;
     }
 
-    public IEnumerable<Microsoft.CodeAnalysis.Diagnostic> GetDiagnostics()
+    public IEnumerable<Diagnostic> GetDiagnostics(Compilation compilation)
     {
         return [];
     }
@@ -49,7 +50,7 @@ public class ClassNameListProducer : Producer, IDiagnosticReporter
         this.declarations = declarations;
     }
 
-    public IEnumerable<Microsoft.CodeAnalysis.Diagnostic> GetDiagnostics()
+    public IEnumerable<Diagnostic> GetDiagnostics(Compilation compilation)
     {
         return [];
     }

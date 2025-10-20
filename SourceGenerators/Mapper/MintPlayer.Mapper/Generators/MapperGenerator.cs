@@ -3,13 +3,14 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.Tools.Extensions;
+using MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 namespace MintPlayer.Mapper.Generators;
 
 [Generator(LanguageNames.CSharp)]
 public class MapperGenerator : IncrementalGenerator
 {
-    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<PerCompilationCache> cacheProvider)
     {
         var typesToMapProvider = context.SyntaxProvider
             .ForAttributeWithMetadataName(
@@ -43,7 +44,7 @@ public class MapperGenerator : IncrementalGenerator
                                     AreBothDecorated = destType1.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute"),
                                     AppliedOn = Models.EAppliedOn.Assembly,
                                     HasError = false,
-                                    Location = attr1.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
+                                    Location = attr1.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation().AsKey(),
 
                                     DeclaredProperties = ProcessProperties(sourceType).ToArray(),
                                     MappingProperties = ProcessProperties(destType1).ToArray(),
@@ -55,7 +56,7 @@ public class MapperGenerator : IncrementalGenerator
                                 {
                                     AppliedOn = Models.EAppliedOn.Assembly,
                                     HasError = true,
-                                    Location = attr1.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
+                                    Location = attr1.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation().AsKey(),
                                 };
                             }
                         });
@@ -86,7 +87,7 @@ public class MapperGenerator : IncrementalGenerator
                                     AreBothDecorated = destType2.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute"),
                                     AppliedOn = Models.EAppliedOn.Class,
                                     HasError = false,
-                                    Location = attr2.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
+                                    Location = attr2.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation().AsKey(),
 
                                     DeclaredProperties = ProcessProperties(typeSymbol).ToArray(),
                                     MappingProperties = ProcessProperties(destType2).ToArray(),
@@ -98,7 +99,7 @@ public class MapperGenerator : IncrementalGenerator
                                 {
                                     AppliedOn = Models.EAppliedOn.Class,
                                     HasError = true,
-                                    Location = attr2.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
+                                    Location = attr2.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation().AsKey(),
                                 };
                             }
                         });
@@ -199,7 +200,7 @@ public class MapperGenerator : IncrementalGenerator
                                     StateType = m.Attribute.AttributeConstructor?.ContainingType?.TypeArguments.FirstOrDefault()?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
                                     StateTypeName = m.Attribute.AttributeConstructor?.ContainingType?.TypeArguments.FirstOrDefault()?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
 
-                                    AttributeLocation = m.Attribute.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation() ?? Location.None,
+                                    AttributeLocation = (m.Attribute.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation()).AsKey(),
                                 })
                                 .ToArray(),
                         };
@@ -207,7 +208,7 @@ public class MapperGenerator : IncrementalGenerator
                     return null;
                 }
             )
-            .Where(static (m) => m.ConversionMethods.Any())
+            .Where(static (m) => m is { ConversionMethods.Length: > 0 })
             .WithNullableComparer()
             .Collect();
 
@@ -280,7 +281,7 @@ public class MapperGenerator : IncrementalGenerator
             });
     }
 
-    public override void RegisterComparers()
-    {
-    }
+    //public override void RegisterComparers()
+    //{
+    //}
 }

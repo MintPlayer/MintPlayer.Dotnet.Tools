@@ -16,7 +16,11 @@ public static class GeneratorExtensions
         {
             case 0: return;
             case 1:
-                context.RegisterSourceOutput(providers[0], static (c, g) => g?.Produce(c));
+                //context.RegisterSourceOutput(providers[0], static (c, g) => g?.Produce(c));
+                context.RegisterSourceOutput(context.CompilationProvider
+                    .Combine(providers[0])
+                    .Select(static (p, ct) => (p.Right, p.Left)),
+                    static (c, g) => g.Right?.Produce(c, g.Left));
                 return;
         }
 
@@ -32,17 +36,25 @@ public static class GeneratorExtensions
                 .SelectMany(static (p, ct) => p.Left.Concat([p.Right]));
         }
 
-        context.RegisterSourceOutput(sourceProvider, static (c, g) => g?.Produce(c));
-    }
+        var sourceAndCompilationProvider = context.CompilationProvider
+            .Combine(sourceProvider.Collect())
+            .Select(static (p, ct) => p.Right.Select(rep => (compilation: p.Left, producer: rep)));
 
-    public static void ProduceCode(this IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Producer[]> providers)
-    {
-        context.RegisterSourceOutput(providers, static (c, g) =>
+        context.RegisterSourceOutput(sourceAndCompilationProvider, static (c, cps) =>
         {
-            foreach (var item in g)
-                item?.Produce(c);
+            foreach (var cp in cps)
+                cp.producer.Produce(c, cp.compilation);
         });
     }
+
+    //public static void ProduceCode(this IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Producer[]> providers)
+    //{
+    //    context.RegisterSourceOutput(providers, static (c, g) =>
+    //    {
+    //        foreach (var item in g)
+    //            item?.Produce(c);
+    //    });
+    //}
 
 
     /// <summary>
@@ -56,7 +68,11 @@ public static class GeneratorExtensions
         {
             case 0: return;
             case 1:
-                context.RegisterSourceOutput(providers[0], static (c, d) => c.ReportDiagnostic(d.GetDiagnostics()));
+                //context.RegisterSourceOutput(providers[0], static (c, d) => c.ReportDiagnostic(d.GetDiagnostics()));
+                context.RegisterSourceOutput(context.CompilationProvider
+                    .Combine(providers[0])
+                    .Select(static (p, ct) => p.Right.GetDiagnostics(p.Left)),
+                    static (c, d) => c.ReportDiagnostic(d));
                 return;
         }
 
@@ -72,6 +88,10 @@ public static class GeneratorExtensions
                 .SelectMany(static (p, ct) => p.Left.Concat([p.Right]));
         }
 
-        context.RegisterSourceOutput(sourceProvider, static (c, d) => c.ReportDiagnostic(d.GetDiagnostics()));
+        var sourceAndCompilationProvider = context.CompilationProvider
+            .Combine(sourceProvider.Collect())
+            .Select(static (p, ct) => p.Right.Select(rep => (compilation: p.Left, reporter: rep)));
+
+        context.RegisterSourceOutput(sourceAndCompilationProvider, static (c, cd) => c.ReportDiagnostic(cd.SelectMany(d => d.reporter.GetDiagnostics(d.compilation))));
     }
 }

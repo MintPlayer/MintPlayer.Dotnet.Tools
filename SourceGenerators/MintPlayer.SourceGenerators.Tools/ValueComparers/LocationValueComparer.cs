@@ -2,9 +2,9 @@
 
 namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
 
-internal class LocationValueComparer : ValueComparer<Location>
+internal class LocationKeyValueComparer : ValueComparer<LocationKey>
 {
-    protected override bool AreEqual(Location x, Location y)
+    protected override bool AreEqual(LocationKey x, LocationKey y)
     {
         return x.Equals(y);
     }

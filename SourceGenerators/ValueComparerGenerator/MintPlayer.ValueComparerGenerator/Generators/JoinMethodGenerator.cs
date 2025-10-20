@@ -9,11 +9,11 @@ namespace MintPlayer.ValueComparerGenerator.Generators;
 [Generator(LanguageNames.CSharp)]
 public class JoinMethodGenerator : IncrementalGenerator
 {
-    public override void RegisterComparers()
-    {
-    }
+    //public override void RegisterComparers()
+    //{
+    //}
 
-    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<PerCompilationCache> cacheProvider)
     {
         var numberOfJoinMethodsProvider = context.SyntaxProvider.ForAttributeWithMetadataName(
             typeof(GenerateJoinMethodsAttribute).FullName,
@@ -26,7 +26,7 @@ public class JoinMethodGenerator : IncrementalGenerator
 
                 return 5u;
             })
-            .WithComparer(ValueComparer<uint>.Instance)
+            .WithComparer(ComparerRegistry.For<uint>())
             .Collect()
             .Select((x, ct) => x.Any() ? x.First() : 5u);
 

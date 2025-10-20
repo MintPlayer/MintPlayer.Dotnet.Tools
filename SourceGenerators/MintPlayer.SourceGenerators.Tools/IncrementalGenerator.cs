@@ -1,6 +1,7 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using MintPlayer.SourceGenerators.Tools.Models;
+using MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 namespace MintPlayer.SourceGenerators.Tools;
 
@@ -8,11 +9,15 @@ public abstract partial class IncrementalGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        RegisterComparers();
+        // 1) Flow the Compilation as a handle to the cache
+        var cacheProvider = context.CompilationProvider
+            .Select(static (compilation, _) => ComparerCacheHub.Get(compilation))
+            .WithComparer(ReferenceEqualityComparer<PerCompilationCache>.Instance);
+
 
         var analyzerInfo = context.AnalyzerConfigOptionsProvider
             .Select(static (p, ct) => AnalyzerInfo.FromGlobalOptions(p.GlobalOptions))
-            .WithComparer(AnalyzerInfoComparer.Instance);
+            .WithComparer(ComparerRegistry.For<AnalyzerInfo>());
 
         var languageVersionProvider = context.CompilationProvider
             .SelectMany(static (p, ct) => p.SyntaxTrees.Select(t => t.Options).OfType<CSharpParseOptions>()
@@ -54,20 +59,18 @@ public abstract partial class IncrementalGenerator : IIncrementalGenerator
                         };
                     }
                 }))
-            .WithComparer(LangVersionComparer.Instance)
+            .WithComparer(ComparerRegistry.For<LangVersion>())
             .Collect()
             .Select(static (p, ct) => p.OrderBy(x => x.Weight).FirstOrDefault())
-            .WithComparer(LangVersionComparer.Instance);
+            .WithComparer(ComparerRegistry.For<LangVersion>());
 
         var settingsProvider = analyzerInfo
             .Combine(languageVersionProvider)
             .Select(static (p, ct) => Settings.FromAnalyzerAndLangVersion(p.Left, p.Right))
-            .WithComparer(SettingsValueComparer.Instance);
+            .WithComparer(ComparerRegistry.For<Settings>());
 
-        Initialize(context, settingsProvider);
+        Initialize(context, settingsProvider, cacheProvider);
     }
 
-    public abstract void RegisterComparers();
-
-    public abstract void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider);
+    public abstract void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<PerCompilationCache> valueComparerCacheProvider);
 }
