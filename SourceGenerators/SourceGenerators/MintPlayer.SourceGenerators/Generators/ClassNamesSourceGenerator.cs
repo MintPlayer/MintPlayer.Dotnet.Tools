@@ -10,10 +10,12 @@ namespace MintPlayer.SourceGenerators.Generators;
 [Generator(LanguageNames.CSharp)]
 public class ClassNamesSourceGenerator : IncrementalGenerator
 {
-    //public override void RegisterComparers()
-    //{
-    //    NewtonsoftJsonComparers.Register();
-    //}
+    [System.Runtime.CompilerServices.ModuleInitializer]
+    internal static void Initialize()
+    {
+        // Register built-in comparers
+        JObjectValueComparer.Register();
+    }
 
     public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<PerCompilationCache> cacheProvider)
     {

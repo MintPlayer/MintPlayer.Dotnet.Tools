@@ -41,7 +41,7 @@ public class GenericMethodSourceGenerator : IncrementalGenerator
                             })
                             .FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.Type, context.SemanticModel.Compilation.GetTypeByMetadataName(typeof(GenericMethodAttribute).FullName)));
 
-                        if (int.TryParse(attributeSyntax.Attribute.ArgumentList.Arguments[0].Expression.ToFullString(), out var countValue))
+                        if (attributeSyntax is { Attribute.ArgumentList.Arguments.Count: > 0 } && int.TryParse(attributeSyntax.Attribute.ArgumentList.Arguments[0].Expression.ToFullString(), out var countValue))
                         {
                             return new Models.GenericMethodDeclaration
                             {

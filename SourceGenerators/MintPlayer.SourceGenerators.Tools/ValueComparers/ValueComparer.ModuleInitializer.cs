@@ -10,5 +10,7 @@ internal static class ValueComparer
     {
         // Register built-in comparers
         ComparerRegistry.TryRegister(typeof(AnalyzerInfo), new AnalyzerInfoComparer());
+        ComparerRegistry.TryRegister(typeof(LangVersion), new LangVersionComparer());
+        ComparerRegistry.TryRegister(typeof(Settings), new SettingsValueComparer());
     }
 }
