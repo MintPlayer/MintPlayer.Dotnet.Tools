@@ -209,28 +209,28 @@ public sealed class TreeValueComparerProducer : Producer
                 writer.WriteLine($"public static global::Microsoft.CodeAnalysis.IncrementalValuesProvider<{type.FullName}> WithComparer(this global::Microsoft.CodeAnalysis.IncrementalValuesProvider<{type.FullName}> provider)");
                 writer.WriteLine("{");
                 writer.Indent++;
-                writer.WriteLine($"return global::Microsoft.CodeAnalysis.IncrementalValueProviderExtensions.WithComparer(provider, {type.FullName}ValueComparer.Instance);");
+                writer.WriteLine($"return global::Microsoft.CodeAnalysis.IncrementalValueProviderExtensions.WithComparer(provider, global::MintPlayer.SourceGenerators.Tools.ValueComparers.ComparerRegistry.For<{type.FullName}>());");
                 writer.Indent--;
                 writer.WriteLine("}");
 
                 writer.WriteLine($"public static global::Microsoft.CodeAnalysis.IncrementalValueProvider<{type.FullName}> WithComparer(this global::Microsoft.CodeAnalysis.IncrementalValueProvider<{type.FullName}> provider)");
                 writer.WriteLine("{");
                 writer.Indent++;
-                writer.WriteLine($"return global::Microsoft.CodeAnalysis.IncrementalValueProviderExtensions.WithComparer(provider, {type.FullName}ValueComparer.Instance);");
+                writer.WriteLine($"return global::Microsoft.CodeAnalysis.IncrementalValueProviderExtensions.WithComparer(provider, global::MintPlayer.SourceGenerators.Tools.ValueComparers.ComparerRegistry.For<{type.FullName}>());");
                 writer.Indent--;
                 writer.WriteLine("}");
 
                 writer.WriteLine($"public static global::Microsoft.CodeAnalysis.IncrementalValuesProvider<{type.FullName}?> WithNullableComparer(this global::Microsoft.CodeAnalysis.IncrementalValuesProvider<{type.FullName}?> provider)");
                 writer.WriteLine("{");
                 writer.Indent++;
-                writer.WriteLine($"return global::Microsoft.CodeAnalysis.IncrementalValueProviderExtensions.WithComparer(provider, {type.FullName}ValueComparer.Instance);");
+                writer.WriteLine($"return global::Microsoft.CodeAnalysis.IncrementalValueProviderExtensions.WithComparer(provider, global::MintPlayer.SourceGenerators.Tools.ValueComparers.ComparerRegistry.For<{type.FullName}>());");
                 writer.Indent--;
                 writer.WriteLine("}");
 
                 writer.WriteLine($"public static global::Microsoft.CodeAnalysis.IncrementalValueProvider<{type.FullName}?> WithNullableComparer(this global::Microsoft.CodeAnalysis.IncrementalValueProvider<{type.FullName}?> provider)");
                 writer.WriteLine("{");
                 writer.Indent++;
-                writer.WriteLine($"return global::Microsoft.CodeAnalysis.IncrementalValueProviderExtensions.WithComparer(provider, {type.FullName}ValueComparer.Instance);");
+                writer.WriteLine($"return global::Microsoft.CodeAnalysis.IncrementalValueProviderExtensions.WithComparer(provider, global::MintPlayer.SourceGenerators.Tools.ValueComparers.ComparerRegistry.For<{type.FullName}>());");
                 writer.Indent--;
                 writer.WriteLine("}");
             }
