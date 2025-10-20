@@ -1,4 +1,5 @@
-﻿using MintPlayer.SourceGenerators.Tools.ValueComparers;
+﻿using MintPlayer.SourceGenerators.Tools.Polyfills;
+using MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 namespace MintPlayer.ValueComparerGenerator.Models;
 
@@ -13,7 +14,7 @@ public class PropertyDeclarationValueComparer : ValueComparer<PropertyDeclaratio
         return true;
     }
 
-    protected override void AddHash(ref HashCode h, PropertyDeclaration? obj)
+    protected override void AddHash(ref HashCodeCompat h, PropertyDeclaration? obj)
     {
         AddHash(ref h, obj?.Name);
         AddHash(ref h, obj?.Type);

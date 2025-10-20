@@ -1,4 +1,5 @@
-﻿using System.Collections.Immutable;
+﻿using MintPlayer.SourceGenerators.Tools.Polyfills;
+using System.Collections.Immutable;
 
 namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
 
@@ -17,7 +18,7 @@ public abstract partial class ValueComparer<T> : IEqualityComparer<T?>
 
     public int GetHashCode(T? obj)
     {
-        var h = new HashCode();
+        var h = new HashCodeCompat();
         AddHash(ref h, obj);
         return h.ToHashCode();
     }
@@ -28,7 +29,7 @@ public abstract partial class ValueComparer<T> : IEqualityComparer<T?>
     /// Override to contribute a stable hash from all fields you compare in AreEqual.
     /// If you don’t override, we’ll try a best-effort default.
     /// </summary>
-    protected virtual void AddHash(ref HashCode h, T? obj)
+    protected virtual void AddHash(ref HashCodeCompat h, T? obj)
     {
         // Default: if T has a default comparer, use it; otherwise do nothing.
         h.Add(obj);
@@ -65,7 +66,7 @@ public abstract partial class ValueComparer<T> : IEqualityComparer<T?>
     }
 
     /// <summary>Add structural hash for a property; call alongside IsEquals for properties you compare.</summary>
-    protected static void AddHash<TProp>(ref HashCode h, TProp value)
+    protected static void AddHash<TProp>(ref HashCodeCompat h, TProp value)
     {
         if (value is null) { h.Add(0); return; }
 

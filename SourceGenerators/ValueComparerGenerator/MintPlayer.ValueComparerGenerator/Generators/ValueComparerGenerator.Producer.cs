@@ -161,7 +161,7 @@ public sealed class TreeValueComparerProducer : Producer
                 writer.Indent--;
                 writer.WriteLine("}");
 
-                writer.WriteLine($"protected override void AddHash(ref global::System.HashCode h, {baseType.FullName} obj)");
+                writer.WriteLine($"protected override void AddHash(ref global::MintPlayer.SourceGenerators.Tools.Polyfills.HashCodeCompat h, {baseType.FullName} obj)");
                 writer.WriteLine("{");
                 writer.Indent++;
 

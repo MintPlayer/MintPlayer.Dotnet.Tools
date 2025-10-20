@@ -1,22 +1,18 @@
-﻿#if NETSTANDARD2_0
-// Polyfill for System.HashCode (missing on .NET Standard 2.0)
-namespace System
+﻿// Polyfill for System.HashCode (missing on .NET Standard 2.0)
+namespace MintPlayer.SourceGenerators.Tools.Polyfills
 {
-    public struct HashCode
+#if NETSTANDARD2_0
+    public struct HashCodeCompat
     {
         private int _hash;
 
-        public void Add<T>(T value)
-        {
+        public void Add<T>(T value) =>
             _hash = Combine(_hash, value?.GetHashCode() ?? 0);
-        }
 
-        public void Add<T>(T value, IEqualityComparer<T>? comparer)
-        {
+        public void Add<T>(T value, IEqualityComparer<T>? comparer) =>
             _hash = Combine(_hash,
                 comparer != null ? comparer.GetHashCode(value!) :
                 value?.GetHashCode() ?? 0);
-        }
 
         public static int Combine(int h1, int h2)
         {
@@ -30,5 +26,8 @@ namespace System
 
         public int ToHashCode() => _hash;
     }
-}
+#else
+    // If you ever multi-target later, you can alias to the real one:
+    global using HashCodeCompat = System.HashCode;
 #endif
+}

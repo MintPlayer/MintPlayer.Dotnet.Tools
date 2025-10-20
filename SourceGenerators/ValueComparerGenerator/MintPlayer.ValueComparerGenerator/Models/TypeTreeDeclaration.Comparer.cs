@@ -1,4 +1,5 @@
-﻿using MintPlayer.SourceGenerators.Tools.ValueComparers;
+﻿using MintPlayer.SourceGenerators.Tools.Polyfills;
+using MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 namespace MintPlayer.ValueComparerGenerator.Models;
 
@@ -11,7 +12,7 @@ public class TypeTreeDeclarationComparer : ValueComparer<TypeTreeDeclaration>
         return true;
     }
 
-    protected override void AddHash(ref HashCode h, TypeTreeDeclaration? obj)
+    protected override void AddHash(ref HashCodeCompat h, TypeTreeDeclaration? obj)
     {
         AddHash(ref h, obj?.BaseType);
         AddHash(ref h, obj?.DerivedTypes);
@@ -29,7 +30,7 @@ public class DerivedTypeValueComparer : ValueComparer<DerivedType>
         return true;
     }
 
-    protected override void AddHash(ref HashCode h, DerivedType? obj)
+    protected override void AddHash(ref HashCodeCompat h, DerivedType? obj)
     {
         AddHash(ref h, obj?.Type);
         AddHash(ref h, obj?.Name);
@@ -52,7 +53,7 @@ public class BaseTypeValueComparer : ValueComparer<BaseType>
         return true;
     }
 
-    protected override void AddHash(ref HashCode h, BaseType? obj)
+    protected override void AddHash(ref HashCodeCompat h, BaseType? obj)
     {
         AddHash(ref h, obj?.Name);
         AddHash(ref h, obj?.FullName);

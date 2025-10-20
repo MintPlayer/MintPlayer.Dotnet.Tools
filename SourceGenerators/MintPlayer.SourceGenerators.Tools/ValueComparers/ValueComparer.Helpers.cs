@@ -1,4 +1,5 @@
-﻿using System.Collections.Immutable;
+﻿using MintPlayer.SourceGenerators.Tools.Polyfills;
+using System.Collections.Immutable;
 
 namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
 
@@ -15,7 +16,7 @@ public partial class ValueComparer<T>
         return true;
     }
 
-    private static void ImmutableArrayHash<TArr>(ref HashCode h, object o)
+    private static void ImmutableArrayHash<TArr>(ref HashCodeCompat h, object o)
     {
         var a = (ImmutableArray<TArr>)o;
         var elem = GetElementComparer<TArr>();
@@ -60,7 +61,7 @@ public partial class ValueComparer<T>
         }
     }
 
-    private static bool TryListHash(object value, ref HashCode h)
+    private static bool TryListHash(object value, ref HashCodeCompat h)
     {
         var e = (value as System.Collections.IEnumerable)?.GetEnumerator();
         if (e is null) return false;
@@ -98,7 +99,7 @@ public partial class ValueComparer<T>
     private static bool EqualsGeneric<TV>(TV a, TV b)
         => EqualityComparer<TV>.Default.Equals(a, b);
 
-    private static void AddDynamic(ref global::System.HashCode h, object v)
+    private static void AddDynamic(ref HashCodeCompat h, object v)
     {
         var t = v.GetType();
         var method = typeof(ValueComparer<T>).GetMethod(nameof(AddHashGeneric), System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!
@@ -106,6 +107,6 @@ public partial class ValueComparer<T>
         method.Invoke(null, new[] { h, v });
     }
 
-    private static void AddHashGeneric<TV>(ref HashCode h, TV v)
+    private static void AddHashGeneric<TV>(ref HashCodeCompat h, TV v)
         => h.Add(v, EqualityComparer<TV>.Default);
 }
