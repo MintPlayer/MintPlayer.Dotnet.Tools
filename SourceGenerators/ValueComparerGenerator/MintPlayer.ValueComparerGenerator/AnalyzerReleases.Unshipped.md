@@ -5,4 +5,5 @@
 
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
+MINT001 | Correctness | Warning | WithComparerRoslynTypeAnalyzer
 ValueComparersProducer | ValueComparerGenerator | Error | ValueComparersProducer
