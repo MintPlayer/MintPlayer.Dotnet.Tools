@@ -24,7 +24,8 @@ internal class ExampleGenerator : IIncrementalGenerator
                     };
                     return default;
                 })
-                .WithComparer()
+                .WithNullableComparer()
+                //.WithComparer(ComparerRegistry.For<ClassDeclaration>())
                 .Collect();
 
             
@@ -40,4 +41,6 @@ public partial class ClassDeclaration
 {
     public string? Name { get; set; }
     public string? Namespace { get; set; }
+    //public Location Location { get; set; }
+    //public INamedTypeSymbol? Symbol { get; set; }
 }

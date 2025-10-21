@@ -28,50 +28,78 @@ public sealed partial class WithComparerRoslynTypeAnalyzer : DiagnosticAnalyzer
         if (!string.Equals(method.Name, "WithComparer", StringComparison.Ordinal) && !string.Equals(method.Name, "WithNullableComparer", StringComparison.Ordinal))
             return;
 
-        // We look at the receiver (reduced extension) to ensure it's an Incremental*Provider<T>
-        var receiverType = invocation.Instance?.Type as INamedTypeSymbol;
-        if (receiverType is null)
-            return;
-
-        if (!IsIncrementalProvider(receiverType, out var elementType))
-            return;
-
-        // elementType is the T in Incremental(Value|Values)Provider<T>
-        if (elementType is null)
-            return;
-
-        // Inspect T's properties for Roslyn types
-        var visited = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
-        if (TryFindRoslynProperty(elementType, out var offendingProp, out var offendingType, visited))
+        // 1) Prefer the invocation's constructed return type
+        if (TryGetProviderElementType(invocation.Type as INamedTypeSymbol, out var elementType) ||
+            TryGetProviderElementType(method.ReturnType as INamedTypeSymbol, out elementType))
         {
-            // Place the diagnostic on the invocation (or on the WithComparer identifier, if you want to be fancy)
-            var diag = Rule.Create(invocation.Syntax.GetLocation(), [
-                elementType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
-                offendingProp?.Name ?? "<type>",
-                offendingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
-            ]);
-            context.ReportDiagnostic(diag);
+            ReportIfRoslyn(elementType!, invocation, context);
+            return;
+        }
+
+        // 2) (Optional) Fallback: find the receiver type (reduced/non-reduced/syntax)
+        if (TryGetReceiverType(invocation, context, out var recvType) &&
+            TryGetProviderElementType(recvType, out elementType))
+        {
+            ReportIfRoslyn(elementType!, invocation, context);
         }
     }
 
-    private static bool IsIncrementalProvider(INamedTypeSymbol receiver, out ITypeSymbol? elementType)
+    private static void ReportIfRoslyn(
+        ITypeSymbol elementType,
+        IInvocationOperation invocation,
+        OperationAnalysisContext context)
     {
-        elementType = null;
+        var visited = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
+        if (TryFindRoslynProperty(elementType, out var offendingProp, out var offendingType, visited))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                Rule,
+                invocation.Syntax.GetLocation(),
+                elementType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                offendingProp?.Name ?? "<type>",
+                offendingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
+        }
+    }
 
-        if (receiver.Arity != 1)
-            return false;
+    static bool TryGetProviderElementType(INamedTypeSymbol type, out ITypeSymbol? element)
+    {
+        element = null;
 
-        var name = receiver.ConstructedFrom?.Name ?? receiver.Name;
-        if (name is not ("IncrementalValueProvider" or "IncrementalValuesProvider"))
-            return false;
+        // Direct generic match
+        if (type.Arity == 1 && IsIncProviderName(type.ConstructedFrom?.Name ?? type.Name)
+            && IsRoslynNamespace(type.ContainingNamespace))
+        {
+            element = type.TypeArguments[0];
+            return true;
+        }
 
-        // Be strict on namespace: Microsoft.CodeAnalysis
-        var ns = receiver.ContainingNamespace?.ToDisplayString() ?? string.Empty;
-        if (!ns.StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal))
-            return false;
+        // Some pipelines wrap providers (e.g., nullable flow). Check original definition’s name:
+        if (type.Arity == 1 && IsIncProviderName(type.OriginalDefinition.Name)
+            && IsRoslynNamespace(type.ContainingNamespace))
+        {
+            element = type.TypeArguments[0];
+            return true;
+        }
 
-        elementType = receiver.TypeArguments[0];
-        return elementType is not null;
+        // Handle cases where the provider is wrapped in another named type (rare).
+        foreach (var iface in type.AllInterfaces)
+        {
+            if (iface is INamedTypeSymbol { Arity: 1 } i1 &&
+                IsIncProviderName(i1.OriginalDefinition.Name) &&
+                IsRoslynNamespace(i1.ContainingNamespace))
+            {
+                element = i1.TypeArguments[0];
+                return true;
+            }
+        }
+
+        return false;
+
+        static bool IsIncProviderName(string name)
+            => name is "IncrementalValueProvider" or "IncrementalValuesProvider";
+
+        static bool IsRoslynNamespace(INamespaceSymbol? ns)
+            => (ns?.ToDisplayString() ?? "").StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal);
     }
 
     private static bool TryFindRoslynProperty(
@@ -149,6 +177,11 @@ public sealed partial class WithComparerRoslynTypeAnalyzer : DiagnosticAnalyzer
                         if (IsOrContainsRoslynType(ta, visited))
                             return true;
 
+                    var props = named.GetAllProperties();
+                    foreach (var prop in props)
+                        if (!prop.IsStatic && IsOrContainsRoslynType(prop.Type, visited))
+                            return true;
+
                     return false;
                 }
 
@@ -210,5 +243,59 @@ public sealed partial class WithComparerRoslynTypeAnalyzer : DiagnosticAnalyzer
 
         var ns = t.ContainingNamespace?.ToDisplayString() ?? string.Empty;
         return ns.StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal);
+    }
+    private static bool TryGetReceiverType(IInvocationOperation invocation, OperationAnalysisContext context, out INamedTypeSymbol? receiverType)
+    {
+        receiverType = null;
+        var method = invocation.TargetMethod;
+
+        // 1) Reduced extension: provider.WithXxx(...)
+        if (invocation.Instance?.Type is INamedTypeSymbol instType)
+        {
+            receiverType = instType;
+            return true;
+        }
+
+        // 2) Sometimes Roslyn gives a good receiver type for reduced methods
+        if (method.ReceiverType is INamedTypeSymbol recvFromMethod &&
+            !SymbolEqualityComparer.Default.Equals(recvFromMethod, method.ContainingType)) // filter out static class
+        {
+            receiverType = recvFromMethod;
+            return true;
+        }
+
+        // 3) Non-reduced static form: Extensions.WithXxx(provider, ...)
+        if (method.IsExtensionMethod &&
+            method.Parameters.Length > 0 &&
+            method.Parameters[0].Type is INamedTypeSymbol thisParamType)
+        {
+            receiverType = thisParamType;
+            return true;
+        }
+
+        // 4) Syntax fallback (works for reduced calls where 1–3 fail)
+        //    Get the type of the expression on the left of the dot.
+        var syntax = invocation.Syntax; // InvocationExpressionSyntax
+        var model = context.Compilation.GetSemanticModel(syntax.SyntaxTree);
+        if (syntax is Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax ies &&
+            ies.Expression is Microsoft.CodeAnalysis.CSharp.Syntax.MemberAccessExpressionSyntax maes)
+        {
+            var t = model.GetTypeInfo(maes.Expression, context.CancellationToken).Type as INamedTypeSymbol;
+            if (t is not null)
+            {
+                receiverType = t;
+                return true;
+            }
+        }
+
+        // 5) Final attempt: argument 0 type info (rare; sometimes the op tree hides it)
+        if (invocation.Arguments.Length > 0 && invocation.Arguments[0].Value is IOperation arg0 &&
+            arg0.Type is INamedTypeSymbol argType)
+        {
+            receiverType = argType;
+            return true;
+        }
+
+        return false;
     }
 }
