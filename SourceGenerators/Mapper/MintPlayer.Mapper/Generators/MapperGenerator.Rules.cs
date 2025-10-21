@@ -19,4 +19,12 @@ public static partial class DiagnosticRules
         category: "MapperGenerator",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor InitOnlyPropertyNotMapped = new(
+        id: "MAPC003",
+        title: "Init-only property not mapped",
+        messageFormat: "The property '{0}' on type '{1}' is init-only and will not be mapped from '{2}'",
+        category: "Mapping",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
 }
