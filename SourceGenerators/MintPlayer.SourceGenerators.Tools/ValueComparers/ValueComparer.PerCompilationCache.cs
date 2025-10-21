@@ -4,7 +4,7 @@ using System.Collections.Concurrent;
 
 namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
 
-public sealed class PerCompilationCache
+internal sealed class PerCompilationCache : ICompilationCache
 {
     internal PerCompilationCache() { }
 
@@ -20,25 +20,25 @@ public sealed class PerCompilationCache
     // By pair
     private readonly ConcurrentDictionary<SymbolPair, Lazy<object>> _byPair = new();
 
-    public IEqualityComparer GetOrCreate(ITypeSymbol type, Func<ITypeSymbol, IEqualityComparer> factory)
-        => _byType.GetOrAdd(type, t => new Lazy<IEqualityComparer>(
+    public T GetOrCreate<T>(ITypeSymbol type, Func<ITypeSymbol, T> factory) where T : class, IEqualityComparer
+        => (T)_byType.GetOrAdd(type, t => new Lazy<IEqualityComparer>(
                 () => factory(t),
                 LazyThreadSafetyMode.ExecutionAndPublication))
              .Value;
 
-    public T GetOrCreate<T>(string kind, string key, Func<T> factory) where T : class
+    public T GetOrCreate<T>(string kind, string key, Func<T> factory) where T : class, IEqualityComparer
         => (T)_misc.GetOrAdd((kind, key), _ => new Lazy<object>(
                 () => (IEqualityComparer)factory(),
                 LazyThreadSafetyMode.ExecutionAndPublication))
             .Value;
 
-    public T GetOrCreate<T>(string key, Func<T> factory) where T : class
+    public T GetOrCreate<T>(string key, Func<T> factory) where T : class, IEqualityComparer
         => (T)_byKey.GetOrAdd(key, _ => new Lazy<object>(
                 () => (IEqualityComparer)factory(),
                 LazyThreadSafetyMode.ExecutionAndPublication))
            .Value;
 
-    public T GetOrCreate<T>(SymbolPair pair, Func<SymbolPair, T> factory) where T : class
+    public T GetOrCreate<T>(SymbolPair pair, Func<SymbolPair, T> factory) where T : class, IEqualityComparer
         => (T)_byPair.GetOrAdd(pair, p => new Lazy<object>(
                 () => factory(p), LazyThreadSafetyMode.ExecutionAndPublication))
            .Value;

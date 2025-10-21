@@ -12,7 +12,7 @@ public abstract partial class IncrementalGenerator : IIncrementalGenerator
         // 1) Flow the Compilation as a handle to the cache
         var cacheProvider = context.CompilationProvider
             .Select(static (compilation, _) => ComparerCacheHub.Get(compilation))
-            .WithComparer(ReferenceEqualityComparer<PerCompilationCache>.Instance);
+            .WithComparer(ReferenceEqualityComparer<ICompilationCache>.Instance);
 
 
         var analyzerInfo = context.AnalyzerConfigOptionsProvider
@@ -72,5 +72,5 @@ public abstract partial class IncrementalGenerator : IIncrementalGenerator
         Initialize(context, settingsProvider, cacheProvider);
     }
 
-    public abstract void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<PerCompilationCache> valueComparerCacheProvider);
+    public abstract void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<ICompilationCache> valueComparerCacheProvider);
 }

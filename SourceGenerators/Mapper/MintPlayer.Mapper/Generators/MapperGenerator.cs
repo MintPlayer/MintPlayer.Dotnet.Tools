@@ -10,7 +10,7 @@ namespace MintPlayer.Mapper.Generators;
 [Generator(LanguageNames.CSharp)]
 public class MapperGenerator : IncrementalGenerator
 {
-    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<PerCompilationCache> cacheProvider)
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<ICompilationCache> cacheProvider)
     {
         var typesToMapProvider = context.SyntaxProvider
             .ForAttributeWithMetadataName(

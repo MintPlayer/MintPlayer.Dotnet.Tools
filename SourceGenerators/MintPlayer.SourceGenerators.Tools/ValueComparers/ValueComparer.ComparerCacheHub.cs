@@ -8,6 +8,6 @@ internal static class ComparerCacheHub
 {
     private static readonly ConditionalWeakTable<Compilation, PerCompilationCache> _cwt = new();
 
-    public static PerCompilationCache Get(Compilation compilation) =>
+    public static ICompilationCache Get(Compilation compilation) =>
         _cwt.GetValue(compilation, static _ => new PerCompilationCache());
 }
