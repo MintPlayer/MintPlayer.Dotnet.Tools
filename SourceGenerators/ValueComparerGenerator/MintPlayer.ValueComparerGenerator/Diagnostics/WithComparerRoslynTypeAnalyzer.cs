@@ -9,7 +9,7 @@ namespace MintPlayer.ValueComparerGenerator.Diagnostics;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed partial class WithComparerRoslynTypeAnalyzer : DiagnosticAnalyzer
 {
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
     public override void Initialize(AnalysisContext context)
     {
@@ -25,7 +25,7 @@ public sealed partial class WithComparerRoslynTypeAnalyzer : DiagnosticAnalyzer
         var method = invocation.TargetMethod;
 
         // We only care about methods named WithComparer
-        if (!string.Equals(method.Name, "WithComparer", StringComparison.Ordinal))
+        if (!string.Equals(method.Name, "WithComparer", StringComparison.Ordinal) && !string.Equals(method.Name, "WithNullableComparer", StringComparison.Ordinal))
             return;
 
         // We look at the receiver (reduced extension) to ensure it's an Incremental*Provider<T>

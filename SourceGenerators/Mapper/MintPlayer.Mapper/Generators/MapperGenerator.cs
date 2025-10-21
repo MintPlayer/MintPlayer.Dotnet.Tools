@@ -48,6 +48,7 @@ public class MapperGenerator : IncrementalGenerator
 
                                     DeclaredProperties = ProcessProperties(sourceType).ToArray(),
                                     MappingProperties = ProcessProperties(destType1).ToArray(),
+                                    //Symbol = sourceType,
                                 };
                             }
                             else
@@ -109,7 +110,7 @@ public class MapperGenerator : IncrementalGenerator
             )
             .Where(static (i) => i is { })
             .SelectMany(static (i, ct) => i)
-            .WithComparer();
+            .WithComparer(Models.TypeToMapValueComparer.Instance);
 
         //var mapperConversionMethodsProvider = context.SyntaxProvider
         //    .ForAttributeWithMetadataName(
