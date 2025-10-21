@@ -13,7 +13,7 @@
 	</ItemGroup>
 
 	<PropertyGroup>
-		<Version>9.0.0</Version>
+		<Version>9.1.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains useful targets files for building source generators</Description>

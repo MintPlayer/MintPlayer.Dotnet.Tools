@@ -2,6 +2,7 @@
 
 namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
 
+[System.Diagnostics.DebuggerDisplay("{Source.ToDisplayString()} → {Destination.ToDisplayString()}")]
 /// <summary>Tuple key that compares two symbols with SymbolEqualityComparer.Default.</summary>
 public readonly struct SymbolPair : IEquatable<SymbolPair>
 {
