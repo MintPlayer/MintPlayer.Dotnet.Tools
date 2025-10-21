@@ -10,7 +10,7 @@ namespace MintPlayer.Mapper.Generators;
 [Generator(LanguageNames.CSharp)]
 public class MapperGenerator : IncrementalGenerator
 {
-    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<PerCompilationCache> cacheProvider)
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<ICompilationCache> cacheProvider)
     {
         var typesToMapProvider = context.SyntaxProvider
             .ForAttributeWithMetadataName(
@@ -48,6 +48,7 @@ public class MapperGenerator : IncrementalGenerator
 
                                     DeclaredProperties = ProcessProperties(sourceType).ToArray(),
                                     MappingProperties = ProcessProperties(destType1).ToArray(),
+                                    //Symbol = sourceType,
                                 };
                             }
                             else
@@ -109,7 +110,7 @@ public class MapperGenerator : IncrementalGenerator
             )
             .Where(static (i) => i is { })
             .SelectMany(static (i, ct) => i)
-            .WithComparer();
+            .WithComparer(Models.TypeToMapValueComparer.Instance);
 
         //var mapperConversionMethodsProvider = context.SyntaxProvider
         //    .ForAttributeWithMetadataName(

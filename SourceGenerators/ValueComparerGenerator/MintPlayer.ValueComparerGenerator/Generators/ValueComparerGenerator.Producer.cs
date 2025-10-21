@@ -157,10 +157,6 @@ public sealed class TreeValueComparerProducer : Producer
                     writer.WriteLine($"{comparerType}<{baseType.FullName}>.AddHash(ref h, obj.{prop.Name});");
                 }
 
-
-
-
-
                 writer.Indent--;
                 writer.WriteLine("}");
 

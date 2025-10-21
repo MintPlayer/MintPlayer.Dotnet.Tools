@@ -1,4 +1,5 @@
-﻿using MintPlayer.SourceGenerators.Tools;
+﻿using Microsoft.CodeAnalysis;
+using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.ValueComparerGenerator.Attributes;
 
 namespace MintPlayer.Mapper.Models;
@@ -42,6 +43,7 @@ public partial class TypeToMap
     public bool HasError { get; set; }
 
     public LocationKey? Location { get; set; }
+    //public INamedTypeSymbol Symbol { get; internal set; }
 }
 
 [Flags]

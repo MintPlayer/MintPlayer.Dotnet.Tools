@@ -13,3 +13,8 @@ internal sealed class ReferenceEqualityComparer<T> : IEqualityComparer<T>
 
     public int GetHashCode(T obj) => RuntimeHelpers.GetHashCode(obj);
 }
+
+internal static class ReferenceEqualityComparer
+{
+    public static IEqualityComparer<object> Instance => ReferenceEqualityComparer<object>.Instance;
+}

@@ -17,7 +17,7 @@ public class ClassNamesSourceGenerator : IncrementalGenerator
         JObjectValueComparer.Register();
     }
 
-    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<PerCompilationCache> cacheProvider)
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<ICompilationCache> cacheProvider)
     {
         var classDeclarationsProvider = context.SyntaxProvider
             .CreateSyntaxProvider(

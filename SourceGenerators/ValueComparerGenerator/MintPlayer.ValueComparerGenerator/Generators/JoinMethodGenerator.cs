@@ -13,7 +13,7 @@ public class JoinMethodGenerator : IncrementalGenerator
     //{
     //}
 
-    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<PerCompilationCache> cacheProvider)
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<ICompilationCache> cacheProvider)
     {
         var numberOfJoinMethodsProvider = context.SyntaxProvider.ForAttributeWithMetadataName(
             typeof(GenerateJoinMethodsAttribute).FullName,
