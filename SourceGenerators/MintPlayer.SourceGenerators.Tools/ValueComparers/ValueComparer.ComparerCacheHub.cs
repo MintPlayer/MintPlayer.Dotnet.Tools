@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 // Per-Compilation hub that every generator in this DLL can use.
-public static class ComparerCacheHub
+internal static class ComparerCacheHub
 {
     private static readonly ConditionalWeakTable<Compilation, PerCompilationCache> _cwt = new();
 

@@ -3,7 +3,7 @@
 namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 /// <summary>Tuple key that compares two symbols with SymbolEqualityComparer.Default.</summary>
-internal readonly struct SymbolPair : IEquatable<SymbolPair>
+public readonly struct SymbolPair : IEquatable<SymbolPair>
 {
     public readonly ITypeSymbol Source;
     public readonly ITypeSymbol Destination;

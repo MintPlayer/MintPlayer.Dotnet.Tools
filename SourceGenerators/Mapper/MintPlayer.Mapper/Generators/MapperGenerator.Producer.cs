@@ -56,6 +56,9 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         writer.WriteLine("object? result;");
         writer.WriteLine();
 
+        writer.WriteLine();
+        writer.WriteLine();
+
         writer.WriteLine($"switch ((typeof(TSource), typeof(TDest)))");
         writer.WriteLine("{");
         writer.Indent++;
