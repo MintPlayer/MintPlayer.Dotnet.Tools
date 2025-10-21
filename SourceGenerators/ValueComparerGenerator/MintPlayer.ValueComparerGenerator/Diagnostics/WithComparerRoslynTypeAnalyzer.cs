@@ -29,25 +29,22 @@ public sealed partial class WithComparerRoslynTypeAnalyzer : DiagnosticAnalyzer
             return;
 
         // 1) Prefer the invocation's constructed return type
-        if (TryGetProviderElementType(invocation.Type as INamedTypeSymbol, out var elementType) ||
-            TryGetProviderElementType(method.ReturnType as INamedTypeSymbol, out elementType))
-        {
-            ReportIfRoslyn(elementType!, invocation, context);
+        if (!TryGetProviderElementType(invocation.Type as INamedTypeSymbol, out var elementType) &&
+            !TryGetProviderElementType(method.ReturnType as INamedTypeSymbol, out elementType))
             return;
-        }
 
-        // 2) (Optional) Fallback: find the receiver type (reduced/non-reduced/syntax)
-        if (TryGetReceiverType(invocation, context, out var recvType) &&
-            TryGetProviderElementType(recvType, out elementType))
-        {
-            ReportIfRoslyn(elementType!, invocation, context);
-        }
+
+        //// 2) (Optional) Fallback: find the receiver type (reduced/non-reduced/syntax)
+        //var visited = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
+        //if (TryGetReceiverType(invocation, context, out var recvType) &&
+        //    TryGetProviderElementType(recvType, out elementType))
+        //{
+        //    ReportIfRoslyn(elementType!, invocation, context);
+        //}
+        ReportIfRoslyn(elementType!, invocation, context);
     }
 
-    private static void ReportIfRoslyn(
-        ITypeSymbol elementType,
-        IInvocationOperation invocation,
-        OperationAnalysisContext context)
+    private static void ReportIfRoslyn(ITypeSymbol elementType, IInvocationOperation invocation, OperationAnalysisContext context)
     {
         var visited = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
         if (TryFindRoslynProperty(elementType, out var offendingProp, out var offendingType, visited))
@@ -61,47 +58,23 @@ public sealed partial class WithComparerRoslynTypeAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    static bool TryGetProviderElementType(INamedTypeSymbol type, out ITypeSymbol? element)
+    private static bool TryGetProviderElementType(INamedTypeSymbol? provider, out ITypeSymbol? elementType)
     {
-        element = null;
+        elementType = null;
+        if (provider is null || provider.Arity != 1) return false;
 
-        // Direct generic match
-        if (type.Arity == 1 && IsIncProviderName(type.ConstructedFrom?.Name ?? type.Name)
-            && IsRoslynNamespace(type.ContainingNamespace))
+        var name = provider.OriginalDefinition.Name;
+        var ns = provider.ContainingNamespace?.ToDisplayString() ?? "";
+        if ((name == "IncrementalValueProvider" || name == "IncrementalValuesProvider") &&
+            ns.StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal))
         {
-            element = type.TypeArguments[0];
+            elementType = provider.TypeArguments[0];
             return true;
         }
-
-        // Some pipelines wrap providers (e.g., nullable flow). Check original definition’s name:
-        if (type.Arity == 1 && IsIncProviderName(type.OriginalDefinition.Name)
-            && IsRoslynNamespace(type.ContainingNamespace))
-        {
-            element = type.TypeArguments[0];
-            return true;
-        }
-
-        // Handle cases where the provider is wrapped in another named type (rare).
-        foreach (var iface in type.AllInterfaces)
-        {
-            if (iface is INamedTypeSymbol { Arity: 1 } i1 &&
-                IsIncProviderName(i1.OriginalDefinition.Name) &&
-                IsRoslynNamespace(i1.ContainingNamespace))
-            {
-                element = i1.TypeArguments[0];
-                return true;
-            }
-        }
-
         return false;
-
-        static bool IsIncProviderName(string name)
-            => name is "IncrementalValueProvider" or "IncrementalValuesProvider";
-
-        static bool IsRoslynNamespace(INamespaceSymbol? ns)
-            => (ns?.ToDisplayString() ?? "").StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal);
     }
 
+    // walk properties + generics recursively
     private static bool TryFindRoslynProperty(
         ITypeSymbol type,
         out IPropertySymbol? offendingProperty,
@@ -111,84 +84,121 @@ public sealed partial class WithComparerRoslynTypeAnalyzer : DiagnosticAnalyzer
         offendingProperty = null;
         offendingType = type;
 
-        // If T itself is a Roslyn type, we can flag immediately
-        if (IsOrContainsRoslynType(type, visited))
-        {
-            offendingProperty = null;
-            offendingType = type;
-            return true;
-        }
-
-        // Walk instance properties (public & non-public; you can narrow if desired)
-        foreach (var prop in type.GetMembers().OfType<IPropertySymbol>())
-        {
-            if (prop.IsStatic) continue;
-
-            var pType = prop.Type;
-            if (IsOrContainsRoslynType(pType, visited))
-            {
-                offendingProperty = prop;
-                offendingType = FindFirstRoslynLeaf(pType, visited) ?? pType;
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool IsOrContainsRoslynType(ITypeSymbol t, HashSet<ITypeSymbol> visited)
-    {
-        if (!visited.Add(t))
+        if (!visited.Add(type))
             return false;
 
-        // Direct Roslyn types
-        if (IsRoslynNamespace(t))
-            return true;
+        if (IsRoslynType(type)) { offendingType = type; return true; }
 
-        switch (t)
+        switch (type)
         {
             case IArrayTypeSymbol arr:
-                return IsOrContainsRoslynType(arr.ElementType, visited);
+                return TryFindRoslynProperty(arr.ElementType, out offendingProperty, out offendingType, visited);
 
             case IPointerTypeSymbol ptr:
-                return IsOrContainsRoslynType(ptr.PointedAtType, visited);
+                return TryFindRoslynProperty(ptr.PointedAtType, out offendingProperty, out offendingType, visited);
 
             case INamedTypeSymbol named:
+                // Nullable<T>
+                if (named.ConstructedFrom.SpecialType == SpecialType.System_Nullable_T &&
+                    named.TypeArguments.Length == 1 &&
+                    TryFindRoslynProperty(named.TypeArguments[0], out offendingProperty, out offendingType, visited))
+                    return true;
+
+                // Tuples
+                if (named.IsTupleType)
                 {
-                    // Nullable<T>
-                    if (named.ConstructedFrom.SpecialType == SpecialType.System_Nullable_T &&
-                        named.TypeArguments.Length == 1)
-                    {
-                        return IsOrContainsRoslynType(named.TypeArguments[0], visited);
-                    }
-
-                    // Tuples
-                    if (named.IsTupleType)
-                    {
-                        foreach (var elem in named.TupleElements)
-                            if (IsOrContainsRoslynType(elem.Type, visited))
-                                return true;
-
-                        return false;
-                    }
-
-                    // Generic type args
-                    foreach (var ta in named.TypeArguments)
-                        if (IsOrContainsRoslynType(ta, visited))
+                    foreach (var el in named.TupleElements)
+                        if (TryFindRoslynProperty(el.Type, out offendingProperty, out offendingType, visited))
                             return true;
-
-                    var props = named.GetAllProperties();
-                    foreach (var prop in props)
-                        if (!prop.IsStatic && IsOrContainsRoslynType(prop.Type, visited))
-                            return true;
-
-                    return false;
                 }
+
+                // Generic args
+                foreach (var ta in named.TypeArguments)
+                    if (TryFindRoslynProperty(ta, out offendingProperty, out offendingType, visited))
+                        return true;
+
+                // Instance properties
+                foreach (var prop in named.GetAllProperties())
+                {
+                    if (prop.IsStatic) continue;
+                    if (TryFindRoslynProperty(prop.Type, out _, out offendingType, visited))
+                    {
+                        offendingProperty = prop;
+                        return true;
+                    }
+                }
+
+                // (Optional) instance fields too
+                // foreach (var f in named.GetMembers().OfType<IFieldSymbol>())
+                // {
+                //     if (f.IsStatic) continue;
+                //     if (TryFindRoslynProperty(f.Type, out _, out offendingType, visited))
+                //     {
+                //         offendingProperty = null;
+                //         return true;
+                //     }
+                // }
+
+                return false;
 
             default:
                 return false;
         }
     }
+
+    //private static bool IsOrContainsRoslynType(ITypeSymbol t, HashSet<ITypeSymbol> visited)
+    //{
+    //    if (!visited.Add(t))
+    //        return false;
+
+    //    // Direct Roslyn types
+    //    if (IsRoslynNamespace(t))
+    //        return true;
+
+    //    switch (t)
+    //    {
+    //        case IArrayTypeSymbol arr:
+    //            return IsOrContainsRoslynType(arr.ElementType, visited);
+
+    //        case IPointerTypeSymbol ptr:
+    //            return IsOrContainsRoslynType(ptr.PointedAtType, visited);
+
+    //        case INamedTypeSymbol named:
+    //            {
+    //                // Nullable<T>
+    //                if (named.ConstructedFrom.SpecialType == SpecialType.System_Nullable_T &&
+    //                    named.TypeArguments.Length == 1)
+    //                {
+    //                    return IsOrContainsRoslynType(named.TypeArguments[0], visited);
+    //                }
+
+    //                // Tuples
+    //                if (named.IsTupleType)
+    //                {
+    //                    foreach (var elem in named.TupleElements)
+    //                        if (IsOrContainsRoslynType(elem.Type, visited))
+    //                            return true;
+
+    //                    return false;
+    //                }
+
+    //                // Generic type args
+    //                foreach (var ta in named.TypeArguments)
+    //                    if (IsOrContainsRoslynType(ta, visited))
+    //                        return true;
+
+    //                var props = named.GetAllProperties();
+    //                foreach (var prop in props)
+    //                    if (!prop.IsStatic && IsOrContainsRoslynType(prop.Type, visited))
+    //                        return true;
+
+    //                return false;
+    //            }
+
+    //        default:
+    //            return false;
+    //    }
+    //}
 
     private static ITypeSymbol? FindFirstRoslynLeaf(ITypeSymbol t, HashSet<ITypeSymbol> visited)
     {
@@ -244,6 +254,14 @@ public sealed partial class WithComparerRoslynTypeAnalyzer : DiagnosticAnalyzer
         var ns = t.ContainingNamespace?.ToDisplayString() ?? string.Empty;
         return ns.StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal);
     }
+
+    private static bool IsRoslynType(ITypeSymbol t)
+    {
+        if (t is ITypeParameterSymbol) return false;
+        var ns = t.ContainingNamespace?.ToDisplayString() ?? string.Empty;
+        return ns.StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal);
+    }
+
     private static bool TryGetReceiverType(IInvocationOperation invocation, OperationAnalysisContext context, out INamedTypeSymbol? receiverType)
     {
         receiverType = null;
