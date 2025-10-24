@@ -302,6 +302,10 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
 
     private static void HandleProperty(IndentedTextWriter writer, PropertyDeclaration source, PropertyDeclaration destination, EWriteType writeType)
     {
+        if (source.IsReadOnly) return;
+        if (source.IsInitOnly && writeType == EWriteType.Assignment) return;
+
+
         var prefix = writeType switch
         {
             EWriteType.Initializer => $"{source.PropertyName} = ",

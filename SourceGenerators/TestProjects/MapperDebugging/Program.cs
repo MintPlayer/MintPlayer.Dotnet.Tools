@@ -97,6 +97,12 @@ public class Person
 
     [MapTo(nameof(Person.Password)), MapperState<EPasswordState>(EPasswordState.Plaintext)]
     public string Password { get; set; }
+
+    // Read-only property
+    public string Field1 { get; }
+
+    // Init-only property
+    public string Field2 { get; set; }
 }
 
 //[GenerateMapper(typeof(Person), typeof(PersonDto), "PersoonDto")]
@@ -123,6 +129,14 @@ public class PersonDto
 
     [MapTo(nameof(Person.Password)), MapperState<EPasswordState>(EPasswordState.Base64)]
     public string Password { get; set; }
+
+    // Read-only property
+    [MapTo(nameof(Person.Field1))]
+    public string Veld1 { get; set; }
+
+    // Init-only property
+    [MapTo(nameof(Person.Field2))]
+    public string Veld2 { get; init; }
 }
 
 [GenerateMapper(typeof(AddressDto))]

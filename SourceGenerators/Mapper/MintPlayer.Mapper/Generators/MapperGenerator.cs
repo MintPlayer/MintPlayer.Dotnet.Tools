@@ -278,6 +278,8 @@ public class MapperGenerator : IncrementalGenerator
                 //IsNullable = p.NullableAnnotation == NullableAnnotation.Annotated,
                 //IsReadOnly = p.IsReadOnly,
                 IsStatic = p.IsStatic,
+                IsReadOnly = p.SetMethod is null,
+                IsInitOnly = p.SetMethod is { IsInitOnly: true },
                 //IsVirtual = p.IsVirtual,
                 //IsAbstract = p.IsAbstract,
                 //IsOverride = p.IsOverride,
