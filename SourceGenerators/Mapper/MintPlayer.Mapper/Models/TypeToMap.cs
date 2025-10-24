@@ -16,6 +16,7 @@ public partial class TypeToMap
     /// Short name
     /// </summary>
     public string DeclaredTypeName { get; set; }
+    public int DeclaredTypeAccessibility { get; set; }
     public PropertyDeclaration[] DeclaredProperties { get; set; } = [];
 
     /// <summary>
@@ -27,6 +28,7 @@ public partial class TypeToMap
     /// Short name
     /// </summary>
     public string MappingTypeName { get; set; }
+    public int MappingTypeAccessibility { get; set; }
     public PropertyDeclaration[] MappingProperties { get; set; } = [];
 
     public string PreferredMappingMethodName { get; set; }

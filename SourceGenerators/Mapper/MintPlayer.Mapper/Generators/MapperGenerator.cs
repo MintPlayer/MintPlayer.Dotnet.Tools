@@ -37,9 +37,12 @@ public class MapperGenerator : IncrementalGenerator
                                     DestinationNamespace = sourceType.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
                                     DeclaredType = sourceType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                     DeclaredTypeName = sourceType.Name,
+                                    DeclaredTypeAccessibility = (int)sourceType.DeclaredAccessibility,
                                     PreferredDeclaredMethodName = declaredMethodName,
+                                    
                                     MappingType = destType1.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                     MappingTypeName = destType1.Name,
+                                    MappingTypeAccessibility = (int)destType1.DeclaredAccessibility,
                                     PreferredMappingMethodName = mappingMethodName,
                                     AreBothDecorated = destType1.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute"),
                                     AppliedOn = Models.EAppliedOn.Assembly,
@@ -259,7 +262,7 @@ public class MapperGenerator : IncrementalGenerator
                 PropertyType = p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                 PropertyTypeName = p.Type is INamedTypeSymbol namedType && namedType.IsGenericType && namedType.Name == "List" && namedType.TypeArguments.Length == 1
                     ? namedType.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)
-                    : p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                    : p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat.RemoveMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier)),
 
                 Alias = p.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapToAttribute")
                     is { ConstructorArguments.Length: > 0 } aliasAttr

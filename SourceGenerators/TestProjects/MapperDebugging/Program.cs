@@ -90,7 +90,7 @@ public class Person
     [IgnoreMap]
     public string? Name { get; set; }
     public int? Age { get; set; }
-    public Address Address { get; set; }
+    internal Address? Address { get; set; }
     public List<ContactInfo> ContactInfos { get; set; } = [];
     public List<string> Notes { get; set; }
     public double Weight { get; set; }
@@ -110,7 +110,7 @@ public class PersonDto
     public int? Leeftijd { get; set; }
 
     [MapTo(nameof(Person.Address))]
-    public AddressDto Adres { get; set; }
+    internal AddressDto? Adres { get; set; }
 
     [MapTo(nameof(Person.ContactInfos))]
     public List<ContactInfoDto> Contactgegevens { get; set; } = [];
@@ -126,13 +126,13 @@ public class PersonDto
 }
 
 [GenerateMapper(typeof(AddressDto))]
-public class Address
+internal class Address
 {
     public string? Street { get; set; }
     public string? City { get; set; }
 }
 
-public class AddressDto
+internal class AddressDto
 {
     [MapTo(nameof(Address.Street))]
     public string? Straatnaam { get; set; }
