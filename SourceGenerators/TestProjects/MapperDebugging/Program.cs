@@ -17,8 +17,8 @@ var person = new Person
     },
     ContactInfos =
     [
-        new ContactInfo { Type = "Email", Value = "info@example.com" },
-        new ContactInfo { Type = "Phone", Value = "123-456-7890" }
+        ContactInfo.Create("Email", "info@example.com"),
+        ContactInfo.Create("Phone", "123-456-7890"),
     ],
     Notes = ["Note 1", "Note 2"],
     Weight = 70.5,
@@ -157,6 +157,16 @@ internal class AddressDto
 
 public class ContactInfo
 {
+    private ContactInfo() { }
+    public static ContactInfo Create(string type, string value)
+    {
+        return new ContactInfo
+        {
+            Type = type,
+            Value = value
+        };
+    }
+
     public string Type { get; set; }
     public string Value { get; set; }
 }

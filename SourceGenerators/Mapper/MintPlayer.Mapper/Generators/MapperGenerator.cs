@@ -38,12 +38,15 @@ public class MapperGenerator : IncrementalGenerator
                                     DeclaredType = sourceType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                     DeclaredTypeName = sourceType.Name,
                                     DeclaredTypeAccessibility = (int)sourceType.DeclaredAccessibility,
+                                    CanConstructDeclaredType = sourceType.Constructors.Any(c => (c.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal) && (c.Parameters.Length == 0)),
                                     PreferredDeclaredMethodName = declaredMethodName,
-                                    
+
                                     MappingType = destType1.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                     MappingTypeName = destType1.Name,
                                     MappingTypeAccessibility = (int)destType1.DeclaredAccessibility,
+                                    CanConstructMappingType = destType1.Constructors.Any(c => (c.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal) && (c.Parameters.Length == 0)),
                                     PreferredMappingMethodName = mappingMethodName,
+                                    
                                     AreBothDecorated = destType1.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute"),
                                     AppliedOn = Models.EAppliedOn.Assembly,
                                     HasError = false,
@@ -84,10 +87,16 @@ public class MapperGenerator : IncrementalGenerator
                                     DestinationNamespace = typeSymbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
                                     DeclaredType = typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                     DeclaredTypeName = typeSymbol.Name,
+                                    DeclaredTypeAccessibility = (int)typeSymbol.DeclaredAccessibility,
+                                    CanConstructDeclaredType = typeSymbol.Constructors.Any(c => (c.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal) && (c.Parameters.Length == 0)),
                                     PreferredDeclaredMethodName = CreateMethodName(typeMethodName2, typeSymbol),
+
                                     MappingType = destType2.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                     MappingTypeName = destType2.Name,
+                                    MappingTypeAccessibility = (int)destType2.DeclaredAccessibility,
+                                    CanConstructMappingType = destType2.Constructors.Any(c => (c.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal) && (c.Parameters.Length == 0)),
                                     PreferredMappingMethodName = mappingMethodName,
+                                    
                                     AreBothDecorated = destType2.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute"),
                                     AppliedOn = Models.EAppliedOn.Class,
                                     HasError = false,
@@ -263,6 +272,8 @@ public class MapperGenerator : IncrementalGenerator
                 PropertyTypeName = p.Type is INamedTypeSymbol namedType && namedType.IsGenericType && namedType.Name == "List" && namedType.TypeArguments.Length == 1
                     ? namedType.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)
                     : p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat.RemoveMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier)),
+                CanConstructPropertyType = p.Type is INamedTypeSymbol propTypeSymbol && propTypeSymbol.Constructors.Any(c => (c.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal) && (c.Parameters.Length == 0)),
+                CanConstructElementType = CanConstructElementType(p.Type),
 
                 Alias = p.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapToAttribute")
                     is { ConstructorArguments.Length: > 0 } aliasAttr
@@ -285,6 +296,23 @@ public class MapperGenerator : IncrementalGenerator
                 //IsOverride = p.IsOverride,
                 IsPrimitive = p.Type.IsValueType || p.Type.SpecialType == SpecialType.System_String,
             });
+    }
+
+    private static bool? CanConstructElementType(ITypeSymbol type)
+    {
+        if (type is INamedTypeSymbol namedType && namedType.IsGenericType && namedType.Name == "List" && namedType.TypeArguments.Length == 1)
+        {
+            var elementType = namedType.TypeArguments[0];
+            return elementType is INamedTypeSymbol elemTypeSymbol && elemTypeSymbol.Constructors.Any(c => (c.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal) && (c.Parameters.Length == 0));
+        }
+
+        if (type is IArrayTypeSymbol arrayType)
+        {
+            var elementType = arrayType.ElementType;
+            return elementType is INamedTypeSymbol elemTypeSymbol && elemTypeSymbol.Constructors.Any(c => (c.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal) && (c.Parameters.Length == 0));
+        }
+
+        return null;
     }
 
     //public override void RegisterComparers()

@@ -129,30 +129,34 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
             writer.Indent--;
             writer.WriteLine("}");
 
-            writer.WriteLine($"{accessModifier} static {type.TypeToMap.DeclaredType} {type.TypeToMap.PreferredDeclaredMethodName}(this {type.TypeToMap.MappingType} input)");
-            writer.WriteLine("{");
-            writer.Indent++;
-
-            writer.WriteLine("if (input is null) return default;");
-            writer.WriteLine();
-
-            writer.WriteLine($"return new {type.TypeToMap.DeclaredType}()");
-            writer.WriteLine("{");
-            writer.Indent++;
-
-            foreach (var (source, destination) in type.MappedProperties)
+            if (type.TypeToMap.CanConstructDeclaredType)
             {
-                HandleProperty(writer, source, destination, EWriteType.Initializer);
+                writer.WriteLine($"{accessModifier} static {type.TypeToMap.DeclaredType} {type.TypeToMap.PreferredDeclaredMethodName}(this {type.TypeToMap.MappingType} input)");
+                writer.WriteLine("{");
+                writer.Indent++;
+
+                writer.WriteLine("if (input is null) return default;");
+                writer.WriteLine();
+
+                writer.WriteLine($"return new {type.TypeToMap.DeclaredType}()");
+                writer.WriteLine("{");
+                writer.Indent++;
+
+                foreach (var (source, destination) in type.MappedProperties)
+                {
+                    HandleProperty(writer, source, destination, EWriteType.Initializer);
+                }
+
+                writer.Indent--;
+                writer.WriteLine("};");
+
+                writer.Indent--;
+                writer.WriteLine("}");
             }
-
-            writer.Indent--;
-            writer.WriteLine("};");
-
-            writer.Indent--;
-            writer.WriteLine("}");
 
             if (!type.TypeToMap.AreBothDecorated)
             {
+                // Only one of both types is decorated, so we need to generate the mapping in the other direction as well.
                 writer.WriteLine($"{accessModifier} static void {type.TypeToMap.PreferredMappingMethodName}(this {type.TypeToMap.DeclaredType} input, {type.TypeToMap.MappingType} output)");
                 writer.WriteLine("{");
                 writer.Indent++;
@@ -161,7 +165,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
                 writer.WriteLine("{");
                 writer.Indent++;
 
-                foreach (var (source, destination) in type.MappedProperties)
+                foreach (var (source, destination) in type.MappedProperties.Where(p => p.Source.CanConstructPropertyType))
                 {
                     HandleProperty(writer, destination, source, EWriteType.Assignment);
                 }
@@ -172,40 +176,46 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
                 writer.Indent--;
                 writer.WriteLine("}");
 
-                writer.WriteLine($"{accessModifier} static {type.TypeToMap.MappingType} {type.TypeToMap.PreferredMappingMethodName}(this {type.TypeToMap.DeclaredType} input)");
-                writer.WriteLine("{");
-                writer.Indent++;
-
-                writer.WriteLine("if (input is null) return default;");
-                writer.WriteLine();
-
-                writer.WriteLine($"return new {type.TypeToMap.MappingType}()");
-                writer.WriteLine("{");
-                writer.Indent++;
-
-                // TODO: add properties
-                foreach (var (source, destination) in type.MappedProperties)
+                if (type.TypeToMap.CanConstructMappingType)
                 {
-                    HandleProperty(writer, destination, source, EWriteType.Initializer);
-                }
+                    writer.WriteLine($"{accessModifier} static {type.TypeToMap.MappingType} {type.TypeToMap.PreferredMappingMethodName}(this {type.TypeToMap.DeclaredType} input)");
+                    writer.WriteLine("{");
+                    writer.Indent++;
 
-                writer.Indent--;
-                writer.WriteLine("};");
+                    writer.WriteLine("if (input is null) return default;");
+                    writer.WriteLine();
+
+                    writer.WriteLine($"return new {type.TypeToMap.MappingType}()");
+                    writer.WriteLine("{");
+                    writer.Indent++;
+
+                    // TODO: add properties
+                    foreach (var (source, destination) in type.MappedProperties.Where(p => p.Destination.CanConstructPropertyType))
+                    {
+                        HandleProperty(writer, destination, source, EWriteType.Initializer);
+                    }
+
+                    writer.Indent--;
+                    writer.WriteLine("};");
+
+                    writer.Indent--;
+                    writer.WriteLine("}");
+                }
+            }
+
+            if (type.TypeToMap.CanConstructDeclaredType)
+            {
+                writer.WriteLine($"{accessModifier} static global::System.Collections.Generic.IEnumerable<{type.TypeToMap.DeclaredType}> {type.TypeToMap.PreferredDeclaredMethodName}(this global::System.Collections.Generic.IEnumerable<{type.TypeToMap.MappingType}> input)");
+                writer.WriteLine("{");
+                writer.Indent++;
+
+                writer.WriteLine($"return input.Select(x => x.{type.TypeToMap.PreferredDeclaredMethodName}());");
 
                 writer.Indent--;
                 writer.WriteLine("}");
             }
 
-            writer.WriteLine($"{accessModifier} static global::System.Collections.Generic.IEnumerable<{type.TypeToMap.DeclaredType}> {type.TypeToMap.PreferredDeclaredMethodName}(this global::System.Collections.Generic.IEnumerable<{type.TypeToMap.MappingType}> input)");
-            writer.WriteLine("{");
-            writer.Indent++;
-
-            writer.WriteLine($"return input.Select(x => x.{type.TypeToMap.PreferredDeclaredMethodName}());");
-
-            writer.Indent--;
-            writer.WriteLine("}");
-
-            if (!type.TypeToMap.AreBothDecorated)
+            if (!type.TypeToMap.AreBothDecorated && type.TypeToMap.CanConstructMappingType)
             {
                 writer.WriteLine($"{accessModifier} static global::System.Collections.Generic.IEnumerable<{type.TypeToMap.MappingType}> {type.TypeToMap.PreferredMappingMethodName}(this global::System.Collections.Generic.IEnumerable<{type.TypeToMap.DeclaredType}> input)");
                 writer.WriteLine("{");
@@ -304,6 +314,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
     {
         if (source.IsReadOnly) return;
         if (source.IsInitOnly && writeType == EWriteType.Assignment) return;
+        if (source.CanConstructElementType == false) return;
 
 
         var prefix = writeType switch

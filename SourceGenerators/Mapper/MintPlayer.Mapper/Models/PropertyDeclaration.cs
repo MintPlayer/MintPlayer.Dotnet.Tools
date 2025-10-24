@@ -8,6 +8,8 @@ public partial class PropertyDeclaration
     public string PropertyName { get; set; }
     public string PropertyType { get; set; }
     public string PropertyTypeName { get; set; }
+    public bool CanConstructPropertyType { get; set; }
+    public bool? CanConstructElementType { get; set; }
     public string? Alias { get; set; }
     public int? StateName { get; set; }
     public bool IsStatic { get; set; }
