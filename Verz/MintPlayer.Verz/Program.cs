@@ -14,7 +14,7 @@ var app = Host.CreateDefaultBuilder()
         services.AddSingleton<IHelper, App>();
 
         services
-            //.AddNugetOrgRegistry()
+            .AddNugetOrgRegistry()
             .AddNpmjsComRegistry()
             .AddGithubPackageRegistry("MintPlayer", context.Configuration.GetValue<string>("GithubPAT")!)
             ;

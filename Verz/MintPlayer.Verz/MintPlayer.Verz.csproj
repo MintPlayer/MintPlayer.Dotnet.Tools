@@ -19,6 +19,10 @@
 	<ItemGroup>
 	  <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
 	  <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
+	  <PackageReference Include="NuGet.Protocol" Version="6.10.2" />
+	  <PackageReference Include="NuGet.Packaging" Version="6.10.2" />
+	  <PackageReference Include="NuGet.Versioning" Version="6.10.2" />
+	  <PackageReference Include="NuGet.Configuration" Version="6.10.2" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -28,6 +32,7 @@
 	  <ProjectReference Include="..\Registries\MintPlayer.Verz.Registry.NugetOrg\MintPlayer.Verz.Registry.NugetOrg.csproj" />
 	  <ProjectReference Include="..\Sdks\MintPlayer.Verz.Sdk.Dotnet\MintPlayer.Verz.Sdk.Dotnet.csproj" />
 	  <ProjectReference Include="..\Sdks\MintPlayer.Verz.Sdk.Nodejs\MintPlayer.Verz.Sdk.Nodejs.csproj" />
+	  <ProjectReference Include="..\ApiHash\MintPlayer.ApiHash\MintPlayer.ApiHash.csproj" />
 	</ItemGroup>
 
 </Project>
