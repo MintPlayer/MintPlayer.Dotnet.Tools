@@ -11,4 +11,8 @@
 		<ProjectReference Include="..\..\MintPlayer.Verz.Core\MintPlayer.Verz.Core.csproj" />
 	</ItemGroup>
 
+    <ItemGroup>
+        <PackageReference Include="PublicApiGenerator" Version="11.4.6" />
+    </ItemGroup>
+
 </Project>

@@ -12,5 +12,12 @@
 		<PropertyGroup>
 			<ComputedApiHash>$(PublicApiHash)</ComputedApiHash>
 		</PropertyGroup>
+
+		<!-- Emit the hash into a file to embed in the package -->
+		<WriteLinesToFile File="$(IntermediateOutputPath)PublicApiHash.txt" Lines="$(PublicApiHash)" Overwrite="true" />
+
+		<ItemGroup>
+			<None Include="$(IntermediateOutputPath)PublicApiHash.txt" Pack="true" PackagePath="build/" />
+		</ItemGroup>
 	</Target>
 </Project>
