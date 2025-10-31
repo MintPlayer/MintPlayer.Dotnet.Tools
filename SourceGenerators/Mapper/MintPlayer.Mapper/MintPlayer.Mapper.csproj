@@ -33,7 +33,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<None Include="build\MintPlayer.Mapper.targets" Pack="true" PackagePath="build\MintPlayer.Mapper.targets" />
+		<None Include="build\MintPlayer.Mapper.targets" Pack="true" PackagePath="build\$(PackageId).targets" />
 	</ItemGroup>
 
 	<ItemGroup>

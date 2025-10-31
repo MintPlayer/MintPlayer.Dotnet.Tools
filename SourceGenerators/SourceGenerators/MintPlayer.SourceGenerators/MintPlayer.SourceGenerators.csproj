@@ -34,7 +34,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<None Include="build\MintPlayer.SourceGenerators.targets" Pack="true" PackagePath="build\MintPlayer.SourceGenerators.targets" />
+		<None Include="build\MintPlayer.SourceGenerators.targets" Pack="true" PackagePath="build\$(PackageId).targets" />
 	</ItemGroup>
 
 	<ItemGroup>

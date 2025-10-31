@@ -30,7 +30,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<None Include="build\MintPlayer.ValueComparerGenerator.targets" Pack="true" PackagePath="build\MintPlayer.ValueComparerGenerator.targets" />
+		<None Include="build\MintPlayer.ValueComparerGenerator.targets" Pack="true" PackagePath="build\$(PackageId).targets" />
 	</ItemGroup>
 
 	<ItemGroup>
