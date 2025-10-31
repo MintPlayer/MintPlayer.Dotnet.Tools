@@ -15,4 +15,8 @@
         </ItemGroup>
     </Target>
 
+    <Target Name="MintPlayer_ValueComparerGenerator_TargetsLoaded" BeforeTargets="PrepareForBuild">
+        <Message Text="ValueComparerGenerator targets loaded" Importance="High" />
+    </Target>
+
 </Project>

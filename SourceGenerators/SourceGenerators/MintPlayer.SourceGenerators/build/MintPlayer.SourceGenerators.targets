@@ -15,4 +15,8 @@
         </ItemGroup>
     </Target>
 
+    <Target Name="MintPlayer_SourceGenerators_TargetsLoaded" BeforeTargets="PrepareForBuild">
+        <Message Text="SourceGenerators targets loaded" Importance="High" />
+    </Target>
+
 </Project>

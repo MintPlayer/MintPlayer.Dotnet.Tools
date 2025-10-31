@@ -15,4 +15,8 @@
         </ItemGroup>
     </Target>
 
+    <Target Name="MintPlayer_Mapper_TargetsLoaded" BeforeTargets="PrepareForBuild">
+        <Message Text="Mapper targets loaded" Importance="High" />
+    </Target>
+
 </Project>
