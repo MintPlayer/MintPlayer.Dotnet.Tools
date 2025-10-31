@@ -24,8 +24,8 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<None Include="Targets\sourcegenerator_tools.props" Pack="true" PackagePath="build/$(PackageId).props" />
-		<None Include="Targets\sourcegenerator_tools.targets" Pack="true" PackagePath="build/$(PackageId).targets" />
+		<None Include="Targets\sourcegenerator_tools.props" Pack="true" PackagePath="buildTransitive/$(PackageId).props" />
+		<None Include="Targets\sourcegenerator_tools.targets" Pack="true" PackagePath="buildTransitive/$(PackageId).targets" />
 	</ItemGroup>
 
 	<ItemGroup>
