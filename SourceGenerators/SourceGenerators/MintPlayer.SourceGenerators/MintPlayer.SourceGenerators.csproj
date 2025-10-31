@@ -2,17 +2,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPaths</GetTargetPathDependsOn>
+		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsMintPlayerSourceGenerators</GetTargetPathDependsOn>
 	</PropertyGroup>
 
-	<Target Name="GetDependencyTargetPaths">
+	<Target Name="GetDependencyTargetPathsMintPlayerSourceGenerators">
 		<ItemGroup>
 			<TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Attributes.dll" IncludeRuntimeDependency="true" />
 		</ItemGroup>
 	</Target>
 
 	<PropertyGroup>
-		<Version>9.1.0</Version>
+		<Version>9.2.1</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains several source generators</Description>
@@ -31,6 +31,10 @@
 	<ItemGroup>
 		<!-- Dependency DLLs -->
 		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="build\MintPlayer.SourceGenerators.targets" Pack="true" PackagePath="build\$(PackageId).targets" />
 	</ItemGroup>
 
 	<ItemGroup>

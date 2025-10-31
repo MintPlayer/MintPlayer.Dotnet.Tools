@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+	<PropertyGroup>
+		<MintPlayerMapperAttributeAssembly Condition="'$(MintPlayerMapperAttributeAssembly)' == '' and Exists('$(MSBuildThisFileDirectory)..\analyzers\dotnet\cs\MintPlayer.Mapper.Attributes.dll')">$(MSBuildThisFileDirectory)..\analyzers\dotnet\cs\MintPlayer.Mapper.Attributes.dll</MintPlayerMapperAttributeAssembly>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(MintPlayerMapperAttributeAssembly)' != ''">
+		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsMintPlayerMapper</GetTargetPathDependsOn>
+	</PropertyGroup>
+
+	<Target Name="GetDependencyTargetPathsMintPlayerMapper" Condition="'$(MintPlayerMapperAttributeAssembly)' != ''">
+		<ItemGroup>
+			<TargetPathWithTargetPlatformMoniker Include="$(MintPlayerMapperAttributeAssembly)" IncludeRuntimeDependency="true" />
+		</ItemGroup>
+	</Target>
+
+	<Target Name="MintPlayer_Mapper_TargetsLoaded" BeforeTargets="PrepareForBuild">
+		<Message Text="Mapper targets loaded" Importance="High" />
+	</Target>
+
+</Project>
