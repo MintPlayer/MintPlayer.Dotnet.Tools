@@ -1,18 +1,18 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
 
-	<PropertyGroup>
-		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPaths</GetTargetPathDependsOn>
-	</PropertyGroup>
+    <PropertyGroup>
+        <GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsMintPlayerSourceGenerators</GetTargetPathDependsOn>
+    </PropertyGroup>
 
-	<Target Name="GetDependencyTargetPaths">
-		<ItemGroup>
-			<TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Attributes.dll" IncludeRuntimeDependency="true" />
-		</ItemGroup>
-	</Target>
+    <Target Name="GetDependencyTargetPathsMintPlayerSourceGenerators">
+        <ItemGroup>
+            <TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Attributes.dll" IncludeRuntimeDependency="true" />
+        </ItemGroup>
+    </Target>
 
 	<PropertyGroup>
-		<Version>9.1.0</Version>
+		<Version>9.2.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains several source generators</Description>
@@ -28,10 +28,14 @@
 		<!--<AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>-->
 	</PropertyGroup>
 
-	<ItemGroup>
-		<!-- Dependency DLLs -->
-		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
-	</ItemGroup>
+    <ItemGroup>
+        <!-- Dependency DLLs -->
+        <None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="build\MintPlayer.SourceGenerators.targets" Pack="true" PackagePath="build\MintPlayer.SourceGenerators.targets" />
+    </ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\MintPlayer.SourceGenerators.Attributes\MintPlayer.SourceGenerators.Attributes.csproj" />
