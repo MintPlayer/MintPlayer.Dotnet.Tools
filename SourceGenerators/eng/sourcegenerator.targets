@@ -37,8 +37,6 @@
 			</PropertyGroup>
 		</Otherwise>
 	</Choose>
-	<ItemGroup>
-	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj" PrivateAssets="all" />
