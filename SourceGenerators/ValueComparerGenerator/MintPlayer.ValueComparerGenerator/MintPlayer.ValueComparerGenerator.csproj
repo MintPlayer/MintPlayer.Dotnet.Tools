@@ -1,15 +1,15 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        <GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsValueComparerGenerator</GetTargetPathDependsOn>
-    </PropertyGroup>
+	<PropertyGroup>
+		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsValueComparerGenerator</GetTargetPathDependsOn>
+	</PropertyGroup>
 
-    <Target Name="GetDependencyTargetPathsValueComparerGenerator">
-        <ItemGroup>
-            <TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)\..\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.ValueComparerGenerator.Attributes.dll" IncludeRuntimeDependency="true" />
-        </ItemGroup>
-    </Target>
+	<Target Name="GetDependencyTargetPathsValueComparerGenerator">
+		<ItemGroup>
+			<TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)\..\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.ValueComparerGenerator.Attributes.dll" IncludeRuntimeDependency="true" />
+		</ItemGroup>
+	</Target>
 
 	<PropertyGroup>
 		<Version>9.2.0</Version>
@@ -24,14 +24,14 @@
 		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
 	</PropertyGroup>
 
-    <ItemGroup>
-        <!-- FSR attribute assemblies should not be with a roslyn version path -->
-        <None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
-    </ItemGroup>
+	<ItemGroup>
+		<!-- FSR attribute assemblies should not be with a roslyn version path -->
+		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
+	</ItemGroup>
 
-    <ItemGroup>
-        <None Include="build\MintPlayer.ValueComparerGenerator.targets" Pack="true" PackagePath="build\MintPlayer.ValueComparerGenerator.targets" />
-    </ItemGroup>
+	<ItemGroup>
+		<None Include="build\MintPlayer.ValueComparerGenerator.targets" Pack="true" PackagePath="build\MintPlayer.ValueComparerGenerator.targets" />
+	</ItemGroup>
 
 	<ItemGroup>
 	  <Compile Remove="Producers\ValueComparersProducer.cs" />

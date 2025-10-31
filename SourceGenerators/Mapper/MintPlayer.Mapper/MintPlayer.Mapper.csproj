@@ -1,14 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        <GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsMintPlayerMapper</GetTargetPathDependsOn>
-    </PropertyGroup>
+	<PropertyGroup>
+		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsMintPlayerMapper</GetTargetPathDependsOn>
+	</PropertyGroup>
 
-    <Target Name="GetDependencyTargetPathsMintPlayerMapper">
-        <ItemGroup>
-            <TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)\..\MintPlayer.Mapper.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.Mapper.Attributes.dll" IncludeRuntimeDependency="true" />
-        </ItemGroup>
-    </Target>
+	<Target Name="GetDependencyTargetPathsMintPlayerMapper">
+		<ItemGroup>
+			<TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)\..\MintPlayer.Mapper.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.Mapper.Attributes.dll" IncludeRuntimeDependency="true" />
+		</ItemGroup>
+	</Target>
 
 	<PropertyGroup>
 		<Version>9.2.0</Version>
@@ -27,14 +27,14 @@
 		<!--<AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>-->
 	</PropertyGroup>
 
-    <ItemGroup>
-        <!-- Dependency DLLs -->
-        <None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.Mapper.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
-    </ItemGroup>
+	<ItemGroup>
+		<!-- Dependency DLLs -->
+		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.Mapper.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
+	</ItemGroup>
 
-    <ItemGroup>
-        <None Include="build\MintPlayer.Mapper.targets" Pack="true" PackagePath="build\MintPlayer.Mapper.targets" />
-    </ItemGroup>
+	<ItemGroup>
+		<None Include="build\MintPlayer.Mapper.targets" Pack="true" PackagePath="build\MintPlayer.Mapper.targets" />
+	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\MintPlayer.Mapper.Attributes\MintPlayer.Mapper.Attributes.csproj" />
