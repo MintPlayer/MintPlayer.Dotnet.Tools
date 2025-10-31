@@ -24,10 +24,10 @@
 		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
 	</PropertyGroup>
 
-	<ItemGroup>
-		<!-- FSR attribute assemblies should not be with a roslyn version path -->
-		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
-	</ItemGroup>
+    <ItemGroup>
+        <!-- FSR attribute assemblies should not be with a roslyn version path -->
+        <None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
+    </ItemGroup>
 
 	<ItemGroup>
 		<None Include="build\MintPlayer.ValueComparerGenerator.targets" Pack="true" PackagePath="build\$(PackageId).targets" />
