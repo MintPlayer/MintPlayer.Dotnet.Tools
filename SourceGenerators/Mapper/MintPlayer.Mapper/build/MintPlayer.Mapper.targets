@@ -1,19 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+	<!--
+	This file does the following:
+		- Only runs when the package is installed as a PackageReference, not in this solution
+		- Puts the built DLL and its dependencies in the correct package path for Roslyn analyzers
+	-->
 
-    <PropertyGroup>
-        <MintPlayerMapperAttributeAssembly Condition="'$(MintPlayerMapperAttributeAssembly)' == '' and Exists('$(MSBuildThisFileDirectory)..\analyzers\dotnet\cs\MintPlayer.Mapper.Attributes.dll')">$(MSBuildThisFileDirectory)..\analyzers\dotnet\cs\MintPlayer.Mapper.Attributes.dll</MintPlayerMapperAttributeAssembly>
-    </PropertyGroup>
+	<PropertyGroup>
+		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsMapperGenerator</GetTargetPathDependsOn>
+	</PropertyGroup>
 
-    <PropertyGroup Condition="'$(MintPlayerMapperAttributeAssembly)' != ''">
-        <GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsMintPlayerMapper</GetTargetPathDependsOn>
-    </PropertyGroup>
+	<Target Name="GetDependencyTargetPathsMapperGenerator">
+		<!-- Include dependency DLLs and put them in the correct package path -->
+		<ItemGroup>
+			<TargetPathWithTargetPlatformMoniker Include="$(PkgMintPlayer_Mapper_Attributes)\lib\netstandard2.0\MintPlayer.Mapper.Attributes" IncludeRuntimeDependency="true" />
+		</ItemGroup>
+	</Target>
 
-    <Target Name="GetDependencyTargetPathsMintPlayerMapper" Condition="'$(MintPlayerMapperAttributeAssembly)' != ''">
-        <ItemGroup>
-            <TargetPathWithTargetPlatformMoniker Include="$(MintPlayerMapperAttributeAssembly)" IncludeRuntimeDependency="true" />
-        </ItemGroup>
-    </Target>
+	<Target Name="MapperAttributes_CheckGeneratePathProperty" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
+		<Error Condition="'$(PkgMintPlayer_Mapper_Attributes)' == ''"
+			   Text="Please add GeneratePathProperty=&quot;true&quot; on the MintPlayer.Mapper.Attributes PackageReference." />
+	</Target>
+
+	<Target Name="MintPlayer_Mapper_TargetsLoaded" BeforeTargets="PrepareForBuild">
+		<Message Text="MintPlayer.Mapper targets loaded" Importance="High" />
+	</Target>
 
 	<Target Name="MintPlayer_Mapper_TargetsLoaded" BeforeTargets="PrepareForBuild">
 		<Message Text="Mapper targets loaded" Importance="High" />

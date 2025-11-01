@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+	<!--
+	This file only applies to projects within this solution
+	-->
 
 	<ItemGroup>
 		<ProjectReference Include="$(MSBuildThisFileDirectory)\..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator.Attributes\MintPlayer.ValueComparerGenerator.Attributes.csproj" />

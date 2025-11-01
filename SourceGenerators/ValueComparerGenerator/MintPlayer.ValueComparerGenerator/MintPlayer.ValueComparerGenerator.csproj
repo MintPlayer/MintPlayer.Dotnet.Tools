@@ -12,7 +12,7 @@
 	</Target>
 
 	<PropertyGroup>
-		<Version>9.2.1</Version>
+		<Version>10.0.0-preview.1</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains a source generator that generates value-comparers for you</Description>
@@ -29,9 +29,10 @@
         <None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
     </ItemGroup>
 
-	<ItemGroup>
-		<None Include="build\MintPlayer.ValueComparerGenerator.targets" Pack="true" PackagePath="build\$(PackageId).targets" />
-	</ItemGroup>
+    <ItemGroup>
+        <None Include="build\MintPlayer.ValueComparerGenerator.props" Pack="true" PackagePath="build\MintPlayer.ValueComparerGenerator.props" />
+        <None Include="build\MintPlayer.ValueComparerGenerator.targets" Pack="true" PackagePath="build\MintPlayer.ValueComparerGenerator.targets" />
+    </ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\MintPlayer.ValueComparerGenerator.Attributes\MintPlayer.ValueComparerGenerator.Attributes.csproj" />

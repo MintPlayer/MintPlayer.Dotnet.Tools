@@ -1,19 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+	<!--
+	This file does the following:
+		- Only runs when the package is installed as a PackageReference, not in this solution
+		- Puts the built DLL and its dependencies in the correct package path for Roslyn analyzers
+	-->
 
-    <PropertyGroup>
-        <MintPlayerSourceGeneratorsAttributeAssembly Condition="'$(MintPlayerSourceGeneratorsAttributeAssembly)' == '' and Exists('$(MSBuildThisFileDirectory)..\analyzers\dotnet\cs\MintPlayer.SourceGenerators.Attributes.dll')">$(MSBuildThisFileDirectory)..\analyzers\dotnet\cs\MintPlayer.SourceGenerators.Attributes.dll</MintPlayerSourceGeneratorsAttributeAssembly>
-    </PropertyGroup>
-
-    <PropertyGroup Condition="'$(MintPlayerSourceGeneratorsAttributeAssembly)' != ''">
+	<PropertyGroup>
         <GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsMintPlayerSourceGenerators</GetTargetPathDependsOn>
     </PropertyGroup>
 
-    <Target Name="GetDependencyTargetPathsMintPlayerSourceGenerators" Condition="'$(MintPlayerSourceGeneratorsAttributeAssembly)' != ''">
+    <Target Name="GetDependencyTargetPathsMintPlayerSourceGenerators">
         <ItemGroup>
-            <TargetPathWithTargetPlatformMoniker Include="$(MintPlayerSourceGeneratorsAttributeAssembly)" IncludeRuntimeDependency="true" />
-        </ItemGroup>
+			<TargetPathWithTargetPlatformMoniker Include="$(PkgMintPlayer_SourceGenerators_Attributes)\lib\netstandard2.0\MintPlayer.SourceGenerators.Attributes" IncludeRuntimeDependency="true" />
+		</ItemGroup>
     </Target>
+
+	<Target Name="SourceGeneratorAttributes_CheckGeneratePathProperty" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
+		<Error Condition="'$(PkgMintPlayer_SourceGenerators_Attributes)' == ''"
+			   Text="Please add GeneratePathProperty=&quot;true&quot; on the MintPlayer.SourceGenerators.Attributes PackageReference." />
+	</Target>
 
 	<Target Name="MintPlayer_SourceGenerators_TargetsLoaded" BeforeTargets="PrepareForBuild">
 		<Message Text="MintPlayer.SourceGenerators targets loaded" Importance="High" />
