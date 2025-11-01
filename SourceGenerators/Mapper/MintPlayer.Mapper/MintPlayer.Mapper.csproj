@@ -11,7 +11,7 @@
 	</Target>
 
 	<PropertyGroup>
-		<Version>9.2.1</Version>
+		<Version>10.0.0-preview.1</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package automatically generates mappers for you</Description>
@@ -33,7 +33,8 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<None Include="build\MintPlayer.Mapper.targets" Pack="true" PackagePath="build\$(PackageId).targets" />
+		<None Include="build\MintPlayer.Mapper.props" Pack="true" PackagePath="build\MintPlayer.Mapper.props" />
+		<None Include="build\MintPlayer.Mapper.targets" Pack="true" PackagePath="build\MintPlayer.Mapper.targets" />
 	</ItemGroup>
 
 	<ItemGroup>

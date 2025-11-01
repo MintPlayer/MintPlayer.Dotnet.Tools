@@ -113,7 +113,7 @@ public class MapperGenerator : IncrementalGenerator
             )
             .Where(static (i) => i is { })
             .SelectMany(static (i, ct) => i)
-            .WithComparer(Models.TypeToMapValueComparer.Instance);
+            .WithComparer();
 
         //var mapperConversionMethodsProvider = context.SyntaxProvider
         //    .ForAttributeWithMetadataName(

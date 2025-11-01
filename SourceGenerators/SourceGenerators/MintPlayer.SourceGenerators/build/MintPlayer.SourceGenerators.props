@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+	<!--
+	This file does the following:
+		- Only runs when the package is installed as a PackageReference, not in this solution
+		- Puts the built DLL and its dependencies in the correct package path for Roslyn analyzers
+	-->
+
+	<ItemGroup>
+		<!-- Put the assets for this project in the correct package path -->
+		<!-- Rolsyn 4.0 -->
+		<None Include="$(PkgMintPlayer_SourceGenerators_Attributes)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="true" />
+
+		<!-- Rolsyn 4.9 -->
+		<None Include="$(PkgMintPlayer_SourceGenerators_Attributes)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="true" />
+	</ItemGroup>
+</Project>

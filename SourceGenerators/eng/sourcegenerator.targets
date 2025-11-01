@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-
+	<!--
+	This file only applies to projects within this solution
+	-->
+	
 	<PropertyGroup>
 		<TargetFramework>netstandard2.0</TargetFramework>
 		<LangVersion>13</LangVersion>
@@ -37,8 +40,6 @@
 			</PropertyGroup>
 		</Otherwise>
 	</Choose>
-	<ItemGroup>
-	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj" PrivateAssets="all" />

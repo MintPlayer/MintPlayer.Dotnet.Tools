@@ -8,7 +8,7 @@
 	</PropertyGroup>
 
 	<PropertyGroup>
-		<Version>9.2.1</Version>
+		<Version>10.0.0-preview.1</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains useful tools for building source generators</Description>
@@ -24,8 +24,8 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<None Include="Targets\sourcegenerator_tools.props" Pack="true" PackagePath="build/$(PackageId).props" />
-		<None Include="Targets\sourcegenerator_tools.targets" Pack="true" PackagePath="build/$(PackageId).targets" />
+		<None Include="Targets\sourcegenerator_tools.props" Pack="true" PackagePath="buildTransitive/$(PackageId).props" />
+		<None Include="Targets\sourcegenerator_tools.targets" Pack="true" PackagePath="buildTransitive/$(PackageId).targets" />
 	</ItemGroup>
 
 	<ItemGroup>

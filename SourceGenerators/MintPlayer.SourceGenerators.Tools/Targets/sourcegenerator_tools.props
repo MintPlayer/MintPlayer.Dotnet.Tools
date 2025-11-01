@@ -50,6 +50,16 @@
 		<!-- Rolsyn 4.9 -->
 		<None Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="true" />
 		<None Include="$(PkgMintPlayer_SourceGenerators_Tools)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="true" />
+
+		<!-- Attributes assembly, if exists -->
+		<None Condition="'$(Configuration)' == 'Release' " Include="$(MSBuildProjectDirectory)..\$(MSBuildProjectName).Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
 	</ItemGroup>
 
+	<!-- Microsoft.Extensions.DependencyInjection.Abstractions (only when referenced in the package project) -->
+	<ItemGroup Condition="'$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)' != ''">
+		<!-- Rolsyn 4.0 -->
+		<None Include="$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="true" />
+		<!-- Rolsyn 4.9 -->
+		<None Include="$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="true" />
+	</ItemGroup>
 </Project>

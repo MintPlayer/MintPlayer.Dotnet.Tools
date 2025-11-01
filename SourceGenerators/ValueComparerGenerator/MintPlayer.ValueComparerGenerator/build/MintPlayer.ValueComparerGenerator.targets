@@ -1,22 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+	<!--
+	This file does the following:
+		- Only runs when the package is installed as a PackageReference, not in this solution
+		- Puts the built DLL and its dependencies in the correct package path for Roslyn analyzers
+	-->
 
 	<PropertyGroup>
-		<MintPlayerValueComparerGeneratorAttributeAssembly Condition="'$(MintPlayerValueComparerGeneratorAttributeAssembly)' == '' and Exists('$(MSBuildThisFileDirectory)..\analyzers\dotnet\cs\MintPlayer.ValueComparerGenerator.Attributes.dll')">$(MSBuildThisFileDirectory)..\analyzers\dotnet\cs\MintPlayer.ValueComparerGenerator.Attributes.dll</MintPlayerValueComparerGeneratorAttributeAssembly>
-	</PropertyGroup>
+        <GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsValueComparerGenerator</GetTargetPathDependsOn>
+    </PropertyGroup>
 
-	<PropertyGroup Condition="'$(MintPlayerValueComparerGeneratorAttributeAssembly)' != ''">
-		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsValueComparerGenerator</GetTargetPathDependsOn>
-	</PropertyGroup>
-
-	<Target Name="GetDependencyTargetPathsValueComparerGenerator" Condition="'$(MintPlayerValueComparerGeneratorAttributeAssembly)' != ''">
+    <Target Name="GetDependencyTargetPathsValueComparerGenerator">
+		<!-- Include dependency DLLs and put them in the correct package path -->
 		<ItemGroup>
-			<TargetPathWithTargetPlatformMoniker Include="$(MintPlayerValueComparerGeneratorAttributeAssembly)" IncludeRuntimeDependency="true" />
-		</ItemGroup>
+            <TargetPathWithTargetPlatformMoniker Include="$(PkgMintPlayer_ValueComparerGenerator_Attributes)\lib\netstandard2.0\MintPlayer.ValueComparerGenerator.Attributes" IncludeRuntimeDependency="true" />
+        </ItemGroup>
+    </Target>
+
+	<Target Name="ValueComparerGeneratorAttributes_CheckGeneratePathProperty" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
+		<Error Condition="'$(PkgMintPlayer_ValueComparerGenerator_Attributes)' == ''"
+			   Text="Please add GeneratePathProperty=&quot;true&quot; on the MintPlayer.ValueComparerGenerator.Attributes PackageReference." />
 	</Target>
 
 	<Target Name="MintPlayer_ValueComparerGenerator_TargetsLoaded" BeforeTargets="PrepareForBuild">
-		<Message Text="ValueComparerGenerator targets loaded" Importance="High" />
+		<Message Text="MintPlayer.ValueComparerGenerator targets loaded" Importance="High" />
 	</Target>
 
 </Project>

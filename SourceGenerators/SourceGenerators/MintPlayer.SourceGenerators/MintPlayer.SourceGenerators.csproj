@@ -12,7 +12,7 @@
 	</Target>
 
 	<PropertyGroup>
-		<Version>9.2.1</Version>
+		<Version>10.0.0-preview.1</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains several source generators</Description>
@@ -28,21 +28,21 @@
 		<!--<AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>-->
 	</PropertyGroup>
 
-	<ItemGroup>
-		<!-- Dependency DLLs -->
-		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
-	</ItemGroup>
+    <ItemGroup>
+        <!-- Dependency DLLs -->
+        <None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
+    </ItemGroup>
 
-	<ItemGroup>
-		<None Include="build\MintPlayer.SourceGenerators.targets" Pack="true" PackagePath="build\$(PackageId).targets" />
-	</ItemGroup>
+    <ItemGroup>
+        <None Include="build\MintPlayer.SourceGenerators.props" Pack="true" PackagePath="build\MintPlayer.SourceGenerators.props" />
+        <None Include="build\MintPlayer.SourceGenerators.targets" Pack="true" PackagePath="build\MintPlayer.SourceGenerators.targets" />
+    </ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\MintPlayer.SourceGenerators.Attributes\MintPlayer.SourceGenerators.Attributes.csproj" />
 	</ItemGroup>
 
 	<Import Project="..\..\eng\sourcegenerator.targets" />
-	<Import Project="..\..\eng\valuecomparergenerator.targets" />
 	<Import Project="..\..\eng\newtonsoftjson.targets" />
-	<Import Project="..\..\eng\dependencyinjection.targets" />
+	<Import Project="..\..\eng\valuecomparergenerator.targets" />
 </Project>
