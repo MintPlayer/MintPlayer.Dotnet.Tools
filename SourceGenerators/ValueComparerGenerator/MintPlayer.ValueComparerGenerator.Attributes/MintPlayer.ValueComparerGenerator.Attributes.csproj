@@ -4,7 +4,7 @@
 		<TargetFramework>netstandard2.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<LangVersion>13</LangVersion>
-		<Version>10.0.0-preview.1</Version>
+		<Version>10.0.0-preview.2</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains attributes for the ValueComparerGenerator</Description>
@@ -18,10 +18,5 @@
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 	</PropertyGroup>
-
-	<ItemGroup>
-		<!-- ValueComparerAttribute is used in the generated source -->
-	  <ProjectReference Include="..\..\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj" />
-	</ItemGroup>
 
 </Project>
