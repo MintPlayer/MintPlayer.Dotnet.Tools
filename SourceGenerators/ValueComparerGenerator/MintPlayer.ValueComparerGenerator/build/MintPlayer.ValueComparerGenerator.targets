@@ -16,7 +16,7 @@
     </Target>
 
 	<Target Name="MintPlayer_ValueComparerGenerator_TargetsLoaded" BeforeTargets="PrepareForBuild">
-		<Message Text="ValueComparerGenerator targets loaded" Importance="High" />
+		<Message Text="MintPlayer.ValueComparerGenerator targets loaded" Importance="High" />
 	</Target>
 
 </Project>

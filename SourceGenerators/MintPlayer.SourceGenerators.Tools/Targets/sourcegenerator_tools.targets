@@ -11,6 +11,10 @@
 		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsCommon</GetTargetPathDependsOn>
 	</PropertyGroup>
 
+	<PropertyGroup Condition="'$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)' != ''">
+		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsDependencyInjection</GetTargetPathDependsOn>
+	</PropertyGroup>
+
 	<Target Name="GetDependencyTargetPathsCommon">
 		<!-- Include dependency DLLs and put them in the correct package path -->
 		<ItemGroup>
@@ -18,8 +22,18 @@
 		</ItemGroup>
 	</Target>
 
-	<Target Name="MapperGenerator_CheckGeneratePathProperty" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
+	<Target Name="GetDependencyTargetPathsDependencyInjection" Condition="'$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)' != ''">
+		<ItemGroup>
+			<TargetPathWithTargetPlatformMoniker Include="$(PKGMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\Microsoft.Extensions.DependencyInjection.Abstractions.dll" IncludeRuntimeDependency="false" />
+		</ItemGroup>
+	</Target>
+
+	<Target Name="GeneratorTools_CheckGeneratePathProperty" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
 		<Error Condition="'$(PkgMintPlayer_SourceGenerators_Tools)' == ''"
 			   Text="Please add GeneratePathProperty=&quot;true&quot; on the MintPlayer.SourceGenerators.Tools PackageReference." />
+	</Target>
+
+	<Target Name="MintPlayer_SourceGenerators_Tools_TargetsLoaded" BeforeTargets="PrepareForBuild">
+		<Message Text="SourceGenerators.Tools targets loaded" Importance="High" />
 	</Target>
 </Project>
