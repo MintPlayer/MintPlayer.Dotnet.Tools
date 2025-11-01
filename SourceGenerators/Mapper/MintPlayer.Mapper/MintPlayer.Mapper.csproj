@@ -41,5 +41,4 @@
 	</ItemGroup>
 
 	<Import Project="..\..\eng\sourcegenerator.targets" />
-	<Import Project="..\..\eng\valuecomparergenerator.targets" />
 </Project>
