@@ -12,7 +12,7 @@
 	</Target>
 
 	<PropertyGroup>
-		<Version>10.0.0-preview.2</Version>
+		<Version>10.0.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains several source generators</Description>
