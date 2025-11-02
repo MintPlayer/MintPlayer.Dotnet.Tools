@@ -12,7 +12,7 @@
 
     <Target Name="GetDependencyTargetPathsMintPlayerSourceGenerators">
         <ItemGroup>
-			<TargetPathWithTargetPlatformMoniker Include="$(PkgMintPlayer_SourceGenerators_Attributes)\lib\netstandard2.0\MintPlayer.SourceGenerators.Attributes" IncludeRuntimeDependency="true" />
+			<TargetPathWithTargetPlatformMoniker Include="$(PkgMintPlayer_SourceGenerators_Attributes)\lib\netstandard2.0\MintPlayer.SourceGenerators.Attributes.dll" IncludeRuntimeDependency="true" />
 		</ItemGroup>
     </Target>
 
