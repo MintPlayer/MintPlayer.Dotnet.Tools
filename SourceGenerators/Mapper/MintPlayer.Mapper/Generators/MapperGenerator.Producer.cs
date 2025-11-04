@@ -43,7 +43,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         writer.WriteLine("{");
         writer.Indent++;
 
-        writer.WriteLine("public static TDest? ConvertProperty<TSource, TDest>(TSource? source, int? sourceState = null, int? destState = null)");
+        writer.WriteLine("public static TDest? ConvertValue<TSource, TDest>(TSource? source, int? sourceState = null, int? destState = null)");
         writer.WriteLine("{");
         writer.Indent++;
 
@@ -324,9 +324,9 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         if (source.IsPrimitive && destination.IsPrimitive)
         {
             if (source.PropertyType != destination.PropertyType)
-                writer.WriteLine($"{prefix}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}){suffix}");
+                writer.WriteLine($"{prefix}ConvertValue<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}){suffix}");
             else if (source.StateName != null && destination.StateName != null)
-                writer.WriteLine($"""{prefix}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}, {source.StateName}, {destination.StateName}){suffix}""");
+                writer.WriteLine($"""{prefix}ConvertValue<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}, {source.StateName}, {destination.StateName}){suffix}""");
             else
                 writer.WriteLine($"{prefix}input.{destination.PropertyName}{suffix}");
         }
