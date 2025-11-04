@@ -1,0 +1,532 @@
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Linq;
+using System.Text;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using MintPlayer.SourceGenerators.Models;
+using MintPlayer.SourceGenerators.Tools;
+
+namespace MintPlayer.SourceGenerators.Generators;
+
+[Generator(LanguageNames.CSharp)]
+public sealed class CliCommandSourceGenerator : IncrementalGenerator
+{
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<ICompilationCache> cacheProvider)
+    {
+        var commandDefinitionsProvider = context.SyntaxProvider
+            .CreateSyntaxProvider(static (node, _) => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 }, Transform)
+            .Where(static definition => definition is not null)
+            .Select(static (definition, _) => definition!)
+            .Collect();
+
+        var producerProvider = commandDefinitionsProvider
+            .Combine(settingsProvider)
+            .Select(static (tuple, _) =>
+            {
+                var rootNamespace = tuple.Right.RootNamespace ?? string.Empty;
+                var trees = BuildCommandTrees(tuple.Left);
+                return new CliCommandProducer(trees, rootNamespace);
+            });
+
+        context.ProduceCode(producerProvider);
+    }
+
+    private static CliCommandDefinition? Transform(GeneratorSyntaxContext context, CancellationToken cancellationToken)
+    {
+        if (context.Node is not ClassDeclarationSyntax classDeclaration)
+        {
+            return null;
+        }
+
+        if (!classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword))
+        {
+            return null;
+        }
+
+        var semanticModel = context.SemanticModel;
+        if (semanticModel.GetDeclaredSymbol(classDeclaration, cancellationToken) is not INamedTypeSymbol classSymbol)
+        {
+            return null;
+        }
+
+        if (classSymbol.TypeKind != TypeKind.Class || classSymbol.IsStatic || classSymbol.IsGenericType)
+        {
+            return null;
+        }
+
+        var compilation = semanticModel.Compilation;
+        var rootAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.SourceGenerators.Attributes.CliRootCommandAttribute");
+        var commandAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.SourceGenerators.Attributes.CliCommandAttribute");
+        var optionAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.SourceGenerators.Attributes.CliOptionAttribute");
+        var argumentAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.SourceGenerators.Attributes.CliArgumentAttribute");
+        var cancellationTokenSymbol = compilation.GetTypeByMetadataName("System.Threading.CancellationToken");
+        var taskSymbol = compilation.GetTypeByMetadataName("System.Threading.Tasks.Task");
+        var valueTaskSymbol = compilation.GetTypeByMetadataName("System.Threading.Tasks.ValueTask");
+
+        if (rootAttributeSymbol is null || commandAttributeSymbol is null || optionAttributeSymbol is null || argumentAttributeSymbol is null)
+        {
+            return null;
+        }
+
+        var attributes = classSymbol.GetAttributes();
+        var rootAttribute = attributes.FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, rootAttributeSymbol));
+        var commandAttribute = attributes.FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, commandAttributeSymbol));
+
+        if (rootAttribute is null && commandAttribute is null)
+        {
+            return null;
+        }
+
+        var namespaceName = classSymbol.ContainingNamespace.IsGlobalNamespace
+            ? string.Empty
+            : classSymbol.ContainingNamespace.ToDisplayString();
+
+        var declaration = BuildDeclaration(classSymbol);
+        var fullyQualifiedName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        string? parentFullyQualifiedName = null;
+        if (classSymbol.ContainingType is not null)
+        {
+            var parentAttributes = classSymbol.ContainingType.GetAttributes();
+            var parentIsCommand = parentAttributes.Any(a =>
+                SymbolEqualityComparer.Default.Equals(a.AttributeClass, rootAttributeSymbol) ||
+                SymbolEqualityComparer.Default.Equals(a.AttributeClass, commandAttributeSymbol));
+            if (parentIsCommand)
+            {
+                parentFullyQualifiedName = classSymbol.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            }
+        }
+
+        var isRoot = rootAttribute is not null;
+        string? commandName = null;
+        string? description = null;
+
+        if (rootAttribute is not null)
+        {
+            commandName = GetStringArgument(rootAttribute, "Name");
+            description = GetConstructorArgumentString(rootAttribute, 0) ?? GetStringArgument(rootAttribute, "Description");
+        }
+
+        if (commandAttribute is not null)
+        {
+            commandName ??= GetConstructorArgumentString(commandAttribute, 0);
+            description ??= GetStringArgument(commandAttribute, "Description");
+        }
+
+        if (!isRoot && string.IsNullOrWhiteSpace(commandName))
+        {
+            commandName = ToKebabCase(classSymbol.Name);
+        }
+
+        var optionDefinitions = classSymbol.GetMembers()
+            .OfType<IPropertySymbol>()
+            .Select(property => ToOptionDefinition(property, optionAttributeSymbol))
+            .Where(static option => option is not null)
+            .Select(static option => option!)
+            .ToImmutableArray();
+
+        var argumentDefinitions = classSymbol.GetMembers()
+            .OfType<IPropertySymbol>()
+            .Select(property => ToArgumentDefinition(property, argumentAttributeSymbol))
+            .Where(static argument => argument is not null)
+            .Select(static argument => argument!)
+            .OrderBy(argument => argument.Position)
+            .ToImmutableArray();
+
+        var handlerInfo = ResolveHandler(classSymbol, cancellationTokenSymbol, taskSymbol, valueTaskSymbol);
+
+        return new CliCommandDefinition(
+            namespaceName,
+            declaration,
+            classSymbol.Name,
+            fullyQualifiedName,
+            parentFullyQualifiedName,
+            isRoot,
+            commandName,
+            description,
+            handlerInfo.HasHandler,
+            handlerInfo.MethodName,
+            handlerInfo.ReturnKind,
+            handlerInfo.UsesCancellationToken,
+            optionDefinitions,
+            argumentDefinitions);
+    }
+
+    private static ImmutableArray<CliCommandTree> BuildCommandTrees(ImmutableArray<CliCommandDefinition> definitions)
+    {
+        if (definitions.IsDefaultOrEmpty)
+        {
+            return ImmutableArray<CliCommandTree>.Empty;
+        }
+
+        var deduplicated = new Dictionary<string, CliCommandDefinition>(StringComparer.Ordinal);
+        foreach (var definition in definitions)
+        {
+            deduplicated[definition.FullyQualifiedName] = definition;
+        }
+
+        var nodeLookup = deduplicated.Values
+            .ToDictionary(definition => definition.FullyQualifiedName, definition => new CommandNode(definition), StringComparer.Ordinal);
+
+        foreach (var node in nodeLookup.Values)
+        {
+            if (node.Definition.ParentFullyQualifiedName is string parentName && nodeLookup.TryGetValue(parentName, out var parent))
+            {
+                parent.Children.Add(node);
+            }
+        }
+
+        var roots = nodeLookup.Values
+            .Where(node => node.Definition.IsRoot)
+            .Where(node => node.Definition.ParentFullyQualifiedName is null || !nodeLookup.ContainsKey(node.Definition.ParentFullyQualifiedName))
+            .Select(ToTree)
+            .ToImmutableArray();
+
+        return roots;
+    }
+
+    private static CliCommandTree ToTree(CommandNode node)
+    {
+        var children = node.Children.Select(ToTree).ToImmutableArray();
+        return new CliCommandTree(node.Definition, children);
+    }
+
+    private sealed class CommandNode
+    {
+        public CommandNode(CliCommandDefinition definition)
+        {
+            Definition = definition;
+        }
+
+        public CliCommandDefinition Definition { get; }
+        public List<CommandNode> Children { get; } = new();
+    }
+
+    private static (bool HasHandler, string? MethodName, CliHandlerReturnKind ReturnKind, bool UsesCancellationToken) ResolveHandler(INamedTypeSymbol classSymbol, INamedTypeSymbol? cancellationTokenSymbol, INamedTypeSymbol? taskSymbol, INamedTypeSymbol? valueTaskSymbol)
+    {
+        var candidates = classSymbol.GetMembers().OfType<IMethodSymbol>()
+            .Where(method => !method.IsStatic && (method.Name == "Execute" || method.Name == "ExecuteAsync"))
+            .OrderBy(method => method.Name == "Execute" ? 1 : 0);
+
+        foreach (var method in candidates)
+        {
+            if (method.Parameters.Length > 1)
+            {
+                continue;
+            }
+
+            var usesCancellationToken = method.Parameters.Length == 1;
+            if (usesCancellationToken)
+            {
+                if (cancellationTokenSymbol is null)
+                {
+                    continue;
+                }
+
+                if (!SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, cancellationTokenSymbol))
+                {
+                    continue;
+                }
+            }
+
+            var returnKind = GetReturnKind(method, taskSymbol, valueTaskSymbol);
+            if (returnKind == CliHandlerReturnKind.None && !method.ReturnsVoid)
+            {
+                continue;
+            }
+
+            return (true, method.Name, method.ReturnsVoid ? CliHandlerReturnKind.None : returnKind, usesCancellationToken);
+        }
+
+        return (false, null, CliHandlerReturnKind.None, false);
+    }
+
+    private static CliHandlerReturnKind GetReturnKind(IMethodSymbol method, INamedTypeSymbol? taskSymbol, INamedTypeSymbol? valueTaskSymbol)
+    {
+        if (method.ReturnsVoid)
+        {
+            return CliHandlerReturnKind.None;
+        }
+
+        if (method.ReturnType.SpecialType == SpecialType.System_Int32)
+        {
+            return CliHandlerReturnKind.Int32;
+        }
+
+        if (taskSymbol is not null)
+        {
+            if (SymbolEqualityComparer.Default.Equals(method.ReturnType, taskSymbol))
+            {
+                return CliHandlerReturnKind.Task;
+            }
+
+            if (method.ReturnType is INamedTypeSymbol task && task.TypeArguments.Length == 1 && SymbolEqualityComparer.Default.Equals(task.ConstructedFrom, taskSymbol))
+            {
+                if (task.TypeArguments[0].SpecialType == SpecialType.System_Int32)
+                {
+                    return CliHandlerReturnKind.TaskOfInt32;
+                }
+            }
+        }
+
+        if (valueTaskSymbol is not null)
+        {
+            if (SymbolEqualityComparer.Default.Equals(method.ReturnType, valueTaskSymbol))
+            {
+                return CliHandlerReturnKind.ValueTask;
+            }
+
+            if (method.ReturnType is INamedTypeSymbol valueTask && valueTask.TypeArguments.Length == 1 && SymbolEqualityComparer.Default.Equals(valueTask.ConstructedFrom, valueTaskSymbol))
+            {
+                if (valueTask.TypeArguments[0].SpecialType == SpecialType.System_Int32)
+                {
+                    return CliHandlerReturnKind.ValueTaskOfInt32;
+                }
+            }
+        }
+
+        return CliHandlerReturnKind.None;
+    }
+
+    private static CliOptionDefinition? ToOptionDefinition(IPropertySymbol propertySymbol, INamedTypeSymbol optionAttributeSymbol)
+    {
+        if (propertySymbol.IsStatic)
+        {
+            return null;
+        }
+
+        var attribute = propertySymbol.GetAttributes()
+            .FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, optionAttributeSymbol));
+
+        if (attribute is null)
+        {
+            return null;
+        }
+
+        var aliases = new List<string>();
+        if (attribute.ConstructorArguments.Length == 1)
+        {
+            var aliasArgument = attribute.ConstructorArguments[0];
+            if (aliasArgument.Kind == TypedConstantKind.Array)
+            {
+                foreach (var aliasConstant in aliasArgument.Values)
+                {
+                    var alias = GetString(aliasConstant);
+                    if (!string.IsNullOrWhiteSpace(alias))
+                    {
+                        aliases.Add(alias);
+                    }
+                }
+            }
+        }
+
+        if (aliases.Count == 0)
+        {
+            aliases.Add(ToAlias(propertySymbol.Name));
+        }
+
+        var description = GetStringArgument(attribute, "Description");
+        var required = GetBoolArgument(attribute, "Required");
+        var hidden = GetBoolArgument(attribute, "Hidden");
+
+        var hasDefaultValue = TryGetNamedArgument(attribute, "DefaultValue", out var defaultConstant) && defaultConstant.Value is not null;
+        var defaultValueExpression = hasDefaultValue ? GetLiteral(defaultConstant) : null;
+
+        return new CliOptionDefinition(
+            propertySymbol.Name,
+            propertySymbol.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            aliases,
+            description,
+            required,
+            hidden,
+            defaultValueExpression,
+            hasDefaultValue);
+    }
+
+    private static CliArgumentDefinition? ToArgumentDefinition(IPropertySymbol propertySymbol, INamedTypeSymbol argumentAttributeSymbol)
+    {
+        if (propertySymbol.IsStatic)
+        {
+            return null;
+        }
+
+        var attribute = propertySymbol.GetAttributes()
+            .FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, argumentAttributeSymbol));
+
+        if (attribute is null)
+        {
+            return null;
+        }
+
+        if (attribute.ConstructorArguments.Length == 0)
+        {
+            return null;
+        }
+
+        var positionConstant = attribute.ConstructorArguments[0];
+        if (positionConstant.Kind != TypedConstantKind.Primitive || positionConstant.Value is not int position)
+        {
+            return null;
+        }
+
+        var name = GetStringArgument(attribute, "Name") ?? ToCamelCase(propertySymbol.Name);
+        var description = GetStringArgument(attribute, "Description");
+        var required = GetBoolArgument(attribute, "Required", defaultValue: true);
+
+        return new CliArgumentDefinition(
+            propertySymbol.Name,
+            propertySymbol.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            position,
+            name,
+            description,
+            required);
+    }
+
+    private static string BuildDeclaration(INamedTypeSymbol classSymbol)
+    {
+        var parts = new List<string>();
+        var accessibility = classSymbol.DeclaredAccessibility switch
+        {
+            Accessibility.Public => "public",
+            Accessibility.Internal => "internal",
+            Accessibility.Private => "private",
+            Accessibility.Protected => "protected",
+            Accessibility.ProtectedAndInternal => "protected internal",
+            Accessibility.ProtectedOrInternal => "protected internal",
+            _ => string.Empty,
+        };
+
+        if (!string.IsNullOrWhiteSpace(accessibility))
+        {
+            parts.Add(accessibility);
+        }
+
+        if (classSymbol.IsStatic)
+        {
+            parts.Add("static");
+        }
+        else
+        {
+            if (classSymbol.IsAbstract && !classSymbol.IsSealed)
+            {
+                parts.Add("abstract");
+            }
+
+            if (classSymbol.IsSealed && !classSymbol.IsAbstract)
+            {
+                parts.Add("sealed");
+            }
+        }
+
+        parts.Add("partial");
+        parts.Add("class");
+        parts.Add(classSymbol.Name);
+
+        return string.Join(" ", parts.Where(static part => !string.IsNullOrWhiteSpace(part)));
+    }
+
+    private static bool TryGetNamedArgument(AttributeData attribute, string name, out TypedConstant value)
+    {
+        foreach (var (key, argumentValue) in attribute.NamedArguments)
+        {
+            if (key == name)
+            {
+                value = argumentValue;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
+    private static string? GetStringArgument(AttributeData attribute, string name)
+    {
+        return TryGetNamedArgument(attribute, name, out var constant) ? GetString(constant) : null;
+    }
+
+    private static bool GetBoolArgument(AttributeData attribute, string name, bool defaultValue = false)
+    {
+        if (TryGetNamedArgument(attribute, name, out var constant) && constant.Value is bool boolValue)
+        {
+            return boolValue;
+        }
+
+        return defaultValue;
+    }
+
+    private static string? GetConstructorArgumentString(AttributeData attribute, int index)
+    {
+        if (index < attribute.ConstructorArguments.Length)
+        {
+            return GetString(attribute.ConstructorArguments[index]);
+        }
+
+        return null;
+    }
+
+    private static string? GetString(TypedConstant constant)
+    {
+        if (constant.Kind == TypedConstantKind.Primitive && constant.Value is string value)
+        {
+            return value;
+        }
+
+        return null;
+    }
+
+    private static string GetLiteral(TypedConstant constant)
+    {
+        return constant.ToCSharpString();
+    }
+
+    private static string ToAlias(string propertyName)
+    {
+        return "--" + ToKebabCase(propertyName);
+    }
+
+    private static string ToCamelCase(string name)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            return name;
+        }
+
+        if (name.Length == 1)
+        {
+            return name.ToLowerInvariant();
+        }
+
+        return char.ToLowerInvariant(name[0]) + name.Substring(1);
+    }
+
+    private static string ToKebabCase(string name)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            return name;
+        }
+
+        var builder = new StringBuilder(name.Length * 2);
+        for (var i = 0; i < name.Length; i++)
+        {
+            var character = name[i];
+            if (char.IsUpper(character))
+            {
+                if (i > 0)
+                {
+                    builder.Append('-');
+                }
+
+                builder.Append(char.ToLowerInvariant(character));
+            }
+            else
+            {
+                builder.Append(character);
+            }
+        }
+
+        return builder.ToString();
+    }
+}
