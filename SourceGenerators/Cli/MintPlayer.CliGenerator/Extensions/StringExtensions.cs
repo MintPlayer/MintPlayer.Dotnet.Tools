@@ -28,4 +28,12 @@ internal static class StringExtensions
 
         return builder.ToString();
     }
+
+    // Helper to convert PascalCase to camelCase
+    internal static string ToCamelCase(this string name)
+    {
+        if (string.IsNullOrEmpty(name)) return name;
+        if (name.Length == 1) return name.ToLowerInvariant();
+        return char.ToLowerInvariant(name[0]) + name.Substring(1);
+    }
 }

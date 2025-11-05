@@ -5,6 +5,7 @@ using MintPlayer.CliGenerator.Extensions;
 using MintPlayer.CliGenerator.Models;
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.Tools.ValueComparers;
+using System.CodeDom.Compiler;
 using System.Collections.Immutable;
 
 namespace MintPlayer.CliGenerator.Generators;
@@ -353,7 +354,7 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
             return null;
         }
 
-        var name = GetStringArgument(attribute, "Name") ?? ToCamelCase(propertySymbol.Name);
+        var name = GetStringArgument(attribute, "Name") ?? propertySymbol.Name.ToCamelCase();
         var description = GetStringArgument(attribute, "Description");
         var required = GetBoolArgument(attribute, "Required", defaultValue: true);
 
@@ -471,18 +472,64 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
         return "--" + propertyName.ToKebabCase();
     }
 
-    private static string ToCamelCase(string name)
+    // Pseudocode plan:
+    // 1. Locate where the source generator emits the code for the Command objects (not shown in the provided code, but likely in a producer or emitter class using CliCommandDefinition).
+    // 2. For each CliCommandDefinition with HasHandler == true, generate code to call SetAction on the generated Command object, wiring it to the Execute or ExecuteAsync method.
+    // 3. The SetAction lambda should instantiate the command class, map arguments/options, and call the handler method, passing the CancellationToken if needed.
+    // 4. Ensure the generated code matches the .NET Standard 2.0 and C# 13.0 constraints.
+
+    // Since the code that emits the source for the Command objects is not shown, here's a representative method to add to your code emitter (e.g., in a class that generates the command registration code):
+    private void EmitSetAction(CliCommandDefinition command, IndentedTextWriter sb)
     {
-        if (string.IsNullOrEmpty(name))
+        if (!command.HasHandler || string.IsNullOrEmpty(command.HandlerMethodName))
+            return;
+
+        var commandVar = command.TypeName.ToCamelCase() + "Command";
+        var instanceVar = command.TypeName.ToCamelCase() + "Instance";
+        var handlerMethod = command.HandlerMethodName;
+        var usesCancellationToken = command.HandlerUsesCancellationToken;
+
+        sb.WriteLine($"{commandVar}.SetAction(async context =>");
+        sb.WriteLine("{");
+        sb.Indent++;
+
+        // Instantiate the command class
+        sb.WriteLine($"var {instanceVar} = new {command.TypeName}();");
+
+        // Map options
+        foreach (var option in command.Options)
         {
-            return name;
+            var property = option.PropertyName;
+            var type = option.PropertyType;
+            var alias = option.Aliases.First();
+            sb.WriteLine($"{instanceVar}.{property} = context.ParseResult.GetValueForOption<{type}>(\"{alias}\");");
         }
 
-        if (name.Length == 1)
+        // Map arguments
+        foreach (var argument in command.Arguments)
         {
-            return name.ToLowerInvariant();
+            var property = argument.PropertyName;
+            var type = argument.PropertyType;
+            var name = argument.ArgumentName;
+            sb.WriteLine($"{instanceVar}.{property} = context.ParseResult.GetValueForArgument<{type}>(\"{name}\");");
         }
 
-        return char.ToLowerInvariant(name[0]) + name.Substring(1);
+        // Call the handler
+        if (usesCancellationToken)
+        {
+            sb.WriteLine($"return await {instanceVar}.{handlerMethod}(context.GetCancellationToken());");
+        }
+        else
+        {
+            sb.WriteLine($"return await {instanceVar}.{handlerMethod}();");
+        }
+
+        sb.Indent--;
+        sb.WriteLine("});");
     }
+
+
+    // Usage: In your code generation logic, after creating the Command object, call EmitSetAction for each command definition.
+
+    // Note: You may need to adjust the context variable and method signatures to match your actual codebase.
 }
