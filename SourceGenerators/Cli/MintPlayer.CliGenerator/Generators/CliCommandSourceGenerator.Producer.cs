@@ -155,6 +155,9 @@ internal sealed class CliCommandProducer : Producer
             writer.WriteLine($"var command = new global::System.CommandLine.Command({nameLiteral}, description: {descriptionLiteral});");
         }
 
+        writer.WriteLine($"var appCommand = global::Microsoft.Extensions.DependencyInjection.ActivatorUtilities.CreateInstance<{command.FullyQualifiedName}>(serviceProvider);");
+        writer.WriteLine($"command.SetAction(async (parseResult) => await appCommand.Execute(global::System.Threading.CancellationToken.None));");
+
         var optionBindings = WriteOptionDeclarations(writer, command);
         var argumentBindings = WriteArgumentDeclarations(writer, command);
 
