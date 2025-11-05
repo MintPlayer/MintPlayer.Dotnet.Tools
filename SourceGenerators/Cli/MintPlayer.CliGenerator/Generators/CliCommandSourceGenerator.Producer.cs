@@ -265,39 +265,13 @@ internal sealed class CliCommandProducer : Producer
             writer.WriteLine("var cancellationToken = invocationContext.GetCancellationToken();");
         }
 
+        var handlerMethodName = command.HandlerMethodName ?? "Execute";
         var invocation = command.HandlerUsesCancellationToken
-            ? $"handler.{command.HandlerMethodName}(cancellationToken)"
-            : $"handler.{command.HandlerMethodName}()";
+            ? $"handler.{handlerMethodName}(cancellationToken)"
+            : $"handler.{handlerMethodName}()";
 
-        switch (command.HandlerReturnKind)
-        {
-            case CliHandlerReturnKind.Int32:
-                writer.WriteLine($"var exitCode = {invocation};");
-                writer.WriteLine("invocationContext.ExitCode = exitCode;");
-                break;
-            case CliHandlerReturnKind.Task:
-                writer.WriteLine($"await {invocation};");
-                writer.WriteLine("invocationContext.ExitCode = 0;");
-                break;
-            case CliHandlerReturnKind.TaskOfInt32:
-                writer.WriteLine($"var exitCodeTask = {invocation};");
-                writer.WriteLine("var exitCode = await exitCodeTask;");
-                writer.WriteLine("invocationContext.ExitCode = exitCode;");
-                break;
-            case CliHandlerReturnKind.ValueTask:
-                writer.WriteLine($"await {invocation};");
-                writer.WriteLine("invocationContext.ExitCode = 0;");
-                break;
-            case CliHandlerReturnKind.ValueTaskOfInt32:
-                writer.WriteLine($"var exitCodeValueTask = {invocation};");
-                writer.WriteLine("var exitCode = await exitCodeValueTask;");
-                writer.WriteLine("invocationContext.ExitCode = exitCode;");
-                break;
-            default:
-                writer.WriteLine(invocation + ";");
-                writer.WriteLine("invocationContext.ExitCode = 0;");
-                break;
-        }
+        writer.WriteLine($"var exitCode = await {invocation};");
+        writer.WriteLine("invocationContext.ExitCode = exitCode;");
 
         writer.Indent--;
         writer.WriteLine("});");

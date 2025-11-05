@@ -13,7 +13,6 @@ internal sealed record CliCommandDefinition(
     string? Description,
     bool HasHandler,
     string? HandlerMethodName,
-    CliHandlerReturnKind HandlerReturnKind,
     bool HandlerUsesCancellationToken,
     ImmutableArray<CliOptionDefinition> Options,
     ImmutableArray<CliArgumentDefinition> Arguments);

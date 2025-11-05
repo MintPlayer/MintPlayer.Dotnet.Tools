@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -63,7 +64,6 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
         var argumentAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.CliGenerator.Attributes.CliArgumentAttribute");
         var cancellationTokenSymbol = compilation.GetTypeByMetadataName("System.Threading.CancellationToken");
         var taskSymbol = compilation.GetTypeByMetadataName("System.Threading.Tasks.Task");
-        var valueTaskSymbol = compilation.GetTypeByMetadataName("System.Threading.Tasks.ValueTask");
 
         if (rootAttributeSymbol is null || commandAttributeSymbol is null || optionAttributeSymbol is null || argumentAttributeSymbol is null)
         {
@@ -134,7 +134,7 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
             .OrderBy(argument => argument.Position)
             .ToImmutableArray();
 
-        var handlerInfo = ResolveHandler(classSymbol, cancellationTokenSymbol, taskSymbol, valueTaskSymbol);
+        var handlerInfo = ResolveHandler(classSymbol, cancellationTokenSymbol, taskSymbol);
 
         return new CliCommandDefinition(
             namespaceName,
@@ -147,7 +147,6 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
             description,
             handlerInfo.HasHandler,
             handlerInfo.MethodName,
-            handlerInfo.ReturnKind,
             handlerInfo.UsesCancellationToken,
             optionDefinitions,
             argumentDefinitions);
@@ -203,7 +202,7 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
         public List<CommandNode> Children { get; } = new();
     }
 
-    private static (bool HasHandler, string? MethodName, CliHandlerReturnKind ReturnKind, bool UsesCancellationToken) ResolveHandler(INamedTypeSymbol classSymbol, INamedTypeSymbol? cancellationTokenSymbol, INamedTypeSymbol? taskSymbol, INamedTypeSymbol? valueTaskSymbol)
+    private static (bool HasHandler, string? MethodName, bool UsesCancellationToken) ResolveHandler(INamedTypeSymbol classSymbol, INamedTypeSymbol? cancellationTokenSymbol, INamedTypeSymbol? taskSymbol)
     {
         var candidates = classSymbol.GetMembers().OfType<IMethodSymbol>()
             .Where(method => !method.IsStatic && (method.Name == "Execute" || method.Name == "ExecuteAsync"))
@@ -230,63 +229,40 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
                 }
             }
 
-            var returnKind = GetReturnKind(method, taskSymbol, valueTaskSymbol);
-            if (returnKind == CliHandlerReturnKind.None && !method.ReturnsVoid)
+            if (!ReturnsTaskOfInt32(method, taskSymbol))
             {
                 continue;
             }
 
-            return (true, method.Name, method.ReturnsVoid ? CliHandlerReturnKind.None : returnKind, usesCancellationToken);
+            return (true, method.Name, usesCancellationToken);
         }
 
-        return (false, null, CliHandlerReturnKind.None, false);
+        return (false, null, false);
     }
 
-    private static CliHandlerReturnKind GetReturnKind(IMethodSymbol method, INamedTypeSymbol? taskSymbol, INamedTypeSymbol? valueTaskSymbol)
+    private static bool ReturnsTaskOfInt32(IMethodSymbol method, INamedTypeSymbol? taskSymbol)
     {
-        if (method.ReturnsVoid)
+        if (method.ReturnType is not INamedTypeSymbol namedType)
         {
-            return CliHandlerReturnKind.None;
+            return false;
         }
 
-        if (method.ReturnType.SpecialType == SpecialType.System_Int32)
+        if (taskSymbol is null)
         {
-            return CliHandlerReturnKind.Int32;
+            return string.Equals(namedType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), "global::System.Threading.Tasks.Task<int>", StringComparison.Ordinal);
         }
 
-        if (taskSymbol is not null)
+        if (!SymbolEqualityComparer.Default.Equals(namedType.ConstructedFrom, taskSymbol))
         {
-            if (SymbolEqualityComparer.Default.Equals(method.ReturnType, taskSymbol))
-            {
-                return CliHandlerReturnKind.Task;
-            }
-
-            if (method.ReturnType is INamedTypeSymbol task && task.TypeArguments.Length == 1 && SymbolEqualityComparer.Default.Equals(task.ConstructedFrom, taskSymbol))
-            {
-                if (task.TypeArguments[0].SpecialType == SpecialType.System_Int32)
-                {
-                    return CliHandlerReturnKind.TaskOfInt32;
-                }
-            }
+            return false;
         }
 
-        if (valueTaskSymbol is not null)
+        if (namedType.TypeArguments.Length != 1)
         {
-            if (SymbolEqualityComparer.Default.Equals(method.ReturnType, valueTaskSymbol))
-            {
-                return CliHandlerReturnKind.ValueTask;
-            }
-
-            if (method.ReturnType is INamedTypeSymbol valueTask && valueTask.TypeArguments.Length == 1 && SymbolEqualityComparer.Default.Equals(valueTask.ConstructedFrom, valueTaskSymbol))
-            {
-                if (valueTask.TypeArguments[0].SpecialType == SpecialType.System_Int32)
-                {
-                    return CliHandlerReturnKind.ValueTaskOfInt32;
-                }
-            }
+            return false;
         }
 
-        return CliHandlerReturnKind.None;
+        return namedType.TypeArguments[0].SpecialType == SpecialType.System_Int32;
     }
 
     private static CliOptionDefinition? ToOptionDefinition(IPropertySymbol propertySymbol, INamedTypeSymbol optionAttributeSymbol)
