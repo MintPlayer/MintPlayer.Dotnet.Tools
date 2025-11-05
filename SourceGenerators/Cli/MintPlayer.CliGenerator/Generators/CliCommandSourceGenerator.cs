@@ -6,7 +6,6 @@ using MintPlayer.CliGenerator.Models;
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.Tools.ValueComparers;
 using System.Collections.Immutable;
-using System.Text;
 
 namespace MintPlayer.CliGenerator.Generators;
 
