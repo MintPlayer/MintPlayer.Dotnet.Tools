@@ -243,10 +243,7 @@ internal sealed class CliCommandProducer : Producer
 
     private void WriteHandler(IndentedTextWriter writer, CliCommandDefinition command, IReadOnlyList<OptionBinding> options, IReadOnlyList<ArgumentBinding> arguments)
     {
-        var isAsync = command.HandlerReturnKind is CliHandlerReturnKind.Task or CliHandlerReturnKind.TaskOfInt32 or CliHandlerReturnKind.ValueTask or CliHandlerReturnKind.ValueTaskOfInt32;
-        writer.WriteLine(isAsync
-            ? "command.SetHandler(async invocationContext =>"
-            : "command.SetHandler(invocationContext =>");
+        writer.WriteLine("command.SetHandler(async invocationContext =>");
         writer.WriteLine("{");
         writer.Indent++;
 

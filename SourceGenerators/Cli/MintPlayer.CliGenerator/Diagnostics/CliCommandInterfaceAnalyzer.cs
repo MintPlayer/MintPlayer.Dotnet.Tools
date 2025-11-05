@@ -67,6 +67,6 @@ public sealed partial class CliCommandInterfaceAnalyzer
             ?? typeSymbol.Locations.FirstOrDefault(location => location.IsInSource)
             ?? Location.None;
 
-        context.ReportDiagnostic(Diagnostic.Create(Rule, location, typeSymbol.Name, attributeDisplayName));
+        context.ReportDiagnostic(Rule.Create(location, typeSymbol.Name, attributeDisplayName));
     }
 }
