@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
 
-namespace MintPlayer.SourceGenerators.Cli.Models;
+namespace MintPlayer.CliGenerator.Models;
 
 internal sealed record CliCommandTree(
     CliCommandDefinition Command,

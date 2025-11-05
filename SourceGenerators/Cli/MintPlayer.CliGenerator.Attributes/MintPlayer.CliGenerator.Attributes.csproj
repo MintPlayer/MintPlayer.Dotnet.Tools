@@ -8,10 +8,10 @@
     <Authors>Pieterjan De Clippel</Authors>
     <Company>MintPlayer</Company>
     <Description>Attributes for building CLI command trees with the MintPlayer source generator infrastructure</Description>
-    <PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/SourceGenerators/MintPlayer.SourceGenerators.Cli.Attributes</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/tree/main/SourceGenerators/Cli/MintPlayer.CliGenerator.Attributes</PackageProjectUrl>
     <RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageId>MintPlayer.SourceGenerators.Cli.Attributes</PackageId>
+    <PackageId>MintPlayer.CliGenerator.Attributes</PackageId>
     <PackageTags>SourceGenerators,CommandLine,System.CommandLine</PackageTags>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <IncludeSymbols>true</IncludeSymbols>
@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0-rc.1.25451.107" />
+    <PackageReference Include="System.CommandLine" Version="2.0.0-rc.1.25451.107" />
   </ItemGroup>
 
 </Project>

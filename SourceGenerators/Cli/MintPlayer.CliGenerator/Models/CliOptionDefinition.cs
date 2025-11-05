@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace MintPlayer.SourceGenerators.Cli.Models;
+namespace MintPlayer.CliGenerator.Models;
 
 internal sealed record CliOptionDefinition(
     string PropertyName,

@@ -18,7 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\SourceGenerators\MintPlayer.SourceGenerators\MintPlayer.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
     <ProjectReference Include="..\..\SourceGenerators\MintPlayer.SourceGenerators.Attributes\MintPlayer.SourceGenerators.Attributes.csproj" />
-    <ProjectReference Include="..\..\Cli\MintPlayer.SourceGenerators.Cli\MintPlayer.SourceGenerators.Cli.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
-    <ProjectReference Include="..\..\Cli\MintPlayer.SourceGenerators.Cli.Attributes\MintPlayer.SourceGenerators.Cli.Attributes.csproj" />
+    <ProjectReference Include="..\..\Cli\MintPlayer.CliGenerator\MintPlayer.CliGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
+    <ProjectReference Include="..\..\Cli\MintPlayer.CliGenerator.Attributes\MintPlayer.CliGenerator.Attributes.csproj" />
   </ItemGroup>
 </Project>

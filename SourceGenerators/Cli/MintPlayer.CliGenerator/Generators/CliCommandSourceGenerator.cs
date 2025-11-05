@@ -5,10 +5,10 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using MintPlayer.SourceGenerators.Cli.Models;
+using MintPlayer.CliGenerator.Models;
 using MintPlayer.SourceGenerators.Tools;
 
-namespace MintPlayer.SourceGenerators.Cli.Generators;
+namespace MintPlayer.CliGenerator.Generators;
 
 [Generator(LanguageNames.CSharp)]
 public sealed class CliCommandSourceGenerator : IncrementalGenerator
@@ -57,10 +57,10 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
         }
 
         var compilation = semanticModel.Compilation;
-        var rootAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.SourceGenerators.Cli.Attributes.CliRootCommandAttribute");
-        var commandAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.SourceGenerators.Cli.Attributes.CliCommandAttribute");
-        var optionAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.SourceGenerators.Cli.Attributes.CliOptionAttribute");
-        var argumentAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.SourceGenerators.Cli.Attributes.CliArgumentAttribute");
+        var rootAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.CliGenerator.Attributes.CliRootCommandAttribute");
+        var commandAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.CliGenerator.Attributes.CliCommandAttribute");
+        var optionAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.CliGenerator.Attributes.CliOptionAttribute");
+        var argumentAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.CliGenerator.Attributes.CliArgumentAttribute");
         var cancellationTokenSymbol = compilation.GetTypeByMetadataName("System.Threading.CancellationToken");
         var taskSymbol = compilation.GetTypeByMetadataName("System.Threading.Tasks.Task");
         var valueTaskSymbol = compilation.GetTypeByMetadataName("System.Threading.Tasks.ValueTask");

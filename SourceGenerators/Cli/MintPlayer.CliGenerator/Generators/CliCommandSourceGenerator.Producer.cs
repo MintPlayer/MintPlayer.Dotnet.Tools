@@ -2,10 +2,10 @@ using System.CodeDom.Compiler;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using MintPlayer.SourceGenerators.Cli.Models;
+using MintPlayer.CliGenerator.Models;
 using MintPlayer.SourceGenerators.Tools;
 
-namespace MintPlayer.SourceGenerators.Cli.Generators;
+namespace MintPlayer.CliGenerator.Generators;
 
 internal sealed class CliCommandProducer : Producer
 {

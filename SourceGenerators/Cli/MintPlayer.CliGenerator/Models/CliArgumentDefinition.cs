@@ -1,4 +1,4 @@
-namespace MintPlayer.SourceGenerators.Cli.Models;
+namespace MintPlayer.CliGenerator.Models;
 
 internal sealed record CliArgumentDefinition(
     string PropertyName,

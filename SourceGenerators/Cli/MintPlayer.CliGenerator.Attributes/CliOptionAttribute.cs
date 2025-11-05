@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace MintPlayer.SourceGenerators.Cli.Attributes;
+namespace MintPlayer.CliGenerator.Attributes;
 
 [AttributeUsage(AttributeTargets.Property, AllowMultiple = false, Inherited = false)]
 public sealed class CliOptionAttribute : Attribute

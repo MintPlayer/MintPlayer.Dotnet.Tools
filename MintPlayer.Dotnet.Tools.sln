@@ -70,9 +70,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MintPlayer.SourceGenerators
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.SourceGenerators.Attributes", "SourceGenerators\SourceGenerators\MintPlayer.SourceGenerators.Attributes\MintPlayer.SourceGenerators.Attributes.csproj", "{6F4991E0-B4D8-43BA-92C0-15DD37ED7CD3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.SourceGenerators.Cli.Attributes", "SourceGenerators\Cli\MintPlayer.SourceGenerators.Cli.Attributes\MintPlayer.SourceGenerators.Cli.Attributes.csproj", "{AC7424DE-7E17-4174-8038-8CBD98903B96}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.CliGenerator.Attributes", "SourceGenerators\Cli\MintPlayer.CliGenerator.Attributes\MintPlayer.CliGenerator.Attributes.csproj", "{AC7424DE-7E17-4174-8038-8CBD98903B96}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MintPlayer.SourceGenerators.Cli", "SourceGenerators\Cli\MintPlayer.SourceGenerators.Cli\MintPlayer.SourceGenerators.Cli.csproj", "{9BD0D69D-B7FA-47F1-9235-3B3F3A0DFD7B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MintPlayer.CliGenerator", "SourceGenerators\Cli\MintPlayer.CliGenerator\MintPlayer.CliGenerator.csproj", "{9BD0D69D-B7FA-47F1-9235-3B3F3A0DFD7B}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Verz", "Verz", "{0D1D2D90-BCFA-47EE-8C72-2E10405F96DF}"
 EndProject
