@@ -7,21 +7,23 @@ using MintPlayer.CliGenerator.Attributes;
 namespace CliCommandDebugging;
 
 [CliRootCommand(Name = "demo", Description = "Demonstrates the CLI command generator")]
-public partial class DemoCommand
+public partial class DemoCommand : ICliCommand
 {
     [CliOption("--verbose", "-v", Description = "Enable verbose output")]
     public bool Verbose { get; set; }
 
-    public void Execute()
+    public Task<int> Execute(CancellationToken cancellationToken)
     {
         if (Verbose)
         {
             Console.WriteLine("Running demo command in verbose mode");
         }
+
+        return Task.FromResult(0);
     }
 
     [CliCommand("greet", Description = "Greets a person")]
-    public partial class Greet
+    public partial class Greet : ICliCommand
     {
         private readonly IGreetingService greetingService;
 
@@ -36,16 +38,18 @@ public partial class DemoCommand
         [CliOption("--times", "-t", Description = "Number of times to greet", DefaultValue = 1)]
         public int Times { get; set; }
 
-        public async Task ExecuteAsync(CancellationToken cancellationToken)
+        public async Task<int> Execute(CancellationToken cancellationToken)
         {
             for (var i = 0; i < Times; i++)
             {
                 await greetingService.GreetAsync(Name, cancellationToken);
             }
+
+            return 0;
         }
 
         [CliCommand("shout", Description = "Greets a person loudly")]
-        public partial class Shout
+        public partial class Shout : ICliCommand
         {
             private readonly IGreetingService greetingService;
 
@@ -57,7 +61,7 @@ public partial class DemoCommand
             [CliArgument(0, Name = "name", Description = "Person to greet loudly")]
             public string Target { get; set; } = "team";
 
-            public async Task<int> ExecuteAsync(CancellationToken cancellationToken)
+            public async Task<int> Execute(CancellationToken cancellationToken)
             {
                 await greetingService.GreetAsync(Target.ToUpperInvariant(), cancellationToken);
                 return 0;

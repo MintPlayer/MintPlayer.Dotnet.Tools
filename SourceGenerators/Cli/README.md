@@ -4,25 +4,27 @@ Create structured CLI applications with nested commands and dependency injection
 
 1. Annotate your root command with `[CliRootCommand]` and mark each command (and subcommand) with `[CliCommand]`.
 2. Define command options with `[CliOption]` and positional arguments with `[CliArgument]` on mutable properties.
-3. Implement `Execute`, `ExecuteAsync`, or `ExecuteAsync(CancellationToken)` handlers to run the command.
+3. Implement `MintPlayer.CliGenerator.Attributes.ICliCommand` so each command exposes an `Execute(CancellationToken)` handler returning a task-based exit code.
 4. Register your commands with the generated `Add<MyCommand>CommandTree` extension and invoke them through the generated helpers.
 
 ```csharp
 [CliRootCommand(Name = "demo", Description = "Sample CLI")]
-public partial class DemoCommand
+public partial class DemoCommand : ICliCommand
 {
     [CliOption("--verbose", "-v")] public bool Verbose { get; set; }
 
-    public void Execute()
+    public Task<int> Execute(CancellationToken cancellationToken)
     {
         if (Verbose)
         {
             Console.WriteLine("Verbose mode active");
         }
+
+        return Task.FromResult(0);
     }
 
     [CliCommand("greet", Description = "Greets a person")]
-    public partial class Greet
+    public partial class Greet : ICliCommand
     {
         private readonly IGreetingService greetingService;
 
@@ -31,12 +33,14 @@ public partial class DemoCommand
         [CliArgument(0)] public string Name { get; set; } = "world";
         [CliOption("--times", DefaultValue = 1)] public int Times { get; set; }
 
-        public async Task ExecuteAsync(CancellationToken cancellationToken)
+        public async Task<int> Execute(CancellationToken cancellationToken)
         {
             for (var i = 0; i < Times; i++)
             {
                 await greetingService.GreetAsync(Name, cancellationToken);
             }
+
+            return 0;
         }
     }
 }
