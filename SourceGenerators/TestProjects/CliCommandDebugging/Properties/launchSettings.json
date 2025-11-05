@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "CliCommandDebugging": {
+      "commandName": "Project",
+      "commandLineArgs": "greet shout --name=\"Pieterjan\""
+    }
+  }
+}
