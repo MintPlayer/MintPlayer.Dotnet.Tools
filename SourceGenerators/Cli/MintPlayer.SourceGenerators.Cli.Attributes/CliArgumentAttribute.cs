@@ -1,6 +1,6 @@
 using System;
 
-namespace MintPlayer.SourceGenerators.Attributes;
+namespace MintPlayer.SourceGenerators.Cli.Attributes;
 
 [AttributeUsage(AttributeTargets.Property, AllowMultiple = false, Inherited = false)]
 public sealed class CliArgumentAttribute : Attribute

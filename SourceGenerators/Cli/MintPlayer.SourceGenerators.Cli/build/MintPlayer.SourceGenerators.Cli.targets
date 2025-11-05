@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsMintPlayerSourceGeneratorsCli</GetTargetPathDependsOn>
+  </PropertyGroup>
+
+  <Target Name="GetDependencyTargetPathsMintPlayerSourceGeneratorsCli">
+    <ItemGroup>
+      <TargetPathWithTargetPlatformMoniker Include="$(PkgMintPlayer_SourceGenerators_Cli_Attributes)\lib\netstandard2.0\MintPlayer.SourceGenerators.Cli.Attributes.dll" IncludeRuntimeDependency="true" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="SourceGeneratorCliAttributes_CheckGeneratePathProperty" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Error Condition="'$(PkgMintPlayer_SourceGenerators_Cli_Attributes)' == ''"
+           Text="Please add GeneratePathProperty=&quot;true&quot; on the MintPlayer.SourceGenerators.Cli.Attributes PackageReference." />
+  </Target>
+
+  <Target Name="MintPlayer_SourceGenerators_Cli_TargetsLoaded" BeforeTargets="PrepareForBuild">
+    <Message Text="MintPlayer.SourceGenerators.Cli targets loaded" Importance="High" />
+  </Target>
+</Project>

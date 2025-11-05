@@ -5,10 +5,10 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using MintPlayer.SourceGenerators.Models;
+using MintPlayer.SourceGenerators.Cli.Models;
 using MintPlayer.SourceGenerators.Tools;
 
-namespace MintPlayer.SourceGenerators.Generators;
+namespace MintPlayer.SourceGenerators.Cli.Generators;
 
 [Generator(LanguageNames.CSharp)]
 public sealed class CliCommandSourceGenerator : IncrementalGenerator
@@ -57,10 +57,10 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
         }
 
         var compilation = semanticModel.Compilation;
-        var rootAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.SourceGenerators.Attributes.CliRootCommandAttribute");
-        var commandAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.SourceGenerators.Attributes.CliCommandAttribute");
-        var optionAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.SourceGenerators.Attributes.CliOptionAttribute");
-        var argumentAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.SourceGenerators.Attributes.CliArgumentAttribute");
+        var rootAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.SourceGenerators.Cli.Attributes.CliRootCommandAttribute");
+        var commandAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.SourceGenerators.Cli.Attributes.CliCommandAttribute");
+        var optionAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.SourceGenerators.Cli.Attributes.CliOptionAttribute");
+        var argumentAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.SourceGenerators.Cli.Attributes.CliArgumentAttribute");
         var cancellationTokenSymbol = compilation.GetTypeByMetadataName("System.Threading.CancellationToken");
         var taskSymbol = compilation.GetTypeByMetadataName("System.Threading.Tasks.Task");
         var valueTaskSymbol = compilation.GetTypeByMetadataName("System.Threading.Tasks.ValueTask");

@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Debug Source Generators on CliCommandDebugging": {
+      "commandName": "DebugRoslynComponent",
+      "targetProject": "..\\..\\TestProjects\\CliCommandDebugging\\CliCommandDebugging.csproj"
+    }
+  }
+}

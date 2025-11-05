@@ -1,4 +1,4 @@
-namespace MintPlayer.SourceGenerators.Models;
+namespace MintPlayer.SourceGenerators.Cli.Models;
 
 internal enum CliHandlerReturnKind
 {

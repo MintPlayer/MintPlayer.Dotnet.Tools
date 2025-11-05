@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsMintPlayerSourceGeneratorsCli</GetTargetPathDependsOn>
+  </PropertyGroup>
+
+  <Target Name="GetDependencyTargetPathsMintPlayerSourceGeneratorsCli">
+    <ItemGroup>
+      <TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Cli.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Cli.Attributes.dll" IncludeRuntimeDependency="true" />
+    </ItemGroup>
+  </Target>
+
+  <PropertyGroup>
+    <Version>10.0.1</Version>
+    <Authors>Pieterjan De Clippel</Authors>
+    <Company>MintPlayer</Company>
+    <Description>System.CommandLine command tree source generator with dependency injection helpers</Description>
+    <PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/SourceGenerators/MintPlayer.SourceGenerators.Cli</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageId>MintPlayer.SourceGenerators.Cli</PackageId>
+    <PackageTags>SourceGenerators,CommandLine,System.CommandLine</PackageTags>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.SourceGenerators.Cli.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="build\MintPlayer.SourceGenerators.Cli.props" Pack="true" PackagePath="build\MintPlayer.SourceGenerators.Cli.props" />
+    <None Include="build\MintPlayer.SourceGenerators.Cli.targets" Pack="true" PackagePath="build\MintPlayer.SourceGenerators.Cli.targets" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MintPlayer.SourceGenerators.Cli.Attributes\MintPlayer.SourceGenerators.Cli.Attributes.csproj" />
+    <ProjectReference Include="..\..\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj" />
+  </ItemGroup>
+
+  <Import Project="..\..\eng\sourcegenerator.targets" />
+</Project>

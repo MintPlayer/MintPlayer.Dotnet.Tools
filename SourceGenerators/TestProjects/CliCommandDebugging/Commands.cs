@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using MintPlayer.SourceGenerators.Attributes;
+using MintPlayer.SourceGenerators.Cli.Attributes;
 
 namespace CliCommandDebugging;
 
