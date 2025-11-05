@@ -1,3 +1,4 @@
+using System;
 using System.CodeDom.Compiler;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -160,7 +161,7 @@ internal sealed class CliCommandProducer : Producer
 
         foreach (var child in node.Children)
         {
-            writer.WriteLine($"command.AddCommand({child.Command.FullyQualifiedName}.BuildCliCommand(serviceProvider));");
+            writer.WriteLine($"command.Add({child.Command.FullyQualifiedName}.BuildCliCommand(serviceProvider));");
         }
 
         if (command.HasHandler)
@@ -188,9 +189,16 @@ internal sealed class CliCommandProducer : Producer
         {
             var option = command.Options[i];
             var variableName = $"option{NormalizeIdentifier(option.PropertyName)}";
-            var aliasExpression = $"new[] {{ {string.Join(", ", option.Aliases.Select(ToStringLiteral))} }}";
-            var descriptionLiteral = ToNullableStringLiteral(option.Description);
-            writer.WriteLine($"var {variableName} = new global::System.CommandLine.Option<{option.PropertyType}>({aliasExpression}, description: {descriptionLiteral});");
+            var optionNameLiteral = ToStringLiteral(GetOptionName(option));
+            var aliasExpression = option.Aliases.Count > 0
+                ? $"new[] {{ {string.Join(", ", option.Aliases.Select(ToStringLiteral))} }}"
+                : "global::System.Array.Empty<string>()";
+            writer.WriteLine($"var {variableName} = new global::System.CommandLine.Option<{option.PropertyType}>({optionNameLiteral}, {aliasExpression});");
+            if (!string.IsNullOrWhiteSpace(option.Description))
+            {
+                var descriptionLiteral = ToStringLiteral(option.Description!);
+                writer.WriteLine($"{variableName}.Description = {descriptionLiteral};");
+            }
             if (option.Required)
             {
                 writer.WriteLine($"{variableName}.IsRequired = true;");
@@ -203,10 +211,10 @@ internal sealed class CliCommandProducer : Producer
 
             if (option.HasDefaultValue && option.DefaultValueExpression is not null)
             {
-                writer.WriteLine($"{variableName}.SetDefaultValue({option.DefaultValueExpression});");
+                writer.WriteLine($"{variableName}.DefaultValueFactory = static _ => {option.DefaultValueExpression};");
             }
 
-            writer.WriteLine($"command.AddOption({variableName});");
+            writer.WriteLine($"command.Add({variableName});");
             bindings.Add(new OptionBinding(option.PropertyName, variableName));
             writer.WriteLine();
         }
@@ -228,12 +236,16 @@ internal sealed class CliCommandProducer : Producer
             var variableName = $"argument{NormalizeIdentifier(argument.PropertyName)}";
             var nameLiteral = ToStringLiteral(argument.ArgumentName);
             var descriptionLiteral = ToNullableStringLiteral(argument.Description);
-            writer.WriteLine($"var {variableName} = new global::System.CommandLine.Argument<{argument.PropertyType}>(name: {nameLiteral}, description: {descriptionLiteral});");
+            writer.WriteLine($"var {variableName} = new global::System.CommandLine.Argument<{argument.PropertyType}>(name: {nameLiteral});");
+            if (!string.IsNullOrWhiteSpace(argument.Description))
+            {
+                writer.WriteLine($"{variableName}.Description = {descriptionLiteral};");
+            }
             var arity = argument.Required
                 ? "global::System.CommandLine.ArgumentArity.ExactlyOne"
                 : "global::System.CommandLine.ArgumentArity.ZeroOrOne";
             writer.WriteLine($"{variableName}.Arity = {arity};");
-            writer.WriteLine($"command.AddArgument({variableName});");
+            writer.WriteLine($"command.Add({variableName});");
             bindings.Add(new ArgumentBinding(argument.PropertyName, variableName));
             writer.WriteLine();
         }
@@ -305,7 +317,8 @@ internal sealed class CliCommandProducer : Producer
         writer.WriteLine("{");
         writer.Indent++;
         writer.WriteLine($"var command = {command.FullyQualifiedName}.BuildCliRootCommand(serviceProvider);");
-        writer.WriteLine("return command.InvokeAsync(args);");
+        writer.WriteLine("var parsedCommand = command.Parse(args);");
+        writer.WriteLine("return parsedCommand.InvokeAsync();");
         writer.Indent--;
         writer.WriteLine("}");
 
@@ -349,6 +362,28 @@ internal sealed class CliCommandProducer : Producer
             .Replace("\r", "\\r")
             .Replace("\n", "\\n");
         return $"\"{escaped}\"";
+    }
+
+    private static string GetOptionName(CliOptionDefinition option)
+    {
+        foreach (var alias in option.Aliases)
+        {
+            if (alias.StartsWith("--", StringComparison.Ordinal) && alias.Length > 2)
+            {
+                return alias.TrimStart('-');
+            }
+        }
+
+        foreach (var alias in option.Aliases)
+        {
+            var trimmed = alias.TrimStart('-');
+            if (!string.IsNullOrWhiteSpace(trimmed))
+            {
+                return trimmed;
+            }
+        }
+
+        return ToKebabCase(option.PropertyName);
     }
 
     private readonly record struct OptionBinding(string PropertyName, string VariableName);
