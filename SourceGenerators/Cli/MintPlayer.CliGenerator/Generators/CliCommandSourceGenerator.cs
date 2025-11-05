@@ -8,6 +8,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.CliGenerator.Models;
 using MintPlayer.SourceGenerators.Tools;
+using MintPlayer.SourceGenerators.Tools.Extensions;
 
 namespace MintPlayer.CliGenerator.Generators;
 
@@ -20,6 +21,7 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
             .CreateSyntaxProvider(static (node, _) => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 }, Transform)
             .Where(static definition => definition is not null)
             .Select(static (definition, _) => definition!)
+            .WithComparer()
             .Collect();
 
         var producerProvider = commandDefinitionsProvider
@@ -136,20 +138,22 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
 
         var handlerInfo = ResolveHandler(classSymbol, cancellationTokenSymbol, taskSymbol);
 
-        return new CliCommandDefinition(
-            namespaceName,
-            declaration,
-            classSymbol.Name,
-            fullyQualifiedName,
-            parentFullyQualifiedName,
-            isRoot,
-            commandName,
-            description,
-            handlerInfo.HasHandler,
-            handlerInfo.MethodName,
-            handlerInfo.UsesCancellationToken,
-            optionDefinitions,
-            argumentDefinitions);
+        return new CliCommandDefinition
+        {
+            Namespace = namespaceName,
+            Declaration = declaration,
+            TypeName = classSymbol.Name,
+            FullyQualifiedName = fullyQualifiedName,
+            ParentFullyQualifiedName = parentFullyQualifiedName,
+            IsRoot = isRoot,
+            CommandName = commandName,
+            Description = description,
+            HasHandler = handlerInfo.HasHandler,
+            HandlerMethodName = handlerInfo.MethodName,
+            HandlerUsesCancellationToken = handlerInfo.UsesCancellationToken,
+            Options = optionDefinitions,
+            Arguments = argumentDefinitions,
+        };
     }
 
     private static ImmutableArray<CliCommandTree> BuildCommandTrees(ImmutableArray<CliCommandDefinition> definitions)
@@ -188,7 +192,11 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
     private static CliCommandTree ToTree(CommandNode node)
     {
         var children = node.Children.Select(ToTree).ToImmutableArray();
-        return new CliCommandTree(node.Definition, children);
+        return new CliCommandTree
+        {
+            Command = node.Definition,
+            Children = children,
+        };
     }
 
     private sealed class CommandNode
@@ -309,15 +317,17 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
         var hasDefaultValue = TryGetNamedArgument(attribute, "DefaultValue", out var defaultConstant) && defaultConstant.Value is not null;
         var defaultValueExpression = hasDefaultValue ? GetLiteral(defaultConstant) : null;
 
-        return new CliOptionDefinition(
-            propertySymbol.Name,
-            propertySymbol.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-            aliases,
-            description,
-            required,
-            hidden,
-            defaultValueExpression,
-            hasDefaultValue);
+        return new CliOptionDefinition
+        {
+            PropertyName = propertySymbol.Name,
+            PropertyType = propertySymbol.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            Aliases = aliases,
+            Description = description,
+            Required = required,
+            Hidden = hidden,
+            DefaultValueExpression = defaultValueExpression,
+            HasDefaultValue = hasDefaultValue,
+        };
     }
 
     private static CliArgumentDefinition? ToArgumentDefinition(IPropertySymbol propertySymbol, INamedTypeSymbol argumentAttributeSymbol)
@@ -350,13 +360,15 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
         var description = GetStringArgument(attribute, "Description");
         var required = GetBoolArgument(attribute, "Required", defaultValue: true);
 
-        return new CliArgumentDefinition(
-            propertySymbol.Name,
-            propertySymbol.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-            position,
-            name,
-            description,
-            required);
+        return new CliArgumentDefinition
+        {
+            PropertyName = propertySymbol.Name,
+            PropertyType = propertySymbol.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            Position = position,
+            ArgumentName = name,
+            Description = description,
+            Required = required,
+        };
     }
 
     private static string BuildDeclaration(INamedTypeSymbol classSymbol)

@@ -1,9 +1,14 @@
+using MintPlayer.ValueComparerGenerator.Attributes;
+
 namespace MintPlayer.CliGenerator.Models;
 
-internal sealed record CliArgumentDefinition(
-    string PropertyName,
-    string PropertyType,
-    int Position,
-    string ArgumentName,
-    string? Description,
-    bool Required);
+[AutoValueComparer]
+internal sealed partial class CliArgumentDefinition
+{
+    public string PropertyName { get; set; } = null!;
+    public string PropertyType { get; set; } = null!;
+    public int Position { get; set; }
+    public string ArgumentName { get; set; } = null!;
+    public string? Description { get; set; }
+    public bool Required { get; set; }
+}
