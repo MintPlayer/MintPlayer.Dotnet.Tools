@@ -231,7 +231,7 @@ public sealed class TreeValueComparerProducer : Producer
                 writer.Indent--;
                 writer.WriteLine("}");
 
-                //writer.WriteLine($"{mod} static global::Microsoft.CodeAnalysis.IncrementalValueProvider<{type.FullName}?> WithComparer(this global::Microsoft.CodeAnalysis.IncrementalValueProvider<global::System.Collections.Immutable.ImmutableArray<{type.FullName}?>> provider)");
+                //writer.WriteLine($"{mod} static global::Microsoft.CodeAnalysis.IncrementalValueProvider<global::System.Collections.Immutable.ImmutableArray<{type.FullName}?>> WithComparer(this global::Microsoft.CodeAnalysis.IncrementalValueProvider<global::System.Collections.Immutable.ImmutableArray<{type.FullName}?>> provider)");
                 //writer.WriteLine("{");
                 //writer.Indent++;
                 //writer.WriteLine($"return global::Microsoft.CodeAnalysis.IncrementalValueProviderExtensions.WithComparer(provider, global::MintPlayer.SourceGenerators.Tools.ValueComparers.ComparerRegistry.For<global::System.Collections.Immutable.ImmutableArray<{type.FullName}?>>());");
