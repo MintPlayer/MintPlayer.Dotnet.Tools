@@ -41,6 +41,7 @@ public class ValueComparerGenerator : IncrementalGenerator
                             Type = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                             IsPartial = classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
                             IsAbstract = symbol.IsAbstract,
+                            IsInternal = classDeclaration.Modifiers.Any(SyntaxKind.InternalKeyword),
                             HasAttribute = symbol.GetAttributes()
                                 .Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, autoValueComparerAttr)),
                             BaseType = (Models.BaseType?)new Models.BaseType
@@ -102,6 +103,7 @@ public class ValueComparerGenerator : IncrementalGenerator
                             Type = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                             IsPartial = classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
                             IsAbstract = symbol.IsAbstract,
+                            IsInternal = classDeclaration.Modifiers.Any(SyntaxKind.InternalKeyword),
                             HasAttribute = symbol.GetAttributes()
                                 .Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, autoValueComparerAttr)),
                             BaseType = (Models.BaseType?)null,
@@ -145,6 +147,7 @@ public class ValueComparerGenerator : IncrementalGenerator
                     FullName = t.Type,
                     PathSpec = t.PathSpec,
                     IsPartial = t.IsPartial,
+                    IsInternal = t.IsInternal,
                     IsAbstract = t.IsAbstract,
                     //Location = t.Location,
                     Properties = t.Properties,
@@ -188,6 +191,7 @@ public class ValueComparerGenerator : IncrementalGenerator
                     PathSpec = t.PathSpec,
                     IsAbstract = t.IsAbstract,
                     IsPartial = t.IsPartial,
+                    IsInternal = t.IsInternal,
                     Location = t.Location,
                     Properties = t.Properties,
                     AllProperties = t.AllProperties,

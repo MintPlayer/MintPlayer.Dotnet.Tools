@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<TargetFramework>netstandard2.0</TargetFramework>
@@ -7,12 +7,12 @@
 		<Version>10.1.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
-		<Description>This package contains attributes for the source generators</Description>
-		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/SourceGenerators/MintPlayer.SourceGenerators.Attributes</PackageProjectUrl>
+		<Description>Attributes for building CLI command trees with the MintPlayer source generator infrastructure</Description>
+		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/tree/main/SourceGenerators/Cli/MintPlayer.CliGenerator.Attributes</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
-		<PackageId>MintPlayer.SourceGenerators.Attributes</PackageId>
-		<PackageTags>SourceGenerators</PackageTags>
+		<PackageId>MintPlayer.CliGenerator.Attributes</PackageId>
+		<PackageTags>SourceGenerators,CommandLine,System.CommandLine</PackageTags>
 		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
 		<IncludeSymbols>true</IncludeSymbols>
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
@@ -21,6 +21,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0-rc.1.25451.107" />
+		<PackageReference Include="System.CommandLine" Version="2.0.0-rc.1.25451.107" />
 	</ItemGroup>
 
 </Project>

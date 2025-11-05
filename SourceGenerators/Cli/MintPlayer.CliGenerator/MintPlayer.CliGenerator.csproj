@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsMintPlayerCliGenerator</GetTargetPathDependsOn>
+	</PropertyGroup>
+
+	<Target Name="GetDependencyTargetPathsMintPlayerCliGenerator">
+		<ItemGroup>
+			<TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)\..\MintPlayer.CliGenerator.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.CliGenerator.Attributes.dll" IncludeRuntimeDependency="true" />
+		</ItemGroup>
+	</Target>
+
+	<PropertyGroup>
+		<Version>10.1.0</Version>
+		<Authors>Pieterjan De Clippel</Authors>
+		<Company>MintPlayer</Company>
+		<Description>System.CommandLine command tree source generator with dependency injection helpers</Description>
+		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/tree/main/SourceGenerators/Cli/MintPlayer.CliGenerator</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageId>MintPlayer.CliGenerator</PackageId>
+		<PackageTags>SourceGenerators,CommandLine,System.CommandLine</PackageTags>
+		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.CliGenerator.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="build\MintPlayer.CliGenerator.props" Pack="true" PackagePath="build\MintPlayer.CliGenerator.props" />
+		<None Include="build\MintPlayer.CliGenerator.targets" Pack="true" PackagePath="build\MintPlayer.CliGenerator.targets" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\MintPlayer.CliGenerator.Attributes\MintPlayer.CliGenerator.Attributes.csproj" />
+	</ItemGroup>
+
+	<Import Project="..\..\eng\sourcegenerator.targets" />
+	<Import Project="..\..\eng\valuecomparergenerator.targets" />
+</Project>

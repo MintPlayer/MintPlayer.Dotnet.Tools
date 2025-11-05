@@ -10,6 +10,7 @@ public class ClassDeclaration
     public string? FullName { get; set; }
     public PathSpec? PathSpec { get; set; }
     public bool IsPartial { get; set; }
+    public bool IsInternal { get; set; }
     public bool IsAbstract { get; set; }
     public bool HasAutoValueComparerAttribute { get; set; }
     public PropertyDeclaration[] Properties { get; set; } = [];

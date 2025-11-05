@@ -1,0 +1,81 @@
+using MintPlayer.CliGenerator.Attributes;
+
+namespace CliCommandDebugging;
+
+[CliRootCommand(Name = "demo", Description = "Demonstrates the CLI command generator")]
+public partial class DemoCommand : ICliCommand
+{
+    [CliOption("--verbose", "-v", Description = "Enable verbose output")]
+    public bool Verbose { get; set; }
+
+    public Task<int> Execute(CancellationToken cancellationToken)
+    {
+        if (Verbose)
+        {
+            Console.WriteLine("Running demo command in verbose mode");
+        }
+
+        return Task.FromResult(0);
+    }
+
+    [CliCommand("greet", Description = "Greets a person")]
+    public partial class Greet : ICliCommand
+    {
+        private readonly IGreetingService greetingService;
+
+        public Greet(IGreetingService greetingService)
+        {
+            this.greetingService = greetingService;
+        }
+
+        [CliArgument(0, Name = "name", Description = "Person to greet")]
+        public string Name { get; set; } = "world";
+
+        [CliOption("--times", "-t", Description = "Number of times to greet", DefaultValue = 1)]
+        public int Times { get; set; }
+
+        public async Task<int> Execute(CancellationToken cancellationToken)
+        {
+            for (var i = 0; i < Times; i++)
+            {
+                await greetingService.GreetAsync(Name, cancellationToken);
+            }
+
+            return 0;
+        }
+
+        [CliCommand("shout", Description = "Greets a person loudly")]
+        public partial class Shout : ICliCommand
+        {
+            private readonly IGreetingService greetingService;
+
+            public Shout(IGreetingService greetingService)
+            {
+                this.greetingService = greetingService;
+            }
+
+            [CliArgument(0, Name = "name", Description = "Person to greet loudly")]
+            public string Target { get; set; } = "team";
+
+            public async Task<int> Execute(CancellationToken cancellationToken)
+            {
+                await greetingService.GreetAsync(Target.ToUpperInvariant(), cancellationToken);
+                return 0;
+            }
+        }
+    }
+}
+
+public interface IGreetingService
+{
+    Task GreetAsync(string name, CancellationToken cancellationToken);
+}
+
+public sealed class GreetingService : IGreetingService
+{
+    public Task GreetAsync(string name, CancellationToken cancellationToken)
+    {
+        Console.WriteLine($"Hello, {name}!");
+        return Task.CompletedTask;
+    }
+}

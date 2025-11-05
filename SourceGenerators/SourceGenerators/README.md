@@ -53,3 +53,4 @@ internal class CustomerService : ICustomerService {
 ```
 
 This also works when the interface resides in an abstractions-library and the class resides in an implementation-library. Which is why this analyzer is so powerfull.
+

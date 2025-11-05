@@ -11,6 +11,7 @@ public class ClassDeclarationValueComparer : ValueComparer<ClassDeclaration>
         if (!IsEquals(x.FullName, y.FullName)) return false;
         if (!IsEquals(x.PathSpec, y.PathSpec)) return false;
         if (!IsEquals(x.IsPartial, y.IsPartial)) return false;
+        if (!IsEquals(x.IsInternal, y.IsInternal)) return false;
         if (!IsEquals(x.HasAutoValueComparerAttribute, y.HasAutoValueComparerAttribute)) return false;
         if (!IsEquals(x.Properties, y.Properties)) return false;
 
@@ -23,6 +24,7 @@ public class ClassDeclarationValueComparer : ValueComparer<ClassDeclaration>
         AddHash(ref h, obj?.FullName);
         AddHash(ref h, obj?.PathSpec);
         AddHash(ref h, obj?.IsPartial);
+        AddHash(ref h, obj?.IsInternal);
         AddHash(ref h, obj?.IsAbstract);
         AddHash(ref h, obj?.HasAutoValueComparerAttribute);
         AddHash(ref h, obj?.Properties);

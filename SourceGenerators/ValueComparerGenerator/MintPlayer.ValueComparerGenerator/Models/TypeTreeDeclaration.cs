@@ -29,6 +29,7 @@ public class BaseType
     public string? Name { get; set; }
     public string? FullName { get; set; }
     public bool IsAbstract { get; set; }
+    public bool IsInternal { get; set; }
     public bool IsPartial { get; set; }
     public PathSpec? PathSpec { get; set; }
     public PropertyDeclaration[] Properties { get; set; } = [];
