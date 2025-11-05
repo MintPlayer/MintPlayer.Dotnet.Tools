@@ -295,7 +295,7 @@ internal sealed class CliCommandProducer : Producer
         writer.WriteLine("{");
         writer.Indent++;
 
-        writer.WriteLine($"public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection Add{command.TypeName}CommandTree(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)");
+        writer.WriteLine($"public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection Add{command.TypeName}Tree(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)");
         writer.WriteLine("{");
         writer.Indent++;
         writer.WriteLine($"{command.FullyQualifiedName}.RegisterCliCommandTree(services);");
@@ -312,7 +312,7 @@ internal sealed class CliCommandProducer : Producer
         writer.WriteLine("}");
         writer.WriteLine();
 
-        writer.WriteLine($"public static global::System.Threading.Tasks.Task<int> Invoke{command.TypeName}CommandAsync(this global::System.IServiceProvider serviceProvider, string[] args)");
+        writer.WriteLine($"public static global::System.Threading.Tasks.Task<int> Invoke{command.TypeName}Async(this global::System.IServiceProvider serviceProvider, string[] args)");
         writer.WriteLine("{");
         writer.Indent++;
         writer.WriteLine($"var command = {command.FullyQualifiedName}.BuildCliRootCommand(serviceProvider);");
