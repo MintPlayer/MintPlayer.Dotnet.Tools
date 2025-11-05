@@ -11,6 +11,10 @@
     "Debug Source Generators on InterfaceImplementationDebugging": {
       "commandName": "DebugRoslynComponent",
       "targetProject": "..\\..\\TestProjects\\InterfaceImplementationDebugging\\InterfaceImplementationDebugging.csproj"
+    },
+    "Debug Source Generators on CliCommandDebugging": {
+      "commandName": "DebugRoslynComponent",
+      "targetProject": "..\\..\\TestProjects\\CliCommandDebugging\\CliCommandDebugging.csproj"
     }
   }
 }
