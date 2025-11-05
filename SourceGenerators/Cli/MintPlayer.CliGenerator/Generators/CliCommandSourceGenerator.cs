@@ -22,12 +22,19 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
             .WithComparer()
             .Collect();
 
-        var producerProvider = commandDefinitionsProvider
+        var commandTreesProvider = commandDefinitionsProvider
+            .Select(static (definitions, _) => BuildCommandTrees(definitions))
+            //.SelectMany(static (trees, _) => trees)
+            .WithComparer();
+            //.Collect();
+
+        var producerProvider = commandTreesProvider // commandDefinitionsProvider
             .Combine(settingsProvider)
             .Select(static Producer (tuple, _) =>
             {
                 var rootNamespace = tuple.Right.RootNamespace ?? string.Empty;
-                var trees = BuildCommandTrees(tuple.Left);
+                //var trees = BuildCommandTrees(tuple.Left);
+                var trees = tuple.Left;
                 return new CliCommandProducer(trees, rootNamespace);
             });
 
