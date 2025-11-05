@@ -1,5 +1,5 @@
 using System.Collections.Immutable;
-using System.Linq;
+using MintPlayer.SourceGenerators.Tools.Extensions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 

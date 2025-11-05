@@ -1,10 +1,11 @@
+using MintPlayer.CliGenerator.Extensions;
+using MintPlayer.CliGenerator.Models;
+using MintPlayer.SourceGenerators.Tools;
 using System;
 using System.CodeDom.Compiler;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using MintPlayer.CliGenerator.Models;
-using MintPlayer.SourceGenerators.Tools;
 
 namespace MintPlayer.CliGenerator.Generators;
 
@@ -144,10 +145,8 @@ internal sealed class CliCommandProducer : Producer
         {
             var descriptionLiteral = ToNullableStringLiteral(command.Description);
             writer.WriteLine($"var command = new global::System.CommandLine.RootCommand({descriptionLiteral});");
-            if (!string.IsNullOrWhiteSpace(command.CommandName))
-            {
-                writer.WriteLine($"command.Name = {ToStringLiteral(command.CommandName!)};");
-            }
+            //if (!string.IsNullOrWhiteSpace(command.CommandName))
+            //    writer.WriteLine($"command.Name = {ToStringLiteral(command.CommandName!)};");
         }
         else
         {
@@ -383,9 +382,30 @@ internal sealed class CliCommandProducer : Producer
             }
         }
 
-        return ToKebabCase(option.PropertyName);
+        return option.PropertyName.ToKebabCase();
     }
 
-    private readonly record struct OptionBinding(string PropertyName, string VariableName);
-    private readonly record struct ArgumentBinding(string PropertyName, string VariableName);
+    private readonly struct OptionBinding
+    {
+        public OptionBinding(string propertyName, string variableName)
+        {
+            PropertyName = propertyName;
+            VariableName = variableName;
+        }
+
+        public string PropertyName { get; }
+        public string VariableName { get; }
+    }
+
+    private readonly struct ArgumentBinding
+    {
+        public ArgumentBinding(string propertyName, string variableName)
+        {
+            PropertyName = propertyName;
+            VariableName = variableName;
+        }
+
+        public string PropertyName { get; }
+        public string VariableName { get; }
+    }
 }

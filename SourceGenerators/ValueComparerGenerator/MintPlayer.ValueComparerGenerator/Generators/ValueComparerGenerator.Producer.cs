@@ -37,6 +37,7 @@ public sealed class TreeValueComparerProducer : Producer
                 bt.BaseType.FullName,
                 bt.BaseType.PathSpec,
                 bt.BaseType.IsAbstract,
+                bt.BaseType.IsInternal,
                 bt.DerivedTypes,
                 bt.BaseType.Properties,
                 bt.BaseType.AllProperties,
@@ -49,6 +50,7 @@ public sealed class TreeValueComparerProducer : Producer
                     d.FullName,
                     d.PathSpec,
                     IsAbstract = d.IsAbstract,
+                    d.IsInternal,
                     DerivedTypes = Array.Empty<DerivedType>(),
                     d.Properties,
                     d.AllProperties,
@@ -62,6 +64,7 @@ public sealed class TreeValueComparerProducer : Producer
                     d.FullName,
                     d.PathSpec,
                     d.IsAbstract,
+                    d.IsInternal,
                     DerivedTypes = Array.Empty<DerivedType>(),
                     d.Properties,
                     d.AllProperties,
@@ -89,6 +92,8 @@ public sealed class TreeValueComparerProducer : Producer
 
             foreach (var baseType in namespaceGrouping.Types)
             {
+                var mod = baseType.IsInternal ? "internal" : "public";
+
                 // Nested partial classes for each parent type
                 if (baseType.PathSpec is { } pathSpec1)
                 {
@@ -108,7 +113,7 @@ public sealed class TreeValueComparerProducer : Producer
 
 
                 // TODO: Use same access modifiers
-                writer.WriteLine($"public sealed class {baseType.Name}ValueComparer : {comparerType}<{baseType.FullName}>");
+                writer.WriteLine($"{mod} sealed class {baseType.Name}ValueComparer : {comparerType}<{baseType.FullName}>");
                 writer.WriteLine("{");
                 writer.Indent++;
 
@@ -189,28 +194,30 @@ public sealed class TreeValueComparerProducer : Producer
             writer.Indent++;
             foreach (var type in treeGrouped.SelectMany(g => g.Types))
             {
-                writer.WriteLine($"public static global::Microsoft.CodeAnalysis.IncrementalValuesProvider<{type.FullName}> WithComparer(this global::Microsoft.CodeAnalysis.IncrementalValuesProvider<{type.FullName}> provider)");
+                var mod = type.IsInternal ? "internal" : "public";
+
+                writer.WriteLine($"{mod} static global::Microsoft.CodeAnalysis.IncrementalValuesProvider<{type.FullName}> WithComparer(this global::Microsoft.CodeAnalysis.IncrementalValuesProvider<{type.FullName}> provider)");
                 writer.WriteLine("{");
                 writer.Indent++;
                 writer.WriteLine($"return global::Microsoft.CodeAnalysis.IncrementalValueProviderExtensions.WithComparer(provider, global::MintPlayer.SourceGenerators.Tools.ValueComparers.ComparerRegistry.For<{type.FullName}>());");
                 writer.Indent--;
                 writer.WriteLine("}");
 
-                writer.WriteLine($"public static global::Microsoft.CodeAnalysis.IncrementalValueProvider<{type.FullName}> WithComparer(this global::Microsoft.CodeAnalysis.IncrementalValueProvider<{type.FullName}> provider)");
+                writer.WriteLine($"{mod} static global::Microsoft.CodeAnalysis.IncrementalValueProvider<{type.FullName}> WithComparer(this global::Microsoft.CodeAnalysis.IncrementalValueProvider<{type.FullName}> provider)");
                 writer.WriteLine("{");
                 writer.Indent++;
                 writer.WriteLine($"return global::Microsoft.CodeAnalysis.IncrementalValueProviderExtensions.WithComparer(provider, global::MintPlayer.SourceGenerators.Tools.ValueComparers.ComparerRegistry.For<{type.FullName}>());");
                 writer.Indent--;
                 writer.WriteLine("}");
 
-                writer.WriteLine($"public static global::Microsoft.CodeAnalysis.IncrementalValuesProvider<{type.FullName}?> WithNullableComparer(this global::Microsoft.CodeAnalysis.IncrementalValuesProvider<{type.FullName}?> provider)");
+                writer.WriteLine($"{mod} static global::Microsoft.CodeAnalysis.IncrementalValuesProvider<{type.FullName}?> WithNullableComparer(this global::Microsoft.CodeAnalysis.IncrementalValuesProvider<{type.FullName}?> provider)");
                 writer.WriteLine("{");
                 writer.Indent++;
                 writer.WriteLine($"return global::Microsoft.CodeAnalysis.IncrementalValueProviderExtensions.WithComparer(provider, global::MintPlayer.SourceGenerators.Tools.ValueComparers.ComparerRegistry.For<{type.FullName}>());");
                 writer.Indent--;
                 writer.WriteLine("}");
 
-                writer.WriteLine($"public static global::Microsoft.CodeAnalysis.IncrementalValueProvider<{type.FullName}?> WithNullableComparer(this global::Microsoft.CodeAnalysis.IncrementalValueProvider<{type.FullName}?> provider)");
+                writer.WriteLine($"{mod} static global::Microsoft.CodeAnalysis.IncrementalValueProvider<{type.FullName}?> WithNullableComparer(this global::Microsoft.CodeAnalysis.IncrementalValueProvider<{type.FullName}?> provider)");
                 writer.WriteLine("{");
                 writer.Indent++;
                 writer.WriteLine($"return global::Microsoft.CodeAnalysis.IncrementalValueProviderExtensions.WithComparer(provider, global::MintPlayer.SourceGenerators.Tools.ValueComparers.ComparerRegistry.For<{type.FullName}>());");

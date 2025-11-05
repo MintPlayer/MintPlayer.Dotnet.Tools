@@ -35,8 +35,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MintPlayer.CliGenerator.Attributes\MintPlayer.CliGenerator.Attributes.csproj" />
-    <ProjectReference Include="..\..\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj" />
   </ItemGroup>
 
   <Import Project="..\..\eng\sourcegenerator.targets" />
+  <Import Project="..\..\eng\valuecomparergenerator.targets" />
 </Project>

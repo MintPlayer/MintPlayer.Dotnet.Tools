@@ -1,14 +1,12 @@
-using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Linq;
-using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using MintPlayer.CliGenerator.Extensions;
 using MintPlayer.CliGenerator.Models;
 using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.SourceGenerators.Tools.Extensions;
+using MintPlayer.SourceGenerators.Tools.ValueComparers;
+using System.Collections.Immutable;
+using System.Text;
 
 namespace MintPlayer.CliGenerator.Generators;
 
@@ -26,7 +24,7 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
 
         var producerProvider = commandDefinitionsProvider
             .Combine(settingsProvider)
-            .Select(static (tuple, _) =>
+            .Select(static Producer (tuple, _) =>
             {
                 var rootNamespace = tuple.Right.RootNamespace ?? string.Empty;
                 var trees = BuildCommandTrees(tuple.Left);
@@ -118,7 +116,7 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
 
         if (!isRoot && string.IsNullOrWhiteSpace(commandName))
         {
-            commandName = ToKebabCase(classSymbol.Name);
+            commandName = classSymbol.Name.ToKebabCase();
         }
 
         var optionDefinitions = classSymbol.GetMembers()
@@ -416,11 +414,11 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
 
     private static bool TryGetNamedArgument(AttributeData attribute, string name, out TypedConstant value)
     {
-        foreach (var (key, argumentValue) in attribute.NamedArguments)
+        foreach (var kvp in attribute.NamedArguments)
         {
-            if (key == name)
+            if (kvp.Key == name)
             {
-                value = argumentValue;
+                value = kvp.Value;
                 return true;
             }
         }
@@ -471,7 +469,7 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
 
     private static string ToAlias(string propertyName)
     {
-        return "--" + ToKebabCase(propertyName);
+        return "--" + propertyName.ToKebabCase();
     }
 
     private static string ToCamelCase(string name)
@@ -487,34 +485,5 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
         }
 
         return char.ToLowerInvariant(name[0]) + name.Substring(1);
-    }
-
-    private static string ToKebabCase(string name)
-    {
-        if (string.IsNullOrEmpty(name))
-        {
-            return name;
-        }
-
-        var builder = new StringBuilder(name.Length * 2);
-        for (var i = 0; i < name.Length; i++)
-        {
-            var character = name[i];
-            if (char.IsUpper(character))
-            {
-                if (i > 0)
-                {
-                    builder.Append('-');
-                }
-
-                builder.Append(char.ToLowerInvariant(character));
-            }
-            else
-            {
-                builder.Append(character);
-            }
-        }
-
-        return builder.ToString();
     }
 }
