@@ -11,7 +11,7 @@
 	</Target>
 
 	<PropertyGroup>
-		<Version>10.2.0</Version>
+		<Version>10.3.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package automatically generates mappers for you</Description>

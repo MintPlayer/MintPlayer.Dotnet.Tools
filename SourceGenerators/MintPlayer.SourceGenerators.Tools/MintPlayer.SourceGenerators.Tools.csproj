@@ -8,7 +8,7 @@
 	</PropertyGroup>
 
 	<PropertyGroup>
-		<Version>10.2.0</Version>
+		<Version>10.3.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains useful tools for building source generators</Description>
@@ -27,9 +27,13 @@
 		<!-- Allow users to easily reference these targets -->
 		<None Include="..\eng\filenesting.targets" Link="Targets\filenesting.targets" Pack="true" PackagePath="eng/%(Filename)%(Extension)" />
 		
-		<!-- These targets apply when the package is installed -->
-		<None Include="Targets\sourcegenerator_tools.props" Pack="true" PackagePath="buildTransitive/$(PackageId).props" />
-		<None Include="Targets\sourcegenerator_tools.targets" Pack="true" PackagePath="buildTransitive/$(PackageId).targets" />
+		<!--
+		These targets apply when the package is installed
+		We don't want these targets to load when a source-generator that uses this package is installed in a simple console application
+		Therefore we pick build instead of buildTransitive
+		-->
+		<None Include="Targets\sourcegenerator_tools.props" Pack="true" PackagePath="build/$(PackageId).props" />
+		<None Include="Targets\sourcegenerator_tools.targets" Pack="true" PackagePath="build/$(PackageId).targets" />
 	</ItemGroup>
 
 	<ItemGroup>
