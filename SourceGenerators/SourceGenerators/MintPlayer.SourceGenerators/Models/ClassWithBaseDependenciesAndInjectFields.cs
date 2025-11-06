@@ -1,4 +1,5 @@
-﻿using MintPlayer.ValueComparerGenerator.Attributes;
+﻿using MintPlayer.SourceGenerators.Tools.Extensions;
+using MintPlayer.ValueComparerGenerator.Attributes;
 
 namespace MintPlayer.SourceGenerators.Models;
 
@@ -10,4 +11,5 @@ public partial class ClassWithBaseDependenciesAndInjectFields
     public string? ClassNamespace { get; set; } = string.Empty;
     public IList<InjectField> BaseDependencies { get; set; } = [];
     public IList<InjectField> InjectFields { get; set; } = [];
+    public PathSpec? PathSpec { get; internal set; }
 }

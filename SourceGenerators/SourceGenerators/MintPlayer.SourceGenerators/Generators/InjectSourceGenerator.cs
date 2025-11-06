@@ -2,7 +2,7 @@
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.Tools.ValueComparers;
-using MintPlayer.ValueComparers.NewtonsoftJson;
+using MintPlayer.SourceGenerators.Tools.Extensions;
 
 namespace MintPlayer.SourceGenerators.Generators;
 
@@ -49,22 +49,32 @@ public class InjectSourceGenerator : IncrementalGenerator
                                 currentTypeSymbol = currentTypeSymbol.BaseType;
                             }
 
-                            var namespaceDeclaration = classDeclaration.FirstAncestorOrSelf<BaseNamespaceDeclarationSyntax>();
-
-                            return new Models.ClassWithBaseDependenciesAndInjectFields
+                            if (context2.SemanticModel.GetDeclaredSymbol(classDeclaration) is INamedTypeSymbol classSymbol)
                             {
-                                FileName = classDeclaration.Identifier.Text,
-                                ClassName = className,
-                                ClassNamespace = namespaceDeclaration?.Name?.ToString(),
-                                BaseDependencies = baseDependencies,
-                                InjectFields = injectFields,
-                            };
+                                return new Models.ClassWithBaseDependenciesAndInjectFields
+                                {
+                                    FileName = classDeclaration.Identifier.Text,
+                                    ClassName = className,
+                                    ClassNamespace = classSymbol.ContainingNamespace.ToDisplayString(),
+                                    BaseDependencies = baseDependencies,
+                                    InjectFields = injectFields,
+                                    PathSpec = classSymbol.GetPathSpec(),
+                                };
+                            }
                         }
                     }
 
                     return default;
                 }
             )
+            .Where(static c => c != null)
+            .Select(static (c, ct) => c!)
+            .WithComparer()
+            .Collect()
+            .SelectMany(static (classes, ct) => classes
+                .GroupBy(c => c.ClassNamespace)
+                .Select(cg => new Models.ClassesByNamespace { Namespace = cg.Key, Classes = cg.ToArray() }))
+            .WithComparer()
             .Collect();
 
         var classesSourceProvider = classesProvider
@@ -87,7 +97,7 @@ public class InjectSourceGenerator : IncrementalGenerator
             {
                 var fieldType = field.Declaration.Type;
                 var fieldTypeSymbol = semanticModel.GetSymbolInfo(fieldType).Symbol as ITypeSymbol;
-                
+
                 var fqn = fieldTypeSymbol?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)) ?? string.Empty;
                 var name = field.Declaration.Variables.First().Identifier.Text;
                 return new Models.InjectField { Type = fqn, Name = name };

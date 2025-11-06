@@ -5,25 +5,25 @@ namespace MintPlayer.SourceGenerators.Generators;
 
 internal class InjectProducer : Producer
 {
-    private readonly IEnumerable<Models.ClassWithBaseDependenciesAndInjectFields> classInfos;
-    public InjectProducer(IEnumerable<Models.ClassWithBaseDependenciesAndInjectFields> classInfos, string rootNamespace) : base(rootNamespace, $"Inject.g.cs")
+    private readonly IEnumerable<Models.ClassesByNamespace> classInfos;
+    public InjectProducer(IEnumerable<Models.ClassesByNamespace> classInfos, string rootNamespace) : base(rootNamespace, $"Inject.g.cs")
     {
         this.classInfos = classInfos;
     }
-    public InjectProducer(IEnumerable<Models.ClassWithBaseDependenciesAndInjectFields> classInfos, string rootNamespace, string filename) : base(rootNamespace, filename)
+    public InjectProducer(IEnumerable<Models.ClassesByNamespace> classInfos, string rootNamespace, string filename) : base(rootNamespace, filename)
     {
         this.classInfos = classInfos;
     }
 
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
     {
-        foreach (var classInfoNamespace in classInfos.GroupBy(ci => ci.ClassNamespace ?? RootNamespace))
+        foreach (var classInfoNamespace in classInfos)
         {
-            writer.WriteLine($"namespace {classInfoNamespace.Key}");
+            writer.WriteLine($"namespace {classInfoNamespace.Namespace ?? RootNamespace}");
             writer.WriteLine("{");
             writer.Indent++;
 
-            foreach (var classInfo in classInfoNamespace)
+            foreach (var classInfo in classInfoNamespace.Classes)
             {
                 var constructorParams = classInfo.InjectFields
                     .Concat(classInfo.BaseDependencies)
