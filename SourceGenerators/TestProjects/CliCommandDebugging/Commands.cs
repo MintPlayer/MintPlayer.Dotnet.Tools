@@ -31,7 +31,6 @@ public partial class DemoCommand : ICliCommand
         [CliArgument(0, Name = "name", Description = "Person to greet")]
         public string Name { get; set; } = "world";
 
-        //[CliOption("--times", "-t", Description = "Number of times to greet", DefaultValue = 1)]
         [CliOption("--times", "-t", Description = "Number of times to greet", DefaultValue = 1)]
         public int Times { get; set; }
 

@@ -6,7 +6,7 @@
     },
     "Shout at Pieterjan": {
       "commandName": "Project",
-      "commandLineArgs": "greet shout --name=\"Pieterjan\""
+      "commandLineArgs": "greet shout Pieterjan"
     }
   }
 }
