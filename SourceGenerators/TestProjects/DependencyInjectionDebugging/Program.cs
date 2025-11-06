@@ -14,21 +14,37 @@ public static class Program
 
 public class CustomerConfig { }
 
-public partial class CustomerController
+public class AllControllers
 {
-    [Inject] private readonly IOptions<CustomerConfig> customerOptions;
-    [Inject] private readonly ICustomerService customerService;
-    [Inject] private readonly IProductService productService;
+    public partial class CustomerController
+    {
+        [Inject] private readonly IOptions<CustomerConfig> customerOptions;
+        [Inject] private readonly ICustomerService customerService;
+        [Inject] private readonly IProductService productService;
+    }
 }
 
-public partial class HttpWithBaseUrlService
+public class AllServices
 {
-    [Inject] private readonly HttpClient httpClient;
-}
+    public partial class HttpWithBaseUrlService
+    {
+        [Inject] private readonly HttpClient httpClient;
+    }
 
-public partial class ApiServiceBase : HttpWithBaseUrlService
-{
-    [Inject] private readonly ITestService testService;
+    public partial class ApiServiceBase : HttpWithBaseUrlService
+    {
+        [Inject] private readonly ITestService testService;
+    }
+
+    public partial class CustomerService : ApiServiceBase, ICustomerService
+    {
+        [Inject] private readonly ICustomerRepository customerRepository;
+    }
+
+    public partial class ProductService : ApiServiceBase, IProductService
+    {
+        [Inject] private readonly IProductRepository productRepository;
+    }
 }
 
 public interface ITestService { }
@@ -40,13 +56,3 @@ public interface IProductService { }
 public interface ICustomerRepository { }
 
 public interface IProductRepository { }
-
-public partial class CustomerService : ApiServiceBase, ICustomerService
-{
-    [Inject] private readonly ICustomerRepository customerRepository;
-}
-
-public partial class ProductService : ApiServiceBase, IProductService
-{
-    [Inject] private readonly IProductRepository productRepository;
-}
