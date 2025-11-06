@@ -155,9 +155,6 @@ internal sealed class CliCommandProducer : Producer
             writer.WriteLine($"var command = new global::System.CommandLine.Command({nameLiteral}, description: {descriptionLiteral});");
         }
 
-        writer.WriteLine($"var appCommand = global::Microsoft.Extensions.DependencyInjection.ActivatorUtilities.CreateInstance<{command.FullyQualifiedName}>(serviceProvider);");
-        writer.WriteLine($"command.SetAction(async (parseResult) => await appCommand.Execute(global::System.Threading.CancellationToken.None));");
-
         var optionBindings = WriteOptionDeclarations(writer, command);
         var argumentBindings = WriteArgumentDeclarations(writer, command);
 
@@ -170,6 +167,32 @@ internal sealed class CliCommandProducer : Producer
         {
             writer.WriteLine();
             WriteHandler(writer, command, optionBindings, argumentBindings);
+        }
+        else
+        {
+            // Fallback: bind values and invoke Execute without using SetAction
+            writer.WriteLine();
+            writer.WriteLine("command.SetAction(async parseResult =>");
+            writer.WriteLine("{");
+            writer.Indent++;
+            writer.WriteLine("using var scope = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.CreateScope(serviceProvider);");
+            writer.WriteLine($"var handler = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<{command.FullyQualifiedName}>(scope.ServiceProvider);");
+
+            foreach (var option in optionBindings)
+            {
+                var method = option.Required ? "GetRequiredValue" : "GetValue";
+                writer.WriteLine($"handler.{option.PropertyName} = parseResult.{method}({option.VariableName});");
+            }
+
+            foreach (var argument in argumentBindings)
+            {
+                var method = argument.Required ? "GetRequiredValue" : "GetValue";
+                writer.WriteLine($"handler.{argument.PropertyName} = parseResult.{method}({argument.VariableName});");
+            }
+
+            writer.WriteLine("return await handler.Execute(global::System.Threading.CancellationToken.None);");
+            writer.Indent--;
+            writer.WriteLine("});");
         }
 
         writer.WriteLine();
@@ -217,7 +240,7 @@ internal sealed class CliCommandProducer : Producer
             }
 
             writer.WriteLine($"command.Add({variableName});");
-            bindings.Add(new OptionBinding(option.PropertyName, variableName));
+            bindings.Add(new OptionBinding(option.PropertyName, variableName, option.Required));
             writer.WriteLine();
         }
 
@@ -248,7 +271,7 @@ internal sealed class CliCommandProducer : Producer
                 : "global::System.CommandLine.ArgumentArity.ZeroOrOne";
             writer.WriteLine($"{variableName}.Arity = {arity};");
             writer.WriteLine($"command.Add({variableName});");
-            bindings.Add(new ArgumentBinding(argument.PropertyName, variableName));
+            bindings.Add(new ArgumentBinding(argument.PropertyName, variableName, argument.Required));
             writer.WriteLine();
         }
 
@@ -257,7 +280,7 @@ internal sealed class CliCommandProducer : Producer
 
     private void WriteHandler(IndentedTextWriter writer, CliCommandDefinition command, IReadOnlyList<OptionBinding> options, IReadOnlyList<ArgumentBinding> arguments)
     {
-        writer.WriteLine("command.SetHandler(async invocationContext =>");
+        writer.WriteLine("command.SetAction(async invocationContext =>");
         writer.WriteLine("{");
         writer.Indent++;
 
@@ -266,12 +289,14 @@ internal sealed class CliCommandProducer : Producer
 
         foreach (var option in options)
         {
-            writer.WriteLine($"handler.{option.PropertyName} = invocationContext.ParseResult.GetValueForOption({option.VariableName});");
+            var method = option.Required ? "GetRequiredValue" : "GetValue";
+            writer.WriteLine($"handler.{option.PropertyName} = invocationContext.ParseResult.{method}({option.VariableName});");
         }
 
         foreach (var argument in arguments)
         {
-            writer.WriteLine($"handler.{argument.PropertyName} = invocationContext.ParseResult.GetValueForArgument({argument.VariableName});");
+            var method = argument.Required ? "GetRequiredValue" : "GetValue";
+            writer.WriteLine($"handler.{argument.PropertyName} = invocationContext.ParseResult.{method}({argument.VariableName});");
         }
 
         if (command.HandlerUsesCancellationToken)
@@ -390,25 +415,29 @@ internal sealed class CliCommandProducer : Producer
 
     private readonly struct OptionBinding
     {
-        public OptionBinding(string propertyName, string variableName)
+        public OptionBinding(string propertyName, string variableName, bool required)
         {
             PropertyName = propertyName;
             VariableName = variableName;
+            Required = required;
         }
 
         public string PropertyName { get; }
         public string VariableName { get; }
+        public bool Required { get; }
     }
 
     private readonly struct ArgumentBinding
     {
-        public ArgumentBinding(string propertyName, string variableName)
+        public ArgumentBinding(string propertyName, string variableName, bool required)
         {
             PropertyName = propertyName;
             VariableName = variableName;
+            Required = required;
         }
 
         public string PropertyName { get; }
         public string VariableName { get; }
+        public bool Required { get; }
     }
 }

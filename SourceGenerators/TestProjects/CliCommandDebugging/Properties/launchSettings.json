@@ -1,8 +1,12 @@
 {
   "profiles": {
-    "CliCommandDebugging": {
+    "Greet John 5 times": {
       "commandName": "Project",
-      "commandLineArgs": "greet shout --name=\"Pieterjan\""
+      "commandLineArgs": "greet \"John Doe\" -t 5"
+    },
+    "Shout at Pieterjan": {
+      "commandName": "Project",
+      "commandLineArgs": "greet shout Pieterjan"
     }
   }
 }
