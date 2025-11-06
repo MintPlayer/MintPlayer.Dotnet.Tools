@@ -15,7 +15,7 @@
 		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsDependencyInjection</GetTargetPathDependsOn>
 	</PropertyGroup>
 
-	<Target Name="GetDependencyTargetPathsCommon">
+	<Target Name="GetDependencyTargetPathsCommon" Condition="'$(IsRoslynComponent)' == 'true'">
 		<!-- Include dependency DLLs and put them in the correct package path -->
 		<ItemGroup>
 			<TargetPathWithTargetPlatformMoniker Include="$(PkgMintPlayer_SourceGenerators_Tools)\lib\netstandard2.0\MintPlayer.SourceGenerators.Tools.dll" IncludeRuntimeDependency="false" />
@@ -28,7 +28,7 @@
 		</ItemGroup>
 	</Target>
 
-	<Target Name="GeneratorTools_CheckGeneratePathProperty" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
+	<Target Name="GeneratorTools_CheckGeneratePathProperty" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true' and '$(IsRoslynComponent)' == 'true'">
 		<Error Condition="'$(PkgMintPlayer_SourceGenerators_Tools)' == ''"
 			   Text="Please add GeneratePathProperty=&quot;true&quot; on the MintPlayer.SourceGenerators.Tools PackageReference." />
 	</Target>
