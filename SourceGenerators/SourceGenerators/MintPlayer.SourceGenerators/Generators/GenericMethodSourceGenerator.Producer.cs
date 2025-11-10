@@ -22,53 +22,43 @@ public class GenericMethodProducer : Producer
             {
                 writer.WriteLine(Header);
                 writer.WriteLine();
-                writer.WriteLine($"namespace {RootNamespace}");
-                writer.WriteLine("{");
-                writer.Indent++;
-
-                writer.Write("public ");
-                if (method.Method.ClassModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.StaticKeyword)) writer.Write("static ");
-                writer.Write("partial ");
-                writer.Write($"class {method.Method.ClassName}");
-                writer.WriteLine();
-
-                writer.WriteLine("{");
-                writer.Indent++;
-
-                for (int i = 1; i < method.Count + 1; i++)
+                using (writer.OpenBlock($"namespace {RootNamespace}"))
                 {
                     writer.Write("public ");
-                    if (method.Method.MethodModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.StaticKeyword)) writer.Write("static ");
-                    if (method.Method.MethodModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PartialKeyword)) writer.Write("partial ");
-                    writer.Write($"void {method.Method.MethodName}<");
-                    writer.Write(string.Join(", ", Enumerable.Range(1, i).Select(i => $"T{i}")));
-                    writer.Write(">(");
-
-                    writer.Write(string.Join(", ", Enumerable.Range(1, i)
-                        .Select(i => new { Type = $"T{i}", Name = $"t{i}" })
-                        .Select(i => $"{i.Type} {i.Name}")));
-                    writer.Write(")");
+                    if (method.Method.ClassModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.StaticKeyword)) writer.Write("static ");
+                    writer.Write("partial ");
+                    writer.Write($"class {method.Method.ClassName}");
                     writer.WriteLine();
 
-                    writer.WriteLine("{");
-                    writer.Indent++;
-                    if (method.Method.MethodModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.StaticKeyword) || method.Method.ClassModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.StaticKeyword))
-                        writer.Write($"{method.Method.ClassName}.{method.Method.MethodName}([");
-                    else
-                        writer.Write($"this.{method.Method.MethodName}([");
-                    writer.Write(string.Join(", ", Enumerable.Range(1, i)
-                        .Select(i => $"t{i}")));
-                    writer.Write("]);");
-                    writer.WriteLine();
-                    writer.Indent--;
-                    writer.WriteLine("}");
+                    using (writer.OpenBlock(string.Empty))
+                    {
+                        for (int i = 1; i < method.Count + 1; i++)
+                        {
+                            writer.Write("public ");
+                            if (method.Method.MethodModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.StaticKeyword)) writer.Write("static ");
+                            if (method.Method.MethodModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PartialKeyword)) writer.Write("partial ");
+                            writer.Write($"void {method.Method.MethodName}<");
+                            writer.Write(string.Join(", ", Enumerable.Range(1, i).Select(i => $"T{i}")));
+                            writer.Write(">( ");
+
+                            writer.Write(string.Join(", ", Enumerable.Range(1, i)
+                                .Select(i => new { Type = $"T{i}", Name = $"t{i}" })
+                                .Select(i => $"{i.Type} {i.Name}")));
+                            writer.Write(")");
+                            writer.WriteLine();
+
+                            using (writer.OpenBlock(string.Empty))
+                            {
+                                if (method.Method.MethodModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.StaticKeyword) || method.Method.ClassModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.StaticKeyword))
+                                    writer.Write($"{method.Method.ClassName}.{method.Method.MethodName}([");
+                                else
+                                    writer.Write($"this.{method.Method.MethodName}([");
+                                writer.Write(string.Join(", ", Enumerable.Range(1, i).Select(i => $"t{i}")));
+                                writer.Write("]);\n");
+                            }
+                        }
+                    }
                 }
-
-                writer.Indent--;
-                writer.WriteLine("}");
-
-                writer.Indent--;
-                writer.WriteLine("}");
             }
         }
     }

@@ -19,7 +19,7 @@ public static class HttpResponseMessageExtensions
 
         var msg = $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}\n" +
                   $"URL: {response.RequestMessage?.RequestUri}\n" +
-                  (string.IsNullOrWhiteSpace(body) ? "" : $"Body:\n{body}");
+                  (string.IsNullOrWhiteSpace(body) ? string.Empty : $"Body:\n{body}");
         throw new HttpRequestException(msg, null, response.StatusCode);
     }
 

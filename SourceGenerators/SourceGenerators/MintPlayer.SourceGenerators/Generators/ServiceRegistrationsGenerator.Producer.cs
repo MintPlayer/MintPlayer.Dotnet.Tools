@@ -27,81 +27,69 @@ public class RegistrationsProducer : Producer
         writer.WriteLine();
         writer.WriteLine($"using Microsoft.Extensions.DependencyInjection;");
         writer.WriteLine();
-        writer.WriteLine($"namespace {RootNamespace}");
-        writer.WriteLine("{");
-        writer.Indent++;
-
-        writer.WriteLine("public static class DependencyInjectionExtensionMethods");
-        writer.WriteLine("{");
-        writer.Indent++;
-
-        foreach (var methodGroup in serviceRegistrations.Where(sr => sr is not null).GroupBy(sr => sr.MethodNameHint))
+        using (writer.OpenBlock($"namespace {RootNamespace}"))
         {
-            var methodName = methodGroup.Key.NullIfEmpty() ?? "Services";
-            methodName = methodName.StartsWith("Add") ? methodName : $"Add{methodName}";
-            writer.WriteLine($"public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection {methodName}(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)");
-            writer.WriteLine("{");
-            writer.Indent++;
-
-            writer.WriteLine("return services");
-            writer.Indent++;
-
-            var currentIndex = 0;
-            var total = methodGroup.Count();
-            foreach (var svc in methodGroup)
+            using (writer.OpenBlock("public static class DependencyInjectionExtensionMethods"))
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (svc.ServiceTypeName is null)
+                foreach (var methodGroup in serviceRegistrations.Where(sr => sr is not null).GroupBy(sr => sr.MethodNameHint))
                 {
-                    if (svc.FactoryNames.Length > 0)
+                    var methodName = methodGroup.Key.NullIfEmpty() ?? "Services";
+                    methodName = methodName.StartsWith("Add") ? methodName : $"Add{methodName}";
+                    using (writer.OpenBlock($"public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection {methodName}(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)"))
                     {
-                        var currentFactoryIndex = 0;
-                        foreach (var factoryName in svc.FactoryNames)
+                        writer.WriteLine("return services");
+                        writer.Indent++;
+
+                        var currentIndex = 0;
+                        var total = methodGroup.Count();
+                        foreach (var svc in methodGroup)
                         {
-                            writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ServiceTypeName}>({svc.ImplementationTypeName}.{factoryName})");
-                            if (++currentFactoryIndex != svc.FactoryNames.Length)
-                                writer.WriteLine();
+                            cancellationToken.ThrowIfCancellationRequested();
+                            if (svc.ServiceTypeName is null)
+                            {
+                                if (svc.FactoryNames.Length > 0)
+                                {
+                                    var currentFactoryIndex = 0;
+                                    foreach (var factoryName in svc.FactoryNames)
+                                    {
+                                        writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ServiceTypeName}>({svc.ImplementationTypeName}.{factoryName})");
+                                        if (++currentFactoryIndex != svc.FactoryNames.Length)
+                                            writer.WriteLine();
+                                    }
+                                }
+                                else
+                                {
+                                    writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ImplementationTypeName}>()");
+                                }
+                            }
+                            else
+                            {
+                                if (svc.FactoryNames.Length > 0)
+                                {
+                                    var currentFactoryIndex = 0;
+                                    foreach (var factoryName in svc.FactoryNames)
+                                    {
+                                        writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ServiceTypeName}>({svc.ImplementationTypeName}.{factoryName})");
+                                        if (++currentFactoryIndex != svc.FactoryNames.Length)
+                                            writer.WriteLine();
+                                    }
+                                }
+                                else
+                                {
+                                    writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ServiceTypeName}, {svc.ImplementationTypeName}>()");
+                                }
+                            }
+
+                            if (++currentIndex == total)
+                                writer.Write(";");
+
+                            writer.WriteLine();
                         }
-                    }
-                    else
-                    {
-                        writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ImplementationTypeName}>()");
+
+                        writer.Indent--;
                     }
                 }
-                else
-                {
-                    if (svc.FactoryNames.Length > 0)
-                    {
-                        var currentFactoryIndex = 0;
-                        foreach (var factoryName in svc.FactoryNames)
-                        {
-                            writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ServiceTypeName}>({svc.ImplementationTypeName}.{factoryName})");
-                            if (++currentFactoryIndex != svc.FactoryNames.Length)
-                                writer.WriteLine();
-                        }
-                    }
-                    else
-                    {
-                        writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ServiceTypeName}, {svc.ImplementationTypeName}>()");
-                    }
-                }
-
-                if (++currentIndex == total)
-                    writer.Write(";");
-
-                writer.WriteLine();
             }
-
-            writer.Indent--;
-
-            writer.Indent--;
-            writer.WriteLine("}");
         }
-
-        writer.Indent--;
-        writer.WriteLine("}");
-
-        writer.Indent--;
-        writer.WriteLine("}");
     }
 }

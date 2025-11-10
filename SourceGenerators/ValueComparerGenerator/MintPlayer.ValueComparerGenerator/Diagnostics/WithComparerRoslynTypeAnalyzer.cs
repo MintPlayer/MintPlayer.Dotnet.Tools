@@ -1,7 +1,7 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
-using MintPlayer.SourceGenerators.Tools.Extensions;
+using MintPlayer.SourceGenerators.Tools;
 using System.Collections.Immutable;
 
 namespace MintPlayer.ValueComparerGenerator.Diagnostics;
@@ -64,7 +64,7 @@ public sealed partial class WithComparerRoslynTypeAnalyzer : DiagnosticAnalyzer
         if (provider is null || provider.Arity != 1) return false;
 
         var name = provider.OriginalDefinition.Name;
-        var ns = provider.ContainingNamespace?.ToDisplayString() ?? "";
+        var ns = provider.ContainingNamespace?.ToDisplayString() ?? string.Empty;
         if ((name == "IncrementalValueProvider" || name == "IncrementalValuesProvider") &&
             ns.StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal))
         {

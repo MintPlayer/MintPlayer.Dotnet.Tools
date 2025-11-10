@@ -37,12 +37,12 @@ internal class FolderHasher : IFolderHasher
         if (algorithm.Hash == null)
             throw new InvalidOperationException("Could not determine folder hash");
 
-        return BitConverter.ToString(algorithm.Hash).Replace("-", "").ToLower();
+        return Convert.ToHexStringLower(algorithm.Hash);
     }
 
     public async Task<string> GetFolderHashAsync(string folder)
     {
-        var hash = await GetFolderHashAsync(folder, new string[0], SHA256.Create());
+        var hash = await GetFolderHashAsync(folder, [], SHA256.Create());
         return hash;
     }
 
