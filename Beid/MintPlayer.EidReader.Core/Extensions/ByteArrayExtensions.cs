@@ -34,7 +34,7 @@ internal static class ByteArrayExtensions
 
     public static String ToStr(this byte[] value) => Encoding.UTF8.GetString(value).TrimEnd();
 
-    public static DateTime ToDate(this byte[] value) => DateTime.ParseExact(ToStr(value).Replace(" ", "").Replace(".", ""), "ddMMyyyy", CultureInfo.InvariantCulture);
+    public static DateTime ToDate(this byte[] value) => DateTime.ParseExact(ToStr(value).Replace(" ", string.Empty).Replace(".", string.Empty), "ddMMyyyy", CultureInfo.InvariantCulture);
 
     public static DateTime ToBirthDate(this byte[] value)
     {

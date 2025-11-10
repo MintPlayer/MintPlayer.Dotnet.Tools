@@ -1,7 +1,6 @@
 ﻿using Microsoft.CodeAnalysis;
 using MintPlayer.Mapper.Models;
 using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.SourceGenerators.Tools.Extensions;
 using System.CodeDom.Compiler;
 using System.Collections.Immutable;
 
@@ -59,16 +58,17 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
                                             writer.WriteLine($"result = {staticClass.FullyQualifiedName}.{method.MethodName}(({method.SourceType})(object)source, ({method.StateType})sourceState, ({method.StateType})destState);");
                                         else
                                             writer.WriteLine($"result = {staticClass.FullyQualifiedName}.{method.MethodName}(({method.SourceType})(object)source);");
+                                        writer.WriteLine("break;");
                                     }
                                 }
                                 else
                                 {
                                     using (writer.OpenBlock($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({method.SourceType}) && destType == typeof({method.DestinationType}):", false))
+                                    {
                                         writer.WriteLine($"result = {staticClass.FullyQualifiedName}.{method.MethodName}(({method.SourceType})(object)source);");
+                                        writer.WriteLine("break;");
+                                    }
                                 }
-
-                                writer.WriteLine("break;");
-                                writer.Indent--;
                             }
                         }
 

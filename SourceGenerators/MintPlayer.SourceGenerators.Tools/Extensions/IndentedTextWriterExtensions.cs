@@ -1,6 +1,6 @@
 ﻿using System.CodeDom.Compiler;
 
-namespace MintPlayer.SourceGenerators.Tools.Extensions;
+namespace MintPlayer.SourceGenerators.Tools;
 
 public static class IndentedTextWriterExtensions
 {
@@ -20,7 +20,7 @@ public static class IndentedTextWriterExtensions
     /// </example>
     public static IDisposableWriterIndent OpenBlock(this IndentedTextWriter writer, string line, bool writeBraces = true)
     {
-        writer.WriteLine(line);
+        if (!string.IsNullOrEmpty(line)) writer.WriteLine(line);
         return new DisposableWriterIndent(writer, writeBraces);
     }
 

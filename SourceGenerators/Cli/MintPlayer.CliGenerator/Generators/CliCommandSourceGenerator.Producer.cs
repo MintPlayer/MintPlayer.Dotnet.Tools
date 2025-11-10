@@ -1,11 +1,8 @@
 using MintPlayer.CliGenerator.Extensions;
 using MintPlayer.CliGenerator.Models;
 using MintPlayer.SourceGenerators.Tools;
-using System;
 using System.CodeDom.Compiler;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
 
 namespace MintPlayer.CliGenerator.Generators;
 
@@ -47,20 +44,14 @@ internal sealed class CliCommandProducer : Producer
             }
             else
             {
-                writer.Write("namespace ");
-                writer.Write(group.Key);
-                writer.WriteLine();
-                writer.WriteLine("{");
-                writer.Indent++;
-
-                foreach (var tree in group)
+                using (writer.OpenBlock($"namespace {group.Key}"))
                 {
-                    WriteCommandTree(writer, tree);
-                    writer.WriteLine();
+                    foreach (var tree in group)
+                    {
+                        WriteCommandTree(writer, tree);
+                        writer.WriteLine();
+                    }
                 }
-
-                writer.Indent--;
-                writer.WriteLine("}");
                 writer.WriteLine();
             }
         }
@@ -90,116 +81,96 @@ internal sealed class CliCommandProducer : Producer
 
     private void WriteCommandNode(IndentedTextWriter writer, CliCommandTree node, bool isRoot)
     {
-        writer.WriteLine(node.Command.Declaration);
-        writer.WriteLine("{");
-        writer.Indent++;
-
-        WriteRegisterMethod(writer, node);
-        writer.WriteLine();
-        WriteBuildMethod(writer, node, isRoot);
-
-        if (node.Children.Length > 0)
+        using (writer.OpenBlock(node.Command.Declaration))
         {
+            WriteRegisterMethod(writer, node);
             writer.WriteLine();
-            foreach (var child in node.Children)
+            WriteBuildMethod(writer, node, isRoot);
+
+            if (node.Children.Length > 0)
             {
-                WriteCommandNode(writer, child, isRoot: false);
                 writer.WriteLine();
+                foreach (var child in node.Children)
+                {
+                    WriteCommandNode(writer, child, isRoot: false);
+                    writer.WriteLine();
+                }
             }
         }
-
-        writer.Indent--;
-        writer.WriteLine("}");
     }
 
     private void WriteRegisterMethod(IndentedTextWriter writer, CliCommandTree node)
     {
-        writer.WriteLine("internal static void RegisterCliCommandTree(global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)");
-        writer.WriteLine("{");
-        writer.Indent++;
-        writer.WriteLine($"global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddScoped<{node.Command.FullyQualifiedName}>(services);");
-        foreach (var child in node.Children)
+        using (writer.OpenBlock("internal static void RegisterCliCommandTree(global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)"))
         {
-            writer.WriteLine($"{child.Command.FullyQualifiedName}.RegisterCliCommandTree(services);");
+            writer.WriteLine($"global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddScoped<{node.Command.FullyQualifiedName}>(services);");
+            foreach (var child in node.Children)
+            {
+                writer.WriteLine($"{child.Command.FullyQualifiedName}.RegisterCliCommandTree(services);");
+            }
         }
-        writer.Indent--;
-        writer.WriteLine("}");
     }
 
     private void WriteBuildMethod(IndentedTextWriter writer, CliCommandTree node, bool isRoot)
     {
-        if (isRoot)
-        {
-            writer.WriteLine("internal static global::System.CommandLine.RootCommand BuildCliRootCommand(global::System.IServiceProvider serviceProvider)");
-        }
-        else
-        {
-            writer.WriteLine("internal static global::System.CommandLine.Command BuildCliCommand(global::System.IServiceProvider serviceProvider)");
-        }
+        var methodSignature = isRoot
+            ? "internal static global::System.CommandLine.RootCommand BuildCliRootCommand(global::System.IServiceProvider serviceProvider)"
+            : "internal static global::System.CommandLine.Command BuildCliCommand(global::System.IServiceProvider serviceProvider)";
 
-        writer.WriteLine("{");
-        writer.Indent++;
-
-        var command = node.Command;
-        if (isRoot)
+        using (writer.OpenBlock(methodSignature))
         {
-            var descriptionLiteral = ToNullableStringLiteral(command.Description);
-            writer.WriteLine($"var command = new global::System.CommandLine.RootCommand({descriptionLiteral});");
-            //if (!string.IsNullOrWhiteSpace(command.CommandName))
-            //    writer.WriteLine($"command.Name = {ToStringLiteral(command.CommandName!)};");
-        }
-        else
-        {
-            var nameLiteral = ToStringLiteral(command.CommandName ?? command.TypeName.ToLowerInvariant());
-            var descriptionLiteral = ToNullableStringLiteral(command.Description);
-            writer.WriteLine($"var command = new global::System.CommandLine.Command({nameLiteral}, description: {descriptionLiteral});");
-        }
-
-        var optionBindings = WriteOptionDeclarations(writer, command);
-        var argumentBindings = WriteArgumentDeclarations(writer, command);
-
-        foreach (var child in node.Children)
-        {
-            writer.WriteLine($"command.Add({child.Command.FullyQualifiedName}.BuildCliCommand(serviceProvider));");
-        }
-
-        if (command.HasHandler)
-        {
-            writer.WriteLine();
-            WriteHandler(writer, command, optionBindings, argumentBindings);
-        }
-        else
-        {
-            // Fallback: bind values and invoke Execute without using SetAction
-            writer.WriteLine();
-            writer.WriteLine("command.SetAction(async parseResult =>");
-            writer.WriteLine("{");
-            writer.Indent++;
-            writer.WriteLine("using var scope = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.CreateScope(serviceProvider);");
-            writer.WriteLine($"var handler = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<{command.FullyQualifiedName}>(scope.ServiceProvider);");
-
-            foreach (var option in optionBindings)
+            var command = node.Command;
+            if (isRoot)
             {
-                var method = option.Required ? "GetRequiredValue" : "GetValue";
-                writer.WriteLine($"handler.{option.PropertyName} = parseResult.{method}({option.VariableName});");
+                var descriptionLiteral = ToNullableStringLiteral(command.Description);
+                writer.WriteLine($"var command = new global::System.CommandLine.RootCommand({descriptionLiteral});");
+            }
+            else
+            {
+                var nameLiteral = ToStringLiteral(command.CommandName ?? command.TypeName.ToLowerInvariant());
+                var descriptionLiteral = ToNullableStringLiteral(command.Description);
+                writer.WriteLine($"var command = new global::System.CommandLine.Command({nameLiteral}, description: {descriptionLiteral});");
             }
 
-            foreach (var argument in argumentBindings)
+            var optionBindings = WriteOptionDeclarations(writer, command);
+            var argumentBindings = WriteArgumentDeclarations(writer, command);
+
+            foreach (var child in node.Children)
             {
-                var method = argument.Required ? "GetRequiredValue" : "GetValue";
-                writer.WriteLine($"handler.{argument.PropertyName} = parseResult.{method}({argument.VariableName});");
+                writer.WriteLine($"command.Add({child.Command.FullyQualifiedName}.BuildCliCommand(serviceProvider));");
             }
 
-            writer.WriteLine("return await handler.Execute(global::System.Threading.CancellationToken.None);");
-            writer.Indent--;
-            writer.WriteLine("});");
+            if (command.HasHandler)
+            {
+                WriteHandler(writer, command, optionBindings, argumentBindings);
+            }
+            else
+            {
+                using (writer.OpenBlock("command.SetAction(async parseResult =>"))
+                {
+                    writer.WriteLine("using var scope = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.CreateScope(serviceProvider);");
+                    writer.WriteLine($"var handler = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<{command.FullyQualifiedName}>(scope.ServiceProvider);");
+
+                    foreach (var option in optionBindings)
+                    {
+                        var method = option.Required ? "GetRequiredValue" : "GetValue";
+                        writer.WriteLine($"handler.{option.PropertyName} = parseResult.{method}({option.VariableName});");
+                    }
+
+                    foreach (var argument in argumentBindings)
+                    {
+                        var method = argument.Required ? "GetRequiredValue" : "GetValue";
+                        writer.WriteLine($"handler.{argument.PropertyName} = parseResult.{method}({argument.VariableName});");
+                    }
+
+                    writer.WriteLine("return await handler.Execute(global::System.Threading.CancellationToken.None);");
+                }
+                writer.WriteLine(");");
+            }
+
+            writer.WriteLine();
+            writer.WriteLine("return command;");
         }
-
-        writer.WriteLine();
-        writer.WriteLine("return command;");
-
-        writer.Indent--;
-        writer.WriteLine("}");
     }
 
     private IReadOnlyList<OptionBinding> WriteOptionDeclarations(IndentedTextWriter writer, CliCommandDefinition command)
@@ -280,77 +251,63 @@ internal sealed class CliCommandProducer : Producer
 
     private void WriteHandler(IndentedTextWriter writer, CliCommandDefinition command, IReadOnlyList<OptionBinding> options, IReadOnlyList<ArgumentBinding> arguments)
     {
-        writer.WriteLine("command.SetAction(async invocationContext =>");
-        writer.WriteLine("{");
-        writer.Indent++;
-
-        writer.WriteLine("using var scope = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.CreateScope(serviceProvider);");
-        writer.WriteLine($"var handler = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<{command.FullyQualifiedName}>(scope.ServiceProvider);");
-
-        foreach (var option in options)
+        using (writer.OpenBlock("command.SetAction(async invocationContext =>"))
         {
-            var method = option.Required ? "GetRequiredValue" : "GetValue";
-            writer.WriteLine($"handler.{option.PropertyName} = invocationContext.ParseResult.{method}({option.VariableName});");
+            writer.WriteLine("using var scope = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.CreateScope(serviceProvider);");
+            writer.WriteLine($"var handler = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<{command.FullyQualifiedName}>(scope.ServiceProvider);");
+
+            foreach (var option in options)
+            {
+                var method = option.Required ? "GetRequiredValue" : "GetValue";
+                writer.WriteLine($"handler.{option.PropertyName} = invocationContext.ParseResult.{method}({option.VariableName});");
+            }
+
+            foreach (var argument in arguments)
+            {
+                var method = argument.Required ? "GetRequiredValue" : "GetValue";
+                writer.WriteLine($"handler.{argument.PropertyName} = invocationContext.ParseResult.{method}({argument.VariableName});");
+            }
+
+            if (command.HandlerUsesCancellationToken)
+            {
+                writer.WriteLine("var cancellationToken = invocationContext.GetCancellationToken();");
+            }
+
+            var handlerMethodName = command.HandlerMethodName ?? "Execute";
+            var invocation = command.HandlerUsesCancellationToken
+                ? $"handler.{handlerMethodName}(cancellationToken)"
+                : $"handler.{handlerMethodName}()";
+
+            writer.WriteLine($"var exitCode = await {invocation};");
+            writer.WriteLine("invocationContext.ExitCode = exitCode;");
         }
-
-        foreach (var argument in arguments)
-        {
-            var method = argument.Required ? "GetRequiredValue" : "GetValue";
-            writer.WriteLine($"handler.{argument.PropertyName} = invocationContext.ParseResult.{method}({argument.VariableName});");
-        }
-
-        if (command.HandlerUsesCancellationToken)
-        {
-            writer.WriteLine("var cancellationToken = invocationContext.GetCancellationToken();");
-        }
-
-        var handlerMethodName = command.HandlerMethodName ?? "Execute";
-        var invocation = command.HandlerUsesCancellationToken
-            ? $"handler.{handlerMethodName}(cancellationToken)"
-            : $"handler.{handlerMethodName}()";
-
-        writer.WriteLine($"var exitCode = await {invocation};");
-        writer.WriteLine("invocationContext.ExitCode = exitCode;");
-
-        writer.Indent--;
-        writer.WriteLine("});");
+        writer.WriteLine(");");
     }
 
     private void WriteRootExtensions(IndentedTextWriter writer, CliCommandDefinition command)
     {
-        var extensionClassName = command.TypeName + "CliExtensions";
-        writer.WriteLine($"public static class {extensionClassName}");
-        writer.WriteLine("{");
-        writer.Indent++;
+        using (writer.OpenBlock($"public static class {command.TypeName}CliExtensions"))
+        {
+            using (writer.OpenBlock($"public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection Add{command.TypeName}Tree(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)"))
+            {
+                writer.WriteLine($"{command.FullyQualifiedName}.RegisterCliCommandTree(services);");
+                writer.WriteLine("return services;");
+            }
+            writer.WriteLine();
 
-        writer.WriteLine($"public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection Add{command.TypeName}Tree(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)");
-        writer.WriteLine("{");
-        writer.Indent++;
-        writer.WriteLine($"{command.FullyQualifiedName}.RegisterCliCommandTree(services);");
-        writer.WriteLine("return services;");
-        writer.Indent--;
-        writer.WriteLine("}");
-        writer.WriteLine();
+            using (writer.OpenBlock($"public static global::System.CommandLine.RootCommand Build{command.TypeName}Command(this global::System.IServiceProvider serviceProvider)"))
+            {
+                writer.WriteLine($"return {command.FullyQualifiedName}.BuildCliRootCommand(serviceProvider);");
+            }
+            writer.WriteLine();
 
-        writer.WriteLine($"public static global::System.CommandLine.RootCommand Build{command.TypeName}Command(this global::System.IServiceProvider serviceProvider)");
-        writer.WriteLine("{");
-        writer.Indent++;
-        writer.WriteLine($"return {command.FullyQualifiedName}.BuildCliRootCommand(serviceProvider);");
-        writer.Indent--;
-        writer.WriteLine("}");
-        writer.WriteLine();
-
-        writer.WriteLine($"public static global::System.Threading.Tasks.Task<int> Invoke{command.TypeName}Async(this global::System.IServiceProvider serviceProvider, string[] args)");
-        writer.WriteLine("{");
-        writer.Indent++;
-        writer.WriteLine($"var command = {command.FullyQualifiedName}.BuildCliRootCommand(serviceProvider);");
-        writer.WriteLine("var parsedCommand = command.Parse(args);");
-        writer.WriteLine("return parsedCommand.InvokeAsync();");
-        writer.Indent--;
-        writer.WriteLine("}");
-
-        writer.Indent--;
-        writer.WriteLine("}");
+            using (writer.OpenBlock($"public static global::System.Threading.Tasks.Task<int> Invoke{command.TypeName}Async(this global::System.IServiceProvider serviceProvider, string[] args)"))
+            {
+                writer.WriteLine($"var command = {command.FullyQualifiedName}.BuildCliRootCommand(serviceProvider);");
+                writer.WriteLine("var parsedCommand = command.Parse(args);");
+                writer.WriteLine("return parsedCommand.InvokeAsync();");
+            }
+        }
     }
 
     private static string NormalizeIdentifier(string name)

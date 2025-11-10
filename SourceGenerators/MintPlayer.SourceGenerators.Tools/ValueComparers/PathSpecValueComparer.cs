@@ -2,9 +2,9 @@
 
 namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
 
-public class PathSpecValueComparer : ValueComparer<Extensions.PathSpec>
+public class PathSpecValueComparer : ValueComparer<PathSpec>
 {
-    protected override bool AreEqual(Extensions.PathSpec x, Extensions.PathSpec y)
+    protected override bool AreEqual(PathSpec x, PathSpec y)
     {
         if (!IsEquals(x.ContainingNamespace, y.ContainingNamespace)) return false;
         if (!IsEquals(x.Parents, y.Parents)) return false;
@@ -12,9 +12,9 @@ public class PathSpecValueComparer : ValueComparer<Extensions.PathSpec>
     }
 }
 
-public class PathSpecElementValueComparer : ValueComparer<Extensions.PathSpecElement>
+public class PathSpecElementValueComparer : ValueComparer<PathSpecElement>
 {
-    protected override bool AreEqual(Extensions.PathSpecElement x, Extensions.PathSpecElement y)
+    protected override bool AreEqual(PathSpecElement x, PathSpecElement y)
     {
         if (!IsEquals(x.Name, y.Name)) return false;
         if (!IsEquals(x.Type, y.Type)) return false;

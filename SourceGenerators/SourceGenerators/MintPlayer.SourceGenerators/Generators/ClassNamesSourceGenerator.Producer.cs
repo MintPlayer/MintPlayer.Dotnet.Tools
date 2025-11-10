@@ -21,24 +21,16 @@ public class ClassNamesProducer : Producer, IDiagnosticReporter
     {
         writer.WriteLine(Header);
         writer.WriteLine();
-        writer.WriteLine($"namespace {RootNamespace}");
-        writer.WriteLine("{");
-        writer.Indent++;
-
-        writer.WriteLine("public static class ClassNames");
-        writer.WriteLine("{");
-        writer.Indent++;
-
-        foreach (var declaration in declarations)
+        using (writer.OpenBlock($"namespace {RootNamespace}"))
         {
-            writer.WriteLine($"public const string {declaration.Name} = \"{declaration.Name}\";");
+            using (writer.OpenBlock("public static class ClassNames"))
+            {
+                foreach (var declaration in declarations)
+                {
+                    writer.WriteLine($"public const string {declaration.Name} = \"{declaration.Name}\";");
+                }
+            }
         }
-
-        writer.Indent--;
-        writer.WriteLine("}");
-
-        writer.Indent--;
-        writer.WriteLine("}");
     }
 }
 
@@ -59,20 +51,13 @@ public class ClassNameListProducer : Producer, IDiagnosticReporter
     {
         writer.WriteLine(Header);
         writer.WriteLine();
-        writer.WriteLine($"namespace {RootNamespace}");
-        writer.WriteLine("{");
-        writer.Indent++;
-
-        writer.WriteLine("public static class ClassNameList");
-        writer.WriteLine("{");
-        writer.Indent++;
-        var list = string.Join(", ", declarations.Select(d => $"\"{d.Name}\""));
-        writer.WriteLine($$"""public static string[] List => new[] { {{list}} };""");
-
-        writer.Indent--;
-        writer.WriteLine("}");
-
-        writer.Indent--;
-        writer.WriteLine("}");
+        using (writer.OpenBlock($"namespace {RootNamespace}"))
+        {
+            using (writer.OpenBlock("public static class ClassNameList"))
+            {
+                var list = string.Join(", ", declarations.Select(d => $"\"{d.Name}\""));
+                writer.WriteLine($"public static string[] List => new[] {{ {list} }};");
+            }
+        }
     }
 }

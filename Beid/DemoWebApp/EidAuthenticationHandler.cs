@@ -25,7 +25,7 @@ public class EidAuthenticationHandler : AuthenticationHandler<EidAuthenticationO
         }
         else
         {
-            return AuthenticateResult.Fail("");
+            return AuthenticateResult.Fail(string.Empty);
             //return new AuthenticationTicket(null, new AuthenticationProperties());
         }
     }

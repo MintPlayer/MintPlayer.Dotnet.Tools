@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools.ValueComparers;
 
-namespace MintPlayer.SourceGenerators.Tools.Extensions;
+namespace MintPlayer.SourceGenerators.Tools;
 
 public static class SymbolExtensions
 {

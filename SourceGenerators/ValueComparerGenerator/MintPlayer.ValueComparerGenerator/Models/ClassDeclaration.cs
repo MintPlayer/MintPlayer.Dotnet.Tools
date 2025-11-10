@@ -1,5 +1,4 @@
 ﻿using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.SourceGenerators.Tools.Extensions;
 
 namespace MintPlayer.ValueComparerGenerator.Models;
 

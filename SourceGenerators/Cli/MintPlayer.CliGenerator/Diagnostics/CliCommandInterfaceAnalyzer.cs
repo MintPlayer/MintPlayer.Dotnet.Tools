@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
-using MintPlayer.SourceGenerators.Tools.Extensions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
+using MintPlayer.SourceGenerators.Tools;
 
 namespace MintPlayer.CliGenerator.Diagnostics;
 
