@@ -35,194 +35,126 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         writer.WriteLine(Header);
         writer.WriteLine();
 
-        writer.WriteLine($"namespace {RootNamespace}");
-        writer.WriteLine("{");
-        writer.Indent++;
-
-        writer.WriteLine("public static class MapperExtensions");
-        writer.WriteLine("{");
-        writer.Indent++;
-
-        writer.WriteLine("public static TDest? ConvertProperty<TSource, TDest>(TSource? source, int? sourceState = null, int? destState = null)");
-        writer.WriteLine("{");
-        writer.Indent++;
-
-        writer.WriteLine("if (source is null)");
-        writer.Indent++;
-        writer.WriteLine("return default;");
-        writer.Indent--;
-
-        writer.WriteLine();
-        writer.WriteLine("object? result;");
-        writer.WriteLine();
-
-        writer.WriteLine();
-        writer.WriteLine();
-
-        writer.WriteLine($"switch ((typeof(TSource), typeof(TDest)))");
-        writer.WriteLine("{");
-        writer.Indent++;
-
-        // Adding lines here breaks the MapperDebugging project build, alternatingly.
-        // Add line => Build breaks => Add line => Build works => Add line => Build breaks ...
-        writer.WriteLine();
-
-        foreach (var staticClass in staticClasses)
+        using (writer.OpenBlock($"namespace {RootNamespace}"))
         {
-            foreach (var method in staticClass.ConversionMethods)
+            using (writer.OpenBlock("public static class MapperExtensions"))
             {
-                if (method.SourceState is not null && method.DestinationState is not null)
+                using (writer.OpenBlock("public static TDest? ConvertProperty<TSource, TDest>(TSource? source, int? sourceState = null, int? destState = null)"))
                 {
-                    writer.WriteLine($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({method.SourceType}) && destType == typeof({method.DestinationType}) && sourceState == {method.SourceState} && destState == {method.DestinationState}:");
-                    writer.Indent++;
-                    if (method.MethodParameterCount == 3)
-                        writer.WriteLine($"result = {staticClass.FullyQualifiedName}.{method.MethodName}(({method.SourceType})(object)source, ({method.StateType})sourceState, ({method.StateType})destState);");
-                    else
-                        writer.WriteLine($"result = {staticClass.FullyQualifiedName}.{method.MethodName}(({method.SourceType})(object)source);");
-                }
-                else
-                {
-                    writer.WriteLine($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({method.SourceType}) && destType == typeof({method.DestinationType}):");
-                    writer.Indent++;
-                    writer.WriteLine($"result = {staticClass.FullyQualifiedName}.{method.MethodName}(({method.SourceType})(object)source);");
+                    using (writer.OpenBlock("if (source is null)", false))
+                        writer.WriteLine("return default;");
+
+                    writer.WriteLine("object? result;");
+                    using (writer.OpenBlock($"switch ((typeof(TSource), typeof(TDest)))"))
+                    {
+                        foreach (var staticClass in staticClasses)
+                        {
+                            foreach (var method in staticClass.ConversionMethods)
+                            {
+                                if (method.SourceState is not null && method.DestinationState is not null)
+                                {
+                                    using (writer.OpenBlock($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({method.SourceType}) && destType == typeof({method.DestinationType}) && sourceState == {method.SourceState} && destState == {method.DestinationState}:", false))
+                                    {
+                                        if (method.MethodParameterCount == 3)
+                                            writer.WriteLine($"result = {staticClass.FullyQualifiedName}.{method.MethodName}(({method.SourceType})(object)source, ({method.StateType})sourceState, ({method.StateType})destState);");
+                                        else
+                                            writer.WriteLine($"result = {staticClass.FullyQualifiedName}.{method.MethodName}(({method.SourceType})(object)source);");
+                                    }
+                                }
+                                else
+                                {
+                                    using (writer.OpenBlock($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({method.SourceType}) && destType == typeof({method.DestinationType}):", false))
+                                        writer.WriteLine($"result = {staticClass.FullyQualifiedName}.{method.MethodName}(({method.SourceType})(object)source);");
+                                }
+
+                                writer.WriteLine("break;");
+                                writer.Indent--;
+                            }
+                        }
+
+                        using (writer.OpenBlock("default:"))
+                            writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
+                    }
+
+                    writer.WriteLine("return (TDest?)result;");
                 }
 
-                writer.WriteLine("break;");
-                writer.Indent--;
+                foreach (var type in typesToMap.Where(t => !t.TypeToMap.HasError))
+                {
+                    var accessModifier = Math.Min(type.TypeToMap.DeclaredTypeAccessibility, type.TypeToMap.MappingTypeAccessibility) < 6 ? "internal" : "public";
+                    using (writer.OpenBlock($"{accessModifier} static void {type.TypeToMap.PreferredDeclaredMethodName}(this {type.TypeToMap.MappingType} input, {type.TypeToMap.DeclaredType} output)"))
+                    {
+                        using (writer.OpenBlock("if ((input is { } inValue) && (output is { }))"))
+                        {
+                            foreach (var (source, destination) in type.MappedProperties)
+                            {
+                                HandleProperty(writer, source, destination, EWriteType.Assignment);
+                            }
+                        }
+                    }
+
+                    using (writer.OpenBlock($"{accessModifier} static {type.TypeToMap.DeclaredType} {type.TypeToMap.PreferredDeclaredMethodName}(this {type.TypeToMap.MappingType} input)"))
+                    {
+                        writer.WriteLine("if (input is null) return default;");
+                        writer.WriteLine();
+
+                        writer.WriteLine($"return new {type.TypeToMap.DeclaredType}()");
+                        writer.WriteLine("{");
+                        writer.Indent++;
+
+                        foreach (var (source, destination) in type.MappedProperties)
+                        {
+                            HandleProperty(writer, source, destination, EWriteType.Initializer);
+                        }
+
+                        writer.Indent--;
+                        writer.WriteLine("};");
+                    }
+
+                    if (!type.TypeToMap.AreBothDecorated)
+                    {
+                        using (writer.OpenBlock($"{accessModifier} static void {type.TypeToMap.PreferredMappingMethodName}(this {type.TypeToMap.DeclaredType} input, {type.TypeToMap.MappingType} output)"))
+                        {
+                            using (writer.OpenBlock("if ((input is { } inValue) && (output is { }))"))
+                            {
+                                foreach (var (source, destination) in type.MappedProperties)
+                                {
+                                    HandleProperty(writer, destination, source, EWriteType.Assignment);
+                                }
+                            }
+                        }
+
+                        using (writer.OpenBlock($"{accessModifier} static {type.TypeToMap.MappingType} {type.TypeToMap.PreferredMappingMethodName}(this {type.TypeToMap.DeclaredType} input)"))
+                        {
+                            writer.WriteLine("if (input is null) return default;");
+                            writer.WriteLine();
+
+                            writer.WriteLine($"return new {type.TypeToMap.MappingType}()");
+                            writer.WriteLine("{");
+                            writer.Indent++;
+
+                            // TODO: add properties
+                            foreach (var (source, destination) in type.MappedProperties)
+                            {
+                                HandleProperty(writer, destination, source, EWriteType.Initializer);
+                            }
+
+                            writer.Indent--;
+                            writer.WriteLine("};");
+                        }
+                    }
+
+                    using (writer.OpenBlock($"{accessModifier} static global::System.Collections.Generic.IEnumerable<{type.TypeToMap.DeclaredType}> {type.TypeToMap.PreferredDeclaredMethodName}(this global::System.Collections.Generic.IEnumerable<{type.TypeToMap.MappingType}> input)"))
+                        writer.WriteLine($"return input.Select(x => x.{type.TypeToMap.PreferredDeclaredMethodName}());");
+
+                    if (!type.TypeToMap.AreBothDecorated)
+                    {
+                        using (writer.OpenBlock($"{accessModifier} static global::System.Collections.Generic.IEnumerable<{type.TypeToMap.MappingType}> {type.TypeToMap.PreferredMappingMethodName}(this global::System.Collections.Generic.IEnumerable<{type.TypeToMap.DeclaredType}> input)"))
+                            writer.WriteLine($"return input.Select(x => x.{type.TypeToMap.PreferredMappingMethodName}());");
+                    }
+                }
             }
         }
-
-        writer.WriteLine("default:");
-        writer.Indent++;
-        writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
-
-        writer.Indent--;
-        writer.Indent--;
-        writer.WriteLine("}");
-
-        writer.WriteLine();
-        writer.WriteLine("return (TDest?)result;");
-
-        writer.Indent--;
-        writer.WriteLine("}");
-
-        foreach (var type in typesToMap.Where(t => !t.TypeToMap.HasError))
-        {
-            var accessModifier = Math.Min(type.TypeToMap.DeclaredTypeAccessibility, type.TypeToMap.MappingTypeAccessibility) < 6 ? "internal" : "public";
-
-            writer.WriteLine($"{accessModifier} static void {type.TypeToMap.PreferredDeclaredMethodName}(this {type.TypeToMap.MappingType} input, {type.TypeToMap.DeclaredType} output)");
-            writer.WriteLine("{");
-            writer.Indent++;
-
-            writer.WriteLine("if ((input is { } inValue) && (output is { }))");
-            writer.WriteLine("{");
-            writer.Indent++;
-
-            foreach (var (source, destination) in type.MappedProperties)
-            {
-                HandleProperty(writer, source, destination, EWriteType.Assignment);
-            }
-
-            writer.Indent--;
-            writer.WriteLine("}");
-
-            writer.Indent--;
-            writer.WriteLine("}");
-
-            writer.WriteLine($"{accessModifier} static {type.TypeToMap.DeclaredType} {type.TypeToMap.PreferredDeclaredMethodName}(this {type.TypeToMap.MappingType} input)");
-            writer.WriteLine("{");
-            writer.Indent++;
-
-            writer.WriteLine("if (input is null) return default;");
-            writer.WriteLine();
-
-            writer.WriteLine($"return new {type.TypeToMap.DeclaredType}()");
-            writer.WriteLine("{");
-            writer.Indent++;
-
-            foreach (var (source, destination) in type.MappedProperties)
-            {
-                HandleProperty(writer, source, destination, EWriteType.Initializer);
-            }
-
-            writer.Indent--;
-            writer.WriteLine("};");
-
-            writer.Indent--;
-            writer.WriteLine("}");
-
-            if (!type.TypeToMap.AreBothDecorated)
-            {
-                writer.WriteLine($"{accessModifier} static void {type.TypeToMap.PreferredMappingMethodName}(this {type.TypeToMap.DeclaredType} input, {type.TypeToMap.MappingType} output)");
-                writer.WriteLine("{");
-                writer.Indent++;
-
-                writer.WriteLine("if ((input is { } inValue) && (output is { }))");
-                writer.WriteLine("{");
-                writer.Indent++;
-
-                foreach (var (source, destination) in type.MappedProperties)
-                {
-                    HandleProperty(writer, destination, source, EWriteType.Assignment);
-                }
-
-                writer.Indent--;
-                writer.WriteLine("}");
-
-                writer.Indent--;
-                writer.WriteLine("}");
-
-                writer.WriteLine($"{accessModifier} static {type.TypeToMap.MappingType} {type.TypeToMap.PreferredMappingMethodName}(this {type.TypeToMap.DeclaredType} input)");
-                writer.WriteLine("{");
-                writer.Indent++;
-
-                writer.WriteLine("if (input is null) return default;");
-                writer.WriteLine();
-
-                writer.WriteLine($"return new {type.TypeToMap.MappingType}()");
-                writer.WriteLine("{");
-                writer.Indent++;
-
-                // TODO: add properties
-                foreach (var (source, destination) in type.MappedProperties)
-                {
-                    HandleProperty(writer, destination, source, EWriteType.Initializer);
-                }
-
-                writer.Indent--;
-                writer.WriteLine("};");
-
-                writer.Indent--;
-                writer.WriteLine("}");
-            }
-
-            writer.WriteLine($"{accessModifier} static global::System.Collections.Generic.IEnumerable<{type.TypeToMap.DeclaredType}> {type.TypeToMap.PreferredDeclaredMethodName}(this global::System.Collections.Generic.IEnumerable<{type.TypeToMap.MappingType}> input)");
-            writer.WriteLine("{");
-            writer.Indent++;
-
-            writer.WriteLine($"return input.Select(x => x.{type.TypeToMap.PreferredDeclaredMethodName}());");
-
-            writer.Indent--;
-            writer.WriteLine("}");
-
-            if (!type.TypeToMap.AreBothDecorated)
-            {
-                writer.WriteLine($"{accessModifier} static global::System.Collections.Generic.IEnumerable<{type.TypeToMap.MappingType}> {type.TypeToMap.PreferredMappingMethodName}(this global::System.Collections.Generic.IEnumerable<{type.TypeToMap.DeclaredType}> input)");
-                writer.WriteLine("{");
-                writer.Indent++;
-
-                writer.WriteLine($"return input.Select(x => x.{type.TypeToMap.PreferredMappingMethodName}());");
-
-                writer.Indent--;
-                writer.WriteLine("}");
-            }
-        }
-
-        writer.Indent--;
-        writer.WriteLine("}");
-
-        writer.Indent--;
-        writer.WriteLine("}");
     }
 
     // Helper methods for type checks
@@ -414,148 +346,93 @@ public sealed class MapperEntrypointProducer : Producer
         writer.WriteLine(Header);
         writer.WriteLine();
 
-        writer.WriteLine($"namespace {RootNamespace}");
-        writer.WriteLine("{");
-        writer.Indent++;
-
-        writer.WriteLine("public interface IMapper");
-        writer.WriteLine("{");
-        writer.Indent++;
-
-        writer.WriteLine("TDest? Map<TSource, TDest>(TSource? source);");
-        writer.WriteLine("void Map<TSource, TDest>(TSource? source, TDest destination);");
-
-        writer.Indent--;
-        writer.WriteLine("}");
-        writer.WriteLine();
-
-        writer.WriteLine("public class Mapper : IMapper");
-        writer.WriteLine("{");
-        writer.Indent++;
-
-        writer.WriteLine("public TDest? Map<TSource, TDest>(TSource? source)");
-        writer.WriteLine("{");
-        writer.Indent++;
-
-        writer.WriteLine("if (source is null)");
-        writer.Indent++;
-        writer.WriteLine("return default;");
-        writer.Indent--;
-
-        writer.WriteLine();
-        writer.WriteLine("object? result;");
-        writer.WriteLine();
-
-        writer.WriteLine($"switch (source)");
-        writer.WriteLine("{");
-        writer.Indent++;
-
-
-        foreach (var mappedClassGrouping in propsInBothDirections)
+        using (writer.OpenBlock($"namespace {RootNamespace}"))
         {
-            writer.WriteLine($"case {mappedClassGrouping.Key} sourceValue:");
-            writer.Indent++;
-
-            writer.WriteLine($"switch (typeof(TDest))");
-            writer.WriteLine("{");
-            writer.Indent++;
-
-            foreach (var mappedClass in mappedClassGrouping.GroupBy(mc => mc.OutType, StringComparer.Ordinal).Select(g => g.First()))
+            using (writer.OpenBlock("public interface IMapper"))
             {
-                // mappedClass.OutType must be unique here !!!
-                writer.WriteLine($"case global::System.Type destType when destType == typeof({mappedClass.OutType}):");
-                writer.Indent++;
-                writer.WriteLine($"result = global::{RootNamespace}.MapperExtensions.{mappedClass.Method}(sourceValue);");
-                writer.WriteLine("break;");
-                writer.Indent--;
+                writer.WriteLine("TDest? Map<TSource, TDest>(TSource? source);");
+                writer.WriteLine("void Map<TSource, TDest>(TSource? source, TDest destination);");
             }
 
-            writer.WriteLine("default:");
-            writer.Indent++;
-            writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
-            writer.Indent--;
-            writer.Indent--;
-            writer.WriteLine("}");
-            writer.WriteLine("break;");
-            writer.Indent--;
-        }
-
-        writer.WriteLine("default:");
-        writer.Indent++;
-        writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
-        writer.Indent--;
-        writer.Indent--;
-        writer.WriteLine("}");
-
-        writer.WriteLine();
-        writer.WriteLine("return (TDest?)result;");
-
-        writer.Indent--;
-        writer.WriteLine("}");
-        writer.WriteLine();
-
-        writer.WriteLine("public void Map<TSource, TDest>(TSource? source, TDest destination)");
-        writer.WriteLine("{");
-        writer.Indent++;
-
-        writer.WriteLine("if (source is null) return;");
-
-        writer.WriteLine();
-
-        writer.WriteLine($"switch (source)");
-        writer.WriteLine("{");
-        writer.Indent++;
-
-        /*** Nieuw */
-        foreach (var mappedClassGrouping in propsInBothDirections)
-        {
-            writer.WriteLine($"case {mappedClassGrouping.Key} sourceValue:");
-            writer.Indent++;
-
-            writer.WriteLine($"switch (destination)");
-            writer.WriteLine("{");
-            writer.Indent++;
-
-            foreach (var mappedClass in mappedClassGrouping.GroupBy(mc => mc.OutType, StringComparer.Ordinal).Select(g => g.First()))
+            using (writer.OpenBlock("public class Mapper : IMapper"))
             {
-                // mappedClass.OutType must be unique here !!!
-                writer.WriteLine($"case {mappedClass.OutType} dest:");
-                writer.Indent++;
-                writer.WriteLine($"global::{RootNamespace}.MapperExtensions.{mappedClass.Method}(sourceValue, dest);");
-                writer.WriteLine("break;");
-                writer.Indent--;
+                using (writer.OpenBlock("public TDest? Map<TSource, TDest>(TSource? source)"))
+                {
+                    using (writer.OpenBlock("if (source is null)", false))
+                        writer.WriteLine("return default;");
+
+                    writer.WriteLine();
+                    writer.WriteLine("object? result;");
+                    using (writer.OpenBlock($"switch (source)"))
+                    {
+                        foreach (var mappedClassGrouping in propsInBothDirections)
+                        {
+                            using (writer.OpenBlock($"case {mappedClassGrouping.Key} sourceValue:", false))
+                            {
+                                using (writer.OpenBlock($"switch (typeof(TDest))"))
+                                {
+                                    foreach (var mappedClass in mappedClassGrouping.GroupBy(mc => mc.OutType, StringComparer.Ordinal).Select(g => g.First()))
+                                    {
+                                        // mappedClass.OutType must be unique here !!!
+                                        using (writer.OpenBlock($"case global::System.Type destType when destType == typeof({mappedClass.OutType}):", false))
+                                        {
+                                            writer.WriteLine($"result = global::{RootNamespace}.MapperExtensions.{mappedClass.Method}(sourceValue);");
+                                            writer.WriteLine("break;");
+                                        }
+                                    }
+
+                                    using (writer.OpenBlock("default:", false))
+                                        writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
+                                }
+
+                                writer.WriteLine("break;");
+                            }
+                        }
+
+                        using (writer.OpenBlock("default:", false))
+                            writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
+                    }
+
+                    writer.WriteLine();
+                    writer.WriteLine("return (TDest?)result;");
+                }
+
+                using (writer.OpenBlock("public void Map<TSource, TDest>(TSource? source, TDest destination)"))
+                {
+                    writer.WriteLine("if (source is null) return;");
+                    using (writer.OpenBlock($"switch (source)"))
+                    {
+                        /*** Nieuw */
+                        foreach (var mappedClassGrouping in propsInBothDirections)
+                        {
+                            using (writer.OpenBlock($"case {mappedClassGrouping.Key} sourceValue:", false))
+                            {
+                                using (writer.OpenBlock($"switch (destination)"))
+                                {
+                                    foreach (var mappedClass in mappedClassGrouping.GroupBy(mc => mc.OutType, StringComparer.Ordinal).Select(g => g.First()))
+                                    {
+                                        // mappedClass.OutType must be unique here !!!
+                                        using (writer.OpenBlock($"case {mappedClass.OutType} dest:", false))
+                                        {
+                                            writer.WriteLine($"global::{RootNamespace}.MapperExtensions.{mappedClass.Method}(sourceValue, dest);");
+                                            writer.WriteLine("break;");
+                                        }
+                                    }
+
+                                    using (writer.OpenBlock("default:", false))
+                                        writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
+                                }
+
+                                writer.WriteLine("break;");
+                            }
+                        }
+
+                        using (writer.OpenBlock("default:", false))
+                            writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
+                    }
+                }
             }
-
-            writer.WriteLine("default:");
-            writer.Indent++;
-            writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
-
-            writer.Indent--;
-            writer.Indent--;
-            writer.WriteLine("}");
-            writer.WriteLine("break;");
-            writer.Indent--;
         }
-
-        writer.WriteLine("default:");
-        writer.Indent++;
-        writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
-
-        writer.Indent--;
-        writer.Indent--;
-        writer.WriteLine("}");
-
-        writer.Indent--;
-        writer.WriteLine("}");
-        writer.WriteLine();
-
-        writer.Indent--;
-        writer.WriteLine("}");
-        writer.WriteLine();
-
-        writer.Indent--;
-        writer.WriteLine("}");
-        writer.WriteLine();
     }
 }
 
