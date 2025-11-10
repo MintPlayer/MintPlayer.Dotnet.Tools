@@ -25,6 +25,16 @@ public partial class TypeToMap
     public string MappingType { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether map-like objects are represented as dictionaries during serialization
+    /// and deserialization.
+    /// </summary>
+    /// <remarks>
+    /// When set to <see langword="true"/>, map-like objects are handled as 
+    /// <see cref="System.Collections.Generic.Dictionary{TKey, TValue}"/> instances. When <see langword="false"/>
+    /// .</remarks>
+    public bool MapAsDictionary { get; set; }
+
+    /// <summary>
     /// Short name
     /// </summary>
     public string MappingTypeName { get; set; }
@@ -45,7 +55,6 @@ public partial class TypeToMap
     public bool HasError { get; set; }
 
     public LocationKey? Location { get; set; }
-    //public INamedTypeSymbol Symbol { get; internal set; }
 }
 
 [Flags]
