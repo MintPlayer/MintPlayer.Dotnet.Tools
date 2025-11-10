@@ -186,6 +186,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WidgetApi.Contracts", "Http
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Cli", "Cli", "{A2046E15-46FD-4AA6-9550-712A245F8780}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MapAsDictionaryDebugging", "SourceGenerators\TestProjects\MapAsDictionaryDebugging\MapAsDictionaryDebugging.csproj", "{E0D7415B-78F7-4E1E-A2D6-08E685A94AC5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -428,6 +430,10 @@ Global
 		{54AE95B1-CFF1-4453-BA0C-2A0DD92BEF73}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{54AE95B1-CFF1-4453-BA0C-2A0DD92BEF73}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{54AE95B1-CFF1-4453-BA0C-2A0DD92BEF73}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E0D7415B-78F7-4E1E-A2D6-08E685A94AC5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E0D7415B-78F7-4E1E-A2D6-08E685A94AC5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E0D7415B-78F7-4E1E-A2D6-08E685A94AC5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E0D7415B-78F7-4E1E-A2D6-08E685A94AC5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -502,6 +508,7 @@ Global
 		{F46DDBEC-F535-48E6-B94C-4A62F63512BF} = {BE967E23-E7A7-4A55-912D-38FD21068E1D}
 		{54AE95B1-CFF1-4453-BA0C-2A0DD92BEF73} = {BE967E23-E7A7-4A55-912D-38FD21068E1D}
 		{A2046E15-46FD-4AA6-9550-712A245F8780} = {C65054D9-CAD1-4124-B474-D03C178D9D78}
+		{E0D7415B-78F7-4E1E-A2D6-08E685A94AC5} = {1614A8B2-CA9A-4F94-B68A-BCC8ED244648}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D5378D43-9246-4355-8C4B-880DB15B07DA}
