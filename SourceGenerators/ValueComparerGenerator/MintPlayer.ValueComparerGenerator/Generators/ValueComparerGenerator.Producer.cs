@@ -89,8 +89,9 @@ public sealed class TreeValueComparerProducer : Producer
                     var parentBlocks = new Stack<IDisposableWriterIndent>();
                     if (baseType.PathSpec is { } pathSpec && pathSpec.Parents.Any())
                     {
-                        foreach (var parentType in pathSpec.Parents.Reverse())
+                        foreach (var parentType in pathSpec.Parents.AsEnumerable().Reverse())
                         {
+                            // No using(), we dispose later
                             parentBlocks.Push(writer.OpenBlock($"partial class {parentType.Name}"));
                         }
                     }
