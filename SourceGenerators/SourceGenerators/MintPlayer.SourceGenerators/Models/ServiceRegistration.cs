@@ -11,4 +11,5 @@ public partial class ServiceRegistration
     public ServiceLifetime Lifetime { get; set; }
     public string? MethodNameHint { get; set; } = string.Empty;
     public string[] FactoryNames { get; set; } = [];
+    public Attributes.EGeneratedAccessibility? Accessibility { get; set; }
 }

@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using MintPlayer.SourceGenerators.Attributes;
 using MintPlayer.SourceGenerators.Extensions;
 using MintPlayer.SourceGenerators.Models;
 using MintPlayer.SourceGenerators.Tools;
@@ -35,7 +36,13 @@ public class RegistrationsProducer : Producer
                 {
                     var methodName = methodGroup.Key.NullIfEmpty() ?? "Services";
                     methodName = methodName.StartsWith("Add") ? methodName : $"Add{methodName}";
-                    using (writer.OpenBlock($"public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection {methodName}(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)"))
+                    var accessibility = methodGroup.Select(m => m.Accessibility).FirstOrDefault(a => a is not null) ?? EGeneratedAccessibility.Public;
+                    var accessibilityString = accessibility switch
+                    {
+                        EGeneratedAccessibility.Internal => "internal",
+                        _ => "public",
+                    };
+                    using (writer.OpenBlock($"{accessibilityString} static global::Microsoft.Extensions.DependencyInjection.IServiceCollection {methodName}(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)"))
                     {
                         writer.WriteLine("return services");
                         writer.Indent++;
