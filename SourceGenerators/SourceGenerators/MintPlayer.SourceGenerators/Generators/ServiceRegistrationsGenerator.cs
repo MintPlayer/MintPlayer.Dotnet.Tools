@@ -51,8 +51,8 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                         var lifetime = (ServiceLifetime)args[0].Value!;
                                         var methodNameHint = args.Length >= 2 ? args[1].Value as string : null;
                                         var accessibility = args.Length >= 3 && generatedAccessibilitySymbol is not null && SymbolEqualityComparer.Default.Equals(args[2].Type, generatedAccessibilitySymbol) && args[2].Value is int accInt
-                                            ? (EGeneratedAccessibility?)accInt
-                                            : null;
+                                            ? (EGeneratedAccessibility)accInt
+                                            : EGeneratedAccessibility.Unspecified;
 
                                         return new ServiceRegistration
                                         {
@@ -73,8 +73,8 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                         var lifetime = (ServiceLifetime)lifetimeArg.Value!;
                                         var methodNameHint = args.Length >= 3 ? args[2].Value as string : null;
                                         var accessibility = args.Length >= 4 && generatedAccessibilitySymbol is not null && SymbolEqualityComparer.Default.Equals(args[3].Type, generatedAccessibilitySymbol) && args[3].Value is int accInt2
-                                            ? (EGeneratedAccessibility?)accInt2
-                                            : null;
+                                            ? (EGeneratedAccessibility)accInt2
+                                            : EGeneratedAccessibility.Unspecified;
 
                                         if (namedTypeSymbol.AllInterfaces.All(i => !SymbolEqualityComparer.Default.Equals(i, interfaceTypeSymbol))) return default;
 

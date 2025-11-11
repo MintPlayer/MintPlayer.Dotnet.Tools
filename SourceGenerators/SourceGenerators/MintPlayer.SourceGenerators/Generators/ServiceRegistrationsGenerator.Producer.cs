@@ -36,7 +36,8 @@ public class RegistrationsProducer : Producer
                 {
                     var methodName = methodGroup.Key.NullIfEmpty() ?? "Services";
                     methodName = methodName.StartsWith("Add") ? methodName : $"Add{methodName}";
-                    var accessibility = methodGroup.Select(m => m.Accessibility).FirstOrDefault(a => a is not null) ?? EGeneratedAccessibility.Public;
+                    var accessibility = methodGroup.Select(m => m.Accessibility).Where(a => a is not EGeneratedAccessibility.Unspecified).ToArray() is { Length: > 0 } items
+                        ? items.First() : EGeneratedAccessibility.Public;
                     var accessibilityString = accessibility switch
                     {
                         EGeneratedAccessibility.Internal => "internal",

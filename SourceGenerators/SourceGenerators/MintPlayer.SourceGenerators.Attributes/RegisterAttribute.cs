@@ -7,10 +7,12 @@ namespace MintPlayer.SourceGenerators.Attributes;
 /// </summary>
 public enum EGeneratedAccessibility
 {
+    /// <summary>Indicates that the accessibility of the generated extension method is unspecified</summary>
+    Unspecified,
     /// <summary>Indicates that the generated extension method should be public</summary>
     Public,
     /// <summary>Indicates that the generated extension method should be internal</summary>
-    Internal
+    Internal,
 }
 
 /// <summary>
@@ -24,15 +26,12 @@ public enum EGeneratedAccessibility
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
 public class RegisterAttribute : Attribute
 {
-    // Original overload kept for backward compatibility (no interface)
-    public RegisterAttribute(ServiceLifetime lifetime, string methodNameHint = default, EGeneratedAccessibility? accessibility = null) { }
-    // Original overload kept for backward compatibility (with interface)
-    public RegisterAttribute(Type interfaceType, ServiceLifetime lifetime, string methodNameHint = default, EGeneratedAccessibility? accessibility = null) { }
+    public RegisterAttribute(ServiceLifetime lifetime, string methodNameHint = default, EGeneratedAccessibility accessibility = EGeneratedAccessibility.Unspecified) { }
+    public RegisterAttribute(Type interfaceType, ServiceLifetime lifetime, string methodNameHint = default, EGeneratedAccessibility accessibility = EGeneratedAccessibility.Unspecified) { }
 }
 
 /// <summary>
-/// Specifies that the attributed method is a factory method to be registered for dependency injection or similar
-/// purposes.
+/// Specifies that the attributed method is a factory method to be registered for dependency injection or similar purposes.
 /// </summary>
 /// <remarks>
 /// This attribute can be applied to methods to indicate that they should be treated as factory methods.
