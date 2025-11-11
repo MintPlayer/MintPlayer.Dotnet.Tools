@@ -25,9 +25,9 @@ public enum EGeneratedAccessibility
 public class RegisterAttribute : Attribute
 {
     // Original overload kept for backward compatibility (no interface)
-    public RegisterAttribute(ServiceLifetime lifetime, string methodNameHint = default, EGeneratedAccessibility accessibility = EGeneratedAccessibility.Public) { }
+    public RegisterAttribute(ServiceLifetime lifetime, string methodNameHint = default, EGeneratedAccessibility? accessibility = null) { }
     // Original overload kept for backward compatibility (with interface)
-    public RegisterAttribute(Type interfaceType, ServiceLifetime lifetime, string methodNameHint = default, EGeneratedAccessibility accessibility = EGeneratedAccessibility.Public) { }
+    public RegisterAttribute(Type interfaceType, ServiceLifetime lifetime, string methodNameHint = default, EGeneratedAccessibility? accessibility = null) { }
 }
 
 /// <summary>
