@@ -91,6 +91,7 @@ public sealed class TreeValueComparerProducer : Producer
                     {
                         foreach (var parentType in pathSpec.Parents.AsEnumerable().Reverse())
                         {
+                            // No using(), we dispose later
                             parentBlocks.Push(writer.OpenBlock($"partial class {parentType.Name}"));
                         }
                     }
