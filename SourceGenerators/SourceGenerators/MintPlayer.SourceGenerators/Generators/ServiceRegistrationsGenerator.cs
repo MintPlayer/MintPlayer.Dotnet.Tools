@@ -101,9 +101,13 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
             .SelectMany((x, ct) => x)
             .Collect();
 
+        var knowsDependencyInjectionAbstractionsProvider = context.CompilationProvider
+            .Select((compilation, ct) => compilation.GetTypeByMetadataName("Microsoft.Extensions.DependencyInjection.IServiceCollection") is not null);
+
         var registerAttributeSourceProvider = classesWithRegisterAttributeProvider
+            .Join(knowsDependencyInjectionAbstractionsProvider)
             .Join(settingsProvider)
-            .Select(static Producer (providers, ct) => new RegistrationsProducer(providers.Item1.AsEnumerable(), providers.Item2.RootNamespace!));
+            .Select(static Producer (providers, ct) => new RegistrationsProducer(providers.Item1.AsEnumerable(), providers.Item2, providers.Item3.RootNamespace!));
 
         context.ProduceCode(registerAttributeSourceProvider);
     }
