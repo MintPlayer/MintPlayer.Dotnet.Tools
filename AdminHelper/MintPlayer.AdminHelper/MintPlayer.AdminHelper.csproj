@@ -11,7 +11,7 @@
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 
 		<IsPackable>true</IsPackable>
-		<Version>10.0.0-rc.1</Version>
+		<Version>10.0.0</Version>
 		<Description>Cross-platform library to ensure that your app runs as administrator.</Description>
 		<Company>MintPlayer</Company>
 		<Authors>Pieterjan De Clippel</Authors>
