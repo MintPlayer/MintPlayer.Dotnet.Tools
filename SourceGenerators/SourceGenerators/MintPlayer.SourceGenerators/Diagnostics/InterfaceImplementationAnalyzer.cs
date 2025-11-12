@@ -24,31 +24,39 @@ public class InterfaceImplementationAnalyzer : DiagnosticAnalyzer
             case INamedTypeSymbol namedTypeSymbol:
                 var ignoreAttributeSymbol = context.Compilation.GetTypeByMetadataName(typeof(NoInterfaceMemberAttribute).FullName);
 
-                // Check if the class implements an interface
-                var implementedInterfaces = namedTypeSymbol.Interfaces;
-                if (!implementedInterfaces.Any() || namedTypeSymbol.TypeKind != TypeKind.Class)
+                // Only consider classes implementing at least one interface
+                if (namedTypeSymbol.TypeKind != TypeKind.Class || !namedTypeSymbol.Interfaces.Any())
                     return;
 
-                foreach (var iface in implementedInterfaces)
+                foreach (var iface in namedTypeSymbol.Interfaces)
                 {
+                    // Skip interfaces that are not defined in source (metadata-only)
+                    if (iface.Locations.All(l => !l.IsInSource))
+                        continue;
+
                     // Get all members of the interface and sub-interfaces
                     var interfaceMembers = iface.GetMembers()
                         .Concat(iface.AllInterfaces.SelectMany(i => i.GetMembers()))
                         .ToArray();
+
+                    // Only consider public instance methods and properties; ignore nested types, events, fields, etc.
                     var classMembers = namedTypeSymbol.GetMembers()
-                        .Where(m => (m.DeclaredAccessibility == Accessibility.Public) && !m.IsStatic && m.CanBeReferencedByName && !m.IsImplicitlyDeclared)
+                        .Where(m => m.DeclaredAccessibility == Accessibility.Public
+                                    && !m.IsStatic
+                                    && m.CanBeReferencedByName
+                                    && !m.IsImplicitlyDeclared
+                                    && (m is IMethodSymbol || m is IPropertySymbol))
                         .Where(m => !m.GetAttributes().Any(attr => SymbolEqualityComparer.Default.Equals(attr.AttributeClass, ignoreAttributeSymbol)));
 
                     foreach (var member in classMembers)
                     {
-                        // Member already exists
-                        if (interfaceMembers.Any(im => im.Name == member.Name)) continue;
+                        // Ignore constructors and static constructors
+                        if (member is IMethodSymbol method && (method.MethodKind == MethodKind.Constructor || method.MethodKind == MethodKind.StaticConstructor))
+                            continue;
 
-                        if (member is IMethodSymbol method)
-                        {
-                            // Try to ignore events
-                            if (method.Kind is SymbolKind.Event) continue;
-                        }
+                        // Member already exists in any of the interface hierarchies
+                        if (interfaceMembers.Any(im => im.Name == member.Name))
+                            continue;
 
                         // Report diagnostic for missing member
                         var syntaxNode = member.DeclaringSyntaxReferences.First().GetSyntax(context.CancellationToken);
