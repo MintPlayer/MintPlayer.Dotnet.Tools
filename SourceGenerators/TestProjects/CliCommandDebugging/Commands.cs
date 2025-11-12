@@ -1,11 +1,13 @@
+using Microsoft.Extensions.DependencyInjection;
 using MintPlayer.CliGenerator.Attributes;
+using MintPlayer.SourceGenerators.Attributes;
 
 namespace CliCommandDebugging;
 
 [CliRootCommand(Name = "demo", Description = "Demonstrates the CLI command generator")]
 public partial class DemoCommand : ICliCommand
 {
-    [CliOption("--verbose", "-v", Description = "Enable verbose output")]
+    [CliOption("--verbose", "-v", Description = "Enable verbose output"), NoInterfaceMember]
     public bool Verbose { get; set; }
 
     public Task<int> Execute(CancellationToken cancellationToken)
@@ -28,10 +30,10 @@ public partial class DemoCommand : ICliCommand
             this.greetingService = greetingService;
         }
 
-        [CliArgument(0, Name = "name", Description = "Person to greet")]
+        [CliArgument(0, Name = "name", Description = "Person to greet"), NoInterfaceMember]
         public string Name { get; set; } = "world";
 
-        [CliOption("--times", "-t", Description = "Number of times to greet", DefaultValue = 1)]
+        [CliOption("--times", "-t", Description = "Number of times to greet", DefaultValue = 1), NoInterfaceMember]
         public int Times { get; set; }
 
         public async Task<int> Execute(CancellationToken cancellationToken)
@@ -54,7 +56,7 @@ public partial class DemoCommand : ICliCommand
                 this.greetingService = greetingService;
             }
 
-            [CliArgument(0, Name = "name", Description = "Person to greet loudly")]
+            [CliArgument(0, Name = "name", Description = "Person to greet loudly"), NoInterfaceMember]
             public string Target { get; set; } = "team";
 
             public async Task<int> Execute(CancellationToken cancellationToken)
@@ -71,6 +73,7 @@ public interface IGreetingService
     Task GreetAsync(string name, CancellationToken cancellationToken);
 }
 
+[Register(typeof(IGreetingService), ServiceLifetime.Scoped)]
 public sealed class GreetingService : IGreetingService
 {
     public Task GreetAsync(string name, CancellationToken cancellationToken)
