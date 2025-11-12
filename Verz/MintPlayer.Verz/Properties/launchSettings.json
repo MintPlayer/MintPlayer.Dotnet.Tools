@@ -1,5 +1,13 @@
 {
   "profiles": {
+    "Init for .NET": {
+      "commandName": "Project",
+      "commandLineArgs": "init-dotnet --root=\"C:\\Repos\\MintPlayer.DotnetDesktop.Tools\""
+    },
+    "Compute .NET Version": {
+      "commandName": "Project",
+      "commandLineArgs": "dotnet-version --project=\"C:\\Repos\\MintPlayer.DotnetDesktop.Tools\\BrowserDialog\\MintPlayer.BrowserDialog\\MintPlayer.BrowserDialog.csproj\""
+    },
     "MintPlayer.Verz": {
       "commandName": "Project",
       "commandLineArgs": "--file \"C:\\Repos\\debug.log\""

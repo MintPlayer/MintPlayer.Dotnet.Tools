@@ -1,9 +1,10 @@
 ﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
 	<UsingTask TaskName="GeneratePublicApiHashTask" AssemblyFile="$(MSBuildThisFileDirectory)MintPlayer.Verz.Targets.dll" />
+	<UsingTask TaskName="InjectPublicApiHashTask" AssemblyFile="$(MSBuildThisFileDirectory)MintPlayer.Verz.Targets.dll" />
 
 	<Target Name="GeneratePublicApiHash" AfterTargets="Build">
 		<GeneratePublicApiHashTask AssemblyPath="$(TargetPath)">
-			<Output TaskParameter="ApiHash" PropertyName="PublicApiHash" />
+			<Output TaskParameter="PublicApiHash" PropertyName="PublicApiHash" />
 		</GeneratePublicApiHashTask>
 
 		<Message Text="Public API SHA256: $(PublicApiHash)" Importance="High" />
@@ -12,5 +13,10 @@
 		<PropertyGroup>
 			<ComputedApiHash>$(PublicApiHash)</ComputedApiHash>
 		</PropertyGroup>
+	</Target>
+
+	<!-- Attempt to inject PublicApiHash into generated nuspec -->
+	<Target Name="InjectPublicApiHash" AfterTargets="GenerateNuspec" Condition=" '$(PublicApiHash)' != '' and Exists('$(NuspecFile)') ">
+		<InjectPublicApiHashTask NuspecPath="$(NuspecFile)" PublicApiHash="$(PublicApiHash)" />
 	</Target>
 </Project>

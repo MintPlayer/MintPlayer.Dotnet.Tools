@@ -46,25 +46,27 @@ public partial class DemoCommand : ICliCommand
             return 0;
         }
 
-        [CliCommand("shout", Description = "Greets a person loudly")]
-        public partial class Shout : ICliCommand
-        {
-            private readonly IGreetingService greetingService;
+    }
+}
 
-            public Shout(IGreetingService greetingService)
-            {
-                this.greetingService = greetingService;
-            }
+// Demonstrates that you can move subcommands to the root level too.
+[CliCommand("shout", Description = "Greets a person loudly"), CliParentCommand(typeof(DemoCommand.Greet))]
+public partial class Shout : ICliCommand
+{
+    private readonly IGreetingService greetingService;
 
-            [CliArgument(0, Name = "name", Description = "Person to greet loudly"), NoInterfaceMember]
-            public string Target { get; set; } = "team";
+    public Shout(IGreetingService greetingService)
+    {
+        this.greetingService = greetingService;
+    }
 
-            public async Task<int> Execute(CancellationToken cancellationToken)
-            {
-                await greetingService.GreetAsync(Target.ToUpperInvariant(), cancellationToken);
-                return 0;
-            }
-        }
+    [CliArgument(0, Name = "name", Description = "Person to greet loudly"), NoInterfaceMember]
+    public string Target { get; set; } = "team";
+
+    public async Task<int> Execute(CancellationToken cancellationToken)
+    {
+        await greetingService.GreetAsync(Target.ToUpperInvariant(), cancellationToken);
+        return 0;
     }
 }
 

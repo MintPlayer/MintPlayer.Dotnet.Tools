@@ -66,6 +66,7 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
         var commandAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.CliGenerator.Attributes.CliCommandAttribute");
         var optionAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.CliGenerator.Attributes.CliOptionAttribute");
         var argumentAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.CliGenerator.Attributes.CliArgumentAttribute");
+        var parentCommandAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.CliGenerator.Attributes.CliParentCommandAttribute");
         var cancellationTokenSymbol = compilation.GetTypeByMetadataName("System.Threading.CancellationToken");
         var taskSymbol = compilation.GetTypeByMetadataName("System.Threading.Tasks.Task");
 
@@ -77,9 +78,11 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
         var attributes = classSymbol.GetAttributes();
         var rootAttribute = attributes.FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, rootAttributeSymbol));
         var commandAttribute = attributes.FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, commandAttributeSymbol));
+        var parentCommandAttribute = parentCommandAttributeSymbol is null ? null : attributes.FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, parentCommandAttributeSymbol));
 
         if (rootAttribute is null && commandAttribute is null)
         {
+            // We only consider classes that are actual commands; the parent attribute alone is not enough
             return null;
         }
 
@@ -89,8 +92,32 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
 
         var declaration = BuildDeclaration(classSymbol);
         var fullyQualifiedName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        var pathSpec = classSymbol.GetPathSpec(cancellationToken);
+
         string? parentFullyQualifiedName = null;
-        if (classSymbol.ContainingType is not null)
+        bool parentSpecifiedViaAttribute = false;
+        string? originalContainingTypeFqn = classSymbol.ContainingType is not null
+            ? classSymbol.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+            : null;
+        // 1. Explicit parent via [CliParentCommand(typeof(ParentType))]
+        if (parentCommandAttribute is not null && parentCommandAttribute.ConstructorArguments.Length == 1)
+        {
+            var typeArg = parentCommandAttribute.ConstructorArguments[0];
+            if (typeArg.Kind == TypedConstantKind.Type && typeArg.Value is INamedTypeSymbol parentTypeSymbol)
+            {
+                var parentAttributes = parentTypeSymbol.GetAttributes();
+                var parentIsCommand = parentAttributes.Any(a =>
+                    SymbolEqualityComparer.Default.Equals(a.AttributeClass, rootAttributeSymbol) ||
+                    SymbolEqualityComparer.Default.Equals(a.AttributeClass, commandAttributeSymbol));
+                if (parentIsCommand)
+                {
+                    parentFullyQualifiedName = parentTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                    parentSpecifiedViaAttribute = true;
+                }
+            }
+        }
+        // 2. Fallback to containing type hierarchy (nested classes)
+        if (parentFullyQualifiedName is null && classSymbol.ContainingType is not null)
         {
             var parentAttributes = classSymbol.ContainingType.GetAttributes();
             var parentIsCommand = parentAttributes.Any(a =>
@@ -147,6 +174,8 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
             TypeName = classSymbol.Name,
             FullyQualifiedName = fullyQualifiedName,
             ParentFullyQualifiedName = parentFullyQualifiedName,
+            OriginalContainingTypeFullyQualifiedName = originalContainingTypeFqn,
+            PathSpec = pathSpec,
             IsRoot = isRoot,
             CommandName = commandName,
             Description = description,
