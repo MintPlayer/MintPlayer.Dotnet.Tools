@@ -1,8 +1,7 @@
 using System.Xml.Linq;
 using Microsoft.Build.Framework;
-using Microsoft.Build.Utilities;
 
-public class InjectPublicApiHashTask : Task
+public class InjectPublicApiHashTask : Microsoft.Build.Utilities.Task
 {
     [Required]
     public string NuspecPath { get; set; } = string.Empty;
