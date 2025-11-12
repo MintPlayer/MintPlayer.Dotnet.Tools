@@ -65,7 +65,8 @@ public class RegistrationsProducer : Producer
                                         var currentFactoryIndex = 0;
                                         foreach (var factoryName in svc.FactoryNames)
                                         {
-                                            writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ServiceTypeName}>({svc.ImplementationTypeName}.{factoryName})");
+                                            // FIX: When ServiceTypeName is null we register implementation directly
+                                            writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ImplementationTypeName}>({svc.ImplementationTypeName}.{factoryName})");
                                             if (++currentFactoryIndex != svc.FactoryNames.Length)
                                                 writer.WriteLine();
                                         }
