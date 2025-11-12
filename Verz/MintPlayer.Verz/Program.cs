@@ -46,20 +46,26 @@ class Program
         var (registries, sdks) = await LoadToolsAsync(verzConfig.Tools, cts.Token);
 
         var root = new RootCommand("MintPlayer.Verz: compute package versions across feeds");
+        var dotnetVersionCmd = new Command("dotnet-version", "Compute next version for a .NET project");
+        var projectOption = new Option<string>(name: "--project");
+        projectOption.Description = ".csproj file";
+        projectOption.DefaultValueFactory = (arg) => FindSingleCsprojInCwd();
+        dotnetVersionCmd.Add(projectOption);
 
-        var dotnetVersionCmd = new Command("dotnet-version", "Compute next version for a .NET project")
+        var configurationOption = new Option<string>(name: "--configuration");
+        configurationOption.Description = "Build configuration (for locating bin)";
+        configurationOption.DefaultValueFactory = (arg) => "Release";
+        dotnetVersionCmd.Add(configurationOption);
+
+        dotnetVersionCmd.SetAction(async (ParseResult parseResult, CancellationToken ct) =>
         {
-            new Option<string>(name: "--project", description: ".csproj file", getDefaultValue: () => FindSingleCsprojInCwd()),
-            new Option<string>(name: "--configuration", description: "Build configuration (for locating bin)", getDefaultValue: () => "Release")
-        };
-        dotnetVersionCmd.SetHandler(async (string project, string configuration) =>
-        {
+            var project = parseResult.GetValue<string>("--project");
+            var configuration = parseResult.GetValue<string>("--configuration");
             var sdk = sdks.OfType<IDevelopmentSdk>().FirstOrDefault(s => s.CanHandle(project));
             if (sdk == null)
             {
                 Console.Error.WriteLine("No compatible SDK found to handle project: " + project);
-                Environment.ExitCode = 2;
-                return;
+                return -1;
             }
 
             var packageId = await sdk.GetPackageIdAsync(project, cts.Token);
@@ -82,7 +88,7 @@ class Program
             if (latest == null)
             {
                 Console.WriteLine($"{major}.0.0");
-                return;
+                return -1;
             }
 
             var source = latestPerRegistry.FirstOrDefault(x => VersionComparer.Version.Equals(x.Version, latest)).Registry
@@ -107,14 +113,16 @@ class Program
             }
 
             Console.WriteLine(next.ToNormalizedString());
+            return 0;
         }, dotnetVersionCmd.Options[0], dotnetVersionCmd.Options[1]);
 
         var initDotnetCmd = new Command("init-dotnet", "Replace <Version> tags in all csproj with placeholder 0.0.0-placeholder")
         {
             new Option<string>("--root", () => Directory.GetCurrentDirectory(), "Root directory to scan")
         };
-        initDotnetCmd.SetHandler((string rootDir) =>
+        initDotnetCmd.SetAction(async (ParseResult parseResult, CancellationToken ct) =>
         {
+            var rootDir = parseResult.GetValue<string>("--root");
             var csprojs = Directory.GetFiles(rootDir, "*.csproj", SearchOption.AllDirectories);
             int updated = 0;
             foreach (var csproj in csprojs)
@@ -149,12 +157,14 @@ class Program
                 catch { }
             }
             Console.WriteLine($"Updated {updated} project files with placeholder version.");
+            return 0;
         }, initDotnetCmd.Options[0]);
 
         root.Add(dotnetVersionCmd);
         root.Add(initDotnetCmd);
 
-        return await root.InvokeAsync(args);
+        var rootCommand = root.Parse(args);
+        return await rootCommand.InvokeAsync();
     }
 
     private static async Task<(List<IPackageRegistry> registries, List<IDevelopmentSdk> sdks)> LoadToolsAsync(string[] tools, CancellationToken cancellationToken)
