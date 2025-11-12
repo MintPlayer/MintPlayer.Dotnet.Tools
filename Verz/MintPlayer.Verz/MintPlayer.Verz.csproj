@@ -22,6 +22,12 @@
 		<PackageReference Include="System.CommandLine" Version="2.0.0" />
 	</ItemGroup>
 
+	<!-- Source generator project references -->
+	<ItemGroup>
+		<ProjectReference Include="..\..\SourceGenerators\Cli\MintPlayer.CliGenerator.Attributes\MintPlayer.CliGenerator.Attributes.csproj" />
+		<ProjectReference Include="..\..\SourceGenerators\Cli\MintPlayer.CliGenerator\MintPlayer.CliGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+	</ItemGroup>
+
 	<!-- Automatically load the tool packages when in Debug mode -->
 	<ItemGroup Condition=" '$(Configuration)' == 'Debug' ">
 		<ProjectReference Include="..\Registries\MintPlayer.Verz.Registry.NugetOrg\MintPlayer.Verz.Registry.NugetOrg.csproj" />

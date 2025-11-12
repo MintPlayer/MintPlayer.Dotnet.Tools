@@ -28,8 +28,8 @@ class Program
         var host = Host.CreateDefaultBuilder(args)
             .ConfigureAppConfiguration((configuration) =>
             {
-                //var cwd = Directory.GetCurrentDirectory();
-                var cwd = @"C:\Repos\MintPlayer.DotnetDesktop.Tools";
+                var cwd = Directory.GetCurrentDirectory();
+                //var cwd = @"C:\Repos\MintPlayer.DotnetDesktop.Tools";
                 var verzPath = Path.Combine(cwd, "verz.json");
                 configuration.AddJsonFile(verzPath, optional: true);
             })
