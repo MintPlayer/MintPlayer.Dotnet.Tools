@@ -32,7 +32,7 @@
 		<ProjectReference Include="..\MintPlayer.Verz.Core\MintPlayer.Verz.Core.csproj" />
 	</ItemGroup>
 
-	<ItemGroup>
+	<ItemGroup Condition=" '$(Configuration)' == 'Debug' ">
 		<None Update="verz.json">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
