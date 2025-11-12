@@ -3,6 +3,7 @@ using MintPlayer.CliGenerator.Models;
 using MintPlayer.SourceGenerators.Tools;
 using System.CodeDom.Compiler;
 using System.Collections.Immutable;
+using System.Linq;
 
 namespace MintPlayer.CliGenerator.Generators;
 
@@ -81,22 +82,42 @@ internal sealed class CliCommandProducer : Producer
 
     private void WriteCommandNode(IndentedTextWriter writer, CliCommandTree node, bool isRoot)
     {
+        var parentBlocks = OpenParentBlocks(writer, node.Command.PathSpec);
+
         using (writer.OpenBlock(node.Command.Declaration))
         {
             WriteRegisterMethod(writer, node);
             writer.WriteLine();
             WriteBuildMethod(writer, node, isRoot);
-
-            if (node.Children.Length > 0)
-            {
-                writer.WriteLine();
-                foreach (var child in node.Children)
-                {
-                    WriteCommandNode(writer, child, isRoot: false);
-                    writer.WriteLine();
-                }
-            }
         }
+
+        while (parentBlocks.Count > 0)
+        {
+            parentBlocks.Pop().Dispose();
+        }
+
+        foreach (var child in node.Children)
+        {
+            writer.WriteLine();
+            WriteCommandNode(writer, child, isRoot: false);
+        }
+    }
+
+    private Stack<IDisposableWriterIndent> OpenParentBlocks(IndentedTextWriter writer, PathSpec? pathSpec)
+    {
+        var stack = new Stack<IDisposableWriterIndent>();
+        if (pathSpec?.Parents is not { Length: > 0 })
+        {
+            return stack;
+        }
+
+        foreach (var parent in pathSpec.Parents.Where(p => !string.IsNullOrWhiteSpace(p.Name)).Reverse())
+        {
+            var keyword = parent.Type == EPathSpecType.Struct ? "struct" : "class";
+            stack.Push(writer.OpenBlock($"partial {keyword} {parent.Name}"));
+        }
+
+        return stack;
     }
 
     private void WriteRegisterMethod(IndentedTextWriter writer, CliCommandTree node)

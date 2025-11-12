@@ -92,15 +92,19 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
 
         var declaration = BuildDeclaration(classSymbol);
         var fullyQualifiedName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        var pathSpec = classSymbol.GetPathSpec(cancellationToken);
 
         string? parentFullyQualifiedName = null;
+        bool parentSpecifiedViaAttribute = false;
+        string? originalContainingTypeFqn = classSymbol.ContainingType is not null
+            ? classSymbol.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+            : null;
         // 1. Explicit parent via [CliParentCommand(typeof(ParentType))]
         if (parentCommandAttribute is not null && parentCommandAttribute.ConstructorArguments.Length == 1)
         {
             var typeArg = parentCommandAttribute.ConstructorArguments[0];
             if (typeArg.Kind == TypedConstantKind.Type && typeArg.Value is INamedTypeSymbol parentTypeSymbol)
             {
-                // Validate parent is itself a command/root command
                 var parentAttributes = parentTypeSymbol.GetAttributes();
                 var parentIsCommand = parentAttributes.Any(a =>
                     SymbolEqualityComparer.Default.Equals(a.AttributeClass, rootAttributeSymbol) ||
@@ -108,6 +112,7 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
                 if (parentIsCommand)
                 {
                     parentFullyQualifiedName = parentTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                    parentSpecifiedViaAttribute = true;
                 }
             }
         }
@@ -169,6 +174,8 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
             TypeName = classSymbol.Name,
             FullyQualifiedName = fullyQualifiedName,
             ParentFullyQualifiedName = parentFullyQualifiedName,
+            OriginalContainingTypeFullyQualifiedName = originalContainingTypeFqn,
+            PathSpec = pathSpec,
             IsRoot = isRoot,
             CommandName = commandName,
             Description = description,

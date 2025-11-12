@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using MintPlayer.ValueComparerGenerator.Attributes;
+using MintPlayer.SourceGenerators.Tools;
 
 namespace MintPlayer.CliGenerator.Models;
 
@@ -19,4 +20,10 @@ internal sealed partial class CliCommandDefinition
     public bool HandlerUsesCancellationToken { get; set; }
     public ImmutableArray<CliOptionDefinition> Options { get; set; } = ImmutableArray<CliOptionDefinition>.Empty;
     public ImmutableArray<CliArgumentDefinition> Arguments { get; set; } = ImmutableArray<CliArgumentDefinition>.Empty;
+    /// <summary>
+    /// If the original source type was nested, this is its immediate containing type's fully qualified name.
+    /// Used to avoid generating a nested partial when a parent is specified via attribute instead of actual nesting.
+    /// </summary>
+    public string? OriginalContainingTypeFullyQualifiedName { get; set; }
+    public PathSpec? PathSpec { get; set; }
 }
