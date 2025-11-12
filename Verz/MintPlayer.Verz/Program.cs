@@ -1,5 +1,8 @@
 ﻿// dotnet tool install --global MintPlayer.Verz
 
+using System.CommandLine;
+using System.Reflection;
+using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -10,25 +13,20 @@ using NuGet.Configuration;
 using NuGet.Packaging;
 using NuGet.Packaging.Core;
 using NuGet.Packaging.Signing;
+using NuGet.Protocol;
 using NuGet.Protocol.Core.Types;
-using System.Reflection;
-using System.Text;
-using System.Text.Json;
+using NuGet.Versioning;
 
 namespace MintPlayer.Verz;
 
 class Program
 {
-    static async Task Main(string[] args)
+    static async Task<int> Main(string[] args)
     {
-        var cancellationTokenSource = new CancellationTokenSource();
-        Console.CancelKeyPress += (sender, e) =>
-        {
-            cancellationTokenSource.Cancel();
-            e.Cancel = true;
-        };
+        var cts = new CancellationTokenSource();
+        Console.CancelKeyPress += (sender, e) => { cts.Cancel(); e.Cancel = true; };
 
-        var app = Host.CreateDefaultBuilder(args)
+        var host = Host.CreateDefaultBuilder(args)
             .ConfigureAppConfiguration((configuration) =>
             {
                 var cwd = Directory.GetCurrentDirectory();
@@ -43,67 +41,170 @@ class Program
             .Build();
 
         var verzConfig = new VerzConfig();
-        app.Services.GetRequiredService<IConfiguration>().Bind(verzConfig);
+        host.Services.GetRequiredService<IConfiguration>().Bind(verzConfig);
 
-        var nugetSource = "https://api.nuget.org/v3/index.json";
-        var provider = new SourceRepositoryProvider(new PackageSourceProvider(NullSettings.Instance), Repository.Provider.GetCoreV3());
-        var sourceContext = new SourceCacheContext();
-        var sourceRepository = provider.CreateRepository(new PackageSource(nugetSource));
-        var packageFinder = await sourceRepository.GetResourceAsync<FindPackageByIdResource>();
+        var (registries, sdks) = await LoadToolsAsync(verzConfig.Tools, cts.Token);
 
-        // Ensure output directory exists
-        var cacheFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
-        if (!Directory.Exists(cacheFolder))
-            Directory.CreateDirectory(cacheFolder);
+        var root = new RootCommand("MintPlayer.Verz: compute package versions across feeds");
 
-        var packagePathResolver = new VersionPackagePathResolver(cacheFolder, true);
-        var extrationContext = new PackageExtractionContext(PackageSaveMode.Files, XmlDocFileSaveMode.None, ClientPolicyContext.GetClientPolicy(NullSettings.Instance, NullLogger.Instance), NullLogger.Instance);
-
-
-        var toolAssemblies = await Task.WhenAll(verzConfig.Tools
-            .Select((tool) =>
+        var dotnetVersionCmd = new Command("dotnet-version", "Compute next version for a .NET project")
+        {
+            new Option<string>(name: "--project", description: ".csproj file", getDefaultValue: () => FindSingleCsprojInCwd()),
+            new Option<string>(name: "--configuration", description: "Build configuration (for locating bin)", getDefaultValue: () => "Release")
+        };
+        dotnetVersionCmd.SetHandler(async (string project, string configuration) =>
+        {
+            var sdk = sdks.OfType<IDevelopmentSdk>().FirstOrDefault(s => s.CanHandle(project));
+            if (sdk == null)
             {
-                return Task.Run(async () =>
+                Console.Error.WriteLine("No compatible SDK found to handle project: " + project);
+                Environment.ExitCode = 2;
+                return;
+            }
+
+            var packageId = await sdk.GetPackageIdAsync(project, cts.Token);
+            var major = await sdk.GetMajorVersionAsync(project, cts.Token);
+
+            var versionSet = new HashSet<NuGetVersion>(VersionComparer.VersionRelease);
+            var latestPerRegistry = new List<(IPackageRegistry Registry, NuGetVersion Version)>();
+            foreach (var r in registries)
+            {
+                var versions = await r.GetAllVersionsAsync(packageId, cts.Token);
+                var inMajor = versions.Where(v => v.Major == major).OrderBy(v => v).ToList();
+                if (inMajor.Count > 0)
                 {
-                    try
+                    latestPerRegistry.Add((r, inMajor.Last()));
+                    foreach (var v in inMajor) versionSet.Add(v);
+                }
+            }
+
+            NuGetVersion? latest = versionSet.OrderBy(v => v).LastOrDefault();
+            if (latest == null)
+            {
+                Console.WriteLine($"{major}.0.0");
+                return;
+            }
+
+            var source = latestPerRegistry.FirstOrDefault(x => VersionComparer.Version.Equals(x.Version, latest)).Registry
+                         ?? registries.First();
+
+            await using var nupkg = await source.DownloadPackageAsync(packageId, latest, cts.Token) ?? Stream.Null;
+            string? prevHash = null;
+            if (nupkg != Stream.Null)
+            {
+                prevHash = await sdk.ComputePackagePublicApiHashAsync(nupkg, major, cts.Token);
+            }
+            var currentHash = await sdk.ComputeCurrentPublicApiHashAsync(project, configuration, cts.Token);
+
+            NuGetVersion next;
+            if (!string.IsNullOrWhiteSpace(prevHash) && string.Equals(prevHash, currentHash, StringComparison.OrdinalIgnoreCase))
+            {
+                next = new NuGetVersion(major, latest.Minor, latest.Patch + 1);
+            }
+            else
+            {
+                next = new NuGetVersion(major, latest.Minor + 1, 0);
+            }
+
+            Console.WriteLine(next.ToNormalizedString());
+        }, dotnetVersionCmd.Options[0], dotnetVersionCmd.Options[1]);
+
+        var initDotnetCmd = new Command("init-dotnet", "Replace <Version> tags in all csproj with placeholder 0.0.0-placeholder")
+        {
+            new Option<string>("--root", () => Directory.GetCurrentDirectory(), "Root directory to scan")
+        };
+        initDotnetCmd.SetHandler((string rootDir) =>
+        {
+            var csprojs = Directory.GetFiles(rootDir, "*.csproj", SearchOption.AllDirectories);
+            int updated = 0;
+            foreach (var csproj in csprojs)
+            {
+                try
+                {
+                    var text = File.ReadAllText(csproj);
+                    var original = text;
+                    if (text.Contains("<Version>", StringComparison.OrdinalIgnoreCase))
                     {
-                        return Assembly.Load(tool);
+                        text = System.Text.RegularExpressions.Regex.Replace(text, "<Version>.*?</Version>", "<Version>0.0.0-placeholder</Version>", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
                     }
-                    catch (Exception)
+                    else
                     {
-                        var packageFilePath = Path.Combine(cacheFolder, tool);
-                        var versions = await packageFinder.GetAllVersionsAsync(tool, sourceContext, NullLogger.Instance, default);
-                        var packageId = new PackageIdentity(tool, versions.Last());
-
-                        using var ms = new MemoryStream();
-                        var success = await packageFinder.CopyNupkgToStreamAsync(tool, versions.Last(), ms, sourceContext, NullLogger.Instance, default);
-                        ms.Seek(0, SeekOrigin.Begin);
-
-                        using var packageReader = new PackageArchiveReader(ms);
-                        await PackageExtractor.ExtractPackageAsync(string.Empty, packageReader, packagePathResolver, extrationContext, default);
-
-                        var path = Path.Combine(packagePathResolver.GetInstallPath(packageId), "lib", "net9.0", $"{tool}.dll");
-                        return Assembly.LoadFrom(path);
+                        var insertIdx = text.IndexOf("<PropertyGroup>", StringComparison.OrdinalIgnoreCase);
+                        if (insertIdx >= 0)
+                        {
+                            var endIdx = text.IndexOf("</PropertyGroup>", insertIdx, StringComparison.OrdinalIgnoreCase);
+                            if (endIdx > insertIdx)
+                            {
+                                var toInsert = "\n    <Version>0.0.0-placeholder</Version>\n";
+                                text = text.Insert(endIdx, toInsert);
+                            }
+                        }
                     }
-                }, cancellationTokenSource.Token);
-            }));
+                    if (!string.Equals(original, text, StringComparison.Ordinal))
+                    {
+                        File.WriteAllText(csproj, text);
+                        updated++;
+                    }
+                }
+                catch { }
+            }
+            Console.WriteLine($"Updated {updated} project files with placeholder version.");
+        }, initDotnetCmd.Options[0]);
 
-        var tools = toolAssemblies
-            .SelectMany(assembly => assembly.GetTypes())
-            .Where(type => type.GetInterfaces().Intersect([typeof(IPackageRegistry), typeof(IDevelopmentSdk)]).Any())
-            .Select(type => ActivatorUtilities.CreateInstance(app.Services, type))
-            .ToList();
+        root.Add(dotnetVersionCmd);
+        root.Add(initDotnetCmd);
 
-        //await app.RunAsync(cancellationTokenSource.Token);
+        return await root.InvokeAsync(args);
+    }
+
+    private static async Task<(List<IPackageRegistry> registries, List<IDevelopmentSdk> sdks)> LoadToolsAsync(string[] tools, CancellationToken cancellationToken)
+    {
+        var cacheFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
+        if (!Directory.Exists(cacheFolder)) Directory.CreateDirectory(cacheFolder);
+
+        var provider = new SourceRepositoryProvider(new PackageSourceProvider(NullSettings.Instance), Repository.Provider.GetCoreV3());
+        var sourceRepository = provider.CreateRepository(new PackageSource("https://api.nuget.org/v3/index.json"));
+        var packageFinder = await sourceRepository.GetResourceAsync<FindPackageByIdResource>(cancellationToken);
+        var packagePathResolver = new VersionPackagePathResolver(cacheFolder, true);
+        var extractionContext = new PackageExtractionContext(PackageSaveMode.Files, XmlDocFileSaveMode.None, ClientPolicyContext.GetClientPolicy(NullSettings.Instance, NullLogger.Instance), NullLogger.Instance);
+        var sourceContext = new SourceCacheContext();
+
+        var assemblies = await Task.WhenAll(tools.Select(tool => Task.Run(async () =>
+        {
+            try { return Assembly.Load(tool); }
+            catch
+            {
+                var versions = await packageFinder.GetAllVersionsAsync(tool, sourceContext, NullLogger.Instance, cancellationToken);
+                var identity = new PackageIdentity(tool, versions.Last());
+                using var ms = new MemoryStream();
+                var ok = await packageFinder.CopyNupkgToStreamAsync(tool, versions.Last(), ms, sourceContext, NullLogger.Instance, cancellationToken);
+                ms.Position = 0;
+                using var packageReader = new PackageArchiveReader(ms);
+                await PackageExtractor.ExtractPackageAsync(string.Empty, packageReader, packagePathResolver, extractionContext, cancellationToken);
+                var path = Path.Combine(packagePathResolver.GetInstallPath(identity), "lib", "net8.0", $"{tool}.dll");
+                return Assembly.LoadFrom(path);
+            }
+        }, cancellationToken)));
+
+        var types = assemblies.SelectMany(a => a.GetTypes());
+        var registries = types.Where(t => typeof(IPackageRegistry).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
+            .Select(t => (IPackageRegistry)Activator.CreateInstance(t)!).ToList();
+        var sdks = types.Where(t => typeof(IDevelopmentSdk).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
+            .Select(t => (IDevelopmentSdk)Activator.CreateInstance(t)!).ToList();
+
+        return (registries, sdks);
+    }
+
+    private static string FindSingleCsprojInCwd()
+    {
+        var files = Directory.GetFiles(Directory.GetCurrentDirectory(), "*.csproj", SearchOption.TopDirectoryOnly);
+        return files.Length == 1 ? files[0] : string.Empty;
     }
 }
 
 public class VersionPackagePathResolver : PackagePathResolver
 {
-    public VersionPackagePathResolver(string rootDirectory, bool useSideBySidePaths) : base(rootDirectory, useSideBySidePaths)
-    {
-    }
-
+    public VersionPackagePathResolver(string rootDirectory, bool useSideBySidePaths) : base(rootDirectory, useSideBySidePaths) { }
     public override string GetPackageDirectoryName(PackageIdentity packageIdentity)
     {
         var stringBuilder = new StringBuilder();
