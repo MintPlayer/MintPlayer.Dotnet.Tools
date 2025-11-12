@@ -1,8 +1,5 @@
 ﻿// dotnet tool install --global MintPlayer.Verz
 
-using System.CommandLine;
-using System.Reflection;
-using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -13,9 +10,11 @@ using NuGet.Configuration;
 using NuGet.Packaging;
 using NuGet.Packaging.Core;
 using NuGet.Packaging.Signing;
-using NuGet.Protocol;
 using NuGet.Protocol.Core.Types;
 using NuGet.Versioning;
+using System.CommandLine;
+using System.Reflection;
+using System.Text;
 
 namespace MintPlayer.Verz;
 
@@ -57,7 +56,7 @@ class Program
         configurationOption.DefaultValueFactory = (arg) => "Release";
         dotnetVersionCmd.Add(configurationOption);
 
-        dotnetVersionCmd.SetAction(async (ParseResult parseResult, CancellationToken ct) =>
+        dotnetVersionCmd.SetAction(async (parseResult, ct) =>
         {
             var project = parseResult.GetValue<string>("--project");
             var configuration = parseResult.GetValue<string>("--configuration");
@@ -114,11 +113,14 @@ class Program
 
             Console.WriteLine(next.ToNormalizedString());
             return 0;
-        }, dotnetVersionCmd.Options[0], dotnetVersionCmd.Options[1]);
+        });
 
+        var rootOption2 = new Option<string>("--root");
+        rootOption2.Description = "Root directory to scan for .csproj files";
+        rootOption2.DefaultValueFactory = (arg) => Directory.GetCurrentDirectory();
         var initDotnetCmd = new Command("init-dotnet", "Replace <Version> tags in all csproj with placeholder 0.0.0-placeholder")
         {
-            new Option<string>("--root", () => Directory.GetCurrentDirectory(), "Root directory to scan")
+            rootOption2
         };
         initDotnetCmd.SetAction(async (ParseResult parseResult, CancellationToken ct) =>
         {
@@ -158,7 +160,7 @@ class Program
             }
             Console.WriteLine($"Updated {updated} project files with placeholder version.");
             return 0;
-        }, initDotnetCmd.Options[0]);
+        });
 
         root.Add(dotnetVersionCmd);
         root.Add(initDotnetCmd);
