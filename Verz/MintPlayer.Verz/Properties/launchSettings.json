@@ -1,5 +1,9 @@
 {
   "profiles": {
+    "Init for .NET": {
+      "commandName": "Project",
+      "commandLineArgs": "init-dotnet --root=\"C:\\Repos\\MintPlayer.DotnetDesktop.Tools\""
+    },
     "MintPlayer.Verz": {
       "commandName": "Project",
       "commandLineArgs": "--file \"C:\\Repos\\debug.log\""
