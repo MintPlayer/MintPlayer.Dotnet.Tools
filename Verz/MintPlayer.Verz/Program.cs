@@ -28,7 +28,8 @@ class Program
         var host = Host.CreateDefaultBuilder(args)
             .ConfigureAppConfiguration((configuration) =>
             {
-                var cwd = Directory.GetCurrentDirectory();
+                //var cwd = Directory.GetCurrentDirectory();
+                var cwd = @"C:\Repos\MintPlayer.DotnetDesktop.Tools";
                 var verzPath = Path.Combine(cwd, "verz.json");
                 configuration.AddJsonFile(verzPath, optional: true);
             })
@@ -45,16 +46,19 @@ class Program
         var (registries, sdks) = await LoadToolsAsync(verzConfig.Tools, cts.Token);
 
         var root = new RootCommand("MintPlayer.Verz: compute package versions across feeds");
-        var dotnetVersionCmd = new Command("dotnet-version", "Compute next version for a .NET project");
-        var projectOption = new Option<string>(name: "--project");
-        projectOption.Description = ".csproj file";
-        projectOption.DefaultValueFactory = (arg) => FindSingleCsprojInCwd();
-        dotnetVersionCmd.Add(projectOption);
-
-        var configurationOption = new Option<string>(name: "--configuration");
-        configurationOption.Description = "Build configuration (for locating bin)";
-        configurationOption.DefaultValueFactory = (arg) => "Release";
-        dotnetVersionCmd.Add(configurationOption);
+        var dotnetVersionCmd = new Command("dotnet-version", "Compute next version for a .NET project")
+        {
+            new Option<string>(name: "--project")
+            {
+                Description = ".csproj file",
+                DefaultValueFactory = (arg) => FindSingleCsprojInCwd()
+            },
+            new Option<string>(name: "--configuration")
+            {
+                Description = "Build configuration (for locating bin)",
+                DefaultValueFactory = (arg) => "Release"
+            },
+        };
 
         dotnetVersionCmd.SetAction(async (parseResult, ct) =>
         {
@@ -115,12 +119,13 @@ class Program
             return 0;
         });
 
-        var rootOption2 = new Option<string>("--root");
-        rootOption2.Description = "Root directory to scan for .csproj files";
-        rootOption2.DefaultValueFactory = (arg) => Directory.GetCurrentDirectory();
         var initDotnetCmd = new Command("init-dotnet", "Replace <Version> tags in all csproj with placeholder 0.0.0-placeholder")
         {
-            rootOption2
+            new Option<string>("--root")
+            {
+                Description = "Root directory to scan for .csproj files",
+                DefaultValueFactory = (arg) => Directory.GetCurrentDirectory()
+            }
         };
         initDotnetCmd.SetAction(async (ParseResult parseResult, CancellationToken ct) =>
         {
@@ -193,7 +198,7 @@ class Program
                 ms.Position = 0;
                 using var packageReader = new PackageArchiveReader(ms);
                 await PackageExtractor.ExtractPackageAsync(string.Empty, packageReader, packagePathResolver, extractionContext, cancellationToken);
-                var path = Path.Combine(packagePathResolver.GetInstallPath(identity), "lib", "net8.0", $"{tool}.dll");
+                var path = Path.Combine(packagePathResolver.GetInstallPath(identity), "lib", "net10.0", $"{tool}.dll");
                 return Assembly.LoadFrom(path);
             }
         }, cancellationToken)));
