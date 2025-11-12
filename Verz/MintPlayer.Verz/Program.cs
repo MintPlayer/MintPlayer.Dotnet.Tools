@@ -260,16 +260,11 @@ public partial class InitDotnetCommand : ICliCommand
     }
 }
 
-internal sealed class ToolCatalog
+internal sealed partial class ToolCatalog
 {
-    private readonly VerzConfig verzConfig;
+    [Inject] private readonly VerzConfig verzConfig;
     private readonly SemaphoreSlim initializationLock = new(1, 1);
     private ToolCatalogResult? cache;
-
-    public ToolCatalog(VerzConfig verzConfig)
-    {
-        this.verzConfig = verzConfig;
-    }
 
     public async Task<ToolCatalogResult> GetToolsetAsync(CancellationToken cancellationToken)
     {
