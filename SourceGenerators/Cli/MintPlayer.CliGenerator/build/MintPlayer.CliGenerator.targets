@@ -6,8 +6,13 @@
 
   <Target Name="GetDependencyTargetPathsMintPlayerCliGenerator">
     <ItemGroup>
-      <TargetPathWithTargetPlatformMoniker Include="$(PkgMintPlayer_CliGenerator_Attributes)\lib\netstandard2.0\MintPlayer.CliGenerator.Attributes.dll" IncludeRuntimeDependency="true" Condition="'$(PkgMintPlayer_CliGenerator_Attributes)' != ''" />
+      <TargetPathWithTargetPlatformMoniker Include="$(PkgMintPlayer_CliGenerator_Attributes)\lib\netstandard2.0\MintPlayer.CliGenerator.Attributes.dll" IncludeRuntimeDependency="true" />
     </ItemGroup>
+  </Target>
+
+  <Target Name="CliGeneratorAttributes_CheckGeneratePathProperty" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Error Condition="'$(PkgMintPlayer_CliGenerator_Attributes)' == ''"
+           Text="Please add GeneratePathProperty=&quot;true&quot; on the MintPlayer.CliGenerator.Attributes PackageReference." />
   </Target>
 
   <Target Name="MintPlayer_CliGenerator_TargetsLoaded" BeforeTargets="PrepareForBuild">
