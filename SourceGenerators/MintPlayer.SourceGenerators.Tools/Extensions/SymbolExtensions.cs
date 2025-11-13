@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools.ValueComparers;
+using System.CodeDom.Compiler;
 
 namespace MintPlayer.SourceGenerators.Tools;
 
@@ -69,13 +70,78 @@ public static class SymbolExtensions
             Parents = parents.ToArray(),
         };
     }
+
+    /// <summary>
+    /// Transforms a <see cref="TypeKind"/> to its c# plain counterpart.
+    /// </summary>
+    public static string? ToPlaintext(this TypeKind kind)
+    {
+        switch (kind)
+        {
+            case TypeKind.Class: return "class";
+            case TypeKind.Delegate: return "delegate";
+            case TypeKind.Dynamic: return "dynamic";
+            case TypeKind.Enum: return "enum";
+            case TypeKind.Interface: return "interface";
+            case TypeKind.Struct: return "struct";
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>
+    /// Recreates the entire hierarchy of a nested class/struct
+    /// </summary>
+    /// <param name="writer">Indented text writer</param>
+    /// <param name="pathSpec">The result of <see cref="SymbolExtensions.GetPathSpec(INamedTypeSymbol, CancellationToken)"/></param>
+    /// <returns>An object that closes code-blocks when it's being disposed.</returns>
+    public static IDisposablePathSpecStack OpenPathSpec(this IndentedTextWriter writer, PathSpec? pathSpec)
+    {
+        var stack = new Stack<IDisposableWriterIndent>();
+        if (pathSpec?.Parents is not { Length: > 0 })
+            return new PathSpecStack(stack);
+
+        foreach (var parent in pathSpec.Parents.Where(p => !string.IsNullOrWhiteSpace(p.Name)).Reverse())
+        {
+            var keyword = parent.Type == EPathSpecType.Struct ? "struct" : "class";
+            stack.Push(writer.OpenBlock($"partial {keyword} {parent.Name}"));
+        }
+
+        return new PathSpecStack(stack);
+    }
+}
+
+public interface IDisposablePathSpecStack : IDisposable { }
+
+internal class PathSpecStack : IDisposablePathSpecStack
+{
+    private readonly Stack<IDisposableWriterIndent> stack;
+    public PathSpecStack(Stack<IDisposableWriterIndent> stack)
+    {
+        this.stack = stack;
+    }
+
+    public void Dispose()
+    {
+        while (stack.Count > 0)
+            stack.Pop().Dispose();
+    }
 }
 
 [ValueComparer(typeof(PathSpecValueComparer))]
 public class PathSpec
 {
     public string? ContainingNamespace { get; set; }
-    public PathSpecElement[] Parents { get; set; }
+    public PathSpecElement[] Parents
+    {
+        get;
+        set
+        {
+            field = value;
+            AllPartial = Parents.All(p => !new[] { EPathSpecType.Class, EPathSpecType.Struct }.Contains(p.Type) || p.IsPartial);
+        }
+    } = [];
+    public bool AllPartial { get; private set; }
 }
 
 [ValueComparer(typeof(PathSpecElementValueComparer))]
@@ -90,4 +156,6 @@ public enum EPathSpecType
 {
     Class,
     Struct,
+
+    // TODO: interface, enum
 }
