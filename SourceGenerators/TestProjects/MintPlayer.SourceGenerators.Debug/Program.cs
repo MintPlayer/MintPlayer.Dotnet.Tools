@@ -7,7 +7,11 @@ Console.WriteLine("Hello, World!");
 //    .AddSingleton<ITestService3, TestService3>(TestService3.Factory);
 
 
-public interface IBaseTestService1 { }
+/// <summary>
+/// Some base service.
+/// Add more comments here.
+/// </summary>
+public partial interface IBaseTestService1 { }
 public interface ITestService1 : IBaseTestService1 { }
 [Register(typeof(ITestService1), ServiceLifetime.Scoped)]
 public class TestService1 : ITestService1 { }
@@ -54,4 +58,23 @@ public enum EBranchType
     Main,
     Dev,
     Feature
+}
+
+/// <summary>
+/// Test
+/// </summary>
+public partial struct NestedStruct1
+{
+    public partial class NestedClass1
+    {
+        public partial struct NestedStruct2
+        {
+            /// <summary>
+            /// This is nested class with xml comments
+            /// </summary>
+            public partial class NestedClass2
+            {
+            }
+        }
+    }
 }

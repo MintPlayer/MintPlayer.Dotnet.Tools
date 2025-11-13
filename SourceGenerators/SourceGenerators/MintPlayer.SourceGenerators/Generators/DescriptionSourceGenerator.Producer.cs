@@ -19,21 +19,25 @@ public class DescriptionsProducer : Producer
 
         foreach (var namespaceGrouping in symbols.GroupBy(s => s.PathSpec?.ContainingNamespace))
         {
-            using (writer.OpenBlock($"namespace {namespaceGrouping.Key}"))
+            var ns = namespaceGrouping.Key;
+            if (namespaceGrouping.NotNull().ToArray() is not { Length: > 0 } classes) continue;
+
+            var qualifiers = classes.Where(c => c.PathSpec is { AllPartial: true } && !string.IsNullOrEmpty(c.MarkupText)).ToArray();
+            if (qualifiers.Length == 0) continue;
+
+            IDisposableWriterIndent? namespaceBlock = string.IsNullOrEmpty(ns) ? null : writer.OpenBlock($"namespace {ns}");
+
+            foreach (var cls in qualifiers)
             {
-
-
-                writer.WriteLine("internal static partial class SymbolDescriptions");
-                using (writer.OpenBlock(string.Empty))
+                if (string.IsNullOrEmpty(cls.MarkupText)) continue;
+                using (writer.OpenPathSpec(cls.PathSpec))
                 {
-                    foreach (var symbol in namespaceGrouping)
-                    {
-                        var sanitizedTypeName = symbol.TypeName!.Replace(".", "_").Replace("`", "_").Replace("<", "_").Replace(">", "_").Replace(",", "_").Replace(" ", "_").Replace("&", "_");
-                        writer.WriteLine($"public static string {sanitizedTypeName} => @\"{symbol.MarkupText!.Replace("\"", "\"\"")}\";");
-                    }
+                    writer.WriteLine($"""[global::System.ComponentModel.Description("{cls.MarkupText}")]""");
+                    writer.WriteLine($$"""partial {{cls.TypeKind}} {{cls.Name}} { }""");
                 }
             }
-            writer.WriteLine();
+
+            namespaceBlock?.Dispose();
         }
     }
 }

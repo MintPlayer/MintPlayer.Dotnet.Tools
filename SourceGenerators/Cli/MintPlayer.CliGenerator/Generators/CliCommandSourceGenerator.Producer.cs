@@ -3,7 +3,6 @@ using MintPlayer.CliGenerator.Models;
 using MintPlayer.SourceGenerators.Tools;
 using System.CodeDom.Compiler;
 using System.Collections.Immutable;
-using System.Linq;
 
 namespace MintPlayer.CliGenerator.Generators;
 
@@ -82,16 +81,15 @@ internal sealed class CliCommandProducer : Producer
 
     private void WriteCommandNode(IndentedTextWriter writer, CliCommandTree node, bool isRoot)
     {
-        var parentBlocks = writer.OpenPathSpec(node.Command.PathSpec);
-
-        using (writer.OpenBlock(node.Command.Declaration))
+        using (writer.OpenPathSpec(node.Command.PathSpec))
         {
-            WriteRegisterMethod(writer, node);
-            writer.WriteLine();
-            WriteBuildMethod(writer, node, isRoot);
+            using (writer.OpenBlock(node.Command.Declaration))
+            {
+                WriteRegisterMethod(writer, node);
+                writer.WriteLine();
+                WriteBuildMethod(writer, node, isRoot);
+            }
         }
-
-        parentBlocks.ClosePathSpec();
 
         foreach (var child in node.Children)
         {

@@ -1,6 +1,4 @@
-﻿using MintPlayer.SourceGenerators.Tools.ValueComparers;
-
-namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
+﻿namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 public class PathSpecValueComparer : ValueComparer<PathSpec>
 {
@@ -8,6 +6,7 @@ public class PathSpecValueComparer : ValueComparer<PathSpec>
     {
         if (!IsEquals(x.ContainingNamespace, y.ContainingNamespace)) return false;
         if (!IsEquals(x.Parents, y.Parents)) return false;
+        if (!IsEquals(x.AllPartial, y.AllPartial)) return false;
         return true;
     }
 }
