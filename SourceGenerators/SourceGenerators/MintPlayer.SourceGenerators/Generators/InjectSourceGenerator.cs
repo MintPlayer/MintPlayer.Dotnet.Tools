@@ -1,8 +1,8 @@
 ﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.Tools.ValueComparers;
-using MintPlayer.ValueComparers.NewtonsoftJson;
 
 namespace MintPlayer.SourceGenerators.Generators;
 
@@ -21,16 +21,20 @@ public class InjectSourceGenerator : IncrementalGenerator
         var classesProvider = context.SyntaxProvider
             .CreateSyntaxProvider(
                 static (node, ct) => node is ClassDeclarationSyntax classDeclaration &&
-                    classDeclaration.Members.OfType<FieldDeclarationSyntax>()
-                        .Any(f => f.AttributeLists.SelectMany(a => a.Attributes).Any()),
+                    (
+                        classDeclaration.Members.OfType<FieldDeclarationSyntax>()
+                            .Any(f => f.AttributeLists.SelectMany(a => a.Attributes).Any()) ||
+                        classDeclaration.Members.OfType<PropertyDeclarationSyntax>()
+                            .Any(p => p.AttributeLists.SelectMany(a => a.Attributes).Any())
+                    ),
                 static (context2, ct) =>
                 {
                     if (context2.Node is ClassDeclarationSyntax classDeclaration)
                     {
                         var className = classDeclaration.Identifier.Text; // PASS ON
 
-                        // Get dependencies for the current class
-                        var injectFields = GetInjectFields(classDeclaration, context2.SemanticModel); // PASS ON
+                        // Get dependencies for the current class (fields + get-only properties)
+                        var injectFields = GetInjectMembers(classDeclaration, context2.SemanticModel); // PASS ON
 
                         // Traverse the inheritance hierarchy to collect dependencies from base classes
                         var baseDependencies = new List<Models.InjectField>(); // PASS ON
@@ -44,7 +48,7 @@ public class InjectSourceGenerator : IncrementalGenerator
                                     .FirstOrDefault()?.GetSyntax();
 
                                 if (baseTypeSyntax is ClassDeclarationSyntax baseClassDeclationSyntax)
-                                    baseDependencies.AddRange(GetInjectFields(baseClassDeclationSyntax, context2.SemanticModel.Compilation.GetSemanticModel(baseTypeSyntax.SyntaxTree)));
+                                    baseDependencies.AddRange(GetInjectMembers(baseClassDeclationSyntax, context2.SemanticModel.Compilation.GetSemanticModel(baseTypeSyntax.SyntaxTree)));
 
                                 currentTypeSymbol = currentTypeSymbol.BaseType;
                             }
@@ -76,22 +80,41 @@ public class InjectSourceGenerator : IncrementalGenerator
     }
 
 
-    private static List<Models.InjectField> GetInjectFields(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
+    private static List<Models.InjectField> GetInjectMembers(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
     {
-        return classDeclaration.Members
-            .OfType<FieldDeclarationSyntax>()
-            .Where(field => field.AttributeLists
-                .SelectMany(attrs => attrs.Attributes)
+        var result = new List<Models.InjectField>();
+
+        // Fields
+        foreach (var field in classDeclaration.Members.OfType<FieldDeclarationSyntax>())
+        {
+            if (field.AttributeLists.SelectMany(attrs => attrs.Attributes)
                 .Any(attr => semanticModel.GetTypeInfo(attr).Type?.Name == "InjectAttribute"))
-            .Select(field =>
             {
                 var fieldType = field.Declaration.Type;
                 var fieldTypeSymbol = semanticModel.GetSymbolInfo(fieldType).Symbol as ITypeSymbol;
-                
                 var fqn = fieldTypeSymbol?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)) ?? string.Empty;
                 var name = field.Declaration.Variables.First().Identifier.Text;
-                return new Models.InjectField { Type = fqn, Name = name };
-            })
-            .ToList();
+                result.Add(new Models.InjectField { Type = fqn, Name = name });
+            }
+        }
+
+        // Get-only properties
+        foreach (var prop in classDeclaration.Members.OfType<PropertyDeclarationSyntax>())
+        {
+            if (prop.AttributeLists.SelectMany(attrs => attrs.Attributes)
+                .Any(attr => semanticModel.GetTypeInfo(attr).Type?.Name == "InjectAttribute"))
+            {
+                // Ensure no set accessor (get-only, including expression-bodied)
+                var hasSetter = prop.AccessorList?.Accessors.Any(a => a.Kind() == SyntaxKind.SetAccessorDeclaration) == true;
+                if (hasSetter) continue;
+
+                var propTypeSymbol = semanticModel.GetSymbolInfo(prop.Type).Symbol as ITypeSymbol;
+                var fqn = propTypeSymbol?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)) ?? string.Empty;
+                var name = prop.Identifier.Text;
+                result.Add(new Models.InjectField { Type = fqn, Name = name });
+            }
+        }
+
+        return result;
     }
 }
