@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools.ValueComparers;
+using System.CodeDom.Compiler;
 
 namespace MintPlayer.SourceGenerators.Tools;
 
@@ -68,6 +69,29 @@ public static class SymbolExtensions
             ContainingNamespace = ns,
             Parents = parents.ToArray(),
         };
+    }
+
+    public static Stack<IDisposableWriterIndent> OpenPathSpec(this IndentedTextWriter writer, PathSpec? pathSpec)
+    {
+        var stack = new Stack<IDisposableWriterIndent>();
+        if (pathSpec?.Parents is not { Length: > 0 })
+            return stack;
+
+        foreach (var parent in pathSpec.Parents.Where(p => !string.IsNullOrWhiteSpace(p.Name)).Reverse())
+        {
+            var keyword = parent.Type == EPathSpecType.Struct ? "struct" : "class";
+            stack.Push(writer.OpenBlock($"partial {keyword} {parent.Name}"));
+        }
+
+        return stack;
+    }
+
+    public static void ClosePathSpec(this Stack<IDisposableWriterIndent> stack)
+    {
+        while (stack.Count > 0)
+        {
+            stack.Pop().Dispose();
+        }
     }
 }
 

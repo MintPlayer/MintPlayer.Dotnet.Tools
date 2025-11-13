@@ -82,7 +82,7 @@ internal sealed class CliCommandProducer : Producer
 
     private void WriteCommandNode(IndentedTextWriter writer, CliCommandTree node, bool isRoot)
     {
-        var parentBlocks = OpenParentBlocks(writer, node.Command.PathSpec);
+        var parentBlocks = writer.OpenPathSpec(node.Command.PathSpec);
 
         using (writer.OpenBlock(node.Command.Declaration))
         {
@@ -91,33 +91,13 @@ internal sealed class CliCommandProducer : Producer
             WriteBuildMethod(writer, node, isRoot);
         }
 
-        while (parentBlocks.Count > 0)
-        {
-            parentBlocks.Pop().Dispose();
-        }
+        parentBlocks.ClosePathSpec();
 
         foreach (var child in node.Children)
         {
             writer.WriteLine();
             WriteCommandNode(writer, child, isRoot: false);
         }
-    }
-
-    private Stack<IDisposableWriterIndent> OpenParentBlocks(IndentedTextWriter writer, PathSpec? pathSpec)
-    {
-        var stack = new Stack<IDisposableWriterIndent>();
-        if (pathSpec?.Parents is not { Length: > 0 })
-        {
-            return stack;
-        }
-
-        foreach (var parent in pathSpec.Parents.Where(p => !string.IsNullOrWhiteSpace(p.Name)).Reverse())
-        {
-            var keyword = parent.Type == EPathSpecType.Struct ? "struct" : "class";
-            stack.Push(writer.OpenBlock($"partial {keyword} {parent.Name}"));
-        }
-
-        return stack;
     }
 
     private void WriteRegisterMethod(IndentedTextWriter writer, CliCommandTree node)
