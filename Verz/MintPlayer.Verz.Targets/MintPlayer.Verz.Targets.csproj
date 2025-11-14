@@ -14,7 +14,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="PublicApiGenerator" Version="11.5.0" />
-		<PackageReference Include="Microsoft.Build.Utilities.Core" Version="17.15.0-preview-25277-114" />
+		<PackageReference Include="Microsoft.Build.Utilities.Core" Version="18.0.2" />
 	</ItemGroup>
 
 </Project>
