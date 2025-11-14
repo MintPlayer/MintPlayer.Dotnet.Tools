@@ -75,7 +75,7 @@ public interface IGreetingService
     Task GreetAsync(string name, CancellationToken cancellationToken);
 }
 
-[Register(typeof(IGreetingService), ServiceLifetime.Scoped)]
+[Register(typeof(IGreetingService), ServiceLifetime.Scoped, "GreetingServices")]
 public sealed class GreetingService : IGreetingService
 {
     public Task GreetAsync(string name, CancellationToken cancellationToken)

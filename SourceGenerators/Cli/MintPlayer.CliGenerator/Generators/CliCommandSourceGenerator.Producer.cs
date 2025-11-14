@@ -287,24 +287,25 @@ internal sealed class CliCommandProducer : Producer
     {
         using (writer.OpenBlock($"public static class {command.TypeName}CliExtensions"))
         {
-            using (writer.OpenBlock($"public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection Add{command.TypeName}Tree(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)"))
+            using (writer.OpenBlock($"public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection Add{command.TypeName}(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)"))
             {
                 writer.WriteLine($"{command.FullyQualifiedName}.RegisterCliCommandTree(services);");
                 writer.WriteLine("return services;");
             }
             writer.WriteLine();
 
-            using (writer.OpenBlock($"public static global::System.CommandLine.RootCommand Build{command.TypeName}Command(this global::System.IServiceProvider serviceProvider)"))
+            using (writer.OpenBlock($"public static global::System.CommandLine.RootCommand Build{command.TypeName}(this global::System.IServiceProvider serviceProvider)"))
             {
                 writer.WriteLine($"return {command.FullyQualifiedName}.BuildCliRootCommand(serviceProvider);");
             }
             writer.WriteLine();
 
-            using (writer.OpenBlock($"public static global::System.Threading.Tasks.Task<int> Invoke{command.TypeName}Async(this global::System.IServiceProvider serviceProvider, string[] args)"))
+            using (writer.OpenBlock($"public static async global::System.Threading.Tasks.Task<int> Invoke{command.TypeName}Async(this global::Microsoft.Extensions.Hosting.IHost host, string[] args)"))
             {
-                writer.WriteLine($"var command = {command.FullyQualifiedName}.BuildCliRootCommand(serviceProvider);");
+                writer.WriteLine($"var command = {command.FullyQualifiedName}.BuildCliRootCommand(host.Services);");
                 writer.WriteLine("var parsedCommand = command.Parse(args);");
-                writer.WriteLine("return parsedCommand.InvokeAsync();");
+                writer.WriteLine("var result = await parsedCommand.InvokeAsync();");
+                writer.WriteLine("return result;");
             }
         }
     }

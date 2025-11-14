@@ -37,10 +37,10 @@ internal class Program
         });
 
         builder.Services.AddSingleton<ToolCatalog>();
-        builder.Services.AddVerzCommandTree();
+        builder.Services.AddVerzCommand();
 
         var app = builder.Build();
-        var exitCode = await app.Services.InvokeVerzCommandAsync(args);
+        var exitCode = await app.InvokeVerzCommandAsync(args);
         return exitCode;
     }
 
