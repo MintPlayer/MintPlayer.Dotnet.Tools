@@ -1,6 +1,6 @@
-﻿// dotnet tool install --global MintPlayer.CodeMigrations.Runner
+﻿// dotnet tool install --global MintPlayer.CodeMigrations
 // or
-// dnx MintPlayer.CodeMigrations.Runner
+// dnx MintPlayer.CodeMigrations
 
 Console.WriteLine("Current directory");
 Console.WriteLine(Directory.GetCurrentDirectory());
