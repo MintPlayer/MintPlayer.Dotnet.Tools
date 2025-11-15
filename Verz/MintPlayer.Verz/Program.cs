@@ -1,4 +1,6 @@
 // dotnet tool install --global MintPlayer.Verz
+// or
+// dnx MintPlayer.Verz
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

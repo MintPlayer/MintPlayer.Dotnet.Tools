@@ -2,7 +2,7 @@
 
 namespace MintPlayer.Verz;
 
-[CliRootCommand(Name = "verz", Description = "MintPlayer.Verz: compute package versions across feeds")]
+[CliRootCommand(Description = "MintPlayer.Verz: compute package versions across feeds")]
 public partial class VerzCommand : ICliCommand
 {
     public Task<int> Execute(CancellationToken cancellationToken) => Task.FromResult(0);

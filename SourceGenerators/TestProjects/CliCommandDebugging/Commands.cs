@@ -4,7 +4,7 @@ using MintPlayer.SourceGenerators.Attributes;
 
 namespace CliCommandDebugging;
 
-[CliRootCommand(Name = "demo", Description = "Demonstrates the CLI command generator")]
+[CliRootCommand(Description = "Demonstrates the CLI command generator")]
 public partial class DemoCommand : ICliCommand
 {
     [CliOption("--verbose", "-v", Description = "Enable verbose output"), NoInterfaceMember]
