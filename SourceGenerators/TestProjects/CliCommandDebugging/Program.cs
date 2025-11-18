@@ -1,5 +1,6 @@
 using CliCommandDebugging;
 using Microsoft.Extensions.Hosting;
+using MintPlayer.CliGenerator.Attributes;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services
@@ -7,5 +8,12 @@ builder.Services
     .AddGreetingServices();
 
 var app = builder.Build();
-var exitCode = await app.InvokeDemoCommandAsync(args);
-return exitCode;
+try
+{
+    var exitCode = await app.InvokeDemoCommandAsync(args);
+    return exitCode;
+}
+catch (ParseCommandException parseEx)
+{
+	throw;
+}

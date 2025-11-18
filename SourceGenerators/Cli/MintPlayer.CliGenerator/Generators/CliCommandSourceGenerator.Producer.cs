@@ -304,6 +304,8 @@ internal sealed class CliCommandProducer : Producer
             {
                 writer.WriteLine($"var command = {command.FullyQualifiedName}.BuildCliRootCommand(host.Services);");
                 writer.WriteLine("var parsedCommand = command.Parse(args);");
+                writer.WriteLine("if (parsedCommand.Errors.Count > 0)"); 
+                writer.IndentSingleLine("throw new global::MintPlayer.CliGenerator.Attributes.ParseCommandException(parsedCommand.Tokens.Select(t => t.Value), parsedCommand.Errors);");
                 writer.WriteLine("var result = await parsedCommand.InvokeAsync();");
                 writer.WriteLine("return result;");
             }
