@@ -1,12 +1,16 @@
 {
   "profiles": {
-    "Greet John 5 times": {
+    "Greet Miss Diane 3 times": {
       "commandName": "Project",
-      "commandLineArgs": "greet \"John Doe\" -t 5"
+      "commandLineArgs": "greet Diane -t 3"
     },
-    "Shout at Pieterjan": {
+    "Shout at Mister Jones": {
       "commandName": "Project",
-      "commandLineArgs": "greet shout Pieterjan"
+      "commandLineArgs": "greet shout MisterJones"
+    },
+    "Say goodbye to Alice": {
+      "commandName": "Project",
+      "commandLineArgs": "greet farewell Alice --meet-again \"next week\""
     }
   }
 }
