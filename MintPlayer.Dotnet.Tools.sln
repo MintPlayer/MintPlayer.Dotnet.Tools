@@ -186,6 +186,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WidgetApi.Contracts", "Http
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Cli", "Cli", "{A2046E15-46FD-4AA6-9550-712A245F8780}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "LocalPackagePublisher", "LocalPackagePublisher", "{A0F04C0D-7A64-41C9-ACC6-3668A288CDB5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.LocalPackagePublisher", "LocalPackagePublisher\MintPlayer.LocalPackagePublisher\MintPlayer.LocalPackagePublisher.csproj", "{B78AAA3D-C066-49D5-839F-F99F45FE91C5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -428,6 +432,10 @@ Global
 		{54AE95B1-CFF1-4453-BA0C-2A0DD92BEF73}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{54AE95B1-CFF1-4453-BA0C-2A0DD92BEF73}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{54AE95B1-CFF1-4453-BA0C-2A0DD92BEF73}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B78AAA3D-C066-49D5-839F-F99F45FE91C5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B78AAA3D-C066-49D5-839F-F99F45FE91C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B78AAA3D-C066-49D5-839F-F99F45FE91C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B78AAA3D-C066-49D5-839F-F99F45FE91C5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -502,6 +510,7 @@ Global
 		{F46DDBEC-F535-48E6-B94C-4A62F63512BF} = {BE967E23-E7A7-4A55-912D-38FD21068E1D}
 		{54AE95B1-CFF1-4453-BA0C-2A0DD92BEF73} = {BE967E23-E7A7-4A55-912D-38FD21068E1D}
 		{A2046E15-46FD-4AA6-9550-712A245F8780} = {C65054D9-CAD1-4124-B474-D03C178D9D78}
+		{B78AAA3D-C066-49D5-839F-F99F45FE91C5} = {A0F04C0D-7A64-41C9-ACC6-3668A288CDB5}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D5378D43-9246-4355-8C4B-880DB15B07DA}
