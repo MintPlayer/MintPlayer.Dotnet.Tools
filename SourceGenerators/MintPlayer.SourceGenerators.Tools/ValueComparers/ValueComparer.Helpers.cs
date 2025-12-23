@@ -1,10 +1,16 @@
 ﻿using MintPlayer.SourceGenerators.Tools.Polyfills;
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
+using System.Reflection;
 
 namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 public partial class ValueComparer<T>
 {
+    // Delegate caches to avoid repeated MakeGenericMethod + Invoke overhead
+    private static readonly ConcurrentDictionary<Type, Func<object, object, bool>> _equalsDelegateCache = new();
+    private static readonly ConcurrentDictionary<Type, Func<object, int>> _hashDelegateCache = new();
+
     private static bool ImmutableArrayEquals<TArr>(object a, object b)
     {
         var x = (ImmutableArray<TArr>)a;
@@ -72,7 +78,7 @@ public partial class ValueComparer<T>
             {
                 var v = e.Current;
                 if (v is null) { h.Add(0); continue; }
-                AddDynamic(ref h, v);
+                h.Add(GetHashCodeDynamic(v));
             }
             return true;
         }
@@ -82,8 +88,8 @@ public partial class ValueComparer<T>
         }
     }
 
-    // Dynamic fallbacks for list elements
-    private static bool ObjectEqualsDynamic(object a, object b)
+    // Dynamic fallbacks for list elements with cached delegates
+    private static bool ObjectEqualsDynamic(object? a, object? b)
     {
         if (ReferenceEquals(a, b)) return true;
         if (a is null || b is null) return false;
@@ -91,22 +97,48 @@ public partial class ValueComparer<T>
         var t = a.GetType();
         if (t != b.GetType()) return false;
 
-        var method = typeof(ValueComparer<T>).GetMethod(nameof(EqualsGeneric), System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!
-                                             .MakeGenericMethod(t);
-        return (bool)method.Invoke(null, new[] { a, b })!;
+        var fn = _equalsDelegateCache.GetOrAdd(t, CreateEqualsDelegate);
+        return fn(a, b);
+    }
+
+    private static Func<object, object, bool> CreateEqualsDelegate(Type type)
+    {
+        var method = typeof(ValueComparer<T>)
+            .GetMethod(nameof(EqualsGeneric), BindingFlags.Static | BindingFlags.NonPublic)!
+            .MakeGenericMethod(type);
+
+        // Create a wrapper delegate that handles the boxing/unboxing
+        return (a, b) => (bool)method.Invoke(null, new[] { a, b })!;
     }
 
     private static bool EqualsGeneric<TV>(TV a, TV b)
-        => EqualityComparer<TV>.Default.Equals(a, b);
-
-    private static void AddDynamic(ref HashCodeCompat h, object v)
     {
-        var t = v.GetType();
-        var method = typeof(ValueComparer<T>).GetMethod(nameof(AddHashGeneric), System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!
-                                             .MakeGenericMethod(t);
-        method.Invoke(null, new[] { h, v });
+        if (ComparerRegistry.TryGet<TV>(out var reg))
+            return reg.Equals(a, b);
+        return EqualityComparer<TV>.Default.Equals(a, b);
     }
 
-    private static void AddHashGeneric<TV>(ref HashCodeCompat h, TV v)
-        => h.Add(v, EqualityComparer<TV>.Default);
+    private static int GetHashCodeDynamic(object v)
+    {
+        var t = v.GetType();
+        var fn = _hashDelegateCache.GetOrAdd(t, CreateHashDelegate);
+        return fn(v);
+    }
+
+    private static Func<object, int> CreateHashDelegate(Type type)
+    {
+        var method = typeof(ValueComparer<T>)
+            .GetMethod(nameof(GetHashCodeGeneric), BindingFlags.Static | BindingFlags.NonPublic)!
+            .MakeGenericMethod(type);
+
+        return v => (int)method.Invoke(null, new[] { v })!;
+    }
+
+    private static int GetHashCodeGeneric<TV>(TV v)
+    {
+        if (v is null) return 0;
+        if (ComparerRegistry.TryGet<TV>(out var reg))
+            return reg.GetHashCode(v);
+        return EqualityComparer<TV>.Default.GetHashCode(v);
+    }
 }
