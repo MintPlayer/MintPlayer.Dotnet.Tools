@@ -1,0 +1,5 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+	<!-- Import the ComputeFolderHashTask from this package -->
+	<UsingTask TaskName="MintPlayer.FolderHasher.MSBuild.ComputeFolderHashTask"
+	           AssemblyFile="$(MSBuildThisFileDirectory)MintPlayer.FolderHasher.MSBuild.dll" />
+</Project>

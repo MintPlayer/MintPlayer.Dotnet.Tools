@@ -5,6 +5,7 @@ The FolderHasher is a .NET library that computes the hash of a folder and its co
 ## Ignoring files/folders
 The tool should have the ability to process `.hasherignore` files, similarily to how `.gitignore` works.
 The `.hasherignore` files should not be included when computing the folder-hash.
+We should ignore files using glob-patterns, not regexes.
 
 ## Usage
 ### c#

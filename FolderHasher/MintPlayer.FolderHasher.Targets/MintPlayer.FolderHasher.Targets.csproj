@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<OutputType>Library</OutputType>
+
+		<IsPackable>true</IsPackable>
+		<Version>10.0.0</Version>
+		<Authors>Pieterjan De Clippel</Authors>
+		<Company>MintPlayer</Company>
+		<Description>MSBuild targets for computing folder hashes. Just install this package to use the ComputeFolderHashTask in your build process.</Description>
+		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/FolderHasher/MintPlayer.FolderHasher.Targets</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageId>MintPlayer.FolderHasher.Targets</PackageId>
+		<PackageTags>Folder hash MSBuild Targets</PackageTags>
+		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
+
+		<!-- This package doesn't contain library code, only build assets -->
+		<IncludeBuildOutput>false</IncludeBuildOutput>
+		<SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+		<DevelopmentDependency>true</DevelopmentDependency>
+	</PropertyGroup>
+
+	<!-- Include XML markups in the nupkg -->
+	<PropertyGroup Condition="'$(Configuration)'=='Release'">
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="MintPlayer.FolderHasher.Targets.targets" Pack="true" PackagePath="build/" />
+		<None Include="..\MintPlayer.FolderHasher.MSBuild\bin\$(Configuration)\$(TargetFramework)\MintPlayer.FolderHasher.MSBuild.dll" Pack="true" PackagePath="build/" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\MintPlayer.FolderHasher.MSBuild\MintPlayer.FolderHasher.MSBuild.csproj" />
+	</ItemGroup>
+
+</Project>
