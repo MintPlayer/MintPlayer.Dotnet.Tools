@@ -99,3 +99,7 @@ The `ComputeFolderHashTask` exposes the following properties:
 | `Hash` | Output | The computed hash of the folder contents |
 
 This allows you to conditionally run expensive build steps only when the folder contents have actually changed.
+
+### MSBuild targets
+We should also provide a project (class library name: MintPlayer.FolderHasher.Targets) with a `MintPlayer.FolderHasher.Targets.targets` file that's packed to the `build` nuget-path (not `buildTransitive`).
+This would allow users to just install the package, without needing to modify the csproj file.
