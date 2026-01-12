@@ -22,7 +22,10 @@ public class GenericMethodProducer : Producer
             {
                 writer.WriteLine(Header);
                 writer.WriteLine();
-                using (writer.OpenBlock($"namespace {RootNamespace}"))
+                var ns = method.Method.PathSpec?.ContainingNamespace ?? method.Method.ContainingNamespace ?? RootNamespace;
+                IDisposableWriterIndent? namespaceBlock = string.IsNullOrEmpty(ns) ? null : writer.OpenBlock($"namespace {ns}");
+
+                using (writer.OpenPathSpec(method.Method.PathSpec))
                 {
                     writer.Write("public ");
                     if (method.Method.ClassModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.StaticKeyword)) writer.Write("static ");
@@ -59,6 +62,8 @@ public class GenericMethodProducer : Producer
                         }
                     }
                 }
+
+                namespaceBlock?.Dispose();
             }
         }
     }
