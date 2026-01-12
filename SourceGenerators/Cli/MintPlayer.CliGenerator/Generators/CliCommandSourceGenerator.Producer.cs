@@ -26,8 +26,11 @@ internal sealed class CliCommandProducer : Producer
         writer.WriteLine(Header);
         writer.WriteLine();
 
+        // Group commands by their ACTUAL declared namespace for partial class generation
+        // Important: Use the symbol's namespace directly, NOT the fallback to RootNamespace
+        // A partial class MUST be in the same namespace as the original declaration
         var groups = commandTrees
-            .GroupBy(tree => ResolveNamespace(tree.Command.Namespace))
+            .GroupBy(tree => string.IsNullOrEmpty(tree.Command.Namespace) ? null : tree.Command.Namespace)
             .OrderBy(group => group.Key ?? string.Empty);
 
         foreach (var group in groups)
@@ -36,9 +39,10 @@ internal sealed class CliCommandProducer : Producer
 
             if (group.Key is null)
             {
+                // Global namespace - no namespace block
                 foreach (var tree in group)
                 {
-                    WriteCommandTree(writer, tree);
+                    WriteCommandNode(writer, tree, isRoot: true);
                     writer.WriteLine();
                 }
             }
@@ -48,35 +52,42 @@ internal sealed class CliCommandProducer : Producer
                 {
                     foreach (var tree in group)
                     {
-                        WriteCommandTree(writer, tree);
+                        WriteCommandNode(writer, tree, isRoot: true);
                         writer.WriteLine();
                     }
                 }
                 writer.WriteLine();
             }
         }
+
+        // Write all extension methods in RootNamespace for consistency
+        WriteAllExtensions(writer, commandTrees, cancellationToken);
     }
 
-    private string? ResolveNamespace(string? declaredNamespace)
+    private void WriteAllExtensions(IndentedTextWriter writer, ImmutableArray<CliCommandTree> trees, CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrWhiteSpace(declaredNamespace))
-        {
-            return declaredNamespace;
-        }
-
         if (!string.IsNullOrWhiteSpace(RootNamespace))
         {
-            return RootNamespace;
+            using (writer.OpenBlock($"namespace {RootNamespace}"))
+            {
+                foreach (var tree in trees)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    WriteRootExtensions(writer, tree.Command);
+                    writer.WriteLine();
+                }
+            }
         }
-
-        return null;
-    }
-
-    private void WriteCommandTree(IndentedTextWriter writer, CliCommandTree tree)
-    {
-        WriteCommandNode(writer, tree, isRoot: true);
-        writer.WriteLine();
-        WriteRootExtensions(writer, tree.Command);
+        else
+        {
+            // No root namespace - write extensions at global scope
+            foreach (var tree in trees)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                WriteRootExtensions(writer, tree.Command);
+                writer.WriteLine();
+            }
+        }
     }
 
     private void WriteCommandNode(IndentedTextWriter writer, CliCommandTree node, bool isRoot)
