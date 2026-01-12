@@ -12,7 +12,7 @@
 	</Target>
 
 	<PropertyGroup>
-		<Version>10.10.0</Version>
+		<Version>10.10.1</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>System.CommandLine command tree source generator with dependency injection helpers</Description>
