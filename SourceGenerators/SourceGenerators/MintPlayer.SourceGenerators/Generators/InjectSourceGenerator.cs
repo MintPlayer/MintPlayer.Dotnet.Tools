@@ -42,6 +42,8 @@ public class InjectSourceGenerator : IncrementalGenerator
 
                         if (currentType is INamedTypeSymbol currentTypeSymbol)
                         {
+                            var pathSpec = currentTypeSymbol.GetPathSpec(ct);
+
                             while (currentTypeSymbol?.BaseType != null && currentTypeSymbol.BaseType.SpecialType != SpecialType.System_Object)
                             {
                                 var baseTypeSyntax = currentTypeSymbol.BaseType.DeclaringSyntaxReferences
@@ -53,13 +55,12 @@ public class InjectSourceGenerator : IncrementalGenerator
                                 currentTypeSymbol = currentTypeSymbol.BaseType;
                             }
 
-                            var namespaceDeclaration = classDeclaration.FirstAncestorOrSelf<BaseNamespaceDeclarationSyntax>();
-
                             return new Models.ClassWithBaseDependenciesAndInjectFields
                             {
                                 FileName = classDeclaration.Identifier.Text,
                                 ClassName = className,
-                                ClassNamespace = namespaceDeclaration?.Name?.ToString(),
+                                ClassNamespace = pathSpec?.ContainingNamespace,
+                                PathSpec = pathSpec,
                                 BaseDependencies = baseDependencies,
                                 InjectFields = injectFields,
                             };

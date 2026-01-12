@@ -43,6 +43,7 @@ public class GenericMethodSourceGenerator : IncrementalGenerator
 
                         if (attributeSyntax is { Attribute.ArgumentList.Arguments.Count: > 0 } && int.TryParse(attributeSyntax.Attribute.ArgumentList.Arguments[0].Expression.ToFullString(), out var countValue))
                         {
+                            var pathSpec = classSymbol.GetPathSpec(ct);
                             return new Models.GenericMethodDeclaration
                             {
                                 Method = new Models.MethodDeclaration
@@ -51,12 +52,13 @@ public class GenericMethodSourceGenerator : IncrementalGenerator
                                     ClassName = classSymbol.Name,
                                     MethodModifiers = methodDeclaration.Modifiers,
                                     ClassModifiers = classDeclaration.Modifiers,
-                                    ContainingNamespace = classSymbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                                    ContainingNamespace = pathSpec?.ContainingNamespace,
+                                    PathSpec = pathSpec,
                                     //ClassIsPartial = classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
                                     //MethodIsPartial = methodDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
                                     //ClassIsStatic = classDeclaration.Modifiers.Any(SyntaxKind.StaticKeyword),
                                     //MethodIsStatic = methodDeclaration.Modifiers.Any(SyntaxKind.StaticKeyword),
-                                    //GenericMethodAttribute = 
+                                    //GenericMethodAttribute =
                                 },
                                 Count = countValue,
                             };
