@@ -16,11 +16,6 @@
 		</ItemGroup>
     </Target>
 
-	<Target Name="SourceGeneratorAttributes_CheckGeneratePathProperty" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
-		<Error Condition="'$(PkgMintPlayer_SourceGenerators_Attributes)' == ''"
-			   Text="Please add GeneratePathProperty=&quot;true&quot; on the MintPlayer.SourceGenerators.Attributes PackageReference." />
-	</Target>
-
 	<Target Name="MintPlayer_SourceGenerators_TargetsLoaded" BeforeTargets="PrepareForBuild">
 		<Message Text="MintPlayer.SourceGenerators targets loaded" Importance="High" />
 	</Target>
