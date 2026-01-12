@@ -17,11 +17,6 @@
         </ItemGroup>
     </Target>
 
-	<Target Name="ValueComparerGeneratorAttributes_CheckGeneratePathProperty" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
-		<Error Condition="'$(PkgMintPlayer_ValueComparerGenerator_Attributes)' == ''"
-			   Text="Please add GeneratePathProperty=&quot;true&quot; on the MintPlayer.ValueComparerGenerator.Attributes PackageReference." />
-	</Target>
-
 	<Target Name="MintPlayer_ValueComparerGenerator_TargetsLoaded" BeforeTargets="PrepareForBuild">
 		<Message Text="MintPlayer.ValueComparerGenerator targets loaded" Importance="High" />
 	</Target>

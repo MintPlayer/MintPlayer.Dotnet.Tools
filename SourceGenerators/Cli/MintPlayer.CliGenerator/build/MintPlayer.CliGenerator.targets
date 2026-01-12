@@ -10,11 +10,6 @@
     </ItemGroup>
   </Target>
 
-  <Target Name="CliGeneratorAttributes_CheckGeneratePathProperty" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
-    <Error Condition="'$(PkgMintPlayer_CliGenerator_Attributes)' == ''"
-           Text="Please add GeneratePathProperty=&quot;true&quot; on the MintPlayer.CliGenerator.Attributes PackageReference." />
-  </Target>
-
   <Target Name="MintPlayer_CliGenerator_TargetsLoaded" BeforeTargets="PrepareForBuild">
     <Message Text="MintPlayer.CliGenerator targets loaded" Importance="High" />
   </Target>
