@@ -12,4 +12,6 @@ public partial class ClassWithBaseDependenciesAndInjectFields
     public PathSpec? PathSpec { get; set; }
     public IList<InjectField> BaseDependencies { get; set; } = [];
     public IList<InjectField> InjectFields { get; set; } = [];
+    public string? PostConstructMethodName { get; set; }
+    public IList<PostConstructDiagnostic> Diagnostics { get; set; } = [];
 }

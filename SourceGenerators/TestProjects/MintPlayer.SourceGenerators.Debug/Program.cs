@@ -2,9 +2,24 @@
 using Microsoft.Extensions.DependencyInjection;
 using MintPlayer.SourceGenerators.Attributes;
 
-Console.WriteLine("Hello, World!");
-//var services = new ServiceCollection()
-//    .AddSingleton<ITestService3, TestService3>(TestService3.Factory);
+Console.WriteLine("=== PostConstruct Demo ===");
+Console.WriteLine();
+
+// Build service provider
+var services = new ServiceCollection()
+    .AddScoped<ITestService1, TestService1>()
+    .AddScoped<ITestService2, TestService2>()
+    .AddScoped<PostConstructDemo>()
+    .BuildServiceProvider();
+
+// Resolve the demo service - this will trigger the constructor and PostConstruct
+Console.WriteLine("Resolving PostConstructDemo...");
+var demo = services.GetRequiredService<PostConstructDemo>();
+Console.WriteLine($"Demo service resolved. IsInitialized = {demo.IsInitialized}");
+Console.WriteLine();
+
+Console.WriteLine("=== End Demo ===");
+Console.WriteLine();
 
 
 /// <summary>
@@ -76,5 +91,30 @@ public partial struct NestedStruct1
             {
             }
         }
+    }
+}
+
+/// <summary>
+/// Demonstrates the [PostConstruct] attribute functionality.
+/// The OnInitialized method will be called automatically after
+/// all injected fields are assigned in the generated constructor.
+/// </summary>
+public partial class PostConstructDemo
+{
+    [Inject] private readonly ITestService1 testService1;
+    [Inject] private readonly ITestService2 testService2;
+
+    public bool IsInitialized { get; private set; }
+
+    [PostConstruct]
+    private void OnInitialized()
+    {
+        Console.WriteLine("  [PostConstruct] OnInitialized() called!");
+        Console.WriteLine($"  - testService1 is null: {testService1 is null}");
+        Console.WriteLine($"  - testService2 is null: {testService2 is null}");
+
+        // Both services should be available at this point
+        IsInitialized = testService1 is not null && testService2 is not null;
+        Console.WriteLine($"  - IsInitialized set to: {IsInitialized}");
     }
 }
