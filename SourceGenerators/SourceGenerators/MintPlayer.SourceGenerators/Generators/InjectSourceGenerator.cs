@@ -25,7 +25,9 @@ public class InjectSourceGenerator : IncrementalGenerator
                         classDeclaration.Members.OfType<FieldDeclarationSyntax>()
                             .Any(f => f.AttributeLists.SelectMany(a => a.Attributes).Any()) ||
                         classDeclaration.Members.OfType<PropertyDeclarationSyntax>()
-                            .Any(p => p.AttributeLists.SelectMany(a => a.Attributes).Any())
+                            .Any(p => p.AttributeLists.SelectMany(a => a.Attributes).Any()) ||
+                        classDeclaration.Members.OfType<MethodDeclarationSyntax>()
+                            .Any(m => m.AttributeLists.SelectMany(a => a.Attributes).Any())
                     ),
                 static (context2, ct) =>
                 {
@@ -35,6 +37,9 @@ public class InjectSourceGenerator : IncrementalGenerator
 
                         // Get dependencies for the current class (fields + get-only properties)
                         var injectFields = GetInjectMembers(classDeclaration, context2.SemanticModel); // PASS ON
+
+                        // Get PostConstruct method info
+                        var (postConstructMethodName, diagnostics) = GetPostConstructMethod(classDeclaration, context2.SemanticModel, className, injectFields.Count > 0);
 
                         // Traverse the inheritance hierarchy to collect dependencies from base classes
                         var baseDependencies = new List<Models.InjectField>(); // PASS ON
@@ -63,6 +68,8 @@ public class InjectSourceGenerator : IncrementalGenerator
                                 PathSpec = pathSpec,
                                 BaseDependencies = baseDependencies,
                                 InjectFields = injectFields,
+                                PostConstructMethodName = postConstructMethodName,
+                                Diagnostics = diagnostics,
                             };
                         }
                     }
@@ -76,8 +83,13 @@ public class InjectSourceGenerator : IncrementalGenerator
             .Join(settingsProvider)
             .Select(static Producer (providers, ct) => new InjectProducer(providers.Item1.NotNull(), providers.Item2.RootNamespace!));
 
+        var classesDiagnosticProvider = classesProvider
+            .Join(settingsProvider)
+            .Select(static IDiagnosticReporter (providers, ct) => new InjectProducer(providers.Item1.NotNull(), providers.Item2.RootNamespace!));
+
         // Combine all source providers
         context.ProduceCode(classesSourceProvider);
+        context.ReportDiagnostics(classesDiagnosticProvider);
     }
 
 
@@ -117,5 +129,83 @@ public class InjectSourceGenerator : IncrementalGenerator
         }
 
         return result;
+    }
+
+    private static (string? MethodName, List<Models.PostConstructDiagnostic> Diagnostics) GetPostConstructMethod(
+        ClassDeclarationSyntax classDeclaration,
+        SemanticModel semanticModel,
+        string className,
+        bool hasInjectFields)
+    {
+        var diagnostics = new List<Models.PostConstructDiagnostic>();
+        var postConstructMethods = new List<(string Name, MethodDeclarationSyntax Syntax)>();
+
+        foreach (var method in classDeclaration.Members.OfType<MethodDeclarationSyntax>())
+        {
+            var hasPostConstructAttribute = method.AttributeLists
+                .SelectMany(attrs => attrs.Attributes)
+                .Any(attr => semanticModel.GetTypeInfo(attr).Type?.Name == "PostConstructAttribute");
+
+            if (!hasPostConstructAttribute)
+                continue;
+
+            var methodName = method.Identifier.Text;
+            var location = method.Identifier.GetLocation().AsKey();
+
+            // Check if method is static (INJECT003)
+            if (method.Modifiers.Any(SyntaxKind.StaticKeyword))
+            {
+                diagnostics.Add(new Models.PostConstructDiagnostic
+                {
+                    Rule = DiagnosticRules.PostConstructCannotBeStatic,
+                    Location = location,
+                    MessageArgs = [methodName]
+                });
+                continue;
+            }
+
+            // Check if method has parameters (INJECT001)
+            if (method.ParameterList.Parameters.Count > 0)
+            {
+                diagnostics.Add(new Models.PostConstructDiagnostic
+                {
+                    Rule = DiagnosticRules.PostConstructMustBeParameterless,
+                    Location = location,
+                    MessageArgs = [methodName]
+                });
+                continue;
+            }
+
+            postConstructMethods.Add((methodName, method));
+        }
+
+        // Check for multiple PostConstruct methods (INJECT002)
+        if (postConstructMethods.Count > 1)
+        {
+            foreach (var (name, syntax) in postConstructMethods)
+            {
+                diagnostics.Add(new Models.PostConstructDiagnostic
+                {
+                    Rule = DiagnosticRules.OnlyOnePostConstructAllowed,
+                    Location = syntax.Identifier.GetLocation().AsKey(),
+                    MessageArgs = [className]
+                });
+            }
+            return (null, diagnostics);
+        }
+
+        // Check if class has no inject fields but has PostConstruct (INJECT004)
+        if (postConstructMethods.Count == 1 && !hasInjectFields)
+        {
+            var (name, syntax) = postConstructMethods[0];
+            diagnostics.Add(new Models.PostConstructDiagnostic
+            {
+                Rule = DiagnosticRules.PostConstructRequiresInject,
+                Location = syntax.Identifier.GetLocation().AsKey(),
+                MessageArgs = [name, className]
+            });
+        }
+
+        return (postConstructMethods.FirstOrDefault().Name, diagnostics);
     }
 }

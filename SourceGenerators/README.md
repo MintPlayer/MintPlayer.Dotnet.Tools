@@ -77,6 +77,45 @@ namespace Demo
 }
 ```
 
+### Post-Construction Initialization
+
+If you need to execute initialization logic after all dependencies are injected, use the `[PostConstruct]` attribute:
+
+```csharp
+[Register(typeof(ITestService), ServiceLifetime.Scoped)]
+public partial class TestService : ITestService
+{
+    [Inject] private readonly IServiceA serviceA;
+    [Inject] private readonly ILogger<TestService> logger;
+
+    [PostConstruct]
+    private void OnInitialized()
+    {
+        logger.LogInformation("TestService initialized");
+    }
+}
+```
+
+This generates:
+
+```csharp
+public partial class TestService
+{
+    public TestService(global::IServiceA serviceA, global::ILogger<TestService> logger)
+    {
+        this.serviceA = serviceA;
+        this.logger = logger;
+        OnInitialized();
+    }
+}
+```
+
+**Rules:**
+- Method must be parameterless
+- Only one `[PostConstruct]` method per class
+- Cannot be static
+- Works with inheritance (each class can have its own)
+
 ## Service registration
 Similarily, for the first snippet, the `[Register]` attribute generates the following code for you:
 

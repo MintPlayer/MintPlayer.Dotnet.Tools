@@ -2,3 +2,12 @@
 ; The id paramter of the DiagnosticDescriptor class constructor has codefixes which update this file.
 ; Before merging a PR, the contents of this file should be moved to .Shipped.md, and this file should be reset.
 ; https://github.com/dotnet/roslyn-analyzers/blob/main/src/Microsoft.CodeAnalysis.Analyzers/ReleaseTrackingAnalyzers.Help.md
+
+### New Rules
+
+Rule ID   | Category                      | Severity | Notes
+----------|-------------------------------|----------|-----------------------------------------------
+INJECT001 | MintPlayer.SourceGenerators   | Error    | PostConstruct method must be parameterless
+INJECT002 | MintPlayer.SourceGenerators   | Error    | Only one PostConstruct method allowed per class
+INJECT003 | MintPlayer.SourceGenerators   | Error    | PostConstruct method cannot be static
+INJECT004 | MintPlayer.SourceGenerators   | Warning  | PostConstruct in class without [Inject] members

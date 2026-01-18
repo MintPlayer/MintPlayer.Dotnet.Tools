@@ -1,9 +1,10 @@
-﻿using MintPlayer.SourceGenerators.Tools;
+﻿using Microsoft.CodeAnalysis;
+using MintPlayer.SourceGenerators.Tools;
 using System.CodeDom.Compiler;
 
 namespace MintPlayer.SourceGenerators.Generators;
 
-internal class InjectProducer : Producer
+internal class InjectProducer : Producer, IDiagnosticReporter
 {
     private readonly IEnumerable<Models.ClassWithBaseDependenciesAndInjectFields> classInfos;
     public InjectProducer(IEnumerable<Models.ClassWithBaseDependenciesAndInjectFields> classInfos, string rootNamespace) : base(rootNamespace, $"Inject.g.cs")
@@ -13,6 +14,13 @@ internal class InjectProducer : Producer
     public InjectProducer(IEnumerable<Models.ClassWithBaseDependenciesAndInjectFields> classInfos, string rootNamespace, string filename) : base(rootNamespace, filename)
     {
         this.classInfos = classInfos;
+    }
+
+    public IEnumerable<Diagnostic> GetDiagnostics(Compilation compilation)
+    {
+        return classInfos
+            .SelectMany(ci => ci.Diagnostics)
+            .Select(d => d.Rule.Create(d.Location?.ToLocation(compilation), d.MessageArgs));
     }
 
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
@@ -45,6 +53,9 @@ internal class InjectProducer : Producer
                     {
                         foreach (var assignment in assignments)
                             writer.WriteLine(assignment);
+
+                        if (!string.IsNullOrEmpty(classInfo.PostConstructMethodName))
+                            writer.WriteLine($"{classInfo.PostConstructMethodName}();");
                     }
                 }
             }

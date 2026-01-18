@@ -39,6 +39,40 @@ public partial class CustomerController {
 
 The source-generator will generate the constructor for you. It supports DI when using inheritance too.
 
+### Post-Construction Initialization
+
+If you need to run initialization logic after all dependencies are injected, use the `[PostConstruct]` attribute:
+
+```csharp
+public partial class CustomerController {
+    [Inject] private readonly ICustomerService customerService;
+    [Inject] private readonly ILogger<CustomerController> logger;
+
+    [PostConstruct]
+    private void OnInitialized()
+    {
+        logger.LogInformation("CustomerController initialized with {Service}", customerService.GetType().Name);
+    }
+}
+```
+
+The `[PostConstruct]` method will be called automatically at the end of the generated constructor, after all field assignments are complete.
+
+**Rules:**
+- The method must be parameterless
+- Only one `[PostConstruct]` method is allowed per class
+- The method cannot be static
+- Each class in an inheritance hierarchy can have its own `[PostConstruct]` method (base class method runs first)
+- Nested classes each have their own scope for `[PostConstruct]`
+
+**Diagnostics:**
+| Rule ID | Severity | Description |
+|---------|----------|-------------|
+| INJECT001 | Error | PostConstruct method must be parameterless |
+| INJECT002 | Error | Only one PostConstruct method allowed per class |
+| INJECT003 | Error | PostConstruct method cannot be static |
+| INJECT004 | Warning | PostConstruct method in class without `[Inject]` members |
+
 ## Interface Implementation
 
 There's also an analyzer that will check if all `public` class members are known on the implemented interface. The analyzer provides a code-fix to add the missing members.
