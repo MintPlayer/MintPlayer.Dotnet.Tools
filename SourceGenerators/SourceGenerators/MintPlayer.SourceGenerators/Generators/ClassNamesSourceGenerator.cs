@@ -1,4 +1,5 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using System.Linq;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
@@ -80,19 +81,19 @@ public class ClassNamesSourceGenerator : IncrementalGenerator
 
         var classNamesSourceProvider = classDeclarationsProvider
             .Join(settingsProvider)
-            .Select(static Producer (p, ct) => new ClassNamesProducer(declarations: p.Item1.NotNull(), rootNamespace: p.Item2.RootNamespace!));
+            .Select(static Producer (p, ct) => new ClassNamesProducer(declarations: p.Item1.NotNull().DistinctBy(d => d.Name), rootNamespace: p.Item2.RootNamespace!));
 
         var classNameListSourceProvider = classDeclarationsProvider
             .Join(settingsProvider)
-            .Select(static Producer (p, ct) => new ClassNameListProducer(declarations: p.Item1.NotNull(), rootNamespace: p.Item2.RootNamespace!));
+            .Select(static Producer (p, ct) => new ClassNameListProducer(declarations: p.Item1.NotNull().DistinctBy(d => d.Name), rootNamespace: p.Item2.RootNamespace!));
 
         var classNamesDiagnosticProvider = classDeclarationsProvider
             .Join(settingsProvider)
-            .Select(static IDiagnosticReporter (p, ct) => new ClassNamesProducer(declarations: p.Item1.NotNull(), rootNamespace: p.Item2.RootNamespace!));
+            .Select(static IDiagnosticReporter (p, ct) => new ClassNamesProducer(declarations: p.Item1.NotNull().DistinctBy(d => d.Name), rootNamespace: p.Item2.RootNamespace!));
 
         var classNameListDiagnosticProvider = classDeclarationsProvider
             .Join(settingsProvider)
-            .Select(static IDiagnosticReporter (p, ct) => new ClassNameListProducer(declarations: p.Item1.NotNull(), rootNamespace: p.Item2.RootNamespace!));
+            .Select(static IDiagnosticReporter (p, ct) => new ClassNameListProducer(declarations: p.Item1.NotNull().DistinctBy(d => d.Name), rootNamespace: p.Item2.RootNamespace!));
 
         // Combine all Source Providers
         context.ProduceCode(classNamesSourceProvider, classNameListSourceProvider);
