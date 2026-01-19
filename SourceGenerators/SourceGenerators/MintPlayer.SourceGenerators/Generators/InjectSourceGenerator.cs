@@ -88,6 +88,20 @@ public class InjectSourceGenerator : IncrementalGenerator
                             var hasDependencies = injectFields.Count > 0 || baseDependencies.Count > 0;
                             var (postConstructMethodName, diagnostics) = GetPostConstructMethod(classDeclaration, context2.SemanticModel, className, hasDependencies);
 
+                            // Check if a constructor with the same signature already exists
+                            // If so, skip generation to avoid duplicate constructor error
+                            var wouldGenerateParams = injectFields
+                                .Concat(baseDependencies)
+                                .Select(dep => dep.Type)
+                                .Distinct()
+                                .ToList();
+
+                            if (wouldGenerateParams.Count > 0 && currentType.HasMatchingConstructor(wouldGenerateParams))
+                            {
+                                // Class already has a constructor with this signature - skip generation
+                                return default;
+                            }
+
                             return new Models.ClassWithBaseDependenciesAndInjectFields
                             {
                                 FileName = classDeclaration.Identifier.Text,

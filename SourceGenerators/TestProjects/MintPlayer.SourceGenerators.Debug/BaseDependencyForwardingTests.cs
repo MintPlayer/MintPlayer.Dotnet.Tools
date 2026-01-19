@@ -244,3 +244,26 @@ public partial class ParameterlessDerivedClass : ParameterlessBaseClass
     // Expected: NO constructor generated (not needed)
     public int Value { get; set; }
 }
+
+// ============================================================================
+// Test Case 10: Class already has a constructor with same signature
+// Expected: NO constructor should be generated (would cause duplicate error)
+// ============================================================================
+
+public partial class BaseWithInjectForDuplicateTest
+{
+    [Inject] private readonly ITestService1 service1;
+}
+
+/// <summary>
+/// This class already has a constructor matching what would be generated.
+/// The generator should NOT generate a duplicate constructor.
+/// </summary>
+public partial class DerivedWithExistingConstructor : BaseWithInjectForDuplicateTest
+{
+    // Manual constructor that matches the signature we would generate
+    public DerivedWithExistingConstructor(ITestService1 service1) : base(service1)
+    {
+        Console.WriteLine("Manual constructor called");
+    }
+}
