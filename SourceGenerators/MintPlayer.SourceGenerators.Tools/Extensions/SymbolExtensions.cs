@@ -51,6 +51,7 @@ public static class SymbolExtensions
                 parents.Add(new PathSpecElement
                 {
                     Name = namedTypeSymbol.Name,
+                    GenericTypeParameters = GetGenericTypeParametersFromSymbol(namedTypeSymbol),
                     IsPartial = namedTypeSymbol.DeclaringSyntaxReferences.Select(r => r.GetSyntax(cancellationToken)).All(s => s switch
                     {
                         ClassDeclarationSyntax cds => cds.Modifiers.Any(m => m.IsKind(SyntaxKind.PartialKeyword)),
@@ -90,6 +91,20 @@ public static class SymbolExtensions
     }
 
     /// <summary>
+    /// Gets the generic type parameters from a named type symbol, e.g., "&lt;T, TKey&gt;"
+    /// </summary>
+    /// <param name="typeSymbol">The type symbol to extract generic parameters from.</param>
+    /// <returns>A string like "&lt;T, TKey&gt;" or null if not generic.</returns>
+    public static string? GetGenericTypeParametersFromSymbol(INamedTypeSymbol typeSymbol)
+    {
+        if (typeSymbol.TypeParameters.Length == 0)
+            return null;
+
+        var typeParams = string.Join(", ", typeSymbol.TypeParameters.Select(tp => tp.Name));
+        return $"<{typeParams}>";
+    }
+
+    /// <summary>
     /// Recreates the entire hierarchy of a nested class/struct
     /// </summary>
     /// <param name="writer">Indented text writer</param>
@@ -104,7 +119,8 @@ public static class SymbolExtensions
         foreach (var parent in pathSpec.Parents.Where(p => !string.IsNullOrWhiteSpace(p.Name)).Reverse())
         {
             var keyword = parent.Type == EPathSpecType.Struct ? "struct" : "class";
-            stack.Push(writer.OpenBlock($"partial {keyword} {parent.Name}"));
+            var genericParams = parent.GenericTypeParameters ?? string.Empty;
+            stack.Push(writer.OpenBlock($"partial {keyword} {parent.Name}{genericParams}"));
         }
 
         return new PathSpecStack(stack);
@@ -191,6 +207,11 @@ public class PathSpecElement
     public string? Name { get; set; }
     public EPathSpecType Type { get; set; }
     public bool IsPartial { get; set; }
+
+    /// <summary>
+    /// Generic type parameters for the parent type, e.g., "&lt;TOuter&gt;"
+    /// </summary>
+    public string? GenericTypeParameters { get; set; }
 }
 
 public enum EPathSpecType

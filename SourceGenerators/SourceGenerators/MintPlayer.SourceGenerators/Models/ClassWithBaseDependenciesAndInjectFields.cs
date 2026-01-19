@@ -14,4 +14,14 @@ public partial class ClassWithBaseDependenciesAndInjectFields
     public IList<InjectField> InjectFields { get; set; } = [];
     public string? PostConstructMethodName { get; set; }
     public IList<PostConstructDiagnostic> Diagnostics { get; set; } = [];
+
+    /// <summary>
+    /// Generic type parameters for the class, e.g., "&lt;TUser, TKey&gt;"
+    /// </summary>
+    public string? GenericTypeParameters { get; set; }
+
+    /// <summary>
+    /// Generic type constraints for the class, e.g., "where TUser : IdentityUser&lt;TKey&gt; where TKey : IEquatable&lt;TKey&gt;"
+    /// </summary>
+    public string? GenericConstraints { get; set; }
 }
