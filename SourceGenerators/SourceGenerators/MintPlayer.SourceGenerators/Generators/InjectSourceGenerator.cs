@@ -102,6 +102,9 @@ public class InjectSourceGenerator : IncrementalGenerator
                                 return default;
                             }
 
+                            // Extract generic type parameters and constraints
+                            var (genericTypeParams, genericConstraints) = GetGenericTypeInfo(classDeclaration, context2.SemanticModel);
+
                             return new Models.ClassWithBaseDependenciesAndInjectFields
                             {
                                 FileName = classDeclaration.Identifier.Text,
@@ -112,6 +115,8 @@ public class InjectSourceGenerator : IncrementalGenerator
                                 InjectFields = injectFields,
                                 PostConstructMethodName = postConstructMethodName,
                                 Diagnostics = diagnostics,
+                                GenericTypeParameters = genericTypeParams,
+                                GenericConstraints = genericConstraints,
                             };
                         }
                     }
@@ -277,5 +282,83 @@ public class InjectSourceGenerator : IncrementalGenerator
         }
 
         return (postConstructMethods.FirstOrDefault().Name, diagnostics);
+    }
+
+    /// <summary>
+    /// Extracts generic type parameters and constraints from a class declaration.
+    /// </summary>
+    /// <param name="classDeclaration">The class declaration syntax.</param>
+    /// <param name="semanticModel">The semantic model for resolving types.</param>
+    /// <returns>A tuple containing the type parameters (e.g., "&lt;T, TKey&gt;") and constraints (e.g., "where T : class where TKey : IEquatable&lt;TKey&gt;").</returns>
+    private static (string? TypeParameters, string? Constraints) GetGenericTypeInfo(
+        ClassDeclarationSyntax classDeclaration,
+        SemanticModel semanticModel)
+    {
+        if (classDeclaration.TypeParameterList == null || classDeclaration.TypeParameterList.Parameters.Count == 0)
+            return (null, null);
+
+        // Get type parameters string like "<T, TKey>"
+        var typeParams = classDeclaration.TypeParameterList.ToString();
+
+        // Get constraints with fully qualified type names
+        if (classDeclaration.ConstraintClauses.Count == 0)
+            return (typeParams, null);
+
+        var constraintStrings = new List<string>();
+        foreach (var constraintClause in classDeclaration.ConstraintClauses)
+        {
+            var typeParamName = constraintClause.Name.Identifier.Text;
+            var constraints = new List<string>();
+
+            foreach (var constraint in constraintClause.Constraints)
+            {
+                if (constraint is TypeConstraintSyntax typeConstraint)
+                {
+                    // Get fully qualified type name for the constraint
+                    var typeSymbol = semanticModel.GetSymbolInfo(typeConstraint.Type).Symbol as ITypeSymbol;
+                    if (typeSymbol != null)
+                    {
+                        var fqn = typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters));
+                        constraints.Add(fqn);
+                    }
+                    else
+                    {
+                        // Fallback to the syntax text if symbol resolution fails
+                        constraints.Add(typeConstraint.Type.ToString());
+                    }
+                }
+                else if (constraint is ClassOrStructConstraintSyntax classOrStructConstraint)
+                {
+                    // Handle 'class', 'struct', 'class?', 'notnull', 'unmanaged'
+                    constraints.Add(classOrStructConstraint.ToString());
+                }
+                else if (constraint is ConstructorConstraintSyntax)
+                {
+                    // Handle 'new()'
+                    constraints.Add("new()");
+                }
+                else if (constraint is DefaultConstraintSyntax)
+                {
+                    // Handle 'default'
+                    constraints.Add("default");
+                }
+                else
+                {
+                    // Fallback for any other constraint type
+                    constraints.Add(constraint.ToString());
+                }
+            }
+
+            if (constraints.Count > 0)
+            {
+                constraintStrings.Add($"where {typeParamName} : {string.Join(", ", constraints)}");
+            }
+        }
+
+        var constraintsResult = constraintStrings.Count > 0
+            ? string.Join(" ", constraintStrings)
+            : null;
+
+        return (typeParams, constraintsResult);
     }
 }

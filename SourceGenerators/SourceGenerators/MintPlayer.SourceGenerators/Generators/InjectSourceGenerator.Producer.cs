@@ -43,24 +43,52 @@ internal class InjectProducer : Producer, IDiagnosticReporter
                 var baseConstructorArgs = classInfo.BaseDependencies.Select(dep => dep.Name).Distinct();
 
                 using (writer.OpenPathSpec(classInfo.PathSpec))
-                using (writer.OpenBlock($"partial class {classInfo.ClassName}"))
                 {
-                    writer.WriteLine($"public {classInfo.ClassName}({string.Join(", ", constructorParams)})");
-                    if (baseConstructorArgs.Any())
-                        writer.IndentSingleLine(baseConstructorArgs.Any() ? $": base({string.Join(", ", baseConstructorArgs)})" : string.Empty);
+                    // Build class declaration with generic type parameters
+                    var classDeclaration = $"partial class {classInfo.ClassName}{classInfo.GenericTypeParameters ?? string.Empty}";
 
-                    using (writer.OpenBlock(string.Empty))
+                    // Handle generic constraints if present
+                    if (!string.IsNullOrEmpty(classInfo.GenericConstraints))
                     {
-                        foreach (var assignment in assignments)
-                            writer.WriteLine(assignment);
-
-                        if (!string.IsNullOrEmpty(classInfo.PostConstructMethodName))
-                            writer.WriteLine($"{classInfo.PostConstructMethodName}();");
+                        writer.WriteLine(classDeclaration);
+                        writer.IndentSingleLine(classInfo.GenericConstraints);
+                        using (writer.OpenBlock(string.Empty))
+                        {
+                            WriteConstructorBody(writer, classInfo, constructorParams, assignments, baseConstructorArgs);
+                        }
+                    }
+                    else
+                    {
+                        using (writer.OpenBlock(classDeclaration))
+                        {
+                            WriteConstructorBody(writer, classInfo, constructorParams, assignments, baseConstructorArgs);
+                        }
                     }
                 }
             }
 
             namespaceBlock?.Dispose();
+        }
+    }
+
+    private static void WriteConstructorBody(
+        IndentedTextWriter writer,
+        Models.ClassWithBaseDependenciesAndInjectFields classInfo,
+        List<string> constructorParams,
+        IEnumerable<string> assignments,
+        IEnumerable<string> baseConstructorArgs)
+    {
+        writer.WriteLine($"public {classInfo.ClassName}({string.Join(", ", constructorParams)})");
+        if (baseConstructorArgs.Any())
+            writer.IndentSingleLine($": base({string.Join(", ", baseConstructorArgs)})");
+
+        using (writer.OpenBlock(string.Empty))
+        {
+            foreach (var assignment in assignments)
+                writer.WriteLine(assignment);
+
+            if (!string.IsNullOrEmpty(classInfo.PostConstructMethodName))
+                writer.WriteLine($"{classInfo.PostConstructMethodName}();");
         }
     }
 }
