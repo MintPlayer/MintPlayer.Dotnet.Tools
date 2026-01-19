@@ -76,17 +76,47 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                             ? (EGeneratedAccessibility)accInt2
                                             : EGeneratedAccessibility.Unspecified;
 
-                                        if (namedTypeSymbol.AllInterfaces.All(i => !SymbolEqualityComparer.Default.Equals(i, interfaceTypeSymbol))) return default;
-
-                                        return new ServiceRegistration
+                                        // Check if this is an unbound generic type (e.g., IGenericRepository<,>)
+                                        if (interfaceTypeSymbol.IsUnboundGenericType)
                                         {
-                                            ServiceTypeName = interfaceTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                            ImplementationTypeName = namedTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                            Lifetime = lifetime,
-                                            MethodNameHint = methodNameHint,
-                                            Accessibility = accessibility,
-                                            FactoryNames = factories.Where(f => SymbolEqualityComparer.Default.Equals(f.ReturnType, interfaceTypeSymbol)).Select(f => f.Name).ToArray(),
-                                        };
+                                            // Find the matching constructed generic interface from the class's implemented interfaces
+                                            var matchingInterface = namedTypeSymbol.AllInterfaces
+                                                .FirstOrDefault(i => SymbolEqualityComparer.Default.Equals(i.OriginalDefinition, interfaceTypeSymbol.OriginalDefinition));
+
+                                            if (matchingInterface is null) return default;
+
+                                            // The class must also be generic to use open generic registration
+                                            if (!namedTypeSymbol.IsGenericType) return default;
+
+                                            var genericInfo = BuildGenericTypeInfo(namedTypeSymbol, matchingInterface);
+
+                                            return new ServiceRegistration
+                                            {
+                                                ServiceTypeName = null, // Not used for generic registrations
+                                                ImplementationTypeName = null, // Not used for generic registrations
+                                                Lifetime = lifetime,
+                                                MethodNameHint = methodNameHint,
+                                                Accessibility = accessibility,
+                                                FactoryNames = [], // Factories not supported for open generics (yet)
+                                                IsGeneric = true,
+                                                GenericInfo = genericInfo,
+                                            };
+                                        }
+                                        else
+                                        {
+                                            // Non-generic interface type - existing behavior
+                                            if (namedTypeSymbol.AllInterfaces.All(i => !SymbolEqualityComparer.Default.Equals(i, interfaceTypeSymbol))) return default;
+
+                                            return new ServiceRegistration
+                                            {
+                                                ServiceTypeName = interfaceTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                                                ImplementationTypeName = namedTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                                                Lifetime = lifetime,
+                                                MethodNameHint = methodNameHint,
+                                                Accessibility = accessibility,
+                                                FactoryNames = factories.Where(f => SymbolEqualityComparer.Default.Equals(f.ReturnType, interfaceTypeSymbol)).Select(f => f.Name).ToArray(),
+                                            };
+                                        }
                                     }
                                 }
                                 return default;
@@ -110,5 +140,96 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
             .Select(static Producer (providers, ct) => new RegistrationsProducer(providers.Item1.AsEnumerable(), providers.Item2, providers.Item3.RootNamespace!));
 
         context.ProduceCode(registerAttributeSourceProvider);
+    }
+
+    /// <summary>
+    /// Builds the GenericTypeInfo for a generic service registration.
+    /// </summary>
+    private static GenericTypeInfo BuildGenericTypeInfo(INamedTypeSymbol implementationType, INamedTypeSymbol serviceInterface)
+    {
+        var typeParameters = implementationType.TypeParameters;
+        var typeParameterNames = typeParameters.Select(tp => tp.Name).ToArray();
+
+        // Build constraint clauses
+        var constraintClauses = typeParameters
+            .Select(BuildConstraintClause)
+            .Where(c => !string.IsNullOrEmpty(c))
+            .ToArray();
+
+        // Build the type parameter list string (e.g., "<TEntity, TKey>")
+        var typeParamList = $"<{string.Join(", ", typeParameterNames)}>";
+
+        // Build fully qualified type names with type parameters
+        // For service: global::Namespace.IGenericRepository<TEntity, TKey>
+        // For implementation: global::Namespace.GenericRepository<TEntity, TKey>
+        var serviceTypeFqn = serviceInterface.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        // Remove the <,> or <,,> etc. from the unbound generic and replace with actual type params
+        var serviceTypeBase = serviceTypeFqn.Contains('<')
+            ? serviceTypeFqn.Substring(0, serviceTypeFqn.IndexOf('<'))
+            : serviceTypeFqn;
+        var genericServiceTypeName = serviceTypeBase + typeParamList;
+
+        var implTypeFqn = implementationType.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        var implTypeBase = implTypeFqn.Contains('<')
+            ? implTypeFqn.Substring(0, implTypeFqn.IndexOf('<'))
+            : implTypeFqn;
+        var genericImplementationTypeName = implTypeBase + typeParamList;
+
+        // Get simple name for suffix generation
+        var implementationSimpleName = implementationType.Name;
+
+        return new GenericTypeInfo
+        {
+            TypeParameterNames = typeParameterNames,
+            ConstraintClauses = constraintClauses,
+            GenericServiceTypeName = genericServiceTypeName,
+            GenericImplementationTypeName = genericImplementationTypeName,
+            ImplementationSimpleName = implementationSimpleName,
+        };
+    }
+
+    /// <summary>
+    /// Builds a constraint clause string for a type parameter.
+    /// </summary>
+    private static string BuildConstraintClause(ITypeParameterSymbol typeParameter)
+    {
+        var parts = new List<string>();
+
+        // Special constraints must come first (class, struct, unmanaged, notnull)
+        // Note: struct implies notnull, and unmanaged implies struct
+        if (typeParameter.HasUnmanagedTypeConstraint)
+        {
+            parts.Add("unmanaged");
+        }
+        else if (typeParameter.HasValueTypeConstraint)
+        {
+            parts.Add("struct");
+        }
+        else if (typeParameter.HasReferenceTypeConstraint)
+        {
+            parts.Add(typeParameter.ReferenceTypeConstraintNullableAnnotation == NullableAnnotation.Annotated ? "class?" : "class");
+        }
+        else if (typeParameter.HasNotNullConstraint)
+        {
+            parts.Add("notnull");
+        }
+
+        // Type constraints (base class, interfaces)
+        foreach (var constraintType in typeParameter.ConstraintTypes)
+        {
+            var constraintTypeName = constraintType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            parts.Add(constraintTypeName);
+        }
+
+        // new() constraint must come last
+        if (typeParameter.HasConstructorConstraint)
+        {
+            parts.Add("new()");
+        }
+
+        if (parts.Count == 0)
+            return string.Empty;
+
+        return $"where {typeParameter.Name} : {string.Join(", ", parts)}";
     }
 }

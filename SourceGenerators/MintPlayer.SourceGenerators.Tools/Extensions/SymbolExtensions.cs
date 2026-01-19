@@ -109,6 +109,47 @@ public static class SymbolExtensions
 
         return new PathSpecStack(stack);
     }
+
+    /// <summary>
+    /// Checks if the type already has a constructor with the specified parameter types.
+    /// Used to avoid generating duplicate constructors.
+    /// </summary>
+    /// <param name="typeSymbol">The type symbol to check for existing constructors.</param>
+    /// <param name="parameterTypes">The fully qualified parameter types to match against.</param>
+    /// <returns>True if a constructor with matching parameter types exists; otherwise false.</returns>
+    public static bool HasMatchingConstructor(this ISymbol? typeSymbol, params IList<string> parameterTypes)
+    {
+        if (typeSymbol is not INamedTypeSymbol namedType)
+            return false;
+
+        foreach (var constructor in namedType.Constructors)
+        {
+            if (constructor.IsStatic)
+                continue;
+
+            if (constructor.Parameters.Length != parameterTypes.Count)
+                continue;
+
+            // Check if all parameter types match (in order)
+            var matches = true;
+            for (int i = 0; i < constructor.Parameters.Length; i++)
+            {
+                var existingType = constructor.Parameters[i].Type.ToDisplayString(
+                    SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters));
+
+                if (existingType != parameterTypes[i])
+                {
+                    matches = false;
+                    break;
+                }
+            }
+
+            if (matches)
+                return true;
+        }
+
+        return false;
+    }
 }
 
 public interface IDisposablePathSpecStack : IDisposable { }
