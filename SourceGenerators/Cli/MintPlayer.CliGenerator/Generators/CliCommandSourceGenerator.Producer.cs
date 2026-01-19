@@ -132,13 +132,13 @@ internal sealed class CliCommandProducer : Producer
             var command = node.Command;
             if (isRoot)
             {
-                var descriptionLiteral = ToNullableStringLiteral(command.Description);
+                var descriptionLiteral = command.Description.ToStringLiteral();
                 writer.WriteLine($"var command = new global::System.CommandLine.RootCommand({descriptionLiteral});");
             }
             else
             {
-                var nameLiteral = ToStringLiteral(command.CommandName ?? command.TypeName.ToLowerInvariant());
-                var descriptionLiteral = ToNullableStringLiteral(command.Description);
+                var nameLiteral = (command.CommandName ?? command.TypeName.ToLowerInvariant()).ToStringLiteral();
+                var descriptionLiteral = command.Description.ToStringLiteral();
                 writer.WriteLine($"var command = new global::System.CommandLine.Command({nameLiteral}, description: {descriptionLiteral});");
             }
 
@@ -195,14 +195,14 @@ internal sealed class CliCommandProducer : Producer
         {
             var option = command.Options[i];
             var variableName = $"option{NormalizeIdentifier(option.PropertyName)}";
-            var optionNameLiteral = ToStringLiteral(GetOptionName(option));
+            var optionNameLiteral = GetOptionName(option).ToStringLiteral();
             var aliasExpression = option.Aliases.Count > 0
-                ? $"new[] {{ {string.Join(", ", option.Aliases.Select(ToStringLiteral))} }}"
+                ? $"new[] {{ {string.Join(", ", option.Aliases.Select(a => a.ToStringLiteral()))} }}"
                 : "global::System.Array.Empty<string>()";
             writer.WriteLine($"var {variableName} = new global::System.CommandLine.Option<{option.PropertyType}>({optionNameLiteral}, {aliasExpression});");
             if (!string.IsNullOrWhiteSpace(option.Description))
             {
-                var descriptionLiteral = ToStringLiteral(option.Description!);
+                var descriptionLiteral = option.Description!.ToStringLiteral();
                 writer.WriteLine($"{variableName}.Description = {descriptionLiteral};");
             }
             if (option.Required)
@@ -240,8 +240,8 @@ internal sealed class CliCommandProducer : Producer
         {
             var argument = command.Arguments[i];
             var variableName = $"argument{NormalizeIdentifier(argument.PropertyName)}";
-            var nameLiteral = ToStringLiteral(argument.ArgumentName);
-            var descriptionLiteral = ToNullableStringLiteral(argument.Description);
+            var nameLiteral = argument.ArgumentName.ToStringLiteral();
+            var descriptionLiteral = argument.Description.ToStringLiteral();
             writer.WriteLine($"var {variableName} = new global::System.CommandLine.Argument<{argument.PropertyType}>(name: {nameLiteral});");
             if (!string.IsNullOrWhiteSpace(argument.Description))
             {
@@ -342,23 +342,6 @@ internal sealed class CliCommandProducer : Producer
         }
 
         return builder.ToString();
-    }
-
-    private static string ToNullableStringLiteral(string? value)
-    {
-        return value is null
-            ? "null"
-            : ToStringLiteral(value);
-    }
-
-    private static string ToStringLiteral(string value)
-    {
-        var escaped = value
-            .Replace("\\", "\\\\")
-            .Replace("\"", "\\\"")
-            .Replace("\r", "\\r")
-            .Replace("\n", "\\n");
-        return $"\"{escaped}\"";
     }
 
     private static string GetOptionName(CliOptionDefinition option)

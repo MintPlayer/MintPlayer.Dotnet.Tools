@@ -32,7 +32,7 @@ public class DescriptionsProducer : Producer
                 if (string.IsNullOrEmpty(cls.MarkupText)) continue;
                 using (writer.OpenPathSpec(cls.PathSpec))
                 {
-                    writer.WriteLine($"""[global::System.ComponentModel.Description("{cls.MarkupText}")]""");
+                    writer.WriteLine($"""[global::System.ComponentModel.Description("{cls.MarkupText.EscapeForStringLiteral()}")]""");
                     writer.WriteLine($$"""partial {{cls.TypeKind}} {{cls.Name}} { }""");
                 }
             }
