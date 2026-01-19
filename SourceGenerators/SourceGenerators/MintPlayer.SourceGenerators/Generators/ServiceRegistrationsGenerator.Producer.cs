@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using MintPlayer.SourceGenerators.Attributes;
 using MintPlayer.SourceGenerators.Extensions;
 using MintPlayer.SourceGenerators.Models;
@@ -39,8 +39,11 @@ public class RegistrationsProducer : Producer
                 {
                     foreach (var methodGroup in serviceRegistrations.Where(sr => sr is not null).GroupBy(sr => sr.MethodNameHint))
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
+
                         var methodName = methodGroup.Key.NullIfEmpty() ?? "Services";
                         methodName = methodName.StartsWith("Add") ? methodName : $"Add{methodName}";
+
                         var accessibility = methodGroup.Select(m => m.Accessibility).Where(a => a is not EGeneratedAccessibility.Unspecified).ToArray() is { Length: > 0 } items
                             ? items.First() : EGeneratedAccessibility.Public;
                         var accessibilityString = accessibility switch
@@ -48,59 +51,21 @@ public class RegistrationsProducer : Producer
                             EGeneratedAccessibility.Internal => "internal",
                             _ => "public",
                         };
-                        using (writer.OpenBlock($"{accessibilityString} static global::Microsoft.Extensions.DependencyInjection.IServiceCollection {methodName}(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)"))
+
+                        // Separate non-generic and generic services
+                        var nonGenericServices = methodGroup.Where(s => !s.IsGeneric).ToList();
+                        var genericServices = methodGroup.Where(s => s.IsGeneric).ToList();
+
+                        // 1. Generate non-generic method if any non-generic services exist
+                        if (nonGenericServices.Count > 0)
                         {
-                            writer.WriteLine("return services");
-                            writer.Indent++;
+                            GenerateNonGenericMethod(writer, methodName, accessibilityString, nonGenericServices, cancellationToken);
+                        }
 
-                            var currentIndex = 0;
-                            var total = methodGroup.Count();
-                            foreach (var svc in methodGroup)
-                            {
-                                cancellationToken.ThrowIfCancellationRequested();
-                                if (svc.ServiceTypeName is null)
-                                {
-                                    if (svc.FactoryNames.Length > 0)
-                                    {
-                                        var currentFactoryIndex = 0;
-                                        foreach (var factoryName in svc.FactoryNames)
-                                        {
-                                            // FIX: When ServiceTypeName is null we register implementation directly
-                                            writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ImplementationTypeName}>({svc.ImplementationTypeName}.{factoryName})");
-                                            if (++currentFactoryIndex != svc.FactoryNames.Length)
-                                                writer.WriteLine();
-                                        }
-                                    }
-                                    else
-                                    {
-                                        writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ImplementationTypeName}>()");
-                                    }
-                                }
-                                else
-                                {
-                                    if (svc.FactoryNames.Length > 0)
-                                    {
-                                        var currentFactoryIndex = 0;
-                                        foreach (var factoryName in svc.FactoryNames)
-                                        {
-                                            writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ServiceTypeName}>({svc.ImplementationTypeName}.{factoryName})");
-                                            if (++currentFactoryIndex != svc.FactoryNames.Length)
-                                                writer.WriteLine();
-                                        }
-                                    }
-                                    else
-                                    {
-                                        writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ServiceTypeName}, {svc.ImplementationTypeName}>()");
-                                    }
-                                }
-
-                                if (++currentIndex == total)
-                                    writer.Write(";");
-
-                                writer.WriteLine();
-                            }
-
-                            writer.Indent--;
+                        // 2. Generate generic methods
+                        if (genericServices.Count > 0)
+                        {
+                            GenerateGenericMethods(writer, methodName, accessibilityString, genericServices, cancellationToken);
                         }
                     }
                 }
@@ -110,5 +75,181 @@ public class RegistrationsProducer : Producer
         {
             writer.WriteLine("// Cannot generate service registration methods because the project does not reference Microsoft.Extensions.DependencyInjection.Abstractions");
         }
+    }
+
+    /// <summary>
+    /// Generates a non-generic extension method for the given services.
+    /// </summary>
+    private void GenerateNonGenericMethod(IndentedTextWriter writer, string methodName, string accessibilityString, List<ServiceRegistration> services, CancellationToken cancellationToken)
+    {
+        using (writer.OpenBlock($"{accessibilityString} static global::Microsoft.Extensions.DependencyInjection.IServiceCollection {methodName}(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)"))
+        {
+            writer.WriteLine("return services");
+            writer.Indent++;
+
+            var currentIndex = 0;
+            var total = services.Count;
+            foreach (var svc in services)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (svc.ServiceTypeName is null)
+                {
+                    if (svc.FactoryNames.Length > 0)
+                    {
+                        var currentFactoryIndex = 0;
+                        foreach (var factoryName in svc.FactoryNames)
+                        {
+                            writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ImplementationTypeName}>({svc.ImplementationTypeName}.{factoryName})");
+                            if (++currentFactoryIndex != svc.FactoryNames.Length)
+                                writer.WriteLine();
+                        }
+                    }
+                    else
+                    {
+                        writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ImplementationTypeName}>()");
+                    }
+                }
+                else
+                {
+                    if (svc.FactoryNames.Length > 0)
+                    {
+                        var currentFactoryIndex = 0;
+                        foreach (var factoryName in svc.FactoryNames)
+                        {
+                            writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ServiceTypeName}>({svc.ImplementationTypeName}.{factoryName})");
+                            if (++currentFactoryIndex != svc.FactoryNames.Length)
+                                writer.WriteLine();
+                        }
+                    }
+                    else
+                    {
+                        writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ServiceTypeName}, {svc.ImplementationTypeName}>()");
+                    }
+                }
+
+                if (++currentIndex == total)
+                    writer.Write(";");
+
+                writer.WriteLine();
+            }
+
+            writer.Indent--;
+        }
+    }
+
+    /// <summary>
+    /// Generates generic extension methods for the given services.
+    /// Groups by arity (type parameter count), then by constraint signature.
+    /// </summary>
+    private void GenerateGenericMethods(IndentedTextWriter writer, string methodName, string accessibilityString, List<ServiceRegistration> genericServices, CancellationToken cancellationToken)
+    {
+        // Group by type parameter count (arity)
+        var byArity = genericServices
+            .GroupBy(s => s.GenericInfo!.TypeParameterNames.Length)
+            .OrderBy(g => g.Key);
+
+        foreach (var arityGroup in byArity)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // Within same arity, group by constraint signature
+            var byConstraints = arityGroup
+                .GroupBy(s => GetConstraintSignature(s.GenericInfo!))
+                .ToList();
+
+            if (byConstraints.Count == 1)
+            {
+                // All services at this arity have compatible constraints - generate single method
+                var services = byConstraints[0].ToList();
+                GenerateSingleGenericMethod(writer, methodName, accessibilityString, services, cancellationToken);
+            }
+            else
+            {
+                // Multiple incompatible constraint groups at same arity
+                // First group gets the clean name, rest get suffixes
+                bool isFirst = true;
+                foreach (var constraintGroup in byConstraints)
+                {
+                    var services = constraintGroup.ToList();
+                    if (isFirst)
+                    {
+                        GenerateSingleGenericMethod(writer, methodName, accessibilityString, services, cancellationToken);
+                        isFirst = false;
+                    }
+                    else
+                    {
+                        // Use first implementation type name as suffix
+                        var suffix = services[0].GenericInfo!.ImplementationSimpleName;
+                        GenerateSingleGenericMethod(writer, $"{methodName}_{suffix}", accessibilityString, services, cancellationToken);
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Generates a single generic extension method for services with compatible type parameters.
+    /// </summary>
+    private void GenerateSingleGenericMethod(IndentedTextWriter writer, string methodName, string accessibilityString, List<ServiceRegistration> services, CancellationToken cancellationToken)
+    {
+        // Use the first service's generic info for the method signature
+        var genericInfo = services[0].GenericInfo!;
+        var typeParamList = $"<{string.Join(", ", genericInfo.TypeParameterNames)}>";
+
+        // Build method signature
+        var methodSignature = $"{accessibilityString} static global::Microsoft.Extensions.DependencyInjection.IServiceCollection {methodName}{typeParamList}(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)";
+
+        // Add constraint clauses
+        if (genericInfo.ConstraintClauses.Length > 0)
+        {
+            writer.WriteLine(methodSignature);
+            writer.Indent++;
+            foreach (var constraint in genericInfo.ConstraintClauses)
+            {
+                writer.WriteLine(constraint);
+            }
+            writer.Indent--;
+            writer.WriteLine("{");
+        }
+        else
+        {
+            writer.WriteLine(methodSignature);
+            writer.WriteLine("{");
+        }
+
+        writer.Indent++;
+        writer.WriteLine("return services");
+        writer.Indent++;
+
+        var currentIndex = 0;
+        var total = services.Count;
+        foreach (var svc in services)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var info = svc.GenericInfo!;
+            writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{info.GenericServiceTypeName}, {info.GenericImplementationTypeName}>()");
+
+            if (++currentIndex == total)
+                writer.Write(";");
+
+            writer.WriteLine();
+        }
+
+        writer.Indent--;
+        writer.Indent--;
+        writer.WriteLine("}");
+    }
+
+    /// <summary>
+    /// Gets a constraint signature string for grouping services with compatible constraints.
+    /// Services with the same constraint signature can be combined into a single method.
+    /// </summary>
+    private static string GetConstraintSignature(GenericTypeInfo info)
+    {
+        // Combine arity and constraints into a signature
+        // Format: "2|where T1 : class|where T2 : IEquatable<T1>"
+        var arity = info.TypeParameterNames.Length;
+        var constraints = string.Join("|", info.ConstraintClauses.OrderBy(c => c));
+        return $"{arity}|{constraints}";
     }
 }
