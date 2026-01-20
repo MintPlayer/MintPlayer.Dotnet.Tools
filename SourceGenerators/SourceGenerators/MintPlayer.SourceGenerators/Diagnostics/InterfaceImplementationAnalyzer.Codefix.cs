@@ -90,6 +90,11 @@ public class InterfaceCodeFixProvider : CodeFixProvider
                 SyntaxFactory.ParseTypeName(methodSymbol.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)),
                 methodSymbol.Name)
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .WithParameterList(SyntaxFactory.ParameterList(
+                    SyntaxFactory.SeparatedList(
+                        methodSymbol.Parameters.Select(p => SyntaxFactory.Parameter(
+                            SyntaxFactory.Identifier(p.Name))
+                            .WithType(SyntaxFactory.ParseTypeName(p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))))))
                 .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)),
 
             IPropertySymbol propertySymbol => SyntaxFactory.PropertyDeclaration(
