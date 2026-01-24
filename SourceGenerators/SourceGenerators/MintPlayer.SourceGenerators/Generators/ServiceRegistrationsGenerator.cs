@@ -140,7 +140,7 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
             {
                 var assemblyName = compilation.Assembly.Name;
                 var configAttr = compilation.Assembly.GetAttributes()
-                    .FirstOrDefault(a => a.AttributeClass?.Name == "ServiceRegistrationConfigurationAttribute");
+                    .FirstOrDefault(a => a.AttributeClass?.Name == nameof(ServiceRegistrationConfigurationAttribute));
 
                 string? defaultMethodName = null;
                 var defaultAccessibility = EGeneratedAccessibility.Unspecified;
@@ -149,9 +149,9 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                 {
                     foreach (var namedArg in configAttr.NamedArguments)
                     {
-                        if (namedArg.Key == "DefaultMethodName")
+                        if (namedArg.Key == nameof(ServiceRegistrationConfigurationAttribute.DefaultMethodName))
                             defaultMethodName = namedArg.Value.Value as string;
-                        else if (namedArg.Key == "DefaultAccessibility")
+                        else if (namedArg.Key == nameof(ServiceRegistrationConfigurationAttribute.DefaultAccessibility))
                             defaultAccessibility = (EGeneratedAccessibility)(int)namedArg.Value.Value!;
                     }
                 }

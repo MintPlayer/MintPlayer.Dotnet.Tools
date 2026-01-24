@@ -10,6 +10,9 @@ namespace MintPlayer.SourceGenerators.Generators;
 
 public class RegistrationsProducer : Producer
 {
+    private const string MethodPrefix = "Add";
+    private const string DefaultMethodNameFallback = "Services";
+
     private readonly IEnumerable<ServiceRegistration> serviceRegistrations;
     private readonly bool knowsDependencyInjectionAbstractions;
     private readonly AssemblyRegistrationConfig assemblyConfig;
@@ -50,7 +53,7 @@ public class RegistrationsProducer : Producer
                             ?? SanitizeAssemblyName(assemblyConfig.AssemblyName);
 
                         // Enforce "Add" prefix
-                        methodName = methodName.StartsWith("Add") ? methodName : $"Add{methodName}";
+                        methodName = methodName.StartsWith(MethodPrefix) ? methodName : $"{MethodPrefix}{methodName}";
 
                         // Resolve accessibility with precedence: explicit registration > assembly config > default (Public)
                         var accessibility = methodGroup.Select(m => m.Accessibility).Where(a => a is not EGeneratedAccessibility.Unspecified).ToArray() is { Length: > 0 } items
@@ -272,7 +275,7 @@ public class RegistrationsProducer : Producer
     private static string SanitizeAssemblyName(string assemblyName)
     {
         if (string.IsNullOrEmpty(assemblyName))
-            return "Services";
+            return DefaultMethodNameFallback;
 
         // Split by dots, capitalize each part, join
         var parts = assemblyName.Split('.')
@@ -293,6 +296,6 @@ public class RegistrationsProducer : Producer
         if (sanitized.Length > 0 && char.IsDigit(sanitized[0]))
             sanitized.Insert(0, '_');
 
-        return sanitized.Length > 0 ? sanitized.ToString() : "Services";
+        return sanitized.Length > 0 ? sanitized.ToString() : DefaultMethodNameFallback;
     }
 }
