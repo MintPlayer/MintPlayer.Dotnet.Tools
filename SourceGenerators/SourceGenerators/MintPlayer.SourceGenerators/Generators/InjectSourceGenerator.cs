@@ -31,7 +31,7 @@ public class InjectSourceGenerator : IncrementalGenerator
                             .Any(m => m.AttributeLists.SelectMany(a => a.Attributes).Any()) ||
                         // Partial classes that extend another class (may need base dependency forwarding)
                         (classDeclaration.Modifiers.Any(m => m.IsKind(SyntaxKind.PartialKeyword)) &&
-                         classDeclaration.BaseList != null)
+                         classDeclaration.BaseList is { })
                     ),
                 static (context2, ct) =>
                 {
@@ -51,7 +51,7 @@ public class InjectSourceGenerator : IncrementalGenerator
                         {
                             var pathSpec = currentTypeSymbol.GetPathSpec(ct);
 
-                            while (currentTypeSymbol?.BaseType != null && currentTypeSymbol.BaseType.SpecialType != SpecialType.System_Object)
+                            while (currentTypeSymbol?.BaseType is { SpecialType: not SpecialType.System_Object })
                             {
                                 var baseTypeSyntax = currentTypeSymbol.BaseType.DeclaringSyntaxReferences
                                     .FirstOrDefault()?.GetSyntax();
@@ -194,9 +194,9 @@ public class InjectSourceGenerator : IncrementalGenerator
             .OrderByDescending(c => c.Parameters.Length)
             .FirstOrDefault();
 
-        if (constructor != null)
+        if (constructor is { Parameters: { } parameters })
         {
-            foreach (var param in constructor.Parameters)
+            foreach (var param in parameters)
             {
                 var fqn = param.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters));
                 result.Add(new Models.InjectField { Type = fqn, Name = param.Name });
@@ -294,7 +294,7 @@ public class InjectSourceGenerator : IncrementalGenerator
         ClassDeclarationSyntax classDeclaration,
         SemanticModel semanticModel)
     {
-        if (classDeclaration.TypeParameterList == null || classDeclaration.TypeParameterList.Parameters.Count == 0)
+        if (classDeclaration.TypeParameterList is not { Parameters.Count: > 0 })
             return (null, null);
 
         // Get type parameters string like "<T, TKey>"
@@ -315,8 +315,7 @@ public class InjectSourceGenerator : IncrementalGenerator
                 if (constraint is TypeConstraintSyntax typeConstraint)
                 {
                     // Get fully qualified type name for the constraint
-                    var typeSymbol = semanticModel.GetSymbolInfo(typeConstraint.Type).Symbol as ITypeSymbol;
-                    if (typeSymbol != null)
+                    if (semanticModel.GetSymbolInfo(typeConstraint.Type).Symbol is ITypeSymbol typeSymbol)
                     {
                         var fqn = typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters));
                         constraints.Add(fqn);

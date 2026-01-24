@@ -11,7 +11,7 @@ namespace MintPlayer.SourceGenerators.Tools.Polyfills
 
         public void Add<T>(T value, IEqualityComparer<T>? comparer) =>
             _hash = Combine(_hash,
-                comparer != null ? comparer.GetHashCode(value!) :
+                comparer is not null ? comparer.GetHashCode(value!) :
                 value?.GetHashCode() ?? 0);
 
         public static int Combine(int h1, int h2)

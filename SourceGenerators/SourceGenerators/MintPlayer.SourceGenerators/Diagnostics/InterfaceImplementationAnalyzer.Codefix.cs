@@ -25,7 +25,7 @@ public class InterfaceCodeFixProvider : CodeFixProvider
 
         // Locate the class declaration
         var classDecl = classSyntaxRoot?.FindToken(diagnosticSpan.Start).Parent?.AncestorsAndSelf().OfType<ClassDeclarationSyntax>().First();
-        if (classDecl == null)
+        if (classDecl is null)
             return;
 
         context.RegisterCodeFix(
@@ -47,17 +47,17 @@ public class InterfaceCodeFixProvider : CodeFixProvider
 
         var classSymbol = classSemanticModel.GetDeclaredSymbol(classDeclaration, cancellationToken);
         var interfaceSymbol = classSymbol?.Interfaces.FirstOrDefault();
-        if (interfaceSymbol == null) return solution;
+        if (interfaceSymbol is null) return solution;
 
         var interfaceFirstLocation = interfaceSymbol.Locations[0];
         var interfaceDocument = solution.Projects
             .SelectMany(p => p.Documents)
             .FirstOrDefault(d => d.FilePath == interfaceFirstLocation.SourceTree?.FilePath);
-        if (interfaceDocument == null) return solution;
+        if (interfaceDocument is null) return solution;
 
         var interfaceSyntaxRoot = await interfaceDocument.GetSyntaxRootAsync(cancellationToken);
         var interfaceSemanticModel = await interfaceDocument.GetSemanticModelAsync(cancellationToken);
-        if (interfaceSyntaxRoot == null || interfaceSemanticModel == null) return solution;
+        if (interfaceSyntaxRoot is null || interfaceSemanticModel is null) return solution;
 
         // Determine missing members
         var classMembers = classSymbol?.GetMembers().Where(m => (m.DeclaredAccessibility == Accessibility.Public) && !m.IsStatic && !m.IsImplicitlyDeclared);
@@ -72,7 +72,7 @@ public class InterfaceCodeFixProvider : CodeFixProvider
         var interfaceNode = interfaceSyntaxRoot.DescendantNodes()
             .OfType<InterfaceDeclarationSyntax>()
             .FirstOrDefault(i => SymbolEqualityComparer.Default.Equals(interfaceSemanticModel.GetDeclaredSymbol(i, cancellationToken), interfaceSymbol));
-        if (interfaceNode == null) return solution;
+        if (interfaceNode is null) return solution;
 
         // Add missing members to the interface
         var updatedInterfaceNode = interfaceNode.AddMembers(missingMembers.ToArray());
