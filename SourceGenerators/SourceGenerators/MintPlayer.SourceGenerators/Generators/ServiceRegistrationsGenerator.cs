@@ -134,10 +134,46 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
         var knowsDependencyInjectionAbstractionsProvider = context.CompilationProvider
             .Select((compilation, ct) => compilation.GetTypeByMetadataName("Microsoft.Extensions.DependencyInjection.IServiceCollection") is not null);
 
+        // Extract assembly configuration (assembly name and ServiceRegistrationConfigurationAttribute)
+        var assemblyConfigProvider = context.CompilationProvider
+            .Select((compilation, ct) =>
+            {
+                var assemblyName = compilation.Assembly.Name;
+                var configAttr = compilation.Assembly.GetAttributes()
+                    .FirstOrDefault(a => a.AttributeClass?.Name == "ServiceRegistrationConfigurationAttribute");
+
+                string? defaultMethodName = null;
+                var defaultAccessibility = EGeneratedAccessibility.Unspecified;
+
+                if (configAttr != null)
+                {
+                    foreach (var namedArg in configAttr.NamedArguments)
+                    {
+                        if (namedArg.Key == "DefaultMethodName")
+                            defaultMethodName = namedArg.Value.Value as string;
+                        else if (namedArg.Key == "DefaultAccessibility")
+                            defaultAccessibility = (EGeneratedAccessibility)(int)namedArg.Value.Value!;
+                    }
+                }
+
+                return new AssemblyRegistrationConfig
+                {
+                    AssemblyName = assemblyName,
+                    DefaultMethodName = defaultMethodName,
+                    DefaultAccessibility = defaultAccessibility
+                };
+            });
+
         var registerAttributeSourceProvider = classesWithRegisterAttributeProvider
             .Join(knowsDependencyInjectionAbstractionsProvider)
             .Join(settingsProvider)
-            .Select(static Producer (providers, ct) => new RegistrationsProducer(providers.Item1.AsEnumerable(), providers.Item2, providers.Item3.RootNamespace!));
+            .Join(assemblyConfigProvider)
+            .Select(static Producer (providers, ct) => new RegistrationsProducer(
+                providers.Item1.AsEnumerable(),
+                providers.Item2,
+                providers.Item3.RootNamespace!,
+                providers.Item4
+            ));
 
         context.ProduceCode(registerAttributeSourceProvider);
     }

@@ -4,6 +4,7 @@ using MintPlayer.SourceGenerators.Extensions;
 using MintPlayer.SourceGenerators.Models;
 using MintPlayer.SourceGenerators.Tools;
 using System.CodeDom.Compiler;
+using System.Text;
 
 namespace MintPlayer.SourceGenerators.Generators;
 
@@ -11,6 +12,7 @@ public class RegistrationsProducer : Producer
 {
     private readonly IEnumerable<ServiceRegistration> serviceRegistrations;
     private readonly bool knowsDependencyInjectionAbstractions;
+    private readonly AssemblyRegistrationConfig assemblyConfig;
     private readonly Dictionary<ServiceLifetime, string> lifetimeNames = new()
     {
         { ServiceLifetime.Singleton, nameof(ServiceLifetime.Singleton) },
@@ -18,10 +20,11 @@ public class RegistrationsProducer : Producer
         { ServiceLifetime.Transient, nameof(ServiceLifetime.Transient) },
     };
 
-    public RegistrationsProducer(IEnumerable<ServiceRegistration> serviceRegistrations, bool knowsDependencyInjectionAbstractions, string rootNamespace) : base(rootNamespace, "ServiceMethods.g.cs")
+    public RegistrationsProducer(IEnumerable<ServiceRegistration> serviceRegistrations, bool knowsDependencyInjectionAbstractions, string rootNamespace, AssemblyRegistrationConfig assemblyConfig) : base(rootNamespace, "ServiceMethods.g.cs")
     {
         this.serviceRegistrations = serviceRegistrations;
         this.knowsDependencyInjectionAbstractions = knowsDependencyInjectionAbstractions;
+        this.assemblyConfig = assemblyConfig;
     }
 
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
@@ -41,11 +44,20 @@ public class RegistrationsProducer : Producer
                     {
                         cancellationToken.ThrowIfCancellationRequested();
 
-                        var methodName = methodGroup.Key.NullIfEmpty() ?? "Services";
+                        // Resolve method name with precedence: explicit hint > assembly config > assembly name
+                        var methodName = methodGroup.Key.NullIfEmpty()
+                            ?? assemblyConfig.DefaultMethodName.NullIfEmpty()
+                            ?? SanitizeAssemblyName(assemblyConfig.AssemblyName);
+
+                        // Enforce "Add" prefix
                         methodName = methodName.StartsWith("Add") ? methodName : $"Add{methodName}";
 
+                        // Resolve accessibility with precedence: explicit registration > assembly config > default (Public)
                         var accessibility = methodGroup.Select(m => m.Accessibility).Where(a => a is not EGeneratedAccessibility.Unspecified).ToArray() is { Length: > 0 } items
-                            ? items.First() : EGeneratedAccessibility.Public;
+                            ? items.First()
+                            : assemblyConfig.DefaultAccessibility is not EGeneratedAccessibility.Unspecified
+                                ? assemblyConfig.DefaultAccessibility
+                                : EGeneratedAccessibility.Public;
                         var accessibilityString = accessibility switch
                         {
                             EGeneratedAccessibility.Internal => "internal",
@@ -251,5 +263,36 @@ public class RegistrationsProducer : Producer
         var arity = info.TypeParameterNames.Length;
         var constraints = string.Join("|", info.ConstraintClauses.OrderBy(c => c));
         return $"{arity}|{constraints}";
+    }
+
+    /// <summary>
+    /// Sanitizes an assembly name for use as a method name suffix.
+    /// Splits by dots, capitalizes each part, joins them, and removes invalid characters.
+    /// </summary>
+    private static string SanitizeAssemblyName(string assemblyName)
+    {
+        if (string.IsNullOrEmpty(assemblyName))
+            return "Services";
+
+        // Split by dots, capitalize each part, join
+        var parts = assemblyName.Split('.')
+            .Where(p => !string.IsNullOrEmpty(p))
+            .Select(p => char.ToUpperInvariant(p[0]) + p.Substring(1));
+
+        var result = string.Join("", parts);
+
+        // Remove invalid identifier characters
+        var sanitized = new StringBuilder();
+        foreach (var c in result)
+        {
+            if (char.IsLetterOrDigit(c) || c == '_')
+                sanitized.Append(c);
+        }
+
+        // Ensure doesn't start with digit
+        if (sanitized.Length > 0 && char.IsDigit(sanitized[0]))
+            sanitized.Insert(0, '_');
+
+        return sanitized.Length > 0 ? sanitized.ToString() : "Services";
     }
 }
