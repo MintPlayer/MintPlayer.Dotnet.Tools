@@ -257,7 +257,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         {
             if (source.PropertyType != destination.PropertyType)
                 writer.WriteLine($"{prefix}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}){suffix}");
-            else if (source.StateName != null && destination.StateName != null)
+            else if (source.StateName is not null && destination.StateName is not null)
                 writer.WriteLine($"""{prefix}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}, {source.StateName}, {destination.StateName}){suffix}""");
             else
                 writer.WriteLine($"{prefix}input.{destination.PropertyName}{suffix}");

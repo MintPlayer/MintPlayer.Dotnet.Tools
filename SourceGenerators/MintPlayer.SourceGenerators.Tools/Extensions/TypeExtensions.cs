@@ -6,7 +6,7 @@ internal static class TypeExtensions
     {
         var objectType = typeof(object);
         //while (!type.OneOf([objectType, null]))
-        while (type != objectType && type != null)
+        while (type is not null && type != objectType)
         {
             var cur = type!.IsGenericType ? type.GetGenericTypeDefinition() : type;
 

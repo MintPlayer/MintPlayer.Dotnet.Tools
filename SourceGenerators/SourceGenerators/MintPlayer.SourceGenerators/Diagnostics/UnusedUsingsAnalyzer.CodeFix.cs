@@ -20,7 +20,7 @@ public class UnusedUsingsCodeFixProvider : CodeFixProvider
     {
         var diagnostic = context.Diagnostics[0];
         var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
-        if (root == null) return;
+        if (root is null) return;
 
         var node = root.FindNode(diagnostic.Location.SourceSpan);
         if (node is not UsingDirectiveSyntax) return;
@@ -36,7 +36,7 @@ public class UnusedUsingsCodeFixProvider : CodeFixProvider
     private static async Task<Document> RemoveAllUnusedUsings(Document document, ImmutableArray<Diagnostic> diagnostics, CancellationToken cancellationToken)
     {
         var root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
-        if (root == null) return document;
+        if (root is null) return document;
 
         // Find all unused using nodes
         var usingDirectives = diagnostics

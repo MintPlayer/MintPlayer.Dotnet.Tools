@@ -117,26 +117,43 @@ public partial class TestService
 - Works with inheritance (each class can have its own)
 
 ## Service registration
-Similarily, for the first snippet, the `[Register]` attribute generates the following code for you:
+Similarly, for the first snippet, the `[Register]` attribute generates the following code for you:
 
 ```csharp
-
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Demo
 {
     public static class DependencyInjectionExtensionMethods
     {
-        public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection AddServices(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)
+        public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection AddDemo(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)
         {
             return services
-                .AddScoped<global::MintPlayer.Spark.ITestServiceBaseBase, global::MintPlayer.Spark.TestServiceBaseBase>()
-                .AddScoped<global::MintPlayer.Spark.ITestServiceBase, global::MintPlayer.Spark.TestServiceBase>()
-                .AddScoped<global::MintPlayer.Spark.ITestService, global::MintPlayer.Spark.TestService>();
+                .AddScoped<global::Demo.ITestServiceBaseBase, global::Demo.TestServiceBaseBase>()
+                .AddScoped<global::Demo.ITestServiceBase, global::Demo.TestServiceBase>()
+                .AddScoped<global::Demo.ITestService, global::Demo.TestService>();
         }
     }
 }
 ```
 
-Now you can call this generated `.AddServices()` method on any service collection in your application.
-You can change the name of this method by adding the desired name as parameter to the `[Register]` attribute.
+### Method Name Resolution
+
+The generated method name is determined by (in order of precedence):
+
+1. **Explicit hint** on `[Register]` attribute: `[Register(typeof(IService), ServiceLifetime.Scoped, "MyServices")]` → `AddMyServices()`
+2. **Assembly-level configuration**: `[assembly: ServiceRegistrationConfiguration(DefaultMethodName = "CoreServices")]` → `AddCoreServices()`
+3. **Assembly name** (default): Assembly `MyCompany.Demo` → `AddMyCompanyDemo()`
+
+### Assembly-Level Configuration
+
+Configure defaults for all service registrations in your assembly:
+
+```csharp
+using MintPlayer.SourceGenerators.Attributes;
+
+[assembly: ServiceRegistrationConfiguration(
+    DefaultMethodName = "MyServices",
+    DefaultAccessibility = EGeneratedAccessibility.Internal
+)]
+```
