@@ -145,9 +145,9 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                 string? defaultMethodName = null;
                 var defaultAccessibility = EGeneratedAccessibility.Unspecified;
 
-                if (configAttr != null)
+                if (configAttr is { NamedArguments: { } namedArguments })
                 {
-                    foreach (var namedArg in configAttr.NamedArguments)
+                    foreach (var namedArg in namedArguments)
                     {
                         if (namedArg.Key == nameof(ServiceRegistrationConfigurationAttribute.DefaultMethodName))
                             defaultMethodName = namedArg.Value.Value as string;
