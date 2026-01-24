@@ -15,7 +15,7 @@ public interface ICustomerService { }
 Place this class in your implementation library:
 
 ```csharp
-[Register(typeof(ICustomerService), "DemoServices")]
+[Register(typeof(ICustomerService), ServiceLifetime.Scoped)]
 internal class CustomerService : ICustomerService { }
 ```
 
@@ -23,7 +23,50 @@ Now you get an extension method generated for you, which will register all servi
 
 ```csharp
 var services = new ServiceCollection()
-    .AddDemoServices()
+    .AddMyCompanyServices()  // Method name derived from assembly name
+    .BuildServiceProvider();
+```
+
+### Method Name Resolution
+
+The generated method name follows this precedence:
+
+1. **Explicit hint** on `[Register]` attribute (e.g., `"CoreServices"`) → `AddCoreServices()`
+2. **Assembly-level configuration** via `[assembly: ServiceRegistrationConfiguration]`
+3. **Assembly name** (default) - sanitized and prefixed with "Add" (e.g., `MyCompany.Services` → `AddMyCompanyServices()`)
+
+### Assembly-Level Configuration
+
+You can configure the default method name and accessibility at the assembly level:
+
+```csharp
+using MintPlayer.SourceGenerators.Attributes;
+
+[assembly: ServiceRegistrationConfiguration(
+    DefaultMethodName = "MyServices",
+    DefaultAccessibility = EGeneratedAccessibility.Internal
+)]
+```
+
+This will generate `AddMyServices()` as an `internal` method for all services without an explicit method hint.
+
+### Explicit Method Hints
+
+You can still specify a method hint on individual registrations to group services:
+
+```csharp
+[Register(typeof(ICustomerService), ServiceLifetime.Scoped, "DemoServices")]
+internal class CustomerService : ICustomerService { }
+
+[Register(typeof(IProductService), ServiceLifetime.Scoped, "DemoServices")]
+internal class ProductService : IProductService { }
+```
+
+This generates:
+
+```csharp
+var services = new ServiceCollection()
+    .AddDemoServices()  // Contains CustomerService and ProductService
     .BuildServiceProvider();
 ```
 
@@ -80,11 +123,11 @@ There's also an analyzer that will check if all `public` class members are known
 ```csharp
 public interface ICustomerService { }
 
-[Register(typeof(ICustomerService), "DemoServices")]
+[Register(typeof(ICustomerService), ServiceLifetime.Scoped)]
 internal class CustomerService : ICustomerService {
     public Task<Customer> GetCustomer(int id) => throw new NotImplementedException();
 }
 ```
 
-This also works when the interface resides in an abstractions-library and the class resides in an implementation-library. Which is why this analyzer is so powerfull.
+This also works when the interface resides in an abstractions-library and the class resides in an implementation-library. Which is why this analyzer is so powerful.
 
