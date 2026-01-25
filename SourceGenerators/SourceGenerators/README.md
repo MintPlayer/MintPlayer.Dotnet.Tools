@@ -157,6 +157,92 @@ The `[PostConstruct]` method will be called automatically at the end of the gene
 | INJECT003 | Error | PostConstruct method cannot be static |
 | INJECT004 | Warning | PostConstruct method in class without `[Inject]` members |
 
+## Configuration Binding
+
+Simplify reading configuration values with `[Config]`, `[ConnectionString]`, and `[Options]` attributes:
+
+```csharp
+public partial class DatabaseService
+{
+    // Required config values (throws if missing)
+    [Config("Database:Type")]
+    private readonly DatabaseType databaseType;
+
+    // Optional with default value
+    [Config("Database:MaxRetries", DefaultValue = 3)]
+    private readonly int maxRetries;
+
+    // TimeSpan parsing
+    [Config("Database:Timeout")]
+    private readonly TimeSpan timeout;
+
+    // Connection string
+    [ConnectionString("DefaultConnection")]
+    private readonly string connectionString;
+
+    // Nullable = optional (won't throw if missing)
+    [ConnectionString("OptionalDb")]
+    private readonly string? optionalConnection;
+}
+```
+
+### IOptions Pattern
+
+```csharp
+public partial class EmailService
+{
+    [Options("Email")]
+    private readonly IOptions<EmailSettings> emailOptions;
+
+    [Options("Customer")]
+    private readonly IOptionsSnapshot<CustomerConfig> customerOptions;
+
+    [Options("Features")]
+    private readonly IOptionsMonitor<FeatureFlags> featureFlags;
+}
+```
+
+### IConfiguration Deduplication
+
+When you inject `IConfiguration` explicitly, the generator reuses it:
+
+```csharp
+public partial class ConfigAwareService
+{
+    [Inject] private readonly IConfiguration configuration;
+
+    [Config("App:Name")]
+    private readonly string appName;  // Uses 'configuration' field
+
+    public string GetCustomValue(string key) => configuration[key];
+}
+```
+
+### Supported Types
+
+| Category | Types |
+|----------|-------|
+| **Primitives** | `string`, `bool`, `char`, `byte`, `short`, `int`, `long`, `float`, `double`, `decimal` |
+| **Nullable** | `int?`, `bool?`, `string?`, etc. |
+| **Enums** | Any enum type |
+| **Date/Time** | `DateTime`, `DateTimeOffset`, `TimeSpan`, `DateOnly`, `TimeOnly` |
+| **Other** | `Guid`, `Uri` |
+| **Complex** | POCO classes, arrays, `List<T>` |
+
+### Configuration Diagnostics
+
+| Rule ID | Severity | Description |
+|---------|----------|-------------|
+| CONFIG001 | Error | Class must be partial |
+| CONFIG002 | Error | Empty configuration key |
+| CONFIG003 | Error | Unsupported field type |
+| CONFIG006 | Error | Conflicting [Config] and [ConnectionString] |
+| CONFIG008 | Error | Conflicting [Config] and [Inject] |
+| CONNSTR001 | Error | Empty connection string name |
+| CONNSTR002 | Error | [ConnectionString] requires string type |
+| OPTIONS001 | Error | Invalid options type |
+| OPTIONS003 | Error | Conflicting [Options] and [Inject] |
+
 ## Interface Implementation
 
 There's also an analyzer that will check if all `public` class members are known on the implemented interface. The analyzer provides a code-fix to add the missing members.
