@@ -70,6 +70,47 @@ var services = new ServiceCollection()
     .BuildServiceProvider();
 ```
 
+### Registering Third-Party Types
+
+You can register types from NuGet packages or external libraries at the assembly level:
+
+```csharp
+using MintPlayer.SourceGenerators.Attributes;
+
+// Self-registration (implementation = service type)
+[assembly: Register(typeof(ThirdPartyClass), ServiceLifetime.Singleton)]
+
+// Interface + implementation registration
+[assembly: Register(typeof(IExternalService), typeof(ExternalServiceImpl), ServiceLifetime.Scoped)]
+```
+
+This generates:
+
+```csharp
+public static IServiceCollection AddMyAssembly(this IServiceCollection services)
+{
+    return services
+        .AddSingleton<ThirdPartyClass>()
+        .AddScoped<IExternalService, ExternalServiceImpl>();
+}
+```
+
+### Registration Patterns Summary
+
+| Pattern | Target | Example |
+|---------|--------|---------|
+| Self-registration | Class | `[Register(ServiceLifetime.Scoped)]` |
+| Interface registration | Class | `[Register(typeof(IService), ServiceLifetime.Scoped)]` |
+| Third-party self-registration | Assembly | `[assembly: Register(typeof(Impl), ServiceLifetime.Scoped)]` |
+| Third-party interface registration | Assembly | `[assembly: Register(typeof(IService), typeof(Impl), ServiceLifetime.Scoped)]` |
+
+### Registration Diagnostics
+
+| Rule ID | Severity | Description |
+|---------|----------|-------------|
+| REGISTER001 | Error | Assembly-level `[Register]` requires at least the implementation type |
+| REGISTER002 | Error | Class-level `[Register]` should not specify implementation type |
+
 ## Dependency Injection
 
 Inject a registered service anywhere:
