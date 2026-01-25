@@ -1,3 +1,4 @@
+using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using MintPlayer.SourceGenerators.Attributes;
 using MintPlayer.SourceGenerators.Extensions;
@@ -8,7 +9,7 @@ using System.Text;
 
 namespace MintPlayer.SourceGenerators.Generators;
 
-public class RegistrationsProducer : Producer
+public class RegistrationsProducer : Producer, IDiagnosticReporter
 {
     private const string MethodPrefix = "Add";
     private const string DefaultMethodNameFallback = "Services";
@@ -30,6 +31,18 @@ public class RegistrationsProducer : Producer
         this.assemblyConfig = assemblyConfig;
     }
 
+    public IEnumerable<Diagnostic> GetDiagnostics(Compilation compilation)
+    {
+        return serviceRegistrations.Where(r => r.HasError)
+            .Select(registration => registration.AppliedOn switch
+            {
+                ERegistrationAppliedOn.Class => DiagnosticRules.RegisterAttributeClassRequiresLifetime.Create(registration.Location?.ToLocation(compilation)),
+                ERegistrationAppliedOn.Assembly => DiagnosticRules.RegisterAttributeAssemblyRequiresType.Create(registration.Location?.ToLocation(compilation)),
+                _ => null,
+            })
+            .NotNull();
+    }
+
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
     {
         writer.WriteLine(Header);
@@ -43,7 +56,7 @@ public class RegistrationsProducer : Producer
             {
                 using (writer.OpenBlock("public static class DependencyInjectionExtensionMethods"))
                 {
-                    foreach (var methodGroup in serviceRegistrations.Where(sr => sr is not null).GroupBy(sr => sr.MethodNameHint))
+                    foreach (var methodGroup in serviceRegistrations.Where(sr => sr is not null && !sr.HasError).GroupBy(sr => sr.MethodNameHint))
                     {
                         cancellationToken.ThrowIfCancellationRequested();
 
