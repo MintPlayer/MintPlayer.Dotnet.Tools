@@ -5,9 +5,11 @@
 
 ### New Rules
 
-Rule ID   | Category                      | Severity | Notes
-----------|-------------------------------|----------|-----------------------------------------------
-INJECT001 | MintPlayer.SourceGenerators   | Error    | PostConstruct method must be parameterless
-INJECT002 | MintPlayer.SourceGenerators   | Error    | Only one PostConstruct method allowed per class
-INJECT003 | MintPlayer.SourceGenerators   | Error    | PostConstruct method cannot be static
-INJECT004 | MintPlayer.SourceGenerators   | Warning  | PostConstruct in class without [Inject] members
+Rule ID    | Category                      | Severity | Notes
+-----------|-------------------------------|----------|-----------------------------------------------
+INJECT001  | MintPlayer.SourceGenerators   | Error    | PostConstruct method must be parameterless
+INJECT002  | MintPlayer.SourceGenerators   | Error    | Only one PostConstruct method allowed per class
+INJECT003  | MintPlayer.SourceGenerators   | Error    | PostConstruct method cannot be static
+INJECT004  | MintPlayer.SourceGenerators   | Warning  | PostConstruct in class without [Inject] members
+REGISTER001| MintPlayer.SourceGenerators   | Error    | Assembly-level [Register] requires at least the implementation type
+REGISTER002| MintPlayer.SourceGenerators   | Error    | Class-level [Register] should not specify implementation type

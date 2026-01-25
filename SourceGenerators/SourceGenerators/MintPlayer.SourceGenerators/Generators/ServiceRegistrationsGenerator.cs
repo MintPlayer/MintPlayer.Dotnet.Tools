@@ -39,8 +39,20 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                             {
                                 var formalParamCount = attr.AttributeConstructor?.Parameters.Length ?? 0; // includes optional params
                                 var args = attr.ConstructorArguments; // supplied values only
+                                var location = attr.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation().AsKey();
 
-                                // New constructor forms have 3 (no interface) or 4 (with interface) formal params.
+                                // Error: 5-param constructor (assembly-level) used on a class
+                                if (formalParamCount == 5)
+                                {
+                                    return new ServiceRegistration
+                                    {
+                                        AppliedOn = ERegistrationAppliedOn.Class,
+                                        HasError = true,
+                                        Location = location,
+                                    };
+                                }
+
+                                // Constructor forms: 3 params (no interface), 4 params (with interface)
                                 if (formalParamCount is 3 or 4)
                                 {
                                     var firstFormal = attr.AttributeConstructor!.Parameters[0].Type;
@@ -62,6 +74,8 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                             MethodNameHint = methodNameHint,
                                             Accessibility = accessibility,
                                             FactoryNames = factories.Where(f => SymbolEqualityComparer.Default.Equals(f.ReturnType, namedTypeSymbol)).Select(f => f.Name).ToArray(),
+                                            AppliedOn = ERegistrationAppliedOn.Class,
+                                            Location = location,
                                         };
                                     }
                                     else if (args.ElementAtOrDefault(0).Value is INamedTypeSymbol interfaceTypeSymbol)
@@ -100,6 +114,8 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                                 FactoryNames = [], // Factories not supported for open generics (yet)
                                                 IsGeneric = true,
                                                 GenericInfo = genericInfo,
+                                                AppliedOn = ERegistrationAppliedOn.Class,
+                                                Location = location,
                                             };
                                         }
                                         else
@@ -115,6 +131,8 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                                 MethodNameHint = methodNameHint,
                                                 Accessibility = accessibility,
                                                 FactoryNames = factories.Where(f => SymbolEqualityComparer.Default.Equals(f.ReturnType, interfaceTypeSymbol)).Select(f => f.Name).ToArray(),
+                                                AppliedOn = ERegistrationAppliedOn.Class,
+                                                Location = location,
                                             };
                                         }
                                     }
@@ -130,6 +148,109 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
             )
             .SelectMany((x, ct) => x)
             .Collect();
+
+        // Provider for assembly-level [Register] attributes (for third-party types)
+        var assemblyLevelRegisterAttributeProvider = context.CompilationProvider
+            .Select(static (compilation, ct) =>
+            {
+                var serviceLifetimeSymbol = compilation.GetTypeByMetadataName("Microsoft.Extensions.DependencyInjection.ServiceLifetime");
+                var generatedAccessibilitySymbol = compilation.GetTypeByMetadataName("MintPlayer.SourceGenerators.Attributes.EGeneratedAccessibility");
+
+                if (serviceLifetimeSymbol is null) return Array.Empty<ServiceRegistration>();
+
+                var attrs = compilation.Assembly.GetAttributes()
+                    .Where(a => a.AttributeClass?.Name == nameof(RegisterAttribute))
+                    .ToArray();
+
+                if (attrs.Length == 0) return Array.Empty<ServiceRegistration>();
+
+                return attrs.Select(attr =>
+                {
+                    var formalParamCount = attr.AttributeConstructor?.Parameters.Length ?? 0;
+                    var args = attr.ConstructorArguments;
+                    var location = attr.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation().AsKey();
+
+                    // Error: 3-param constructor (ServiceLifetime first) used on assembly
+                    // Pattern 1 is class-only: [Register(ServiceLifetime.Scoped)]
+                    if (formalParamCount == 3)
+                    {
+                        return new ServiceRegistration
+                        {
+                            AppliedOn = ERegistrationAppliedOn.Assembly,
+                            HasError = true,
+                            Location = location,
+                        };
+                    }
+
+                    // Pattern 3: Assembly-level self-registration
+                    // [assembly: Register(typeof(Implementation), ServiceLifetime.Scoped)]
+                    // 4 formal parameters: (Type implementationType, ServiceLifetime lifetime, string? methodNameHint, EGeneratedAccessibility accessibility)
+                    if (formalParamCount == 4)
+                    {
+                        if (args.Length < 2) return default;
+
+                        if (args[0].Value is not INamedTypeSymbol implementationTypeSymbol) return default;
+
+                        var lifetimeArg = args[1];
+                        if (!SymbolEqualityComparer.Default.Equals(lifetimeArg.Type, serviceLifetimeSymbol)) return default;
+
+                        var lifetime = (ServiceLifetime)lifetimeArg.Value!;
+                        var methodNameHint = args.Length >= 3 && args[2].Value is string hint ? hint : null;
+                        var accessibility = args.Length >= 4 && generatedAccessibilitySymbol is not null && SymbolEqualityComparer.Default.Equals(args[3].Type, generatedAccessibilitySymbol) && args[3].Value is int accInt
+                            ? (EGeneratedAccessibility)accInt
+                            : EGeneratedAccessibility.Unspecified;
+
+                        // Self-registration: service type = implementation type
+                        return new ServiceRegistration
+                        {
+                            ServiceTypeName = null, // null means self-registration
+                            ImplementationTypeName = implementationTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                            Lifetime = lifetime,
+                            MethodNameHint = methodNameHint,
+                            Accessibility = accessibility,
+                            FactoryNames = [], // No factories for assembly-level registrations
+                            AppliedOn = ERegistrationAppliedOn.Assembly,
+                            Location = location,
+                        };
+                    }
+
+                    // Pattern 4: Assembly-level interface + implementation registration
+                    // [assembly: Register(typeof(IService), typeof(Implementation), ServiceLifetime.Scoped)]
+                    // 5 formal parameters: (Type serviceType, Type implementationType, ServiceLifetime lifetime, string? methodNameHint, EGeneratedAccessibility accessibility)
+                    if (formalParamCount == 5)
+                    {
+                        if (args.Length < 3) return default;
+
+                        if (args[0].Value is not INamedTypeSymbol serviceTypeSymbol) return default;
+                        if (args[1].Value is not INamedTypeSymbol implementationTypeSymbol) return default;
+
+                        var lifetimeArg = args[2];
+                        if (!SymbolEqualityComparer.Default.Equals(lifetimeArg.Type, serviceLifetimeSymbol)) return default;
+
+                        var lifetime = (ServiceLifetime)lifetimeArg.Value!;
+                        var methodNameHint = args.Length >= 4 && args[3].Value is string hint ? hint : null;
+                        var accessibility = args.Length >= 5 && generatedAccessibilitySymbol is not null && SymbolEqualityComparer.Default.Equals(args[4].Type, generatedAccessibilitySymbol) && args[4].Value is int accInt
+                            ? (EGeneratedAccessibility)accInt
+                            : EGeneratedAccessibility.Unspecified;
+
+                        return new ServiceRegistration
+                        {
+                            ServiceTypeName = serviceTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                            ImplementationTypeName = implementationTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                            Lifetime = lifetime,
+                            MethodNameHint = methodNameHint,
+                            Accessibility = accessibility,
+                            FactoryNames = [], // No factories for assembly-level registrations
+                            AppliedOn = ERegistrationAppliedOn.Assembly,
+                            Location = location,
+                        };
+                    }
+
+                    return default;
+                })
+                .Where(r => r is not null)
+                .ToArray()!;
+            });
 
         var knowsDependencyInjectionAbstractionsProvider = context.CompilationProvider
             .Select((compilation, ct) => compilation.GetTypeByMetadataName("Microsoft.Extensions.DependencyInjection.IServiceCollection") is not null);
@@ -164,7 +285,12 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                 };
             });
 
-        var registerAttributeSourceProvider = classesWithRegisterAttributeProvider
+        // Combine class-level and assembly-level registrations
+        var allRegistrationsProvider = classesWithRegisterAttributeProvider
+            .Combine(assemblyLevelRegisterAttributeProvider)
+            .Select(static (combined, ct) => combined.Left.Concat(combined.Right).ToArray());
+
+        var registerAttributeSourceProvider = allRegistrationsProvider
             .Join(knowsDependencyInjectionAbstractionsProvider)
             .Join(settingsProvider)
             .Join(assemblyConfigProvider)
@@ -175,7 +301,19 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                 providers.Item4
             ));
 
+        var registerAttributeDiagnosticProvider = allRegistrationsProvider
+            .Join(knowsDependencyInjectionAbstractionsProvider)
+            .Join(settingsProvider)
+            .Join(assemblyConfigProvider)
+            .Select(static IDiagnosticReporter (providers, ct) => new RegistrationsProducer(
+                providers.Item1.AsEnumerable(),
+                providers.Item2,
+                providers.Item3.RootNamespace!,
+                providers.Item4
+            ));
+
         context.ProduceCode(registerAttributeSourceProvider);
+        context.ReportDiagnostics(registerAttributeDiagnosticProvider);
     }
 
     /// <summary>

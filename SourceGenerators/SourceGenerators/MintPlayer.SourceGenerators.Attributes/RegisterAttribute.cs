@@ -23,11 +23,31 @@ public enum EGeneratedAccessibility
 /// lifetime and, optionally, as an implementation of a specific interface. It supports additional configuration through
 /// optional parameters such as a method name hint and accessibility of the generated extension method.
 /// </remarks>
-[AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Assembly, AllowMultiple = true)]
 public class RegisterAttribute : Attribute
 {
+    /// <summary>
+    /// Registers a class as its own service type (no interface).
+    /// Use on class declarations.
+    /// </summary>
     public RegisterAttribute(ServiceLifetime lifetime, string methodNameHint = default, EGeneratedAccessibility accessibility = EGeneratedAccessibility.Unspecified) { }
+
+    /// <summary>
+    /// Registers a class as an implementation of an interface.
+    /// Use on class declarations.
+    /// </summary>
     public RegisterAttribute(Type interfaceType, ServiceLifetime lifetime, string methodNameHint = default, EGeneratedAccessibility accessibility = EGeneratedAccessibility.Unspecified) { }
+
+    /// <summary>
+    /// Registers a third-party or external class as an implementation of a service type.
+    /// Use at assembly level for types you don't own.
+    /// The service type can be an interface or the implementation type itself.
+    /// </summary>
+    /// <example>
+    /// [assembly: Register(typeof(IGitHubClient), typeof(GitHubClient), ServiceLifetime.Scoped)]
+    /// [assembly: Register(typeof(ThirdPartyClass), typeof(ThirdPartyClass), ServiceLifetime.Singleton)]
+    /// </example>
+    public RegisterAttribute(Type serviceType, Type implementationType, ServiceLifetime lifetime, string methodNameHint = default, EGeneratedAccessibility accessibility = EGeneratedAccessibility.Unspecified) { }
 }
 
 /// <summary>
