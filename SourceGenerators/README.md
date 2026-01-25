@@ -157,3 +157,119 @@ using MintPlayer.SourceGenerators.Attributes;
     DefaultAccessibility = EGeneratedAccessibility.Internal
 )]
 ```
+
+## Configuration Binding
+
+Simplify reading configuration values with the `[Config]`, `[ConnectionString]`, and `[Options]` attributes.
+
+### Basic Configuration Values
+
+```csharp
+public partial class DatabaseService
+{
+    [Config("Database:Type")]
+    private readonly DatabaseType databaseType;  // Enum parsing
+
+    [Config("Database:MaxRetries", DefaultValue = 3)]
+    private readonly int maxRetries;  // With default value
+
+    [Config("Database:Timeout")]
+    private readonly TimeSpan timeout;  // TimeSpan parsing
+
+    [ConnectionString("DefaultConnection")]
+    private readonly string connectionString;
+}
+```
+
+Generated:
+```csharp
+public partial class DatabaseService
+{
+    public DatabaseService(IConfiguration __configuration)
+    {
+        this.databaseType = Enum.Parse<DatabaseType>(__configuration["Database:Type"] ?? throw ...);
+        this.maxRetries = __configuration["Database:MaxRetries"] is string val ? int.Parse(val) : 3;
+        this.timeout = TimeSpan.Parse(__configuration["Database:Timeout"] ?? throw ..., CultureInfo.InvariantCulture);
+        this.connectionString = __configuration.GetConnectionString("DefaultConnection") ?? throw ...;
+    }
+}
+```
+
+### Nullable Fields (Optional Values)
+
+Fields marked as nullable are treated as optional:
+
+```csharp
+public partial class OptionalConfigService
+{
+    [Config("Optional:String")]
+    private readonly string? optionalString;  // Optional - won't throw if missing
+
+    [Config("Optional:Int")]
+    private readonly int? optionalInt;  // Optional nullable int
+
+    [ConnectionString("OptionalDb")]
+    private readonly string? optionalConnection;  // Optional connection string
+}
+```
+
+### IOptions Pattern
+
+Use `[Options]` for strongly-typed configuration with hot-reload support:
+
+```csharp
+public partial class EmailService
+{
+    [Options("Email")]
+    private readonly IOptions<EmailSettings> emailOptions;  // Read once
+
+    [Options("Customer")]
+    private readonly IOptionsSnapshot<CustomerConfig> customerOptions;  // Scoped, re-read per request
+
+    [Options("Features")]
+    private readonly IOptionsMonitor<FeatureFlags> featureFlags;  // Singleton with change notifications
+}
+```
+
+### IConfiguration Deduplication
+
+When you explicitly inject `IConfiguration`, the generator reuses it:
+
+```csharp
+public partial class ConfigAwareService
+{
+    [Inject] private readonly IConfiguration configuration;  // Explicit injection
+
+    [Config("App:Name")]
+    private readonly string appName;  // Uses 'configuration' field, not a separate parameter
+
+    public string GetCustomValue(string key) => configuration[key];
+}
+```
+
+### Supported Types
+
+| Category | Types |
+|----------|-------|
+| **Primitives** | `string`, `bool`, `char`, `byte`, `short`, `int`, `long`, `float`, `double`, `decimal` |
+| **Nullable Primitives** | `int?`, `bool?`, etc. |
+| **Enums** | Any enum type, including nullable enums |
+| **Date/Time** | `DateTime`, `DateTimeOffset`, `TimeSpan`, `DateOnly`, `TimeOnly` |
+| **Other** | `Guid`, `Uri` |
+| **Complex Types** | POCO classes (via `GetSection().Get<T>()`) |
+| **Collections** | `T[]`, `List<T>`, `IEnumerable<T>` |
+
+### Configuration Diagnostics
+
+| Rule ID | Severity | Description |
+|---------|----------|-------------|
+| CONFIG001 | Error | Class must be partial to use [Config] |
+| CONFIG002 | Error | Configuration key cannot be empty |
+| CONFIG003 | Error | Unsupported field type |
+| CONFIG006 | Error | Cannot have both [Config] and [ConnectionString] |
+| CONFIG007 | Warning | Duplicate configuration key |
+| CONFIG008 | Error | Cannot have both [Config] and [Inject] |
+| CONNSTR001 | Error | Connection string name cannot be empty |
+| CONNSTR002 | Error | [ConnectionString] requires string type |
+| OPTIONS001 | Error | [Options] requires IOptions<T>/IOptionsSnapshot<T>/IOptionsMonitor<T> |
+| OPTIONS003 | Error | Cannot have both [Options] and [Inject] |

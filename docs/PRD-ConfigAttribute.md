@@ -227,12 +227,17 @@ The generator produces all necessary constructor code, handling type parsing, nu
 
 #### 1.1 ConfigAttribute
 
+> **Note:** The `Required` property was removed from the final implementation. Required/optional behavior is now inferred from field nullability:
+> - Non-nullable fields (`string`, `int`) are required and throw if the config value is missing
+> - Nullable fields (`string?`, `int?`) are optional and return null/default if missing
+
 ```csharp
 namespace MintPlayer.SourceGenerators.Attributes
 {
     /// <summary>
     /// Marks a field or property to be populated from IConfiguration at construction time.
     /// The generator will automatically inject IConfiguration and read the specified key.
+    /// Required/optional behavior is inferred from nullability: non-nullable = required, nullable = optional.
     /// </summary>
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, AllowMultiple = false, Inherited = false)]
     public class ConfigAttribute : Attribute
@@ -244,14 +249,7 @@ namespace MintPlayer.SourceGenerators.Attributes
         public string Key { get; }
 
         /// <summary>
-        /// Whether the configuration value is required.
-        /// If true (default) and value is missing, throws InvalidOperationException at construction.
-        /// If false and value is missing, uses DefaultValue or type's default.
-        /// </summary>
-        public bool Required { get; set; } = true;
-
-        /// <summary>
-        /// Default value when Required=false and the configuration key is not found.
+        /// Default value when the configuration key is not found (for non-nullable fields).
         /// Must be a compile-time constant. Type must match or be convertible to field type.
         /// </summary>
         public object? DefaultValue { get; set; }
@@ -266,12 +264,17 @@ namespace MintPlayer.SourceGenerators.Attributes
 
 #### 1.2 ConnectionStringAttribute
 
+> **Note:** The `Required` property was removed. Required/optional behavior is inferred from field nullability:
+> - `string` field = required (throws if missing)
+> - `string?` field = optional (returns null if missing)
+
 ```csharp
 namespace MintPlayer.SourceGenerators.Attributes
 {
     /// <summary>
     /// Marks a string field or property to be populated from a connection string.
     /// Uses IConfiguration.GetConnectionString() which reads from the "ConnectionStrings" section.
+    /// Required/optional behavior is inferred from nullability.
     /// </summary>
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, AllowMultiple = false, Inherited = false)]
     public class ConnectionStringAttribute : Attribute
@@ -281,12 +284,6 @@ namespace MintPlayer.SourceGenerators.Attributes
         /// This is passed to IConfiguration.GetConnectionString(name).
         /// </summary>
         public string Name { get; }
-
-        /// <summary>
-        /// Whether the connection string is required.
-        /// If true (default) and not found, throws InvalidOperationException at construction.
-        /// </summary>
-        public bool Required { get; set; } = true;
 
         public ConnectionStringAttribute(string name)
         {
@@ -1399,3 +1396,4 @@ Generates a constructor for the partial record.
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2026-01-25 | - | Initial PRD |
+| 1.1 | 2026-01-25 | - | **Implementation complete**. Removed `Required` property from attributes - nullability inference is used instead. Fields declared as `T?` are optional; non-nullable fields are required. |
