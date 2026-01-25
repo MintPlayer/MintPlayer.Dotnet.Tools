@@ -422,125 +422,135 @@ public class InjectSourceGenerator : IncrementalGenerator
         // Process fields
         foreach (var field in classDeclaration.Members.OfType<FieldDeclarationSyntax>())
         {
-            var fieldTypeSymbol = semanticModel.GetSymbolInfo(field.Declaration.Type).Symbol as ITypeSymbol;
-            var fqn = fieldTypeSymbol?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)) ?? string.Empty;
-            var fieldName = field.Declaration.Variables.First().Identifier.Text;
-            var location = field.Declaration.Variables.First().Identifier.GetLocation().AsKey();
-
-            var attributes = field.AttributeLists.SelectMany(a => a.Attributes).ToList();
-
-            var hasInject = attributes.Any(a => semanticModel.GetTypeInfo(a).Type?.Name == "InjectAttribute");
-            var configAttr = attributes.FirstOrDefault(a => semanticModel.GetTypeInfo(a).Type?.Name == "ConfigAttribute");
-            var connStrAttr = attributes.FirstOrDefault(a => semanticModel.GetTypeInfo(a).Type?.Name == "ConnectionStringAttribute");
-            var optionsAttr = attributes.FirstOrDefault(a => semanticModel.GetTypeInfo(a).Type?.Name == "OptionsAttribute");
-
-            // Validate attribute conflicts
-            var attrCount = (configAttr != null ? 1 : 0) + (connStrAttr != null ? 1 : 0) + (optionsAttr != null ? 1 : 0);
-
-            if (configAttr != null)
+            if (semanticModel.GetTypeInfo(field.Declaration.Type) is { } typeInfo &&
+                typeInfo.Type is { } fieldTypeSymbol)
             {
-                if (!isPartial)
-                {
-                    diagnostics.Add(new ConfigDiagnostic
-                    {
-                        Rule = DiagnosticRules.ConfigNonPartialClass,
-                        Location = location,
-                        MessageArgs = [className]
-                    });
-                    continue;
-                }
+                // Get type info which preserves nullable annotations
+                var fqn = fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)) ?? string.Empty;
+                var fieldName = field.Declaration.Variables.First().Identifier.Text;
+                var location = field.Declaration.Variables.First().Identifier.GetLocation().AsKey();
+                var isNullable = fieldTypeSymbol.NullableAnnotation == NullableAnnotation.Annotated
+                              || field.Declaration.Type is NullableTypeSyntax;
 
-                if (hasInject)
-                {
-                    diagnostics.Add(new ConfigDiagnostic
-                    {
-                        Rule = DiagnosticRules.ConfigConflictWithInject,
-                        Location = location,
-                        MessageArgs = [fieldName]
-                    });
-                    continue;
-                }
+                var attributes = field.AttributeLists.SelectMany(a => a.Attributes).ToList();
 
-                if (connStrAttr != null)
-                {
-                    diagnostics.Add(new ConfigDiagnostic
-                    {
-                        Rule = DiagnosticRules.ConfigConflictWithConnectionString,
-                        Location = location,
-                        MessageArgs = [fieldName]
-                    });
-                    continue;
-                }
+                var hasInject = attributes.Any(a => semanticModel.GetTypeInfo(a).Type?.Name == "InjectAttribute");
+                var configAttr = attributes.FirstOrDefault(a => semanticModel.GetTypeInfo(a).Type?.Name == "ConfigAttribute");
+                var connStrAttr = attributes.FirstOrDefault(a => semanticModel.GetTypeInfo(a).Type?.Name == "ConnectionStringAttribute");
+                var optionsAttr = attributes.FirstOrDefault(a => semanticModel.GetTypeInfo(a).Type?.Name == "OptionsAttribute");
 
-                var configField = ExtractConfigField(configAttr, fieldName, fqn, fieldTypeSymbol, semanticModel, location, diagnostics, className, usedConfigKeys);
-                if (configField != null)
-                    configFields.Add(configField);
-            }
-            else if (connStrAttr != null)
-            {
-                if (!isPartial)
-                {
-                    diagnostics.Add(new ConfigDiagnostic
-                    {
-                        Rule = DiagnosticRules.ConfigNonPartialClass,
-                        Location = location,
-                        MessageArgs = [className]
-                    });
-                    continue;
-                }
+                // Validate attribute conflicts
+                var attrCount = (configAttr != null ? 1 : 0) + (connStrAttr != null ? 1 : 0) + (optionsAttr != null ? 1 : 0);
 
-                if (hasInject)
+                if (configAttr != null)
                 {
-                    diagnostics.Add(new ConfigDiagnostic
+                    if (!isPartial)
                     {
-                        Rule = DiagnosticRules.ConnectionStringConflictWithInject,
-                        Location = location,
-                        MessageArgs = [fieldName]
-                    });
-                    continue;
-                }
+                        diagnostics.Add(new ConfigDiagnostic
+                        {
+                            Rule = DiagnosticRules.ConfigNonPartialClass,
+                            Location = location,
+                            MessageArgs = [className]
+                        });
+                        continue;
+                    }
 
-                var connStrField = ExtractConnectionStringField(connStrAttr, fieldName, fqn, fieldTypeSymbol, semanticModel, location, diagnostics);
-                if (connStrField != null)
-                    connectionStringFields.Add(connStrField);
-            }
-            else if (optionsAttr != null)
-            {
-                if (!isPartial)
+                    if (hasInject)
+                    {
+                        diagnostics.Add(new ConfigDiagnostic
+                        {
+                            Rule = DiagnosticRules.ConfigConflictWithInject,
+                            Location = location,
+                            MessageArgs = [fieldName]
+                        });
+                        continue;
+                    }
+
+                    if (connStrAttr != null)
+                    {
+                        diagnostics.Add(new ConfigDiagnostic
+                        {
+                            Rule = DiagnosticRules.ConfigConflictWithConnectionString,
+                            Location = location,
+                            MessageArgs = [fieldName]
+                        });
+                        continue;
+                    }
+
+                    var configField = ExtractConfigField(configAttr, fieldName, fqn, isNullable, fieldTypeSymbol, semanticModel, location, diagnostics, className, usedConfigKeys);
+                    if (configField != null)
+                        configFields.Add(configField);
+                }
+                else if (connStrAttr != null)
                 {
-                    diagnostics.Add(new ConfigDiagnostic
+                    if (!isPartial)
                     {
-                        Rule = DiagnosticRules.ConfigNonPartialClass,
-                        Location = location,
-                        MessageArgs = [className]
-                    });
-                    continue;
-                }
+                        diagnostics.Add(new ConfigDiagnostic
+                        {
+                            Rule = DiagnosticRules.ConfigNonPartialClass,
+                            Location = location,
+                            MessageArgs = [className]
+                        });
+                        continue;
+                    }
 
-                if (hasInject)
+                    if (hasInject)
+                    {
+                        diagnostics.Add(new ConfigDiagnostic
+                        {
+                            Rule = DiagnosticRules.ConnectionStringConflictWithInject,
+                            Location = location,
+                            MessageArgs = [fieldName]
+                        });
+                        continue;
+                    }
+
+                    var connStrField = ExtractConnectionStringField(connStrAttr, fieldName, isNullable, fieldTypeSymbol, semanticModel, location, diagnostics);
+                    if (connStrField != null)
+                        connectionStringFields.Add(connStrField);
+                }
+                else if (optionsAttr != null)
                 {
-                    diagnostics.Add(new ConfigDiagnostic
+                    if (!isPartial)
                     {
-                        Rule = DiagnosticRules.OptionsConflictWithInject,
-                        Location = location,
-                        MessageArgs = [fieldName]
-                    });
-                    continue;
-                }
+                        diagnostics.Add(new ConfigDiagnostic
+                        {
+                            Rule = DiagnosticRules.ConfigNonPartialClass,
+                            Location = location,
+                            MessageArgs = [className]
+                        });
+                        continue;
+                    }
 
-                var optionsField = ExtractOptionsField(optionsAttr, fieldName, fqn, fieldTypeSymbol, semanticModel, location, diagnostics);
-                if (optionsField != null)
-                    optionsFields.Add(optionsField);
+                    if (hasInject)
+                    {
+                        diagnostics.Add(new ConfigDiagnostic
+                        {
+                            Rule = DiagnosticRules.OptionsConflictWithInject,
+                            Location = location,
+                            MessageArgs = [fieldName]
+                        });
+                        continue;
+                    }
+
+                    var optionsField = ExtractOptionsField(optionsAttr, fieldName, fqn, fieldTypeSymbol, semanticModel, location, diagnostics);
+                    if (optionsField != null)
+                        optionsFields.Add(optionsField);
+                }
             }
         }
 
         // Process properties (similar logic)
         foreach (var prop in classDeclaration.Members.OfType<PropertyDeclarationSyntax>())
         {
-            var propTypeSymbol = semanticModel.GetSymbolInfo(prop.Type).Symbol as ITypeSymbol;
+            // Get type info which preserves nullable annotations
+            var typeInfo = semanticModel.GetTypeInfo(prop.Type);
+            var propTypeSymbol = typeInfo.Type;
             var fqn = propTypeSymbol?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)) ?? string.Empty;
             var propName = prop.Identifier.Text;
             var location = prop.Identifier.GetLocation().AsKey();
+            var isNullable = propTypeSymbol?.NullableAnnotation == NullableAnnotation.Annotated
+                          || prop.Type is NullableTypeSyntax;
 
             var attributes = prop.AttributeLists.SelectMany(a => a.Attributes).ToList();
 
@@ -584,7 +594,7 @@ public class InjectSourceGenerator : IncrementalGenerator
                     continue;
                 }
 
-                var configField = ExtractConfigField(configAttr, propName, fqn, propTypeSymbol, semanticModel, location, diagnostics, className, usedConfigKeys);
+                var configField = ExtractConfigField(configAttr, propName, fqn, isNullable, propTypeSymbol, semanticModel, location, diagnostics, className, usedConfigKeys);
                 if (configField != null)
                     configFields.Add(configField);
             }
@@ -612,7 +622,7 @@ public class InjectSourceGenerator : IncrementalGenerator
                     continue;
                 }
 
-                var connStrField = ExtractConnectionStringField(connStrAttr, propName, fqn, propTypeSymbol, semanticModel, location, diagnostics);
+                var connStrField = ExtractConnectionStringField(connStrAttr, propName, isNullable, propTypeSymbol, semanticModel, location, diagnostics);
                 if (connStrField != null)
                     connectionStringFields.Add(connStrField);
             }
@@ -656,6 +666,7 @@ public class InjectSourceGenerator : IncrementalGenerator
         AttributeSyntax configAttr,
         string fieldName,
         string fqn,
+        bool isNullableFromSyntax,
         ITypeSymbol? typeSymbol,
         SemanticModel semanticModel,
         LocationKey location,
@@ -724,7 +735,7 @@ public class InjectSourceGenerator : IncrementalGenerator
         }
 
         // Determine type category
-        var (typeCategory, isNullable, isEnum, isComplexType, isCollection, elementType) = ClassifyType(typeSymbol);
+        var (typeCategory, isNullableFromClassify, isEnum, isComplexType, isCollection, elementType) = ClassifyType(typeSymbol);
 
         if (typeCategory == ConfigFieldTypeCategory.Unsupported)
         {
@@ -736,6 +747,9 @@ public class InjectSourceGenerator : IncrementalGenerator
             });
             return null;
         }
+
+        // Use nullable from syntax (NullableTypeSyntax check) or from semantic model
+        var isNullable = isNullableFromSyntax || isNullableFromClassify;
 
         return new ConfigField
         {
@@ -759,7 +773,7 @@ public class InjectSourceGenerator : IncrementalGenerator
     private static ConnectionStringField? ExtractConnectionStringField(
         AttributeSyntax connStrAttr,
         string fieldName,
-        string fqn,
+        bool isNullable,
         ITypeSymbol? typeSymbol,
         SemanticModel semanticModel,
         LocationKey location,
@@ -790,28 +804,18 @@ public class InjectSourceGenerator : IncrementalGenerator
         }
 
         // Validate type is string
-        var isNullableString = typeSymbol?.SpecialType == SpecialType.System_String ||
-                               (typeSymbol is INamedTypeSymbol nts && nts.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T &&
-                                nts.TypeArguments[0].SpecialType == SpecialType.System_String);
-
         var isString = typeSymbol?.SpecialType == SpecialType.System_String;
 
-        if (!isString && !(typeSymbol?.NullableAnnotation == NullableAnnotation.Annotated && typeSymbol.SpecialType == SpecialType.System_String))
+        if (!isString)
         {
-            // Check if it's a nullable reference type string
-            if (typeSymbol?.SpecialType != SpecialType.System_String)
+            diagnostics.Add(new ConfigDiagnostic
             {
-                diagnostics.Add(new ConfigDiagnostic
-                {
-                    Rule = DiagnosticRules.ConnectionStringInvalidType,
-                    Location = location,
-                    MessageArgs = [fieldName, fqn]
-                });
-                return null;
-            }
+                Rule = DiagnosticRules.ConnectionStringInvalidType,
+                Location = location,
+                MessageArgs = [fieldName, typeSymbol?.ToDisplayString() ?? "unknown"]
+            });
+            return null;
         }
-
-        var isNullable = typeSymbol?.NullableAnnotation == NullableAnnotation.Annotated;
 
         return new ConnectionStringField
         {
