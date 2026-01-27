@@ -1,9 +1,9 @@
 using MintPlayer.CliGenerator.Attributes;
 using MintPlayer.SourceGenerators.Attributes;
-using Solve.Models;
-using Solve.Services;
+using MintPlayer.Solve.Models;
+using MintPlayer.Solve.Services;
 
-namespace Solve.Commands;
+namespace MintPlayer.Solve.Commands;
 
 [CliCommand("prd", Description = "Generate PRD and development plan for an issue")]
 [CliParentCommand(typeof(SolveCommand))]

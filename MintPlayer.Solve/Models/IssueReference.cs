@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace Solve.Models;
+namespace MintPlayer.Solve.Models;
 
 /// <summary>
 /// Represents a parsed GitHub issue reference.

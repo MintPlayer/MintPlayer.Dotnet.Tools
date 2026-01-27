@@ -1,10 +1,10 @@
 using System.Text.Json;
 using MintPlayer.CliGenerator.Attributes;
 using MintPlayer.SourceGenerators.Attributes;
-using Solve.Models;
-using Solve.Services;
+using MintPlayer.Solve.Models;
+using MintPlayer.Solve.Services;
 
-namespace Solve.Commands;
+namespace MintPlayer.Solve.Commands;
 
 [CliCommand("status", Description = "Show work status for an issue")]
 [CliParentCommand(typeof(SolveCommand))]

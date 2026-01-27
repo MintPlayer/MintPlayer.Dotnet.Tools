@@ -2,9 +2,9 @@ using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using MintPlayer.SourceGenerators.Attributes;
-using Solve.Models;
+using MintPlayer.Solve.Models;
 
-namespace Solve.Services;
+namespace MintPlayer.Solve.Services;
 
 [Register(typeof(IGitHubService), ServiceLifetime.Scoped, "SolveServices")]
 public class GitHubService : IGitHubService

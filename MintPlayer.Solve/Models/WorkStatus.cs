@@ -1,4 +1,4 @@
-namespace Solve.Models;
+namespace MintPlayer.Solve.Models;
 
 /// <summary>
 /// Represents the current work status for an issue.

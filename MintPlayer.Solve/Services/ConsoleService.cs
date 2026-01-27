@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using MintPlayer.SourceGenerators.Attributes;
 
-namespace Solve.Services;
+namespace MintPlayer.Solve.Services;
 
 [Register(typeof(IConsoleService), ServiceLifetime.Singleton, "SolveServices")]
 public class ConsoleService : IConsoleService

@@ -2,10 +2,10 @@ using System.Text;
 using System.Text.RegularExpressions;
 using MintPlayer.CliGenerator.Attributes;
 using MintPlayer.SourceGenerators.Attributes;
-using Solve.Models;
-using Solve.Services;
+using MintPlayer.Solve.Models;
+using MintPlayer.Solve.Services;
 
-namespace Solve.Commands;
+namespace MintPlayer.Solve.Commands;
 
 [CliCommand("pr", Description = "Create a pull request for the current issue")]
 [CliParentCommand(typeof(SolveCommand))]

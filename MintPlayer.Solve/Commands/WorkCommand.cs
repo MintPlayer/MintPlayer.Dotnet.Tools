@@ -1,9 +1,9 @@
 using MintPlayer.CliGenerator.Attributes;
 using MintPlayer.SourceGenerators.Attributes;
-using Solve.Models;
-using Solve.Services;
+using MintPlayer.Solve.Models;
+using MintPlayer.Solve.Services;
 
-namespace Solve.Commands;
+namespace MintPlayer.Solve.Commands;
 
 [CliCommand("work", Description = "Start or continue working on an issue")]
 [CliParentCommand(typeof(SolveCommand))]

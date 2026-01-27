@@ -1,4 +1,4 @@
-namespace Solve.Services;
+namespace MintPlayer.Solve.Services;
 
 /// <summary>
 /// Service for console output with color support.

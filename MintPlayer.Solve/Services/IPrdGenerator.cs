@@ -1,6 +1,6 @@
-using Solve.Models;
+using MintPlayer.Solve.Models;
 
-namespace Solve.Services;
+namespace MintPlayer.Solve.Services;
 
 /// <summary>
 /// Service for generating PRD and development plan documents.

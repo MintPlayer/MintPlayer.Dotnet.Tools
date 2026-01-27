@@ -2,9 +2,9 @@ using System.Diagnostics;
 using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using MintPlayer.SourceGenerators.Attributes;
-using Solve.Models;
+using MintPlayer.Solve.Models;
 
-namespace Solve.Services;
+namespace MintPlayer.Solve.Services;
 
 [Register(typeof(IClaudeService), ServiceLifetime.Scoped, "SolveServices")]
 public class ClaudeService : IClaudeService

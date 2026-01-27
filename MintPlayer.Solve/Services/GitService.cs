@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 using MintPlayer.SourceGenerators.Attributes;
 
-namespace Solve.Services;
+namespace MintPlayer.Solve.Services;
 
 [Register(typeof(IGitService), ServiceLifetime.Scoped, "SolveServices")]
 public partial class GitService : IGitService

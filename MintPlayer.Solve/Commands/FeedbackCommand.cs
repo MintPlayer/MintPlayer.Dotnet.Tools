@@ -1,8 +1,8 @@
 using MintPlayer.CliGenerator.Attributes;
 using MintPlayer.SourceGenerators.Attributes;
-using Solve.Services;
+using MintPlayer.Solve.Services;
 
-namespace Solve.Commands;
+namespace MintPlayer.Solve.Commands;
 
 [CliCommand("feedback", Description = "Review and resolve PR feedback")]
 [CliParentCommand(typeof(SolveCommand))]

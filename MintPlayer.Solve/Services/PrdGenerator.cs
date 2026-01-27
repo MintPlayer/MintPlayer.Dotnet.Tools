@@ -2,9 +2,9 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 using MintPlayer.SourceGenerators.Attributes;
-using Solve.Models;
+using MintPlayer.Solve.Models;
 
-namespace Solve.Services;
+namespace MintPlayer.Solve.Services;
 
 [Register(typeof(IPrdGenerator), ServiceLifetime.Scoped, "SolveServices")]
 public partial class PrdGenerator : IPrdGenerator

@@ -1,4 +1,4 @@
-namespace Solve.Models;
+namespace MintPlayer.Solve.Models;
 
 /// <summary>
 /// Represents a GitHub issue with its details.

@@ -1,9 +1,9 @@
 using MintPlayer.CliGenerator.Attributes;
 using MintPlayer.SourceGenerators.Attributes;
-using Solve.Models;
-using Solve.Services;
+using MintPlayer.Solve.Models;
+using MintPlayer.Solve.Services;
 
-namespace Solve.Commands;
+namespace MintPlayer.Solve.Commands;
 
 [CliRootCommand(Name = "solve", Description = "Delegate GitHub issues to Claude Code")]
 public partial class SolveCommand : ICliCommand

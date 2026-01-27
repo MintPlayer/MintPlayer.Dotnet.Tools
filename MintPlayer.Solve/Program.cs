@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Hosting;
 using MintPlayer.CliGenerator.Attributes;
-using Solve;
+using MintPlayer.Solve;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services
