@@ -6,7 +6,7 @@
 		<Nullable>enable</Nullable>
 		<OutputType>Library</OutputType>
 		<IsPackable>true</IsPackable>
-		<Version>10.0.0</Version>
+		<Version>10.1.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>MSBuild task for computing folder hashes. Use this in csproj files to conditionally run build steps based on folder content changes.</Description>
@@ -28,7 +28,10 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Build.Utilities.Core" Version="18.0.2" />
-		<PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" Version="10.0.0" GeneratePathProperty="true" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\MintPlayer.FolderHasher\MintPlayer.FolderHasher.csproj" />
 	</ItemGroup>
 
 </Project>

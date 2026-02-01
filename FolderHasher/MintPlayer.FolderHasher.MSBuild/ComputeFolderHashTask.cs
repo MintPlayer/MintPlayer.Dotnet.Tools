@@ -1,5 +1,4 @@
 using Microsoft.Build.Framework;
-using Microsoft.Extensions.FileSystemGlobbing;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -12,6 +11,8 @@ namespace MintPlayer.FolderHasher.MSBuild;
 public class ComputeFolderHashTask : Microsoft.Build.Utilities.Task
 {
     private const string HasherIgnoreFileName = ".hasherignore";
+    private const long LargeFileThreshold = 10 * 1024 * 1024; // 10MB
+    private const int StreamBufferSize = 81920; // 80KB buffer for streaming
 
     /// <summary>
     /// The path to the folder to hash.
@@ -46,13 +47,15 @@ public class ComputeFolderHashTask : Microsoft.Build.Utilities.Task
         }
     }
 
-    private static string ComputeFolderHash(string folder)
+    private string ComputeFolderHash(string folder)
     {
         using var algorithm = SHA256.Create();
 
         // Build the ignore parser from all .hasherignore files
         var ignoreParser = new HasherIgnoreParser();
-        var allFiles = Directory.GetFiles(folder, "*", SearchOption.AllDirectories);
+
+        // Get all files, handling inaccessible directories
+        var allFiles = GetAllFilesWithAccessHandling(folder);
 
         // Find and process all .hasherignore files first
         var hasherIgnoreFiles = allFiles
@@ -62,7 +65,14 @@ public class ComputeFolderHashTask : Microsoft.Build.Utilities.Task
 
         foreach (var ignoreFile in hasherIgnoreFiles)
         {
-            ignoreParser.AddPatternsFromFile(ignoreFile);
+            try
+            {
+                ignoreParser.AddPatternsFromFile(ignoreFile);
+            }
+            catch (Exception ex) when (IsAccessException(ex))
+            {
+                Log.LogMessage(MessageImportance.Low, $"Skipping inaccessible ignore file: {ignoreFile}");
+            }
         }
 
         // Filter files: exclude ignored files and .hasherignore files
@@ -81,24 +91,32 @@ public class ComputeFolderHashTask : Microsoft.Build.Utilities.Task
             return Convert.ToHexStringLower(algorithm.Hash);
         }
 
-        // Read all files
-        var files = filesToHash
-            .Select(f => new { ContentBytes = File.ReadAllBytes(f), Path = f })
-            .ToArray();
-
-        foreach (var file in files)
+        // Process files one by one with streaming support for large files
+        for (var i = 0; i < filesToHash.Count; i++)
         {
-            // hash path
-            var relativePath = file.Path.Substring(folder.Length + 1);
-            var pathBytes = Encoding.UTF8.GetBytes(relativePath.ToLower());
-            algorithm.TransformBlock(pathBytes, 0, pathBytes.Length, pathBytes, 0);
+            var file = filesToHash[i];
+            var isLastFile = i == filesToHash.Count - 1;
 
-            // hash contents
-            var contentBytes = file.ContentBytes;
-            if (ReferenceEquals(file, files[files.Length - 1]))
-                algorithm.TransformFinalBlock(contentBytes, 0, contentBytes.Length);
-            else
-                algorithm.TransformBlock(contentBytes, 0, contentBytes.Length, contentBytes, 0);
+            try
+            {
+                // Hash the relative path
+                var relativePath = file.Substring(folder.Length + 1);
+                var pathBytes = Encoding.UTF8.GetBytes(relativePath.ToLower());
+                algorithm.TransformBlock(pathBytes, 0, pathBytes.Length, pathBytes, 0);
+
+                // Hash the file contents
+                HashFileContents(file, algorithm, isLastFile);
+            }
+            catch (Exception ex) when (IsAccessException(ex))
+            {
+                Log.LogMessage(MessageImportance.Low, $"Skipping inaccessible file: {file}");
+
+                // If this was supposed to be the last file, we need to finalize with empty content
+                if (isLastFile)
+                {
+                    algorithm.TransformFinalBlock([], 0, 0);
+                }
+            }
         }
 
         if (algorithm.Hash == null)
@@ -106,121 +124,87 @@ public class ComputeFolderHashTask : Microsoft.Build.Utilities.Task
 
         return Convert.ToHexStringLower(algorithm.Hash);
     }
-}
 
-/// <summary>
-/// Parses .hasherignore files (similar to .gitignore format) and determines if paths should be ignored.
-/// Uses glob patterns for matching.
-/// </summary>
-internal class HasherIgnoreParser
-{
-    private readonly List<IgnoreRule> _rules = [];
-
-    public void AddPattern(string pattern, string basePath)
+    private List<string> GetAllFilesWithAccessHandling(string folder)
     {
-        if (string.IsNullOrWhiteSpace(pattern) || pattern.StartsWith('#'))
-            return;
+        var files = new List<string>();
+        var directoriesToProcess = new Queue<string>();
+        directoriesToProcess.Enqueue(folder);
 
-        var isNegation = pattern.StartsWith('!');
-        if (isNegation)
-            pattern = pattern[1..];
-
-        pattern = pattern.Trim();
-        if (string.IsNullOrEmpty(pattern))
-            return;
-
-        // Normalize the pattern for glob matching
-        var normalizedPattern = NormalizePattern(pattern);
-
-        _rules.Add(new IgnoreRule(normalizedPattern, isNegation, NormalizePath(basePath)));
-    }
-
-    public void AddPatternsFromFile(string ignoreFilePath)
-    {
-        if (!File.Exists(ignoreFilePath))
-            return;
-
-        var basePath = Path.GetDirectoryName(ignoreFilePath) ?? string.Empty;
-        var lines = File.ReadAllLines(ignoreFilePath);
-
-        foreach (var line in lines)
+        while (directoriesToProcess.Count > 0)
         {
-            AddPattern(line, basePath);
-        }
-    }
+            var currentDir = directoriesToProcess.Dequeue();
 
-    public bool IsIgnored(string path)
-    {
-        var normalizedPath = NormalizePath(path);
-        var isIgnored = false;
-
-        foreach (var rule in _rules)
-        {
-            if (MatchesPattern(normalizedPath, rule))
+            try
             {
-                isIgnored = !rule.IsNegation;
+                // Add files in current directory
+                files.AddRange(Directory.GetFiles(currentDir));
+
+                // Queue subdirectories for processing
+                foreach (var subDir in Directory.GetDirectories(currentDir))
+                {
+                    directoriesToProcess.Enqueue(subDir);
+                }
+            }
+            catch (Exception ex) when (IsAccessException(ex))
+            {
+                Log.LogMessage(MessageImportance.Low, $"Skipping inaccessible directory: {currentDir}");
             }
         }
 
-        return isIgnored;
+        return files;
     }
 
-    private static bool MatchesPattern(string filePath, IgnoreRule rule)
+    private static void HashFileContents(string filePath, HashAlgorithm algorithm, bool isLastFile)
     {
-        // Get the relative path from the base path
-        var basePath = rule.BasePath;
-        if (!filePath.StartsWith(basePath, StringComparison.OrdinalIgnoreCase))
-            return false;
+        var fileInfo = new FileInfo(filePath);
 
-        var relativePath = filePath.Length > basePath.Length
-            ? filePath[(basePath.Length + 1)..]
-            : string.Empty;
-
-        if (string.IsNullOrEmpty(relativePath))
-            return false;
-
-        var matcher = new Matcher(StringComparison.OrdinalIgnoreCase);
-        matcher.AddInclude(rule.Pattern);
-
-        // Check if the file matches the pattern
-        var result = matcher.Match(relativePath);
-        if (result.HasMatches)
-            return true;
-
-        // Also check if any parent directory matches (for directory patterns)
-        var pathParts = relativePath.Split('/');
-        for (var i = 1; i < pathParts.Length; i++)
+        if (fileInfo.Length > LargeFileThreshold)
         {
-            var partialPath = string.Join("/", pathParts.Take(i));
-            result = matcher.Match(partialPath);
-            if (result.HasMatches)
-                return true;
+            // Stream large files in chunks
+            using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, StreamBufferSize);
+            var buffer = new byte[StreamBufferSize];
+            int bytesRead;
+
+            while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                // Check if this is the last chunk of the last file
+                if (isLastFile && stream.Position >= stream.Length)
+                {
+                    algorithm.TransformFinalBlock(buffer, 0, bytesRead);
+                }
+                else
+                {
+                    algorithm.TransformBlock(buffer, 0, bytesRead, buffer, 0);
+                }
+            }
+
+            // If the file was empty and this is the last file
+            if (isLastFile && fileInfo.Length == 0)
+            {
+                algorithm.TransformFinalBlock([], 0, 0);
+            }
         }
+        else
+        {
+            // Read small files entirely into memory
+            var contentBytes = File.ReadAllBytes(filePath);
 
-        return false;
+            if (isLastFile)
+            {
+                algorithm.TransformFinalBlock(contentBytes, 0, contentBytes.Length);
+            }
+            else
+            {
+                algorithm.TransformBlock(contentBytes, 0, contentBytes.Length, contentBytes, 0);
+            }
+        }
     }
 
-    private static string NormalizePattern(string pattern)
+    private static bool IsAccessException(Exception ex)
     {
-        // Remove leading slash (patterns are relative to .hasherignore location)
-        if (pattern.StartsWith('/'))
-            pattern = pattern[1..];
-
-        // Handle directory-only patterns (ending with /)
-        if (pattern.EndsWith('/'))
-            pattern = pattern[..^1] + "/**";
-
-        // If pattern doesn't contain a slash, it matches in any subdirectory
-        if (!pattern.Contains('/'))
-            pattern = "**/" + pattern;
-
-        return pattern;
+        return ex is UnauthorizedAccessException
+            || ex is IOException
+            || ex is System.Security.SecurityException;
     }
-
-    private static string NormalizePath(string path)
-    {
-        return path.Replace('\\', '/').TrimEnd('/');
-    }
-
-    private record IgnoreRule(string Pattern, bool IsNegation, string BasePath);
 }

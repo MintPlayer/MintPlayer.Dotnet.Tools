@@ -6,7 +6,7 @@ namespace MintPlayer.FolderHasher;
 /// Parses .hasherignore files (similar to .gitignore format) and determines if paths should be ignored.
 /// Uses glob patterns for matching.
 /// </summary>
-internal class HasherIgnoreParser
+public class HasherIgnoreParser
 {
     private readonly List<IgnoreRule> _rules = [];
 
