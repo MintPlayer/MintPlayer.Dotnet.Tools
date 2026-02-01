@@ -6,10 +6,26 @@ namespace MintPlayer.FolderHasher;
 /// Parses .hasherignore files (similar to .gitignore format) and determines if paths should be ignored.
 /// Uses glob patterns for matching.
 /// </summary>
+/// <remarks>
+/// <para>Supported pattern syntax:</para>
+/// <list type="bullet">
+/// <item><description><c>*.log</c> - Matches files with .log extension in any directory</description></item>
+/// <item><description><c>node_modules/</c> - Matches the node_modules directory at root level</description></item>
+/// <item><description><c>**/temp/</c> - Matches temp directory anywhere in the tree</description></item>
+/// <item><description><c>/build</c> - Matches only at root (leading slash)</description></item>
+/// <item><description><c>!important.log</c> - Negation pattern (excludes from ignore)</description></item>
+/// <item><description><c># comment</c> - Lines starting with # are comments</description></item>
+/// </list>
+/// </remarks>
 public class HasherIgnoreParser
 {
     private readonly List<IgnoreRule> _rules = [];
 
+    /// <summary>
+    /// Adds a single ignore pattern.
+    /// </summary>
+    /// <param name="pattern">The glob pattern to add. Comments (starting with #) and empty lines are ignored.</param>
+    /// <param name="basePath">The base path that this pattern applies to (typically the directory containing the .hasherignore file).</param>
     public void AddPattern(string pattern, string basePath)
     {
         if (string.IsNullOrWhiteSpace(pattern) || pattern.StartsWith('#'))
@@ -29,6 +45,14 @@ public class HasherIgnoreParser
         _rules.Add(new IgnoreRule(normalizedPattern, isNegation, NormalizePath(basePath)));
     }
 
+    /// <summary>
+    /// Reads and parses all patterns from a .hasherignore file.
+    /// </summary>
+    /// <param name="ignoreFilePath">The absolute path to the .hasherignore file.</param>
+    /// <remarks>
+    /// If the file does not exist, this method does nothing (no exception is thrown).
+    /// The base path for pattern matching is derived from the file's directory.
+    /// </remarks>
     public void AddPatternsFromFile(string ignoreFilePath)
     {
         if (!File.Exists(ignoreFilePath))
@@ -43,6 +67,15 @@ public class HasherIgnoreParser
         }
     }
 
+    /// <summary>
+    /// Determines whether the specified path should be ignored based on the configured patterns.
+    /// </summary>
+    /// <param name="path">The absolute path to check.</param>
+    /// <returns><c>true</c> if the path matches an ignore pattern (and is not negated); otherwise, <c>false</c>.</returns>
+    /// <remarks>
+    /// Patterns are evaluated in order. Later patterns can override earlier ones.
+    /// Negation patterns (starting with !) can un-ignore previously ignored paths.
+    /// </remarks>
     public bool IsIgnored(string path)
     {
         var normalizedPath = NormalizePath(path);
