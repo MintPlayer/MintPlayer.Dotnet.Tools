@@ -17,14 +17,14 @@
 		<PackageId>MintPlayer.FolderHasher.Targets</PackageId>
 		<PackageTags>Folder hash MSBuild Targets</PackageTags>
 		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-		<IncludeSymbols>true</IncludeSymbols>
-		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
-		<AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
 
 		<!-- This package doesn't contain library code, only build assets -->
 		<IncludeBuildOutput>false</IncludeBuildOutput>
 		<SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
 		<DevelopmentDependency>true</DevelopmentDependency>
+		<!-- No symbols package for targets-only packages (NU5017 error) -->
+		<IncludeSymbols>false</IncludeSymbols>
 	</PropertyGroup>
 
 	<!-- Include XML markups in the nupkg -->
@@ -33,6 +33,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="/" />
 		<None Include="MintPlayer.FolderHasher.Targets.targets" Pack="true" PackagePath="build/" />
 		<None Include="..\MintPlayer.FolderHasher.MSBuild\bin\$(Configuration)\$(TargetFramework)\MintPlayer.FolderHasher.MSBuild.dll" Pack="true" PackagePath="build/" />
 		<None Include="..\MintPlayer.FolderHasher\bin\$(Configuration)\$(TargetFramework)\MintPlayer.FolderHasher.dll" Pack="true" PackagePath="build/" />
