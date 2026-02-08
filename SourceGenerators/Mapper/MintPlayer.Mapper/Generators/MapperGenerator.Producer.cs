@@ -98,17 +98,12 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
                         writer.WriteLine("if (input is null) return default;");
                         writer.WriteLine();
 
-                        writer.WriteLine($"return new {type.TypeToMap.DeclaredType}()");
-                        writer.WriteLine("{");
-                        writer.Indent++;
-
-                        foreach (var (source, destination) in type.MappedProperties)
-                        {
-                            HandleProperty(writer, source, destination, EWriteType.Initializer);
-                        }
-
-                        writer.Indent--;
-                        writer.WriteLine("};");
+                        WriteNewInstance(
+                            writer,
+                            type.TypeToMap.DeclaredType,
+                            type.TypeToMap.DeclaredTypeHasParameterlessConstructor,
+                            type.TypeToMap.DeclaredTypePrimaryConstructorParameters,
+                            type.MappedProperties);
                     }
 
                     if (!type.TypeToMap.AreBothDecorated)
@@ -129,18 +124,12 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
                             writer.WriteLine("if (input is null) return default;");
                             writer.WriteLine();
 
-                            writer.WriteLine($"return new {type.TypeToMap.MappingType}()");
-                            writer.WriteLine("{");
-                            writer.Indent++;
-
-                            // TODO: add properties
-                            foreach (var (source, destination) in type.MappedProperties)
-                            {
-                                HandleProperty(writer, destination, source, EWriteType.Initializer);
-                            }
-
-                            writer.Indent--;
-                            writer.WriteLine("};");
+                            WriteNewInstance(
+                                writer,
+                                type.TypeToMap.MappingType,
+                                type.TypeToMap.MappingTypeHasParameterlessConstructor,
+                                type.TypeToMap.MappingTypePrimaryConstructorParameters,
+                                type.MappedProperties.Select(p => (p.Destination, p.Source)));
                         }
                     }
 
@@ -232,11 +221,70 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         return collectionType;
     }
 
+    private static string GetPropertyValueExpression(PropertyDeclaration source, PropertyDeclaration destination)
+    {
+        // Handle primitive types
+        if (source.IsPrimitive && destination.IsPrimitive)
+        {
+            if (source.PropertyType != destination.PropertyType)
+                return $"ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName})";
+            else if (source.StateName is not null && destination.StateName is not null)
+                return $"ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}, {source.StateName}, {destination.StateName})";
+            else
+                return $"input.{destination.PropertyName}";
+        }
+        // Handle arrays
+        else if (IsArrayType(source.PropertyType) && IsArrayType(destination.PropertyType))
+        {
+            var elementType = GetElementType(source.PropertyType);
+            if (IsPrimitiveOrString(elementType))
+                return $"input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToArray()";
+            else
+            {
+                var shortName = elementType.WithoutGlobal().Split('.').Last();
+                return $"input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToArray()";
+            }
+        }
+        // Handle List<T>
+        else if (IsListType(source.PropertyType) && IsListType(destination.PropertyType))
+        {
+            var elementType = GetElementType(source.PropertyType);
+            if (IsPrimitiveOrString(elementType))
+                return $"input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToList()";
+            else
+            {
+                var shortName = elementType.WithoutGlobal().Split('.').Last();
+                return $"input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToList()";
+            }
+        }
+        // Handle ICollection<T>
+        else if (IsCollectionType(source.PropertyType) && IsCollectionType(destination.PropertyType))
+        {
+            var elementType = GetElementType(source.PropertyType);
+            if (IsPrimitiveOrString(elementType))
+                return $"input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToList()";
+            else
+            {
+                var shortName = elementType.WithoutGlobal().Split('.').Last();
+                return $"input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToList()";
+            }
+        }
+        // Handle nullable reference types
+        else if (IsNullableType(source.PropertyType) && IsNullableType(destination.PropertyType))
+        {
+            return $"input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.MapTo{source.PropertyTypeName}()";
+        }
+        // Handle complex types
+        else
+        {
+            return $"input.{destination.PropertyName}.MapTo{source.PropertyTypeName}()";
+        }
+    }
+
     private static void HandleProperty(IndentedTextWriter writer, PropertyDeclaration source, PropertyDeclaration destination, EWriteType writeType)
     {
         if (source.IsReadOnly) return;
         if (source.IsInitOnly && writeType == EWriteType.Assignment) return;
-
 
         var prefix = writeType switch
         {
@@ -252,67 +300,90 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
             _ => throw new NotImplementedException(),
         };
 
-        // Handle primitive types
-        if (source.IsPrimitive && destination.IsPrimitive)
+        writer.WriteLine($"{prefix}{GetPropertyValueExpression(source, destination)}{suffix}");
+    }
+
+    /// <summary>
+    /// Writes a return statement that creates a new instance of the target type,
+    /// using constructor arguments when the type has no parameterless constructor.
+    /// </summary>
+    private static void WriteNewInstance(
+        IndentedTextWriter writer,
+        string targetType,
+        bool hasParameterlessConstructor,
+        ConstructorParameterInfo[] primaryCtorParams,
+        IEnumerable<(PropertyDeclaration Source, PropertyDeclaration Destination)> mappedProperties)
+    {
+        if (hasParameterlessConstructor || primaryCtorParams.Length == 0)
         {
-            if (source.PropertyType != destination.PropertyType)
-                writer.WriteLine($"{prefix}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}){suffix}");
-            else if (source.StateName is not null && destination.StateName is not null)
-                writer.WriteLine($"""{prefix}ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}, {source.StateName}, {destination.StateName}){suffix}""");
-            else
-                writer.WriteLine($"{prefix}input.{destination.PropertyName}{suffix}");
+            // Use object initializer (existing behavior)
+            writer.WriteLine($"return new {targetType}()");
+            writer.WriteLine("{");
+            writer.Indent++;
+
+            foreach (var (source, destination) in mappedProperties)
+            {
+                HandleProperty(writer, source, destination, EWriteType.Initializer);
+            }
+
+            writer.Indent--;
+            writer.WriteLine("};");
         }
-        // Handle arrays
-        else if (IsArrayType(source.PropertyType) && IsArrayType(destination.PropertyType))
-        {
-            var elementType = GetElementType(source.PropertyType);
-            if (IsPrimitiveOrString(elementType))
-            {
-                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToArray(){suffix}");
-            }
-            else
-            {
-                var shortName = elementType.WithoutGlobal().Split('.').Last();
-                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToArray(){suffix}");
-            }
-        }
-        // Handle List<T>
-        else if (IsListType(source.PropertyType) && IsListType(destination.PropertyType))
-        {
-            var elementType = GetElementType(source.PropertyType);
-            if (IsPrimitiveOrString(elementType))
-            {
-                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToList(){suffix}");
-            }
-            else
-            {
-                var shortName = elementType.WithoutGlobal().Split('.').Last();
-                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToList(){suffix}");
-            }
-        }
-        // Handle ICollection<T>
-        else if (IsCollectionType(source.PropertyType) && IsCollectionType(destination.PropertyType))
-        {
-            var elementType = GetElementType(source.PropertyType);
-            if (IsPrimitiveOrString(elementType))
-            {
-                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToList(){suffix}");
-            }
-            else
-            {
-                var shortName = elementType.WithoutGlobal().Split('.').Last();
-                writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToList(){suffix}");
-            }
-        }
-        // Handle nullable reference types
-        else if (IsNullableType(source.PropertyType) && IsNullableType(destination.PropertyType))
-        {
-            writer.WriteLine($"{prefix}input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(){suffix}");
-        }
-        // Handle complex types
         else
         {
-            writer.WriteLine($"{prefix}input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(){suffix}");
+            // Use constructor with named arguments + optional object initializer for remaining properties
+            var ctorProperties = new List<(PropertyDeclaration Source, PropertyDeclaration Destination, ConstructorParameterInfo CtorParam)>();
+            var initializerProperties = new List<(PropertyDeclaration Source, PropertyDeclaration Destination)>();
+
+            foreach (var (source, destination) in mappedProperties)
+            {
+                var ctorParam = primaryCtorParams.FirstOrDefault(p => p.CorrespondingPropertyName == source.PropertyName);
+                if (ctorParam is not null)
+                {
+                    ctorProperties.Add((source, destination, ctorParam));
+                }
+                else if (!source.IsReadOnly)
+                {
+                    initializerProperties.Add((source, destination));
+                }
+            }
+
+            // Write constructor call
+            writer.Write($"return new {targetType}(");
+            if (ctorProperties.Count > 0)
+            {
+                writer.WriteLine();
+                writer.Indent++;
+                for (int i = 0; i < ctorProperties.Count; i++)
+                {
+                    var (source, destination, ctorParam) = ctorProperties[i];
+                    var valueExpr = GetPropertyValueExpression(source, destination);
+                    var separator = i < ctorProperties.Count - 1 ? "," : "";
+                    writer.WriteLine($"{ctorParam.ParameterName}: {valueExpr}{separator}");
+                }
+                writer.Indent--;
+            }
+            writer.Write(")");
+
+            // Write object initializer for remaining properties
+            var settableInitProps = initializerProperties
+                .Where(p => !p.Source.IsReadOnly && !(p.Source.IsInitOnly))
+                .ToList();
+
+            if (settableInitProps.Count > 0)
+            {
+                writer.WriteLine();
+                writer.WriteLine("{");
+                writer.Indent++;
+                foreach (var (source, destination) in settableInitProps)
+                {
+                    HandleProperty(writer, source, destination, EWriteType.Initializer);
+                }
+                writer.Indent--;
+                writer.Write("}");
+            }
+
+            writer.WriteLine(";");
         }
     }
 }

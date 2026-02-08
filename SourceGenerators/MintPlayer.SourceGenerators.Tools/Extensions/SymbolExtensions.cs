@@ -56,9 +56,12 @@ public static class SymbolExtensions
                     {
                         ClassDeclarationSyntax cds => cds.Modifiers.Any(m => m.IsKind(SyntaxKind.PartialKeyword)),
                         StructDeclarationSyntax sds => sds.Modifiers.Any(m => m.IsKind(SyntaxKind.PartialKeyword)),
+                        RecordDeclarationSyntax rds => rds.Modifiers.Any(m => m.IsKind(SyntaxKind.PartialKeyword)),
                         _ => false
                     }),
-                    Type = namedTypeSymbol.TypeKind switch { TypeKind.Class => EPathSpecType.Class, _ => EPathSpecType.Struct },
+                    Type = namedTypeSymbol.IsRecord
+                        ? (namedTypeSymbol.TypeKind == TypeKind.Struct ? EPathSpecType.RecordStruct : EPathSpecType.Record)
+                        : (namedTypeSymbol.TypeKind == TypeKind.Class ? EPathSpecType.Class : EPathSpecType.Struct),
                 });
             }
 
@@ -118,7 +121,13 @@ public static class SymbolExtensions
 
         foreach (var parent in pathSpec.Parents.Where(p => !string.IsNullOrWhiteSpace(p.Name)).Reverse())
         {
-            var keyword = parent.Type == EPathSpecType.Struct ? "struct" : "class";
+            var keyword = parent.Type switch
+            {
+                EPathSpecType.Struct => "struct",
+                EPathSpecType.Record => "record class",
+                EPathSpecType.RecordStruct => "record struct",
+                _ => "class",
+            };
             var genericParams = parent.GenericTypeParameters ?? string.Empty;
             stack.Push(writer.OpenBlock($"partial {keyword} {parent.Name}{genericParams}"));
         }
@@ -195,7 +204,7 @@ public class PathSpec
         set
         {
             field = value;
-            AllPartial = Parents.All(p => !new[] { EPathSpecType.Class, EPathSpecType.Struct }.Contains(p.Type) || p.IsPartial);
+            AllPartial = Parents.All(p => !new[] { EPathSpecType.Class, EPathSpecType.Struct, EPathSpecType.Record, EPathSpecType.RecordStruct }.Contains(p.Type) || p.IsPartial);
         }
     } = [];
     public bool AllPartial { get; private set; }
@@ -218,6 +227,8 @@ public enum EPathSpecType
 {
     Class,
     Struct,
+    Record,
+    RecordStruct,
 
     // TODO: interface, enum
 }
