@@ -4,6 +4,7 @@ using System.Diagnostics;
 
 [assembly: GenerateMapper(typeof(Person), typeof(PersonDto), "Persoon")]
 [assembly: GenerateMapper(typeof(ContactInfo), typeof(ContactInfoDto), "MapTo")]
+[assembly: GenerateMapper(typeof(Product), typeof(ProductDto), "MapTo")]
 
 
 var person = new Person
@@ -26,6 +27,22 @@ var person = new Person
 };
 var dto = person.MapToPersonDto();
 var entity = dto.MapToPerson();
+
+// Record with primary constructor (no parameterless ctor)
+var product = new Product("Widget", 9.99m);
+var productDto = product.MapToProductDto();
+var productBack = productDto.MapToProduct();
+
+// Record with primary constructor + extra settable property
+var coord = new Coordinate(1.0, 2.0) { Label = "Origin" };
+var coordDto = coord.MapToCoordinateDto();
+var coordBack = coordDto.MapToCoordinate();
+
+// Record without primary constructor (parameterless, init-only properties)
+var tag = new Tag { Name = "Important", Color = "Red" };
+var tagDto = tag.MapToTagDto();
+var tagBack = tagDto.MapToTag();
+
 Debugger.Break();
 
 
@@ -169,4 +186,54 @@ public class ContactInfoDto
 
     [MapTo(nameof(ContactInfo.Value))]
     public string Waarde { get; set; }
+}
+
+// --- Record test scenarios ---
+
+// Scenario 1: Record with primary constructor (no parameterless ctor)
+public record Product(string Name, decimal Price);
+
+public class ProductDto
+{
+    [MapTo(nameof(Product.Name))]
+    public string Name { get; set; }
+
+    [MapTo(nameof(Product.Price))]
+    public decimal Price { get; set; }
+}
+
+// Scenario 2: Record with primary ctor + extra settable property
+[GenerateMapper(typeof(CoordinateDto))]
+public record Coordinate(double X, double Y)
+{
+    public string? Label { get; set; }
+}
+
+public class CoordinateDto
+{
+    [MapTo(nameof(Coordinate.X))]
+    public double X { get; set; }
+
+    [MapTo(nameof(Coordinate.Y))]
+    public double Y { get; set; }
+
+    [MapTo(nameof(Coordinate.Label))]
+    public string? Label { get; set; }
+}
+
+// Scenario 3: Record without primary constructor (uses init properties)
+[GenerateMapper(typeof(TagDto))]
+public record Tag
+{
+    public string Name { get; init; }
+    public string Color { get; init; }
+}
+
+public record TagDto
+{
+    [MapTo(nameof(Tag.Name))]
+    public string Name { get; init; }
+
+    [MapTo(nameof(Tag.Color))]
+    public string Color { get; init; }
 }

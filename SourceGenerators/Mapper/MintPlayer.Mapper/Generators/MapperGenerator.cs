@@ -37,11 +37,15 @@ public class MapperGenerator : IncrementalGenerator
                                     DeclaredType = sourceType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                     DeclaredTypeName = sourceType.Name,
                                     DeclaredTypeAccessibility = (int)sourceType.DeclaredAccessibility,
+                                    DeclaredTypeHasParameterlessConstructor = HasParameterlessConstructor(sourceType),
+                                    DeclaredTypePrimaryConstructorParameters = GetPrimaryConstructorParameters(sourceType),
                                     PreferredDeclaredMethodName = declaredMethodName,
-                                    
+
                                     MappingType = destType1.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                     MappingTypeName = destType1.Name,
                                     MappingTypeAccessibility = (int)destType1.DeclaredAccessibility,
+                                    MappingTypeHasParameterlessConstructor = HasParameterlessConstructor(destType1),
+                                    MappingTypePrimaryConstructorParameters = GetPrimaryConstructorParameters(destType1),
                                     PreferredMappingMethodName = mappingMethodName,
                                     AreBothDecorated = destType1.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute"),
                                     AppliedOn = Models.EAppliedOn.Assembly,
@@ -83,9 +87,13 @@ public class MapperGenerator : IncrementalGenerator
                                     DestinationNamespace = typeSymbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
                                     DeclaredType = typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                     DeclaredTypeName = typeSymbol.Name,
+                                    DeclaredTypeHasParameterlessConstructor = HasParameterlessConstructor(typeSymbol),
+                                    DeclaredTypePrimaryConstructorParameters = GetPrimaryConstructorParameters(typeSymbol),
                                     PreferredDeclaredMethodName = CreateMethodName(typeMethodName2, typeSymbol),
                                     MappingType = destType2.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                     MappingTypeName = destType2.Name,
+                                    MappingTypeHasParameterlessConstructor = HasParameterlessConstructor(destType2),
+                                    MappingTypePrimaryConstructorParameters = GetPrimaryConstructorParameters(destType2),
                                     PreferredMappingMethodName = mappingMethodName,
                                     AreBothDecorated = destType2.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute"),
                                     AppliedOn = Models.EAppliedOn.Class,
@@ -249,6 +257,43 @@ public class MapperGenerator : IncrementalGenerator
     {
         var preferredMappingMethodName = (preferred.Value as string) ?? type.Name;
         return preferredMappingMethodName.EnsureStartsWith("MapTo");
+    }
+
+    private static bool HasParameterlessConstructor(INamedTypeSymbol typeSymbol)
+    {
+        // Struct types (including record structs) always have a parameterless constructor
+        if (typeSymbol.TypeKind == TypeKind.Struct)
+            return true;
+
+        return typeSymbol.Constructors.Any(c => !c.IsStatic && c.Parameters.Length == 0);
+    }
+
+    private static Models.ConstructorParameterInfo[] GetPrimaryConstructorParameters(INamedTypeSymbol typeSymbol)
+    {
+        // Find the primary constructor: the one whose parameters correspond to properties
+        // For records, this is the constructor generated from the positional parameters
+        var primaryCtor = typeSymbol.Constructors
+            .Where(c => !c.IsStatic && !c.IsImplicitlyDeclared)
+            .OrderByDescending(c => c.Parameters.Length)
+            .FirstOrDefault(c => c.Parameters.All(p =>
+                typeSymbol.GetMembers().OfType<IPropertySymbol>().Any(prop =>
+                    string.Equals(prop.Name, p.Name, System.StringComparison.OrdinalIgnoreCase))));
+
+        if (primaryCtor is null || primaryCtor.Parameters.Length == 0)
+            return [];
+
+        return primaryCtor.Parameters.Select(p =>
+        {
+            var correspondingProperty = typeSymbol.GetMembers().OfType<IPropertySymbol>()
+                .FirstOrDefault(prop => string.Equals(prop.Name, p.Name, System.StringComparison.OrdinalIgnoreCase));
+
+            return new Models.ConstructorParameterInfo
+            {
+                ParameterName = p.Name,
+                CorrespondingPropertyName = correspondingProperty?.Name ?? p.Name,
+                ParameterType = p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            };
+        }).ToArray();
     }
 
     private static IEnumerable<Models.PropertyDeclaration> ProcessProperties(INamedTypeSymbol typeSymbol)

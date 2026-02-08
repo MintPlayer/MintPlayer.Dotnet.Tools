@@ -17,6 +17,8 @@ public partial class TypeToMap
     /// </summary>
     public string DeclaredTypeName { get; set; }
     public int DeclaredTypeAccessibility { get; set; }
+    public bool DeclaredTypeHasParameterlessConstructor { get; set; }
+    public ConstructorParameterInfo[] DeclaredTypePrimaryConstructorParameters { get; set; } = [];
     public PropertyDeclaration[] DeclaredProperties { get; set; } = [];
 
     /// <summary>
@@ -29,6 +31,8 @@ public partial class TypeToMap
     /// </summary>
     public string MappingTypeName { get; set; }
     public int MappingTypeAccessibility { get; set; }
+    public bool MappingTypeHasParameterlessConstructor { get; set; }
+    public ConstructorParameterInfo[] MappingTypePrimaryConstructorParameters { get; set; } = [];
     public PropertyDeclaration[] MappingProperties { get; set; } = [];
 
     public string PreferredMappingMethodName { get; set; }
