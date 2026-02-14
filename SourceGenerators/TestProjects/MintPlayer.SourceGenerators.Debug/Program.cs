@@ -95,6 +95,15 @@ public partial struct NestedStruct1
 }
 
 /// <summary>
+/// Demonstrates nullable [Inject] fields generating optional constructor parameters with = null default.
+/// </summary>
+public partial class NullableInjectDemo
+{
+    [Inject] private readonly ITestService1 requiredService;
+    [Inject] private readonly ITestService2? optionalService;
+}
+
+/// <summary>
 /// Demonstrates the [PostConstruct] attribute functionality.
 /// The OnInitialized method will be called automatically after
 /// all injected fields are assigned in the generated constructor.
