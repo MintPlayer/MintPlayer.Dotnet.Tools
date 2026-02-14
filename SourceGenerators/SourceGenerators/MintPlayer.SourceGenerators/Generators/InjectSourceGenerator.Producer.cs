@@ -54,7 +54,9 @@ internal class InjectProducer : Producer, IDiagnosticReporter
                 // Add [Inject] fields
                 foreach (var dep in classInfo.InjectFields)
                 {
-                    constructorParams.Add($"{dep.Type} {dep.Name}");
+                    constructorParams.Add(dep.IsNullable
+                        ? $"{dep.Type} {dep.Name} = null"
+                        : $"{dep.Type} {dep.Name}");
                 }
 
                 // Add [Options] fields (injected as constructor params)

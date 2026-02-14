@@ -179,10 +179,12 @@ public class InjectSourceGenerator : IncrementalGenerator
                 .Any(attr => semanticModel.GetTypeInfo(attr).Type?.Name == "InjectAttribute"))
             {
                 var fieldType = field.Declaration.Type;
-                var fieldTypeSymbol = semanticModel.GetSymbolInfo(fieldType).Symbol as ITypeSymbol;
+                var fieldTypeSymbol = semanticModel.GetTypeInfo(fieldType).Type;
                 var fqn = fieldTypeSymbol?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)) ?? string.Empty;
                 var name = field.Declaration.Variables.First().Identifier.Text;
-                result.Add(new Models.InjectField { Type = fqn, Name = name });
+                var isNullable = fieldTypeSymbol?.NullableAnnotation == NullableAnnotation.Annotated
+                              || field.Declaration.Type is NullableTypeSyntax;
+                result.Add(new Models.InjectField { Type = fqn, Name = name, IsNullable = isNullable });
             }
         }
 
@@ -196,10 +198,12 @@ public class InjectSourceGenerator : IncrementalGenerator
                 var hasSetter = prop.AccessorList?.Accessors.Any(a => a.Kind() == SyntaxKind.SetAccessorDeclaration) == true;
                 if (hasSetter) continue;
 
-                var propTypeSymbol = semanticModel.GetSymbolInfo(prop.Type).Symbol as ITypeSymbol;
+                var propTypeSymbol = semanticModel.GetTypeInfo(prop.Type).Type;
                 var fqn = propTypeSymbol?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)) ?? string.Empty;
                 var name = prop.Identifier.Text;
-                result.Add(new Models.InjectField { Type = fqn, Name = name });
+                var isNullable = propTypeSymbol?.NullableAnnotation == NullableAnnotation.Annotated
+                              || prop.Type is NullableTypeSyntax;
+                result.Add(new Models.InjectField { Type = fqn, Name = name, IsNullable = isNullable });
             }
         }
 
