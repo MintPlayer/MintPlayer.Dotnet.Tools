@@ -1,7 +1,15 @@
-using System.ComponentModel;
 using System.Runtime.Serialization;
 
 namespace MintPlayer.Pagination;
+
+public enum SortDirection
+{
+    [EnumMember(Value = "ascending")]
+    Ascending,
+
+    [EnumMember(Value = "descending")]
+    Descending
+}
 
 [DataContract]
 public class SortColumn
@@ -12,5 +20,5 @@ public class SortColumn
 
     [DataMember]
     /// <summary>Sort direction for this column.</summary>
-    public ListSortDirection Direction { get; set; }
+    public SortDirection Direction { get; set; } = SortDirection.Ascending;
 }

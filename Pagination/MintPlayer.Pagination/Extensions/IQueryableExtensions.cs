@@ -29,12 +29,12 @@ public static class IQueryableExtensions
         if (sortColumns.Length == 0)
             throw new ArgumentException("At least one sort column is required.", nameof(sortColumns));
 
-        var ascending = sortColumns[0].Direction == System.ComponentModel.ListSortDirection.Ascending;
+        var ascending = sortColumns[0].Direction == SortDirection.Ascending;
         IOrderedQueryable<TSource> ordered = query.SortByBase(sortColumns[0].Property, ascending, isFirst: true);
 
         for (var i = 1; i < sortColumns.Length; i++)
         {
-            var asc = sortColumns[i].Direction == System.ComponentModel.ListSortDirection.Ascending;
+            var asc = sortColumns[i].Direction == SortDirection.Ascending;
             ordered = ordered.SortByBase(sortColumns[i].Property, asc, isFirst: false);
         }
 

@@ -33,7 +33,13 @@ public class PaginationRequest<TDto>
             return SortColumns;
 
         if (!string.IsNullOrEmpty(SortProperty))
-            return [new SortColumn { Property = SortProperty, Direction = SortDirection }];
+            return [new SortColumn
+            {
+                Property = SortProperty,
+                Direction = SortDirection == ListSortDirection.Descending
+                    ? Pagination.SortDirection.Descending
+                    : Pagination.SortDirection.Ascending
+            }];
 
         return [];
     }
