@@ -10,7 +10,7 @@ public static class IQueryableExtensions
     /// <param name="propertyName">Name of the property to sort on.</param>
     public static IOrderedQueryable<TSource> OrderBy<TSource>(this IQueryable<TSource> query, string propertyName)
     {
-        return query.OrderByBase(propertyName, true);
+        return query.SortByBase(propertyName, true, isFirst: true);
     }
 
     /// <summary>Sort descending based on a string.</summary>
@@ -18,20 +18,37 @@ public static class IQueryableExtensions
     /// <param name="propertyName">Name of the property to sort on.</param>
     public static IOrderedQueryable<TSource> OrderByDescending<TSource>(this IQueryable<TSource> query, string propertyName)
     {
-        return query.OrderByBase(propertyName, false);
+        return query.SortByBase(propertyName, false, isFirst: true);
+    }
+
+    /// <summary>Apply multi-column sorting based on SortColumn array.</summary>
+    /// <param name="query">Input queryable</param>
+    /// <param name="sortColumns">Columns to sort by, in priority order.</param>
+    public static IOrderedQueryable<TSource> OrderBySortColumns<TSource>(this IQueryable<TSource> query, SortColumn[] sortColumns)
+    {
+        if (sortColumns.Length == 0)
+            throw new ArgumentException("At least one sort column is required.", nameof(sortColumns));
+
+        var ascending = sortColumns[0].Direction == System.ComponentModel.ListSortDirection.Ascending;
+        IOrderedQueryable<TSource> ordered = query.SortByBase(sortColumns[0].Property, ascending, isFirst: true);
+
+        for (var i = 1; i < sortColumns.Length; i++)
+        {
+            var asc = sortColumns[i].Direction == System.ComponentModel.ListSortDirection.Ascending;
+            ordered = ordered.SortByBase(sortColumns[i].Property, asc, isFirst: false);
+        }
+
+        return ordered;
     }
 
     /// <summary>Applies sorting + paging on the queryable.</summary>
-    /// <typeparam name="TDto">DTO type</typeparam>
-    /// <typeparam name="TEntity">Entity type</typeparam>
+    /// <typeparam name="T">Element type</typeparam>
     /// <param name="source">DbSet or Queryable</param>
     /// <param name="request">Pagination request</param>
     public static IQueryable<T> Paginate<T>(this IQueryable<T> source, PaginationRequest<T> request)
     {
         // 1) Sort
-        var orderedItems = request.SortDirection == System.ComponentModel.ListSortDirection.Descending
-            ? source.OrderByDescending(request.SortProperty)
-            : source.OrderBy(request.SortProperty);
+        var orderedItems = source.OrderBySortColumns(request.GetEffectiveSortColumns());
 
         // 2) Page
         var pagedItems = orderedItems
@@ -41,13 +58,10 @@ public static class IQueryableExtensions
         return pagedItems;
     }
 
-
     public static async Task<PaginationResponse<TDto>> Paginate<TDto, TEntity>(this IQueryable<TEntity> source, PaginationRequest<TDto> request, IMapper<TEntity, TDto> mapper)
     {
         // 1) Sort
-        var orderedItems = request.SortDirection == System.ComponentModel.ListSortDirection.Descending
-            ? source.OrderByDescending(request.SortProperty)
-            : source.OrderBy(request.SortProperty);
+        var orderedItems = source.OrderBySortColumns(request.GetEffectiveSortColumns());
 
         // 2) Page
         var pagedItems = orderedItems
@@ -61,7 +75,7 @@ public static class IQueryableExtensions
         return new PaginationResponse<TDto>(request, countItems, dtoItems);
     }
 
-    private static IOrderedQueryable<TSource> OrderByBase<TSource>(this IQueryable<TSource> query, string propertyName, bool ascending)
+    private static IOrderedQueryable<TSource> SortByBase<TSource>(this IQueryable<TSource> query, string propertyName, bool ascending, bool isFirst)
     {
         var entityType = typeof(TSource);
         var info = entityType.GetProperty(propertyName);
@@ -69,31 +83,27 @@ public static class IQueryableExtensions
             throw new Exceptions.InvalidSortPropertyException(propertyName);
 
         //Create x=>x.PropName
-        // The parameter for our lambda expression
         var parameter = Expression.Parameter(typeof(TSource), "a");
-        // A reference to the property
         var property = Expression.Property(parameter, propertyName);
-        // Our lambda expression
         var lambda = Expression.Lambda(property, parameter);
 
-        //Get System.Linq.Queryable.OrderBy() method.
+        string methodName;
+        if (isFirst)
+            methodName = ascending ? nameof(Enumerable.OrderBy) : nameof(Enumerable.OrderByDescending);
+        else
+            methodName = ascending ? nameof(Enumerable.ThenBy) : nameof(Enumerable.ThenByDescending);
+
         var enumarableType = typeof(Queryable);
         var method = enumarableType.GetMethods()
-             .Where(m => m.Name == (ascending ? nameof(Enumerable.OrderBy) : nameof(Enumerable.OrderByDescending)) && m.IsGenericMethodDefinition)
-             .Where(m => {
+             .Where(m => m.Name == methodName && m.IsGenericMethodDefinition)
+             .Where(m =>
+             {
                  var parameters = m.GetParameters().ToList();
-                 //Put more restriction here to ensure selecting the right overload                
-                 return parameters.Count == 2; //overload that has 2 parameters
+                 return parameters.Count == 2;
              }).Single();
 
-        //The linq's OrderBy<TSource, TKey> has two generic types, which provided here
         var genericMethod = method.MakeGenericMethod(entityType, info.PropertyType);
 
-        /*
-         * Call query.OrderBy(selector), with query and selector: x=> x.PropName
-         * Note that we pass the selector as Expression to the method and we don't compile it.
-         * By doing so EF can extract "order by" columns and generate SQL for it.
-         */
         var newQuery = (IOrderedQueryable<TSource>)genericMethod.Invoke(genericMethod, new object[] { query, lambda });
         return newQuery;
     }
