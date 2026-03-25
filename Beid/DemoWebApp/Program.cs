@@ -163,21 +163,8 @@ public class Program
             var cert = c.Connection.ClientCertificate;
             if (cert is null)
             {
-                var rawHeader = c.Request.Headers["X-Forwarded-Tls-Client-Cert"].ToString();
-                var decoded = string.IsNullOrEmpty(rawHeader) ? "" : Uri.UnescapeDataString(rawHeader);
-                // Find first non-base64 character
-                var validChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=".ToHashSet();
-                var invalidChars = decoded.Select((ch, i) => new { ch, i }).Where(x => !validChars.Contains(x.ch)).Take(5).ToList();
                 c.Response.StatusCode = 401;
-                await c.Response.WriteAsJsonAsync(new
-                {
-                    error = "No client certificate received",
-                    rawHeaderLength = rawHeader.Length,
-                    decodedLength = decoded.Length,
-                    first100 = decoded[..Math.Min(100, decoded.Length)],
-                    last100 = decoded.Length > 100 ? decoded[^100..] : decoded,
-                    invalidChars = invalidChars.Select(x => new { position = x.i, charCode = (int)x.ch, character = x.ch.ToString() })
-                });
+                await c.Response.WriteAsJsonAsync(new { error = "No client certificate received" });
                 return;
             }
             var result = new PersonInfo(cert);
