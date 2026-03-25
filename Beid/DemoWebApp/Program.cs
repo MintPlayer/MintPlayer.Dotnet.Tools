@@ -8,6 +8,7 @@ using Org.BouncyCastle.Asn1.X509;
 using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json.Serialization;
+using System.Web;
 
 namespace DemoWebApp;
 
@@ -109,7 +110,7 @@ public class Program
                 options.CertificateHeader = "X-Forwarded-Tls-Client-Cert";
                 options.HeaderConverter = (headerValue) =>
                 {
-                    var certPem = Uri.UnescapeDataString(headerValue);
+                    var certPem = HttpUtility.UrlDecode(headerValue);
                     return X509Certificate2.CreateFromPem(certPem);
                 };
             });
@@ -159,7 +160,13 @@ public class Program
         todosApi.MapGet("/", async (c) =>
         {
             var cert = c.Connection.ClientCertificate;
-            var result = new PersonInfo(cert!);
+            if (cert is null)
+            {
+                c.Response.StatusCode = 401;
+                await c.Response.WriteAsJsonAsync(new { error = "No client certificate received", header = c.Request.Headers.ContainsKey("X-Forwarded-Tls-Client-Cert") });
+                return;
+            }
+            var result = new PersonInfo(cert);
             await c.Response.WriteAsJsonAsync(result);
         });
         todosApi.MapGet("/{id}", (int id) =>
