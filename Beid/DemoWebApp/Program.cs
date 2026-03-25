@@ -110,8 +110,9 @@ public class Program
                 options.CertificateHeader = "X-Forwarded-Tls-Client-Cert";
                 options.HeaderConverter = (headerValue) =>
                 {
-                    var certPem = HttpUtility.UrlDecode(headerValue);
-                    return X509Certificate2.CreateFromPem(certPem);
+                    var certBase64 = HttpUtility.UrlDecode(headerValue);
+                    var certBytes = Convert.FromBase64String(certBase64);
+                    return X509CertificateLoader.LoadCertificate(certBytes);
                 };
             });
         }
