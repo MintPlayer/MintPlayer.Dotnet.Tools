@@ -162,8 +162,10 @@ public class Program
             var cert = c.Connection.ClientCertificate;
             if (cert is null)
             {
+                var rawHeader = c.Request.Headers["X-Forwarded-Tls-Client-Cert"].ToString();
+                var decoded = string.IsNullOrEmpty(rawHeader) ? "" : HttpUtility.UrlDecode(rawHeader);
                 c.Response.StatusCode = 401;
-                await c.Response.WriteAsJsonAsync(new { error = "No client certificate received", header = c.Request.Headers.ContainsKey("X-Forwarded-Tls-Client-Cert") });
+                await c.Response.WriteAsJsonAsync(new { error = "No client certificate received", rawHeaderLength = rawHeader.Length, decodedPreview = decoded[..Math.Min(200, decoded.Length)] });
                 return;
             }
             var result = new PersonInfo(cert);
