@@ -1,5 +1,7 @@
 tls:
   options:
     mtls:
+      minVersion: VersionTLS12
+      maxVersion: VersionTLS12
       clientAuth:
         clientAuthType: RequestClientCert
