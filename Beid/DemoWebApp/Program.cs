@@ -8,7 +8,6 @@ using Org.BouncyCastle.Asn1.X509;
 using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json.Serialization;
-using System.Web;
 
 namespace DemoWebApp;
 
@@ -110,7 +109,7 @@ public class Program
                 options.CertificateHeader = "X-Forwarded-Tls-Client-Cert";
                 options.HeaderConverter = (headerValue) =>
                 {
-                    var certBase64 = HttpUtility.UrlDecode(headerValue);
+                    var certBase64 = Uri.UnescapeDataString(headerValue);
                     var certBytes = Convert.FromBase64String(certBase64);
                     return X509CertificateLoader.LoadCertificate(certBytes);
                 };
@@ -164,7 +163,7 @@ public class Program
             if (cert is null)
             {
                 var rawHeader = c.Request.Headers["X-Forwarded-Tls-Client-Cert"].ToString();
-                var decoded = string.IsNullOrEmpty(rawHeader) ? "" : HttpUtility.UrlDecode(rawHeader);
+                var decoded = string.IsNullOrEmpty(rawHeader) ? "" : Uri.UnescapeDataString(rawHeader);
                 c.Response.StatusCode = 401;
                 await c.Response.WriteAsJsonAsync(new { error = "No client certificate received", rawHeaderLength = rawHeader.Length, decodedPreview = decoded[..Math.Min(200, decoded.Length)] });
                 return;
