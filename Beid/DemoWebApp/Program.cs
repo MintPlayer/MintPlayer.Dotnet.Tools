@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Certificate;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Org.BouncyCastle.Asn1.X509;
 using System.Net;
+using System.Security.Cryptography.X509Certificates;
 using System.Text.Json.Serialization;
 
 namespace DemoWebApp;
@@ -81,21 +83,37 @@ public class Program
 
         builder.Services.AddHealthChecks();
 
-        builder.WebHost.ConfigureKestrel(k =>
+        if (builder.Environment.IsDevelopment())
         {
-            k.ConfigureHttpsDefaults(http =>
+            builder.WebHost.ConfigureKestrel(k =>
             {
-                // Fixes ERR_SSL_CLIENT_AUTH_SIGNATURE_FAILED
-                http.SslProtocols = System.Security.Authentication.SslProtocols.Tls12;
-                http.ClientCertificateValidation = (_, __, ___) =>
+                k.ConfigureHttpsDefaults(http =>
                 {
-                    return true;
-                };
-                http.ClientCertificateMode = Microsoft.AspNetCore.Server.Kestrel.Https.ClientCertificateMode.RequireCertificate;
+                    // Fixes ERR_SSL_CLIENT_AUTH_SIGNATURE_FAILED
+                    http.SslProtocols = System.Security.Authentication.SslProtocols.Tls12;
+                    http.ClientCertificateValidation = (_, __, ___) =>
+                    {
+                        return true;
+                    };
+                    http.ClientCertificateMode = Microsoft.AspNetCore.Server.Kestrel.Https.ClientCertificateMode.RequireCertificate;
+                    http.HandshakeTimeout = TimeSpan.FromMinutes(2);
+                });
             });
-        });
-        builder.WebHost.UseKestrelHttpsConfiguration();
-        //builder.WebHost.UseKestrel();
+            builder.WebHost.UseKestrelHttpsConfiguration();
+        }
+        else
+        {
+            // Behind Traefik: client cert is forwarded via header
+            builder.Services.AddCertificateForwarding(options =>
+            {
+                options.CertificateHeader = "X-Forwarded-Tls-Client-Cert";
+                options.HeaderConverter = (headerValue) =>
+                {
+                    var certPem = Uri.UnescapeDataString(headerValue);
+                    return X509Certificate2.CreateFromPem(certPem);
+                };
+            });
+        }
 
         var app = builder.Build();
 
@@ -110,9 +128,20 @@ public class Program
         //app.UseExceptionHandler(@"/Test.txt");
         app.UseHealthChecks("/healtz");
         app.UseDeveloperExceptionPage();
-        app.UseHttpsRedirection();
         app.UseStatusCodePages();
-        app.UseDeveloperExceptionPage();
+
+        if (app.Environment.IsDevelopment())
+        {
+            app.UseHttpsRedirection();
+        }
+        else
+        {
+            app.UseForwardedHeaders(new ForwardedHeadersOptions
+            {
+                ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+            });
+            app.UseCertificateForwarding();
+        }
 
         app.UseAuthentication();
         app.UseRouting();

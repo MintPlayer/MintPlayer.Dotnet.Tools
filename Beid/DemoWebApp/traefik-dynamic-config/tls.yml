@@ -1,0 +1,5 @@
+tls:
+  options:
+    mtls:
+      clientAuth:
+        clientAuthType: RequestClientCert

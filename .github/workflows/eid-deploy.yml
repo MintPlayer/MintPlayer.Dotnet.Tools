@@ -1,0 +1,101 @@
+name: Build, Publish & Deploy eID
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'Beid/DemoWebApp/**'
+      - '.github/workflows/eid-deploy.yml'
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: mintplayer/mintplayer-dotnet-tools-eid
+  APP_NAME: eid
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Beid/DemoWebApp/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/master'
+
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          passphrase: ${{ secrets.VPS_SSH_KEY_PASSPHRASE }}
+          envs: GITHUB_TOKEN
+          script: |
+            mkdir -p /var/www/${{ env.APP_NAME }}
+            cd /var/www/${{ env.APP_NAME }}
+
+            # Download latest docker-compose.yml from the repository
+            rm -f docker-compose.yml
+            curl -sf -H "Authorization: token $GITHUB_TOKEN" -o docker-compose.yml https://raw.githubusercontent.com/${{ github.repository }}/master/Beid/DemoWebApp/docker-compose.yml
+
+            # Ensure Traefik mTLS dynamic config is present
+            mkdir -p /var/www/traefik/dynamic
+            curl -sf -H "Authorization: token $GITHUB_TOKEN" -o /var/www/traefik/dynamic/tls.yml https://raw.githubusercontent.com/${{ github.repository }}/master/Beid/DemoWebApp/traefik-dynamic-config/tls.yml
+
+            # Log in to GHCR using the workflow's GITHUB_TOKEN
+            echo "$GITHUB_TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            # Pull latest image
+            docker compose pull
+
+            # Stop and remove old containers
+            docker compose down
+
+            # Start new containers
+            docker compose up -d
+
+            # Clean up old images
+            docker image prune -f

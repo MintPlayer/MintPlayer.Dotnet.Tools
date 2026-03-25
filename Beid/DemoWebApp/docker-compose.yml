@@ -1,0 +1,18 @@
+services:
+  eid:
+    image: ghcr.io/mintplayer/mintplayer-dotnet-tools-eid:master
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.eid.rule=Host(`eid.mintplayer.com`)"
+      - "traefik.http.routers.eid.entrypoints=websecure"
+      - "traefik.http.routers.eid.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.eid.tls.options=mtls@file"
+      - "traefik.http.routers.eid.middlewares=eid-clientcert"
+      - "traefik.http.middlewares.eid-clientcert.passtlsclientcert.pem=true"
+    networks:
+      - web
+    restart: unless-stopped
+
+networks:
+  web:
+    external: true
