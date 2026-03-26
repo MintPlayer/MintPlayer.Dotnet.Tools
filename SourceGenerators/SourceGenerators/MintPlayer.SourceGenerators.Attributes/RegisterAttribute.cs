@@ -33,10 +33,10 @@ public class RegisterAttribute : Attribute
     public RegisterAttribute(ServiceLifetime lifetime, string methodNameHint = default, EGeneratedAccessibility accessibility = EGeneratedAccessibility.Unspecified) { }
 
     /// <summary>
-    /// Registers a class as an implementation of an interface.
+    /// Registers a class as an implementation of a service type (interface or base class).
     /// Use on class declarations.
     /// </summary>
-    public RegisterAttribute(Type interfaceType, ServiceLifetime lifetime, string methodNameHint = default, EGeneratedAccessibility accessibility = EGeneratedAccessibility.Unspecified) { }
+    public RegisterAttribute(Type serviceType, ServiceLifetime lifetime, string methodNameHint = default, EGeneratedAccessibility accessibility = EGeneratedAccessibility.Unspecified) { }
 
     /// <summary>
     /// Registers a third-party or external class as an implementation of a service type.
