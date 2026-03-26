@@ -78,9 +78,9 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                             Location = location,
                                         };
                                     }
-                                    else if (args.ElementAtOrDefault(0).Value is INamedTypeSymbol interfaceTypeSymbol)
+                                    else if (args.ElementAtOrDefault(0).Value is INamedTypeSymbol serviceTypeSymbol)
                                     {
-                                        // (Type interfaceType, ServiceLifetime lifetime, string methodNameHint = default, GeneratedAccessibility accessibility = default)
+                                        // (Type serviceType, ServiceLifetime lifetime, string methodNameHint = default, GeneratedAccessibility accessibility = default)
                                         if (args.Length < 2) return default;
                                         var lifetimeArg = args[1];
                                         if (!SymbolEqualityComparer.Default.Equals(lifetimeArg.Type, serviceLifetimeSymbol)) return default;
@@ -90,19 +90,34 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                             ? (EGeneratedAccessibility)accInt2
                                             : EGeneratedAccessibility.Unspecified;
 
-                                        // Check if this is an unbound generic type (e.g., IGenericRepository<,>)
-                                        if (interfaceTypeSymbol.IsUnboundGenericType)
+                                        // Check if this is an unbound generic type (e.g., IGenericRepository<,> or BaseRepository<>)
+                                        if (serviceTypeSymbol.IsUnboundGenericType)
                                         {
-                                            // Find the matching constructed generic interface from the class's implemented interfaces
-                                            var matchingInterface = namedTypeSymbol.AllInterfaces
-                                                .FirstOrDefault(i => SymbolEqualityComparer.Default.Equals(i.OriginalDefinition, interfaceTypeSymbol.OriginalDefinition));
+                                            // Find the matching constructed generic type from the class's implemented interfaces or base type chain
+                                            INamedTypeSymbol? matchingType = namedTypeSymbol.AllInterfaces
+                                                .FirstOrDefault(i => SymbolEqualityComparer.Default.Equals(i.OriginalDefinition, serviceTypeSymbol.OriginalDefinition));
 
-                                            if (matchingInterface is null) return default;
+                                            if (matchingType is null)
+                                            {
+                                                // Search the base type chain for a matching generic base class
+                                                var current = namedTypeSymbol.BaseType;
+                                                while (current is not null)
+                                                {
+                                                    if (current.IsGenericType && SymbolEqualityComparer.Default.Equals(current.OriginalDefinition, serviceTypeSymbol.OriginalDefinition))
+                                                    {
+                                                        matchingType = current;
+                                                        break;
+                                                    }
+                                                    current = current.BaseType;
+                                                }
+                                            }
+
+                                            if (matchingType is null) return default;
 
                                             // The class must also be generic to use open generic registration
                                             if (!namedTypeSymbol.IsGenericType) return default;
 
-                                            var genericInfo = BuildGenericTypeInfo(namedTypeSymbol, matchingInterface);
+                                            var genericInfo = BuildGenericTypeInfo(namedTypeSymbol, matchingType);
 
                                             return new ServiceRegistration
                                             {
@@ -120,17 +135,20 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                         }
                                         else
                                         {
-                                            // Non-generic interface type - existing behavior
-                                            if (namedTypeSymbol.AllInterfaces.All(i => !SymbolEqualityComparer.Default.Equals(i, interfaceTypeSymbol))) return default;
+                                            // Non-generic service type - check interfaces and base type chain
+                                            bool implementsInterface = namedTypeSymbol.AllInterfaces.Any(i => SymbolEqualityComparer.Default.Equals(i, serviceTypeSymbol));
+                                            bool extendsBaseClass = ExtendsType(namedTypeSymbol, serviceTypeSymbol);
+
+                                            if (!implementsInterface && !extendsBaseClass) return default;
 
                                             return new ServiceRegistration
                                             {
-                                                ServiceTypeName = interfaceTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                                                ServiceTypeName = serviceTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                                 ImplementationTypeName = namedTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                                 Lifetime = lifetime,
                                                 MethodNameHint = methodNameHint,
                                                 Accessibility = accessibility,
-                                                FactoryNames = factories.Where(f => SymbolEqualityComparer.Default.Equals(f.ReturnType, interfaceTypeSymbol)).Select(f => f.Name).ToArray(),
+                                                FactoryNames = factories.Where(f => SymbolEqualityComparer.Default.Equals(f.ReturnType, serviceTypeSymbol)).Select(f => f.Name).ToArray(),
                                                 AppliedOn = ERegistrationAppliedOn.Class,
                                                 Location = location,
                                             };
@@ -314,6 +332,21 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
 
         context.ProduceCode(registerAttributeSourceProvider);
         context.ReportDiagnostics(registerAttributeDiagnosticProvider);
+    }
+
+    /// <summary>
+    /// Checks whether <paramref name="derived"/> extends <paramref name="candidate"/> anywhere in its base type chain.
+    /// </summary>
+    private static bool ExtendsType(INamedTypeSymbol derived, INamedTypeSymbol candidate)
+    {
+        var current = derived.BaseType;
+        while (current is not null)
+        {
+            if (SymbolEqualityComparer.Default.Equals(current, candidate))
+                return true;
+            current = current.BaseType;
+        }
+        return false;
     }
 
     /// <summary>
