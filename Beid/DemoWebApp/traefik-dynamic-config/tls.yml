@@ -5,3 +5,5 @@ tls:
       maxVersion: VersionTLS12
       clientAuth:
         clientAuthType: RequestClientCert
+        caFiles:
+          - /etc/traefik/dynamic/belgium-root-ca4.pem
