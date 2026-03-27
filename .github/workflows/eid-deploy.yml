@@ -84,7 +84,7 @@ jobs:
             # Ensure Traefik mTLS dynamic config is present
             mkdir -p /var/www/traefik/dynamic
             curl -sf -H "Authorization: token $GITHUB_TOKEN" -o /var/www/traefik/dynamic/tls.yml https://raw.githubusercontent.com/${{ github.repository }}/master/Beid/DemoWebApp/traefik-dynamic-config/tls.yml
-            curl -sf -H "Authorization: token $GITHUB_TOKEN" -o /var/www/traefik/dynamic/belgium-root-ca4.pem https://raw.githubusercontent.com/${{ github.repository }}/master/Beid/DemoWebApp/traefik-dynamic-config/belgium-root-ca4.pem
+            curl -sf -H "Authorization: token $GITHUB_TOKEN" -o /var/www/traefik/dynamic/belgian-eid-cas.pem https://raw.githubusercontent.com/${{ github.repository }}/master/Beid/DemoWebApp/traefik-dynamic-config/belgian-eid-cas.pem
 
             # Log in to GHCR using the workflow's GITHUB_TOKEN
             echo "$GITHUB_TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
