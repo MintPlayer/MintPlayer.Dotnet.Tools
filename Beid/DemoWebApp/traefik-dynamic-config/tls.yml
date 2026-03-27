@@ -3,6 +3,8 @@ tls:
     mtls:
       minVersion: VersionTLS12
       maxVersion: VersionTLS12
+      alpnProtocols:
+        - http/1.1
       clientAuth:
         clientAuthType: RequestClientCert
         caFiles:
