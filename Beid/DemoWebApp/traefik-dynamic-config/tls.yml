@@ -8,4 +8,5 @@ tls:
       clientAuth:
         clientAuthType: RequestClientCert
         caFiles:
-          - /etc/traefik/dynamic/belgian-eid-cas.pem
+          - /etc/traefik/dynamic/belgium-root-ca4.pem
+          - /etc/traefik/dynamic/citizen-ca.pem
