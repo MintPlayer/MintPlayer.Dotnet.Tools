@@ -12,7 +12,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="PublicApiGenerator" Version="11.1.0" />
+		<PackageReference Include="PublicApiGenerator" Version="11.5.4" />
 	</ItemGroup>
 
 </Project>
