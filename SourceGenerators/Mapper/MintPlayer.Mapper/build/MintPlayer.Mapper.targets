@@ -6,11 +6,11 @@
 		- Puts the built DLL and its dependencies in the correct package path for Roslyn analyzers
 	-->
 
-	<PropertyGroup>
+	<PropertyGroup Condition="'$(IsRoslynComponent)' == 'true'">
 		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsMapperGenerator</GetTargetPathDependsOn>
 	</PropertyGroup>
 
-	<Target Name="GetDependencyTargetPathsMapperGenerator">
+	<Target Name="GetDependencyTargetPathsMapperGenerator" Condition="'$(IsRoslynComponent)' == 'true'">
 		<!-- Include dependency DLLs and put them in the correct package path -->
 		<ItemGroup>
 			<TargetPathWithTargetPlatformMoniker Include="$(PkgMintPlayer_Mapper_Attributes)\lib\netstandard2.0\MintPlayer.Mapper.Attributes.dll" IncludeRuntimeDependency="true" />

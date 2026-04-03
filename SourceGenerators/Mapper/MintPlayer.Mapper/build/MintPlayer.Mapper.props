@@ -6,7 +6,7 @@
 		- Puts the built DLL and its dependencies in the correct package path for Roslyn analyzers
 	-->
 
-	<ItemGroup>
+	<ItemGroup Condition="'$(IsRoslynComponent)' == 'true'">
 		<!-- Put the assets for this project in the correct package path -->
 		<!-- Rolsyn 4.0 -->
 		<None Include="$(PkgMintPlayer_Mapper_Attributes)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="true" />
