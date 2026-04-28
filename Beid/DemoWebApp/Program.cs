@@ -103,16 +103,16 @@ public class Program
         }
         else
         {
-            // Behind Traefik: client cert is forwarded via header
+            // Behind nginx-eid: client cert is forwarded via header.
+            // nginx's $ssl_client_escaped_cert produces URL-encoded PEM (single leaf cert).
             builder.Services.AddCertificateForwarding(options =>
             {
                 options.CertificateHeader = "X-Forwarded-Tls-Client-Cert";
                 options.HeaderConverter = (headerValue) =>
                 {
-                    var decoded = Uri.UnescapeDataString(headerValue);
-                    var leafCertBase64 = decoded.Split(',')[0];
-                    var certBytes = Convert.FromBase64String(leafCertBase64);
-                    return X509CertificateLoader.LoadCertificate(certBytes);
+                    if (string.IsNullOrEmpty(headerValue)) return null!;
+                    var pem = Uri.UnescapeDataString(headerValue);
+                    return X509Certificate2.CreateFromPem(pem);
                 };
             });
         }
