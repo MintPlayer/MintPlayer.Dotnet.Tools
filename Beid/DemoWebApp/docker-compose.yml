@@ -1,24 +1,24 @@
 services:
   nginx-eid:
     image: nginx:alpine
+    container_name: nginx-eid
     labels:
       - "traefik.enable=true"
 
-      # TCP TLS passthrough router: SNI-routed encrypted bytes flow straight to nginx
+      # TCP TLS passthrough router: encrypted bytes for this SNI flow straight to nginx,
+      # which terminates TLS itself (with PSS removed from signature_algorithms — see Readme).
       - "traefik.tcp.routers.eid.rule=HostSNI(`eid.mintplayer.com`)"
       - "traefik.tcp.routers.eid.entrypoints=websecure"
       - "traefik.tcp.routers.eid.tls.passthrough=true"
       - "traefik.tcp.routers.eid.service=eid"
       - "traefik.tcp.services.eid.loadbalancer.server.port=443"
 
-      # Phantom HTTP router on websecure: never serves traffic (TCP router wins for this SNI),
-      # but its presence makes Traefik fetch a Let's Encrypt cert for eid.mintplayer.com.
-      # The cert is then extracted from acme.json by traefik-certs-dumper (see /var/www/traefik).
-      - "traefik.http.routers.eid-cert.rule=Host(`eid.mintplayer.com`)"
-      - "traefik.http.routers.eid-cert.entrypoints=websecure"
-      - "traefik.http.routers.eid-cert.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.eid-cert.service=eid-cert-noop"
-      - "traefik.http.services.eid-cert-noop.loadbalancer.server.port=443"
+      # NOTE: there is intentionally NO HTTP router for this host. An HTTP router with
+      # tls.certresolver on the same entrypoint+SNI conflicts with the TCP-passthrough
+      # router and Traefik ends up terminating TLS + sending plain HTTP to nginx (400).
+      # The Let's Encrypt cert for eid.mintplayer.com is already in /letsencrypt/acme.json
+      # and Traefik continues to renew it via its built-in ACME loop without a router
+      # reference. See Readme.md → "First-time cert acquisition" if acme.json is empty.
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./traefik-dynamic-config/belgian-eid-cas.pem:/etc/nginx/ca/eid-cas.pem:ro

@@ -27,6 +27,8 @@ Internet :443 (Traefik)
 
 Other Traefik-fronted apps on the same VPS are unaffected — only the `eid.mintplayer.com` SNI gets routed via TCP passthrough.
 
+> **Important — no HTTP router for this host.** The `docker-compose.yml` deliberately defines *only* a TCP TLS-passthrough router. Adding an HTTP router with `tls.certresolver` on the same `websecure` entrypoint and SNI conflicts with the TCP router: Traefik ends up terminating TLS itself and forwarding plain HTTP to nginx, which responds with `400 Bad Request — The plain HTTP request was sent to HTTPS port`. The Let's Encrypt cert is still maintained — see "First-time cert acquisition" below.
+
 ---
 
 ## Files
@@ -63,7 +65,7 @@ The GitHub Action handles app deployment on every push. The bits below are **one
 
 ### 1. Add `traefik-certs-dumper` sidecar to Traefik
 
-The eID app's nginx needs a TLS cert. Traefik already obtains one via Let's Encrypt (because of the phantom HTTP router in this app's docker-compose), but it lives inside Traefik's `acme.json`. The `traefik-certs-dumper` sidecar watches `acme.json` and writes the cert + key out as plain files that nginx-eid can mount.
+nginx needs a TLS cert. Traefik continues to obtain (and renew) the Let's Encrypt cert for `eid.mintplayer.com` via its built-in ACME loop — see "First-time cert acquisition" below for the bootstrap. The cert lives inside Traefik's `acme.json`; the `traefik-certs-dumper` sidecar watches that file and writes out plain `certificate.pem` / `privatekey.pem` files that nginx-eid can mount.
 
 In `/var/www/traefik/docker-compose.yml`, add alongside the `traefik` service:
 
@@ -133,6 +135,8 @@ sudo crontab -e
 
 Daily at 04:00. Renewal happens once every ~60 days, so daily reload is overkill but harmless.
 
+> The container name `nginx-eid` is pinned via `container_name:` in `docker-compose.yml`. Without that pin, Compose would auto-name it `<project>-nginx-eid-1` (e.g. `eid-nginx-eid-1`), and the line above wouldn't work.
+
 **Option B — ofelia sidecar** (no host changes). Add to this app's `docker-compose.yml`:
 
 ```yaml
@@ -159,6 +163,32 @@ Fully declarative, no host crontab.
 ### 5. Confirm `eid.mintplayer.com` resolves to your VPS
 
 DNS A record → VPS IP. (Already in place if the previous Traefik-terminated setup was working.)
+
+---
+
+## First-time cert acquisition (only if `acme.json` is empty for this host)
+
+The `docker-compose.yml` deliberately defines no HTTP router for `eid.mintplayer.com` (an HTTP router with `tls.certresolver` would conflict with the TCP-passthrough router and break TLS termination — see the warning at the top of this README). That means Traefik has nothing to *trigger* an ACME challenge for this host on a fresh VPS.
+
+If `eid.mintplayer.com` was previously served via Traefik (as it was here before the nginx switchover), the cert is already in `/letsencrypt/acme.json` and Traefik's renewal loop keeps it fresh — no action needed. Skip this section.
+
+For a **brand-new VPS** with no prior cert for the host:
+
+1. Temporarily add to your eID `docker-compose.yml`, alongside the TCP router labels:
+
+   ```yaml
+         - "traefik.http.routers.eid-bootstrap.rule=Host(`eid.mintplayer.com`)"
+         - "traefik.http.routers.eid-bootstrap.entrypoints=web"
+         - "traefik.http.routers.eid-bootstrap.tls.certresolver=letsencrypt"
+         - "traefik.http.routers.eid-bootstrap.service=eid-bootstrap"
+         - "traefik.http.services.eid-bootstrap.loadbalancer.server.port=80"
+   ```
+
+   Note the entrypoint is `web` (port 80), **not** `websecure` — this avoids conflicting with the TCP passthrough router on 443. Traefik still does HTTP-01 over port 80, so the cert gets fetched.
+
+2. `docker compose up -d`. Watch `/var/www/traefik/dumped-certs/eid.mintplayer.com/` appear with `certificate.pem` and `privatekey.pem` (a few seconds after Traefik fetches via ACME).
+
+3. Remove those four labels and `docker compose up -d` again. The cert stays in `acme.json` from now on; Traefik's renewal loop keeps it current.
 
 ---
 
