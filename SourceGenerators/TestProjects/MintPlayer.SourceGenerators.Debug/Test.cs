@@ -80,3 +80,12 @@ public partial class ClassWithInternalPostConstruct
         Console.WriteLine("ClassWithInternalPostConstruct initialized!");
     }
 }
+
+// Test case: [Inject] on public read-only auto-properties.
+// The dependencies are exposed outside the class via the property accessors,
+// so callers can read them without needing internal access to a private field.
+public partial class InjectPropertyDemo
+{
+    [Inject] public ITestService1 PrimaryService { get; }
+    [Inject] public ITestService2 SecondaryService { get; }
+}

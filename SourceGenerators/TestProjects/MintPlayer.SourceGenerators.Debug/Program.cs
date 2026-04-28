@@ -10,12 +10,23 @@ var services = new ServiceCollection()
     .AddScoped<ITestService1, TestService1>()
     .AddScoped<ITestService2, TestService2>()
     .AddScoped<PostConstructDemo>()
+    .AddScoped<Testje.InjectPropertyDemo>()
     .BuildServiceProvider();
 
 // Resolve the demo service - this will trigger the constructor and PostConstruct
 Console.WriteLine("Resolving PostConstructDemo...");
 var demo = services.GetRequiredService<PostConstructDemo>();
 Console.WriteLine($"Demo service resolved. IsInitialized = {demo.IsInitialized}");
+Console.WriteLine();
+
+Console.WriteLine("=== Inject on Public Read-only Properties Demo ===");
+Console.WriteLine();
+
+Console.WriteLine("Resolving InjectPropertyDemo...");
+var propertyDemo = services.GetRequiredService<Testje.InjectPropertyDemo>();
+// Both dependencies are accessible from outside the class through the public properties:
+Console.WriteLine($"  PrimaryService   (resolved: {propertyDemo.PrimaryService is not null}, type: {propertyDemo.PrimaryService?.GetType().Name})");
+Console.WriteLine($"  SecondaryService (resolved: {propertyDemo.SecondaryService is not null}, type: {propertyDemo.SecondaryService?.GetType().Name})");
 Console.WriteLine();
 
 Console.WriteLine("=== End Demo ===");
