@@ -83,11 +83,9 @@ In `/var/www/traefik/docker-compose.yml`, add alongside the `traefik` service:
     restart: unless-stopped
 ```
 
-Then `cd /var/www/traefik && docker compose up -d certs-dumper`.
-
 ### 2. Bootstrap the cert dump (run once)
 
-The watcher only writes new files when `acme.json` changes. To force an immediate one-time dump of the existing cert (avoids `nginx-eid` crash-looping on first deploy):
+Run a one-shot dump of the existing cert before starting the long-running watcher. This avoids `nginx-eid` crash-looping on first deploy:
 
 ```bash
 cd /var/www/traefik
@@ -97,15 +95,31 @@ docker compose run --rm certs-dumper file --version=v3 --source=/letsencrypt/acm
 Verify the result:
 
 ```bash
-ls -la /var/www/traefik/dumped-certs/letsencrypt/eid.mintplayer.com/
+ls -la /var/www/traefik/dumped-certs/eid.mintplayer.com/
 # expected:
-#   certificate.crt
-#   privatekey.key
+#   certificate.pem
+#   privatekey.pem
 ```
 
 `nginx-eid` mounts that directory directly (`docker-compose.yml:24`).
 
-### 3. Reload nginx-eid when the cert renews
+### 3. Start the long-running watcher
+
+```bash
+cd /var/www/traefik
+docker compose up -d certs-dumper
+```
+
+Confirm it's running:
+
+```bash
+docker compose ps certs-dumper
+# STATUS should be "Up"
+```
+
+This watches `acme.json` and re-dumps `certificate.pem` / `privatekey.pem` automatically whenever Traefik renews the cert.
+
+### 4. Reload nginx-eid when the cert renews
 
 Let's Encrypt certs are valid for 90 days; Traefik renews ~30 days before expiry. The dumper writes new files immediately, but nginx loads its cert at startup — it needs `nginx -s reload` to pick up the new file. Pick **one** of:
 
@@ -142,7 +156,7 @@ And add labels to `nginx-eid`:
 
 Fully declarative, no host crontab.
 
-### 4. Confirm `eid.mintplayer.com` resolves to your VPS
+### 5. Confirm `eid.mintplayer.com` resolves to your VPS
 
 DNS A record → VPS IP. (Already in place if the previous Traefik-terminated setup was working.)
 
