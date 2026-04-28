@@ -1,14 +1,36 @@
 services:
-  eid:
-    image: ghcr.io/mintplayer/mintplayer-dotnet-tools-eid:master
+  nginx-eid:
+    image: nginx:alpine
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.eid.rule=Host(`eid.mintplayer.com`)"
-      - "traefik.http.routers.eid.entrypoints=websecure"
-      - "traefik.http.routers.eid.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.eid.tls.options=mtls@file"
-      - "traefik.http.routers.eid.middlewares=eid-clientcert"
-      - "traefik.http.middlewares.eid-clientcert.passtlsclientcert.pem=true"
+
+      # TCP TLS passthrough router: SNI-routed encrypted bytes flow straight to nginx
+      - "traefik.tcp.routers.eid.rule=HostSNI(`eid.mintplayer.com`)"
+      - "traefik.tcp.routers.eid.entrypoints=websecure"
+      - "traefik.tcp.routers.eid.tls.passthrough=true"
+      - "traefik.tcp.routers.eid.service=eid"
+      - "traefik.tcp.services.eid.loadbalancer.server.port=443"
+
+      # Phantom HTTP router on websecure: never serves traffic (TCP router wins for this SNI),
+      # but its presence makes Traefik fetch a Let's Encrypt cert for eid.mintplayer.com.
+      # The cert is then extracted from acme.json by traefik-certs-dumper (see /var/www/traefik).
+      - "traefik.http.routers.eid-cert.rule=Host(`eid.mintplayer.com`)"
+      - "traefik.http.routers.eid-cert.entrypoints=websecure"
+      - "traefik.http.routers.eid-cert.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.eid-cert.service=eid-cert-noop"
+      - "traefik.http.services.eid-cert-noop.loadbalancer.server.port=443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./traefik-dynamic-config/belgian-eid-cas.pem:/etc/nginx/ca/eid-cas.pem:ro
+      - /var/www/traefik/dumped-certs/letsencrypt/eid.mintplayer.com:/etc/nginx/certs:ro
+    depends_on:
+      - eid
+    networks:
+      - web
+    restart: unless-stopped
+
+  eid:
+    image: ghcr.io/mintplayer/mintplayer-dotnet-tools-eid:master
     networks:
       - web
     restart: unless-stopped

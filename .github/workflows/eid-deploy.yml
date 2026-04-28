@@ -74,18 +74,17 @@ jobs:
           passphrase: ${{ secrets.VPS_SSH_KEY_PASSPHRASE }}
           envs: GITHUB_TOKEN
           script: |
-            mkdir -p /var/www/${{ env.APP_NAME }}
+            mkdir -p /var/www/${{ env.APP_NAME }}/traefik-dynamic-config
             cd /var/www/${{ env.APP_NAME }}
 
-            # Download latest docker-compose.yml from the repository
-            rm -f docker-compose.yml
+            # Download docker-compose.yml + nginx.conf + CA bundle for nginx-eid
+            rm -f docker-compose.yml nginx.conf
             curl -sf -H "Authorization: token $GITHUB_TOKEN" -o docker-compose.yml https://raw.githubusercontent.com/${{ github.repository }}/master/Beid/DemoWebApp/docker-compose.yml
+            curl -sf -H "Authorization: token $GITHUB_TOKEN" -o nginx.conf https://raw.githubusercontent.com/${{ github.repository }}/master/Beid/DemoWebApp/nginx.conf
+            curl -sf -H "Authorization: token $GITHUB_TOKEN" -o traefik-dynamic-config/belgian-eid-cas.pem https://raw.githubusercontent.com/${{ github.repository }}/master/Beid/DemoWebApp/traefik-dynamic-config/belgian-eid-cas.pem
 
-            # Ensure Traefik mTLS dynamic config is present
-            mkdir -p /var/www/traefik/dynamic
-            curl -sf -H "Authorization: token $GITHUB_TOKEN" -o /var/www/traefik/dynamic/tls.yml https://raw.githubusercontent.com/${{ github.repository }}/master/Beid/DemoWebApp/traefik-dynamic-config/tls.yml
-            curl -sf -H "Authorization: token $GITHUB_TOKEN" -o /var/www/traefik/dynamic/belgium-root-ca4.pem https://raw.githubusercontent.com/${{ github.repository }}/master/Beid/DemoWebApp/traefik-dynamic-config/belgium-root-ca4.pem
-            curl -sf -H "Authorization: token $GITHUB_TOKEN" -o /var/www/traefik/dynamic/citizen-ca.pem https://raw.githubusercontent.com/${{ github.repository }}/master/Beid/DemoWebApp/traefik-dynamic-config/citizen-ca.pem
+            # Ensure cert-dump destination exists (populated by traefik-certs-dumper, mounted by nginx-eid)
+            mkdir -p /var/www/traefik/dumped-certs
 
             # Log in to GHCR using the workflow's GITHUB_TOKEN
             echo "$GITHUB_TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
