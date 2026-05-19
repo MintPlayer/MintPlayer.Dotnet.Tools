@@ -54,7 +54,51 @@ public sealed class DotnetSdk(ILogger<DotnetSdk> logger) : IDevelopmentSdk
         DiscoveredProject project,
         IReadOnlyDictionary<string, DiscoveredProject> repoIndex,
         CancellationToken cancellationToken)
-        => throw new NotImplementedException("Dependency graph lands in milestone 4.");
+    {
+        // Reverse index: full path of csproj -> PackageId. Used to resolve
+        // <ProjectReference> Include paths to package identities.
+        var pathToPackageId = repoIndex.Values.ToDictionary(
+            p => Path.GetFullPath(p.ProjectFile),
+            p => p.PackageId,
+            StringComparer.OrdinalIgnoreCase);
+
+        var doc = XDocument.Load(project.ProjectFile, LoadOptions.PreserveWhitespace);
+        var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
+        var projectDir = Path.GetDirectoryName(project.ProjectFile)!;
+
+        var edges = new HashSet<string>(StringComparer.Ordinal);
+
+        // <ProjectReference Include="..\Other\Other.csproj" />
+        foreach (var pr in doc.Descendants(ns + "ProjectReference"))
+        {
+            if (pr.Attribute("Condition") is not null) continue;
+            var include = pr.Attribute("Include")?.Value;
+            if (string.IsNullOrWhiteSpace(include)) continue;
+
+            var absolute = Path.GetFullPath(Path.Combine(projectDir, include));
+            if (pathToPackageId.TryGetValue(absolute, out var targetId)
+                && !string.Equals(targetId, project.PackageId, StringComparison.Ordinal))
+            {
+                edges.Add(targetId);
+            }
+        }
+
+        // <PackageReference Include="X" /> where X matches another in-repo PackageId
+        foreach (var pkg in doc.Descendants(ns + "PackageReference"))
+        {
+            if (pkg.Attribute("Condition") is not null) continue;
+            var include = pkg.Attribute("Include")?.Value?.Trim();
+            if (string.IsNullOrEmpty(include)) continue;
+            if (string.Equals(include, project.PackageId, StringComparison.Ordinal)) continue;
+
+            if (repoIndex.ContainsKey(include))
+            {
+                edges.Add(include);
+            }
+        }
+
+        return Task.FromResult<IReadOnlyList<string>>(edges.ToArray());
+    }
 
     public Task<string> ComputePublicApiHashAsync(
         DiscoveredProject project, string configuration, CancellationToken cancellationToken)
