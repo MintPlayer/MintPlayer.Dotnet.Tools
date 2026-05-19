@@ -61,7 +61,7 @@ internal sealed class PluginLoader(ILogger<PluginLoader> logger, IServiceProvide
                 {
                     var instance = (IPackageRegistry)ActivatorUtilities.CreateInstance(services, type);
                     registries.Add(instance);
-                    logger.LogInformation("loaded registry plugin {Id} ({Type})", instance.Id, type.FullName);
+                    logger.LogInformation("loaded registry plugin {Kind} ({Type})", instance.Kind, type.FullName);
                 }
             }
         }
