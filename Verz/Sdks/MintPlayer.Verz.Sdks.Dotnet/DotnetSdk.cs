@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using System.Security.Cryptography;
 using System.Text;
@@ -10,53 +11,6 @@ namespace MintPlayer.Verz.Sdks.Dotnet;
 
 public sealed class DotnetSdk(ILogger<DotnetSdk> logger) : IDevelopmentSdk
 {
-    private static readonly string HashTempRoot = InitHashTempRoot();
-
-    // Two-layer cleanup for the temp dll copies that PublicApiGenerator needs
-    // a real Assembly.Location for. (1) ProcessExit attempts to wipe this
-    // run's subdir; (2) the next run sweeps orphan {pid} subdirs from any
-    // prior process that exited without successful cleanup (testhost being
-    // the typical offender — it holds onto loaded assemblies until full
-    // shutdown, past our ProcessExit handler).
-    private static string InitHashTempRoot()
-    {
-        var tempBase = Path.GetTempPath();
-        var currentPid = Environment.ProcessId;
-
-        try
-        {
-            foreach (var dir in Directory.EnumerateDirectories(tempBase, "verz-hash-*"))
-            {
-                var pidPart = Path.GetFileName(dir);
-                if (!pidPart.StartsWith("verz-hash-", StringComparison.Ordinal)) continue;
-                if (!int.TryParse(pidPart["verz-hash-".Length..], out var pid)) continue;
-                if (pid == currentPid) continue;
-
-                if (ProcessExists(pid)) continue;
-
-                try { Directory.Delete(dir, recursive: true); }
-                catch { /* still locked or already gone; try again next run */ }
-            }
-        }
-        catch { /* enumeration races are tolerable */ }
-
-        var own = Path.Combine(tempBase, $"verz-hash-{currentPid}");
-        Directory.CreateDirectory(own);
-        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
-        {
-            try { Directory.Delete(own, recursive: true); }
-            catch { /* next run's orphan sweep will get it */ }
-        };
-        return own;
-    }
-
-    private static bool ProcessExists(int pid)
-    {
-        try { System.Diagnostics.Process.GetProcessById(pid); return true; }
-        catch (ArgumentException) { return false; }
-        catch { return true; /* assume alive on permission/other errors */ }
-    }
-
     public string Id => "dotnet";
 
     public Task<IReadOnlyList<DiscoveredProject>> DiscoverAsync(
@@ -125,40 +79,64 @@ public sealed class DotnetSdk(ILogger<DotnetSdk> logger) : IDevelopmentSdk
                 assemblyPath);
         }
 
-        // Copy to a unique temp path before loading. Two reasons:
-        //   (1) Assembly.LoadFrom pins the file. We don't want the actual bin
-        //       output pinned because a single `verz` invocation may rebuild
-        //       the same project (e.g., for downstream transitive bumps).
-        //   (2) PublicApiGenerator needs assembly.Location to be set, so we
-        //       can't load from a byte[].
-        // The temp copies live under a per-process subdir wiped on ProcessExit
-        // (see HashTempRoot). Each hash also lives in its own collectible
-        // AssemblyLoadContext so repeat calls with the same logical assembly
-        // name don't collide.
+        // Copy the dll to a unique temp path before loading. The collectible
+        // ALC below pins the loaded file until the ALC is unloaded *and* the
+        // GC has collected the last reference. Copying first means the real
+        // bin output is never pinned — a single `verz` invocation may rebuild
+        // the same project mid-run (e.g., a transitive bump downstream).
+        // PublicApiGenerator needs assembly.Location, so byte[] loads are out.
         var tempPath = Path.Combine(
-            HashTempRoot,
-            $"{Guid.NewGuid():N}-{Path.GetFileName(assemblyPath)}");
+            Path.GetTempPath(),
+            $"verz-hash-{Guid.NewGuid():N}-{Path.GetFileName(assemblyPath)}");
         File.Copy(assemblyPath, tempPath, overwrite: true);
 
-        var alc = new AssemblyLoadContext($"verz-hash-{Guid.NewGuid():N}", isCollectible: true);
-        try
+        var (hex, weakAlc) = LoadAndHashIsolated(tempPath);
+
+        // Drive the unload to completion. `AssemblyLoadContext.Unload` only
+        // marks for unloading; the actual release happens after the GC sees
+        // no live references. With NoInlining isolating the load-frame above,
+        // 2-3 iterations are usually enough.
+        for (int i = 0; i < 10 && weakAlc.IsAlive; i++)
         {
-            var assembly = alc.LoadFromAssemblyPath(tempPath);
-            var publicApi = ApiGenerator.GeneratePublicApi(assembly);
-
-            using var sha = SHA256.Create();
-            var hashBytes = sha.ComputeHash(Encoding.UTF8.GetBytes(publicApi));
-            var hex = Convert.ToHexString(hashBytes);
-
-            logger.LogDebug("[{Sdk}] {PackageId} ({Tfm}): public-API SHA256 = {Hash}",
-                Id, project.PackageId, tfm, hex);
-
-            return Task.FromResult(hex);
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
         }
-        finally
+
+        try { File.Delete(tempPath); }
+        catch (Exception ex)
         {
-            alc.Unload();
+            // Unload didn't release the pin in 10 GC cycles; rare but possible
+            // under heavy load. The OS will reclaim %TEMP% eventually.
+            logger.LogDebug(ex, "could not delete hash temp file {Path}", tempPath);
         }
+
+        logger.LogDebug("[{Sdk}] {PackageId} ({Tfm}): public-API SHA256 = {Hash}",
+            Id, project.PackageId, tfm, hex);
+
+        return Task.FromResult(hex);
+    }
+
+    /// <summary>
+    /// Loads the assembly into its own collectible AssemblyLoadContext, runs
+    /// PublicApiGenerator, SHA-256s the result, then unloads. The
+    /// NoInlining attribute keeps the ALC + Assembly references confined to
+    /// this method's stack frame so they actually become collectible when the
+    /// method returns; without it the JIT can keep them alive on the caller's
+    /// frame and the unload never completes.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static (string Hash, WeakReference Alc) LoadAndHashIsolated(string assemblyPath)
+    {
+        var alc = new AssemblyLoadContext(name: $"verz-hash-{Guid.NewGuid():N}", isCollectible: true);
+        var assembly = alc.LoadFromAssemblyPath(assemblyPath);
+        var publicApi = ApiGenerator.GeneratePublicApi(assembly);
+
+        using var sha = SHA256.Create();
+        var hashBytes = sha.ComputeHash(Encoding.UTF8.GetBytes(publicApi));
+        var hex = Convert.ToHexString(hashBytes);
+
+        alc.Unload();
+        return (hex, new WeakReference(alc));
     }
 
     public Task StampVersionAsync(
