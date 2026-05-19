@@ -33,10 +33,21 @@ internal sealed class CsprojReader
         {
             var explicitId = GetProperty("PackageId");
             if (!string.IsNullOrEmpty(explicitId)) return explicitId;
+            return AssemblyName;
+        }
+    }
 
-            var assemblyName = GetProperty("AssemblyName");
-            if (!string.IsNullOrEmpty(assemblyName)) return assemblyName;
-
+    /// <summary>
+    /// The output assembly file's base name (no extension). Defaults to the
+    /// project file name when <c>&lt;AssemblyName&gt;</c> is absent — same rule
+    /// MSBuild applies.
+    /// </summary>
+    public string AssemblyName
+    {
+        get
+        {
+            var explicitName = GetProperty("AssemblyName");
+            if (!string.IsNullOrEmpty(explicitName)) return explicitName;
             return Path.GetFileNameWithoutExtension(ProjectFile);
         }
     }

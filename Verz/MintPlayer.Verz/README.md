@@ -76,21 +76,7 @@ To add NodeJS support, append `MintPlayer.Verz.Sdks.NodeJS` and `MintPlayer.Verz
 | `Registries` | Package feeds. Used both for plugin resolution and as publish destinations. |
 | `Plugins` | NuGet package IDs of plugins (both SDK and registry kinds, in a single flat list). Verz inspects each loaded assembly and registers types implementing `IDevelopmentSdk` or `IPackageRegistry` automatically. Entries may be bare strings or `{ "id", "version" }` objects to pin a specific version. |
 
-### 2. Enable the public-API-hash MSBuild task (.NET projects)
-
-Add to your repo's `Directory.Build.props`:
-
-```xml
-<Project>
-  <ItemGroup>
-    <PackageReference Include="MintPlayer.Verz.Targets" Version="1.*" PrivateAssets="all" />
-  </ItemGroup>
-</Project>
-```
-
-This package adds two MSBuild targets that run on `Build` and `Pack`: it computes a SHA256 over the project's public API surface and stamps the hash plus the framework major into the produced `.nuspec`. Verz reads these back from prior published packages to decide patch-vs-minor bumps.
-
-### 3. Add the two GitHub Actions workflows
+### 2. Add the two GitHub Actions workflows
 
 Verz expects a two-workflow split: one creates tags after a PR merge, the other publishes when a tag is pushed.
 
@@ -172,7 +158,7 @@ jobs:
         run: verz publish
 ```
 
-### 4. Configure secrets
+### 3. Configure secrets
 
 | Secret | Used by | Notes |
 |---|---|---|

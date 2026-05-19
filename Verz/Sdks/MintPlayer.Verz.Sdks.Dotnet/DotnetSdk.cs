@@ -1,6 +1,10 @@
+using System.Runtime.Loader;
+using System.Security.Cryptography;
+using System.Text;
 using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
 using MintPlayer.Verz.Abstractions;
+using PublicApiGenerator;
 
 namespace MintPlayer.Verz.Sdks.Dotnet;
 
@@ -53,7 +57,60 @@ public sealed class DotnetSdk(ILogger<DotnetSdk> logger) : IDevelopmentSdk
 
     public Task<string> ComputePublicApiHashAsync(
         DiscoveredProject project, string configuration, CancellationToken cancellationToken)
-        => throw new NotImplementedException("Public-API-hash lands in milestone 3.");
+    {
+        var reader = new CsprojReader(project.ProjectFile);
+        var tfm = reader.TargetFrameworks
+            .Where(TfmHelper.IsNetTfm)
+            .OrderByDescending(TfmHelper.ParseNetMajor)
+            .ThenByDescending(TfmHelper.ParseNetMinor)
+            .FirstOrDefault()
+            ?? throw new InvalidOperationException(
+                $"{project.PackageId}: no net*.* TargetFramework found; cannot hash public API");
+
+        var assemblyPath = Path.Combine(
+            project.ProjectDir, "bin", configuration, tfm, reader.AssemblyName + ".dll");
+
+        if (!File.Exists(assemblyPath))
+        {
+            throw new FileNotFoundException(
+                $"{project.PackageId}: build output not found at {assemblyPath}. " +
+                "Run `dotnet build -c " + configuration + "` first.",
+                assemblyPath);
+        }
+
+        // Copy to a unique temp path before loading. Two reasons:
+        //   (1) Assembly.LoadFrom pins the file. We don't want the actual bin
+        //       output pinned because a single `verz` invocation may rebuild
+        //       the same project (e.g., for downstream transitive bumps).
+        //   (2) PublicApiGenerator needs assembly.Location to be set, so we
+        //       can't load from a byte[].
+        // Each hash also lives in its own collectible AssemblyLoadContext so
+        // repeat calls with the same logical assembly name don't collide.
+        var tempPath = Path.Combine(
+            Path.GetTempPath(),
+            $"verz-hash-{Guid.NewGuid():N}-{Path.GetFileName(assemblyPath)}");
+        File.Copy(assemblyPath, tempPath, overwrite: true);
+
+        var alc = new AssemblyLoadContext($"verz-hash-{Guid.NewGuid():N}", isCollectible: true);
+        try
+        {
+            var assembly = alc.LoadFromAssemblyPath(tempPath);
+            var publicApi = ApiGenerator.GeneratePublicApi(assembly);
+
+            using var sha = SHA256.Create();
+            var hashBytes = sha.ComputeHash(Encoding.UTF8.GetBytes(publicApi));
+            var hex = Convert.ToHexString(hashBytes);
+
+            logger.LogDebug("[{Sdk}] {PackageId} ({Tfm}): public-API SHA256 = {Hash}",
+                Id, project.PackageId, tfm, hex);
+
+            return Task.FromResult(hex);
+        }
+        finally
+        {
+            alc.Unload();
+        }
+    }
 
     public Task StampVersionAsync(
         DiscoveredProject project, string version, CancellationToken cancellationToken)

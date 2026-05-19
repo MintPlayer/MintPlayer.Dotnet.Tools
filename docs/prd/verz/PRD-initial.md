@@ -391,7 +391,7 @@ The `/v` infix is a strong, unique boundary. The tool parses tags by splitting o
 
 ### .NET
 
-The `MintPlayer.Verz.Targets` NuGet package adds an MSBuild task that runs `AfterTargets="Build"` and again `AfterTargets="GenerateNuspec"`. The task loads the just-built primary assembly via `MetadataLoadContext`, calls `PublicApiGenerator.ApiGenerator.GeneratePublicApi(assembly)`, computes SHA256 over the UTF-8 bytes of the resulting text, and writes the hash plus the framework-major into the nuspec as custom metadata:
+The .NET SDK plugin owns both halves of the hash pipeline. When Verz needs the current hash for a project (via `IDevelopmentSdk.ComputePublicApiHashAsync`), the plugin loads the just-built primary assembly, calls `PublicApiGenerator.ApiGenerator.GeneratePublicApi(assembly)`, and SHA256-hashes the UTF-8 bytes of the resulting public-API text. When `verz publish` packs a library (via `IDevelopmentSdk.PackAsync`), the plugin runs `dotnet pack`, then opens the produced `.nupkg`, edits the embedded `.nuspec` to add `<PublicApiHash>` and `<FrameworkMajor>` metadata elements, and re-archives the package:
 
 ```xml
 <package>
@@ -405,7 +405,7 @@ The `MintPlayer.Verz.Targets` NuGet package adds an MSBuild task that runs `Afte
 </package>
 ```
 
-The targets package multitargets `netstandard2.0` so it loads in every MSBuild host, following the precedent set by the in-repo `MintPlayer.MSBuild.Tasks`. The repo opts in by adding a single `<PackageReference Include="MintPlayer.Verz.Targets" PrivateAssets="all" />` in `Directory.Build.props`.
+Consumers do not import an MSBuild task package and do not edit `Directory.Build.props`. A manual `dotnet pack` outside the Verz workflow produces an un-stamped package, which is fine: Verz reads prior hashes only from packages it published itself, and a never-published library starts at the algorithm's `INITIAL` branch where no prior hash is needed.
 
 ### NodeJS
 

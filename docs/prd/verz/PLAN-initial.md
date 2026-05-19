@@ -14,14 +14,13 @@ All projects live under `Verz/` (existing prototype root). Each shippable assemb
 |---|---|---|---|
 | `MintPlayer.Verz` | `net10.0`, `<PackAsTool>true</PackAsTool>`, `<ToolCommandName>verz</ToolCommandName>` | The CLI host. Builds plugin loader, owns subcommand handlers, owns the generic host. | `Microsoft.Extensions.Hosting`, `System.CommandLine` v2.x, `NuGet.Protocol`, `LibGit2Sharp` *(see open questions; current recommendation: shell out to `git`)*. References `MintPlayer.Verz.Abstractions`. |
 | `MintPlayer.Verz.Abstractions` | `net8.0;net9.0;net10.0` (multitarget) | `IDevelopmentSdk`, `IPackageRegistry`, supporting POCOs (`ProjectIdentity`, `Artifact`, `PriorPackageInfo`, `BumpLevel`, `SemverTag`), exception types. No third-party references. | none |
-| `MintPlayer.Verz.Targets` | `netstandard2.0` | MSBuild task package. Two `Task` classes; one `.targets` file. Packed with the tasks DLL plus its dependencies in `build/`. | `Microsoft.Build.Utilities.Core` 18.x, `PublicApiGenerator` 11.x (with its transitive `Mono.Cecil`). |
-| `MintPlayer.Verz.Sdks.Dotnet` | `net10.0` | The .NET `IDevelopmentSdk` plugin. Discovers `.csproj`, computes graph edges, stamps versions, packs. | `Microsoft.Build` (eval-only API), `PublicApiGenerator`, `MintPlayer.Verz.Abstractions`. |
+| `MintPlayer.Verz.Sdks.Dotnet` | `net10.0` | The .NET `IDevelopmentSdk` plugin. Discovers `.csproj`, computes graph edges, computes public-API hashes, stamps versions, packs, and injects hash + framework-major into the produced nuspec. | `Microsoft.Build` (eval-only API), `PublicApiGenerator` 11.x (with its transitive `Mono.Cecil`), `MintPlayer.Verz.Abstractions`. |
 | `MintPlayer.Verz.Sdks.NodeJS` | `net10.0` | The Node `IDevelopmentSdk` plugin. Discovers workspaces, computes graph edges, stamps `package.json`, packs. | `YamlDotNet` (for `pnpm-workspace.yaml`), `Microsoft.Extensions.FileSystemGlobbing`, `MintPlayer.Verz.Abstractions`. |
 | `MintPlayer.Verz.Registries.NugetOrg` | `net10.0` | NuGet v3 registry plugin for nuget.org and any v3 feed addressable without credentials by default. Lookup via `FindPackageByIdResource`; nuspec parsing via `PackageArchiveReader`. Push via `dotnet nuget push`. | `NuGet.Protocol`, `MintPlayer.Verz.Abstractions`. |
 | `MintPlayer.Verz.Registries.GithubPackageRegistry` | `net10.0` | NuGet v3 registry plugin specialized for `nuget.pkg.github.com`. Same protocol surface as NugetOrg, but with quirks (per-org index URL, `Authorization: Bearer` header, opinionated package-listing). | `NuGet.Protocol`, `MintPlayer.Verz.Abstractions`. |
 | `MintPlayer.Verz.Registries.NpmJS` | `net10.0` | npm registry plugin. Lookup via `https://registry.npmjs.org/{pkg}/{version}` JSON. Push via `npm publish`. | `System.Net.Http`, `System.Text.Json`, `MintPlayer.Verz.Abstractions`. |
 | `MintPlayer.Verz.Tests` | `net10.0` | xUnit tests for tool internals (graph, version algorithm, plugin loader, `verz.json` parser). | `xunit`, `FluentAssertions`, `Microsoft.NET.Test.Sdk`. |
-| `MintPlayer.Verz.Sdks.Dotnet.Tests`, `MintPlayer.Verz.Sdks.NodeJS.Tests`, `MintPlayer.Verz.Registries.*.Tests`, `MintPlayer.Verz.Targets.Tests` | `net10.0` (Targets tests use `Microsoft.Build.UnitTests.Shared` patterns) | Per-plugin unit tests. | xUnit + project under test. |
+| `MintPlayer.Verz.Sdks.Dotnet.Tests`, `MintPlayer.Verz.Sdks.NodeJS.Tests`, `MintPlayer.Verz.Registries.*.Tests` | `net10.0` | Per-plugin unit tests. | xUnit + project under test. |
 | `MintPlayer.Verz.IntegrationTests` | `net10.0` | Spins up real temp git repos, calls the packed `verz` tool via `Process.Start`, asserts on tags/files. | `xunit`, `LibGit2Sharp` *for assertions only, not tool runtime*. |
 
 ### NugetOrg vs. GithubPackageRegistry: two assemblies
@@ -41,9 +40,9 @@ Two separate plugin packages. Protocol differences justify it: nuget.org accepts
 | `MintPlayer.Verz/Helpers/VersionPackagePathResolver.cs` | **Keep** | Mirrors `~/.nuget/packages/{id}/{version}/` correctly. |
 | `MintPlayer.Verz/VerzCommand.cs` + `.DotnetVersion.cs` + `.InitDotnet.cs` | **Discard** | The `dotnet-version`/`init-dotnet` command surface does not match the PRD's `init`/`set-versions`/`create-tag`/`publish`. The version-decision logic inside `DotnetVersionCommand` seeds the body of `ComputeNextVersion`, but the command class itself is replaced. |
 | `MintPlayer.Verz/VerzConfig.cs` | **Discard** | `{ Tools: string[] }` does not match the PRD schema. Replace with `VerzConfig { List<RegistryEntry> Registries; List<PluginEntry> Plugins; }`. |
-| `MintPlayer.Verz.Targets/GeneratePublicApiHashTask.cs` | **Adapt** | Load mechanism is wrong: `Assembly.Load(AssemblyPath)` takes a *name*, not a path. Fix with `MetadataLoadContext` so the task host doesn't pin the just-built assembly. SHA-256 + `Convert.ToHexString` pipeline is kept. Shape: `var resolver = new PathAssemblyResolver(new[] { AssemblyPath, /* refs */ }); using var ctx = new MetadataLoadContext(resolver); var asm = ctx.LoadFromAssemblyPath(AssemblyPath);`. |
-| `MintPlayer.Verz.Targets/InjectPublicApiHashTask.cs` | **Keep** | Add a `[Required] string FrameworkMajor` property and inject a `<FrameworkMajor>` element. The non-fatal `return true` path stays. |
-| `MintPlayer.Verz.Targets/PublicApiHash.targets` | **Keep** | Wires `GeneratePublicApiHashTask` after `Build` and `InjectPublicApiHashTask` after `GenerateNuspec` already. Add `FrameworkMajor` plumbing inline: `<FrameworkMajor>$([System.Text.RegularExpressions.Regex]::Match($(TargetFramework), 'net(\d+)').Groups[1].Value)</FrameworkMajor>`. |
+| `MintPlayer.Verz.Targets/GeneratePublicApiHashTask.cs` | **Discard (logic ported)** | The MSBuild task is dropped (see plan note). The `Assembly.Load(path)` bug is moot because the SDK plugin runs in its own .NET 10 process and can use `Assembly.LoadFrom(path)` directly. The SHA-256 + `Convert.ToHexString` pipeline ports into `DotnetSdk.ComputePublicApiHashAsync`. |
+| `MintPlayer.Verz.Targets/InjectPublicApiHashTask.cs` | **Discard (logic ported)** | Post-pack nuspec rewrite moves into `DotnetSdk.PackAsync`. The `<PublicApiHash>` / `<FrameworkMajor>` element-upsert logic ports verbatim. |
+| `MintPlayer.Verz.Targets/PublicApiHash.targets` | **Discard** | Consumers no longer import a `.targets` file. |
 | `Sdks/MintPlayer.Verz.Sdks.Dotnet/DotnetSdk.cs` | **Adapt** | `GetMajorVersionAsync` keep. `GetPackageIdAsync` keep (add `<AssemblyName>` fallback between `<PackageId>` and the filename). `ComputeCurrentPublicApiHashAsync` adapt — `Assembly.LoadFrom` pins the file; switch to `MetadataLoadContext`. `ComputePackagePublicApiHashAsync` moves to the NuGet registry plugin's `Lookup`. TFM helpers (`IsNetTfm`, `ParseNetMajor`, `ParseNetMinor`) keep. |
 | `Registries/.../NugetOrgRegistry.cs` | **Adapt** | The `new SourceRepositoryProvider(new PackageSourceProvider(NullSettings.Instance), Repository.Provider.GetCoreV3())` + `new PackageSource(...)` shape is right. New `LookupAsync` adds a nuspec-only round-trip via `RegistrationResourceV3`. Push is new. Rename namespace from `.Registry.` to `.Registries.` to match the PRD. |
 | `MintPlayer.Verz/verz.json` (prototype) | **Discard** | Schema mismatch; regenerated by `verz init`. |
@@ -212,7 +211,7 @@ The edges are emitted as a `IReadOnlyList<string>` of dependency PackageIds per 
 
 ### Public-API-hash (current)
 
-`create-tag` has not yet packed, so the SDK shells out to `dotnet build -c Release {csproj}`, then loads `bin/{Configuration}/{tfm}/{AssemblyName}.dll` through `MetadataLoadContext`, calls `ApiGenerator.GeneratePublicApi`, SHA-256. Results are cached for the run keyed by `(projectFile, source-tree-sha)`. For `publish`, the build has already happened (workflow B step 5) and `MintPlayer.Verz.Targets` populated the nuspec; the SDK reads the nuspec rather than rebuilding.
+`create-tag` has not yet packed, so the SDK shells out to `dotnet build -c Release {csproj}`, then loads `bin/{Configuration}/{tfm}/{AssemblyName}.dll` via `Assembly.LoadFrom`, calls `PublicApiGenerator.ApiGenerator.GeneratePublicApi(assembly)`, SHA-256 over the UTF-8 bytes, hex-encode. Results are cached for the run keyed by `(projectFile, source-tree-sha)`. For `publish`, the SDK plugin runs `dotnet pack` then post-processes the produced `.nupkg`: it opens the embedded nuspec, upserts `<PublicApiHash>` and `<FrameworkMajor>` into `<metadata>`, and re-archives. The same `LoadFrom` pinning is fine because the SDK plugin process exits at the end of the invocation.
 
 ### Version stamping
 
@@ -299,34 +298,19 @@ Detect package manager: presence of `pnpm-lock.yaml` → `pnpm pack`, `yarn.lock
 
 Push shells out to `dotnet` / `npm`. Reimplementing the NuGet push protocol via `PushCommandResource` is feasible but out of scope: workflow B already has both binaries on PATH, and shelling out absorbs future NuGet.Protocol behavior changes without a Verz update. Auth is never read by Verz; the host trusts the per-tool credential files, and push failures surface the underlying tool's stderr verbatim.
 
-## MSBuild Targets package (MintPlayer.Verz.Targets)
+## Public-API-hash injection (in the .NET SDK plugin)
 
-`netstandard2.0`. Two `Task` classes, both inheriting `Microsoft.Build.Utilities.Task`:
+There is no separate MSBuild task package. The .NET SDK plugin owns both halves of the hash pipeline — computation (used during `create-tag`) and injection (used during `publish`). This eliminates an extra plugin assembly, a consumer-side `Directory.Build.props` setup step, and the AssemblyLoadContext-vs-MSBuild-host friction that comes with shipping a task DLL into the consumer's build process.
 
-- `GeneratePublicApiHashTask`: inputs `[Required] string AssemblyPath`, optional `string[]? ReferencePaths`; outputs `[Output] string PublicApiHash`, `[Output] string FrameworkMajor`. Salvaged from the existing prototype with the `Assembly.Load(path)` bug fixed to `MetadataLoadContext.LoadFromAssemblyPath(path)`. The existing prototype's SHA-256 + `Convert.ToHexString` block is reused as-is.
-- `InjectPublicApiHashTask`: inputs `[Required] string NuspecPath`, `[Required] string PublicApiHash`, `[Required] string FrameworkMajor`. Salvaged with one new property added.
+Computation runs inside `DotnetSdk.ComputePublicApiHashAsync` (see SDK plugin section). Injection runs inside `DotnetSdk.PackAsync`:
 
-The `PublicApiHash.targets` file (already in the prototype) is packed at `build/MintPlayer.Verz.Targets.targets` and the renamed `.dll` at `build/`. NuGet auto-imports `build/{packageId}.targets`, so consumers get the wiring on a bare `<PackageReference>`.
+1. Shell out to `dotnet pack -c {Configuration} {csproj} --output {tempDir}`.
+2. For each produced `*.nupkg` (excluding `*.snupkg`): open the package as a `ZipArchive` in update mode, locate the embedded `.nuspec`, edit it via `XDocument` to upsert `<PublicApiHash>` and `<FrameworkMajor>` under `<metadata>`, write back. The symbols package is left untouched.
+3. Return `Artifact { Path, Kind = "nuget" }` per main package and `Kind = "nuget-symbols"` per symbols package.
 
-Target wiring (existing shape, with `FrameworkMajor` added):
+The non-fatal failure stance from the original `InjectPublicApiHashTask` carries over: a missing or unparseable nuspec yields a warning, not a hard failure. `verz publish` still succeeds (and the consumer can detect missing fields at lookup time during the next `create-tag`, which surfaces as a cold-start error).
 
-```xml
-<Target Name="GeneratePublicApiHash" AfterTargets="Build">
-  <GeneratePublicApiHashTask AssemblyPath="$(TargetPath)" ReferencePaths="@(ReferencePath)">
-    <Output TaskParameter="PublicApiHash" PropertyName="PublicApiHash" />
-    <Output TaskParameter="FrameworkMajor" PropertyName="FrameworkMajor" />
-  </GeneratePublicApiHashTask>
-</Target>
-
-<Target Name="InjectPublicApiHash" AfterTargets="GenerateNuspec"
-        Condition=" '$(PublicApiHash)' != '' and Exists('$(NuspecFile)') ">
-  <InjectPublicApiHashTask NuspecPath="$(NuspecFile)"
-                           PublicApiHash="$(PublicApiHash)"
-                           FrameworkMajor="$(FrameworkMajor)" />
-</Target>
-```
-
-netstandard2.0 is required so both the .NET Framework MSBuild host (VS 17.x) and the .NET host (`dotnet build`) can load the task. Same rationale as `MSBuildTasks/MintPlayer.MSBuild.Tasks/MintPlayer.MSBuild.Tasks.csproj`; we follow that precedent.
+Trade-off: a manual `dotnet pack` outside `verz publish` produces an un-stamped nupkg. This is acceptable because Verz only reads prior hashes from packages it published itself, and a never-published library starts at the `INITIAL` branch of the version algorithm. No prior hash is needed at bootstrap.
 
 ## Project graph + affected algorithm
 
@@ -433,7 +417,7 @@ Pack a minimal `IDevelopmentSdk` implementation into a temp `file://` v3 feed. P
 |---|---|---|---|
 | 1 | `MintPlayer.Verz.Abstractions` + `MintPlayer.Verz` skeleton with `init` subcommand and the plugin loader (no SDKs/registries used). | `verz init` in an empty temp dir creates a valid `verz.json`; `verz init` again returns exit 2. | M |
 | 2 | `MintPlayer.Verz.Sdks.Dotnet` v1: discovery, framework detection, version stamping. Wire into `set-versions`. | A one-package fixture repo with a `Foo/v1.2.3` tag at HEAD: `verz set-versions` writes `<Version>1.2.3</Version>` into the csproj. | M |
-| 3 | `MintPlayer.Verz.Targets` package + the public-API-hash pipeline end-to-end. | `dotnet pack` of a `MintPlayer.Verz.Targets`-referencing project produces a `.nupkg` whose nuspec contains `<PublicApiHash>` and `<FrameworkMajor>`. Determinism test passes. | M |
+| 3 | `DotnetSdk.ComputePublicApiHashAsync`: load the built assembly, run `PublicApiGenerator.ApiGenerator.GeneratePublicApi`, SHA-256, hex-encode. | Determinism: same source -> same hash across two builds. Sensitivity: adding a public method changes the hash; adding a private member does not. | S |
 | 4 | Project graph + affected algorithm + `VersionPlanner` + `create-tag --dry-run`. `MintPlayer.Verz.Registries.NugetOrg` (Lookup only, no Push). | On this repo (`MintPlayer.Dotnet.Tools`) with all libs tagged, `verz create-tag --dry-run` after a no-op commit reports zero affected; after editing one library, reports that library plus its transitive consumers. | L |
 | 5 | `NugetOrg.Push` + `verz publish` + workflow B integration. | End-to-end: feature branch → merge to master → workflow A creates `MintPlayer.Foo/v10.0.5` → workflow B publishes that one package to nuget.org. | M |
 | 6 | `MintPlayer.Verz.Sdks.NodeJS` + `MintPlayer.Verz.Registries.NpmJS`. | A small Angular workspace fixture: editing one library produces one `@scope/foo/v1.0.1` tag and one publish. Cross-language graph (a .NET lib alongside a Node lib) is correctly partitioned. | L |
