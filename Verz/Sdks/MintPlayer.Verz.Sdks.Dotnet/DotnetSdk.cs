@@ -10,6 +10,53 @@ namespace MintPlayer.Verz.Sdks.Dotnet;
 
 public sealed class DotnetSdk(ILogger<DotnetSdk> logger) : IDevelopmentSdk
 {
+    private static readonly string HashTempRoot = InitHashTempRoot();
+
+    // Two-layer cleanup for the temp dll copies that PublicApiGenerator needs
+    // a real Assembly.Location for. (1) ProcessExit attempts to wipe this
+    // run's subdir; (2) the next run sweeps orphan {pid} subdirs from any
+    // prior process that exited without successful cleanup (testhost being
+    // the typical offender — it holds onto loaded assemblies until full
+    // shutdown, past our ProcessExit handler).
+    private static string InitHashTempRoot()
+    {
+        var tempBase = Path.GetTempPath();
+        var currentPid = Environment.ProcessId;
+
+        try
+        {
+            foreach (var dir in Directory.EnumerateDirectories(tempBase, "verz-hash-*"))
+            {
+                var pidPart = Path.GetFileName(dir);
+                if (!pidPart.StartsWith("verz-hash-", StringComparison.Ordinal)) continue;
+                if (!int.TryParse(pidPart["verz-hash-".Length..], out var pid)) continue;
+                if (pid == currentPid) continue;
+
+                if (ProcessExists(pid)) continue;
+
+                try { Directory.Delete(dir, recursive: true); }
+                catch { /* still locked or already gone; try again next run */ }
+            }
+        }
+        catch { /* enumeration races are tolerable */ }
+
+        var own = Path.Combine(tempBase, $"verz-hash-{currentPid}");
+        Directory.CreateDirectory(own);
+        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+        {
+            try { Directory.Delete(own, recursive: true); }
+            catch { /* next run's orphan sweep will get it */ }
+        };
+        return own;
+    }
+
+    private static bool ProcessExists(int pid)
+    {
+        try { System.Diagnostics.Process.GetProcessById(pid); return true; }
+        catch (ArgumentException) { return false; }
+        catch { return true; /* assume alive on permission/other errors */ }
+    }
+
     public string Id => "dotnet";
 
     public Task<IReadOnlyList<DiscoveredProject>> DiscoverAsync(
@@ -84,11 +131,13 @@ public sealed class DotnetSdk(ILogger<DotnetSdk> logger) : IDevelopmentSdk
         //       the same project (e.g., for downstream transitive bumps).
         //   (2) PublicApiGenerator needs assembly.Location to be set, so we
         //       can't load from a byte[].
-        // Each hash also lives in its own collectible AssemblyLoadContext so
-        // repeat calls with the same logical assembly name don't collide.
+        // The temp copies live under a per-process subdir wiped on ProcessExit
+        // (see HashTempRoot). Each hash also lives in its own collectible
+        // AssemblyLoadContext so repeat calls with the same logical assembly
+        // name don't collide.
         var tempPath = Path.Combine(
-            Path.GetTempPath(),
-            $"verz-hash-{Guid.NewGuid():N}-{Path.GetFileName(assemblyPath)}");
+            HashTempRoot,
+            $"{Guid.NewGuid():N}-{Path.GetFileName(assemblyPath)}");
         File.Copy(assemblyPath, tempPath, overwrite: true);
 
         var alc = new AssemblyLoadContext($"verz-hash-{Guid.NewGuid():N}", isCollectible: true);
