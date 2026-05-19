@@ -1,102 +1,113 @@
-// dotnet tool install --global MintPlayer.Verz
-
-using Microsoft.Extensions.Configuration;
+using System.CommandLine;
+using System.CommandLine.Builder;
+using System.CommandLine.Invocation;
+using System.CommandLine.Parsing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using MintPlayer.Verz.Core;
-using MintPlayer.Verz.Helpers;
-using NuGet.Common;
-using NuGet.Configuration;
-using NuGet.Packaging;
-using NuGet.Packaging.Core;
-using NuGet.Packaging.Signing;
-using NuGet.Protocol.Core.Types;
-using System.Reflection;
+using MintPlayer.Verz.Abstractions;
+using MintPlayer.Verz.Commands;
+using MintPlayer.Verz.Configuration;
+using MintPlayer.Verz.Hosting;
 
 namespace MintPlayer.Verz;
 
-internal class Program
+internal static class Program
 {
     public static async Task<int> Main(string[] args)
     {
-        var builder = Host.CreateApplicationBuilder(args);
+        using var host = BuildHost();
+        var root = BuildCommandTree(host.Services);
 
-        var currentDirectory = Directory.GetCurrentDirectory();
-        var verzPath = Path.Combine(currentDirectory, "verz.json");
-        builder.Configuration.AddJsonFile(verzPath, optional: true);
+        var parser = new CommandLineBuilder(root)
+            .UseDefaults()
+            .UseExceptionHandler(HandleException, errorExitCode: 1)
+            .Build();
 
+        return await parser.InvokeAsync(args);
+    }
+
+    private static IHost BuildHost()
+    {
+        var builder = Host.CreateApplicationBuilder();
         builder.Logging.ClearProviders();
-        builder.Logging.AddConsole();
-
-        builder.Services.AddSingleton(provider =>
+        builder.Logging.AddSimpleConsole(o =>
         {
-            var verzConfig = new VerzConfig();
-            provider.GetRequiredService<IConfiguration>().Bind(verzConfig);
-            return verzConfig;
+            o.SingleLine = true;
+            o.IncludeScopes = false;
+            o.TimestampFormat = null;
         });
 
-        builder.Services.AddSingleton<ToolCatalog>();
-        builder.Services.AddVerzCommand();
-
-        var app = builder.Build();
-        var exitCode = await app.InvokeVerzCommandAsync(args);
-        return exitCode;
-    }
-
-    internal static async Task<(List<IPackageRegistry> registries, List<IDevelopmentSdk> sdks)> LoadToolsAsync(string[] tools, CancellationToken cancellationToken)
-    {
-        var cacheFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
-        if (!Directory.Exists(cacheFolder))
+        builder.Services.AddSingleton<PluginLoader>();
+        builder.Services.AddSingleton(sp =>
         {
-            Directory.CreateDirectory(cacheFolder);
-        }
+            var loader = sp.GetRequiredService<PluginLoader>();
+            return new PluginCatalogProvider(loader, TryLoadConfigFromCwd);
+        });
 
-        var provider = new SourceRepositoryProvider(new PackageSourceProvider(NullSettings.Instance), Repository.Provider.GetCoreV3());
-        var sourceRepository = provider.CreateRepository(new PackageSource("https://api.nuget.org/v3/index.json"));
-        var packageFinder = await sourceRepository.GetResourceAsync<FindPackageByIdResource>(cancellationToken);
-        var packagePathResolver = new VersionPackagePathResolver(cacheFolder, useSideBySidePaths: true);
-        var extractionContext = new PackageExtractionContext(
-            PackageSaveMode.Files,
-            XmlDocFileSaveMode.None,
-            ClientPolicyContext.GetClientPolicy(NullSettings.Instance, NullLogger.Instance),
-            NullLogger.Instance);
-        var sourceContext = new SourceCacheContext();
+        builder.Services.AddSingleton<InitCommand>();
 
-        var assemblies = await Task.WhenAll((tools ?? Array.Empty<string>())
-            .Select(tool => Task.Run(async () =>
-            {
-                try
-                {
-                    return Assembly.Load(tool);
-                }
-                catch
-                {
-                    var versions = await packageFinder.GetAllVersionsAsync(tool, sourceContext, NullLogger.Instance, cancellationToken);
-                    var latest = versions.Last();
-                    var identity = new PackageIdentity(tool, latest);
-                    using var ms = new MemoryStream();
-                    await packageFinder.CopyNupkgToStreamAsync(tool, latest, ms, sourceContext, NullLogger.Instance, cancellationToken);
-                    ms.Position = 0;
-                    using var packageReader = new PackageArchiveReader(ms);
-                    await PackageExtractor.ExtractPackageAsync(string.Empty, packageReader, packagePathResolver, extractionContext, cancellationToken);
-                    var path = Path.Combine(packagePathResolver.GetInstallPath(identity), "lib", "net10.0", $"{tool}.dll");
-                    return Assembly.LoadFrom(path);
-                }
-            }, cancellationToken)));
-
-        var types = assemblies.SelectMany(a => a.GetTypes());
-        var registries = types.Where(t => typeof(IPackageRegistry).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
-            .Select(t => (IPackageRegistry)Activator.CreateInstance(t)!).ToList();
-        var sdks = types.Where(t => typeof(IDevelopmentSdk).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
-            .Select(t => (IDevelopmentSdk)Activator.CreateInstance(t)!).ToList();
-
-        return (registries, sdks);
+        return builder.Build();
     }
 
-    internal static string? FindSingleCsprojInCwd()
+    private static VerzConfig? TryLoadConfigFromCwd()
     {
-        var files = Directory.GetFiles(Directory.GetCurrentDirectory(), "*.csproj", SearchOption.TopDirectoryOnly);
-        return files.Length == 1 ? files[0] : string.Empty;
+        var path = Path.Combine(Directory.GetCurrentDirectory(), "verz.json");
+        return File.Exists(path) ? VerzConfigSerializer.Load(path) : null;
+    }
+
+    private static RootCommand BuildCommandTree(IServiceProvider services)
+    {
+        var root = new RootCommand(
+            "Verz — derives library versions from git tags, stamps them at build time, " +
+            "and publishes packages via a plugin model.");
+
+        root.AddCommand(BuildInitCommand(services));
+
+        return root;
+    }
+
+    private static Command BuildInitCommand(IServiceProvider services)
+    {
+        var stamp = new Option<bool>(
+            name: "--stamp-placeholders",
+            description: "Insert placeholder versions into discovered .csproj / package.json files.");
+
+        var registry = new Option<string[]>(
+            name: "--registry",
+            description: "Add a registry entry as id=url. Repeatable.")
+        {
+            AllowMultipleArgumentsPerToken = false,
+            Arity = ArgumentArity.ZeroOrMore,
+        };
+
+        var init = new Command("init", "Scaffold verz.json in the current directory.");
+        init.AddOption(stamp);
+        init.AddOption(registry);
+        init.SetHandler(async ctx =>
+        {
+            var opts = new InitOptions(
+                StampPlaceholders: ctx.ParseResult.GetValueForOption(stamp),
+                Registries: ctx.ParseResult.GetValueForOption(registry) ?? Array.Empty<string>());
+
+            var handler = services.GetRequiredService<InitCommand>();
+            ctx.ExitCode = await handler.HandleAsync(opts, ctx.GetCancellationToken());
+        });
+
+        return init;
+    }
+
+    private static void HandleException(Exception ex, InvocationContext ctx)
+    {
+        if (ex is VerzException verz)
+        {
+            ctx.Console.Error.Write(verz.Message + Environment.NewLine);
+            ctx.ExitCode = verz.ExitCode;
+        }
+        else
+        {
+            ctx.Console.Error.Write($"unhandled: {ex.Message}{Environment.NewLine}");
+            ctx.ExitCode = 1;
+        }
     }
 }
