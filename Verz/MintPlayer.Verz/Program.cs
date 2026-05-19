@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using MintPlayer.Verz.Abstractions;
 using MintPlayer.Verz.Commands;
 using MintPlayer.Verz.Configuration;
+using MintPlayer.Verz.Helpers;
 using MintPlayer.Verz.Hosting;
 
 namespace MintPlayer.Verz;
@@ -45,7 +46,9 @@ internal static class Program
             return new PluginCatalogProvider(loader, TryLoadConfigFromCwd);
         });
 
+        builder.Services.AddSingleton<GitClient>();
         builder.Services.AddSingleton<InitCommand>();
+        builder.Services.AddSingleton<SetVersionsCommand>();
 
         return builder.Build();
     }
@@ -63,8 +66,35 @@ internal static class Program
             "and publishes packages via a plugin model.");
 
         root.AddCommand(BuildInitCommand(services));
+        root.AddCommand(BuildSetVersionsCommand(services));
 
         return root;
+    }
+
+    private static Command BuildSetVersionsCommand(IServiceProvider services)
+    {
+        var refOption = new Option<string>(
+            name: "--ref",
+            description: "Git ref to read tags from. Default: HEAD.",
+            getDefaultValue: () => "HEAD");
+
+        var dryRun = new Option<bool>(
+            name: "--dry-run",
+            description: "Print the planned changes without modifying files.");
+
+        var cmd = new Command("set-versions", "Apply tag-derived versions to discovered projects.");
+        cmd.AddOption(refOption);
+        cmd.AddOption(dryRun);
+        cmd.SetHandler(async ctx =>
+        {
+            var opts = new SetVersionsOptions(
+                Ref: ctx.ParseResult.GetValueForOption(refOption) ?? "HEAD",
+                DryRun: ctx.ParseResult.GetValueForOption(dryRun));
+
+            var handler = services.GetRequiredService<SetVersionsCommand>();
+            ctx.ExitCode = await handler.HandleAsync(opts, ctx.GetCancellationToken());
+        });
+        return cmd;
     }
 
     private static Command BuildInitCommand(IServiceProvider services)

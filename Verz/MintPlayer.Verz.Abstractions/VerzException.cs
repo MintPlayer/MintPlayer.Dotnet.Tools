@@ -21,8 +21,19 @@ public sealed class InitConflictException(string path)
 public sealed class NoTagsAtRefException(string @ref)
     : VerzException(3, $"no parseable {{PackageId}}/v{{semver}} tags at {@ref}");
 
-public sealed class UnmatchedTagException(string packageId, string @ref)
-    : VerzException(4, $"tag {packageId}/v* at {@ref} does not match any project discovered by any loaded SDK");
+public sealed class UnmatchedTagException : VerzException
+{
+    public UnmatchedTagException(string message) : base(4, message) { }
+
+    public static UnmatchedTagException ForPackageId(string packageId, string @ref) =>
+        new($"tag {packageId}/v* at {@ref} does not match any project discovered by any loaded SDK");
+
+    public static UnmatchedTagException Duplicates(string packageId, string @ref, IEnumerable<string> tags) =>
+        new($"{packageId}: multiple tags at {@ref}: {string.Join(", ", tags)}");
+
+    public static UnmatchedTagException NoSdks(string @ref) =>
+        new($"no SDK plugins loaded; cannot map tags at {@ref} to projects");
+}
 
 public sealed class ColdStartException(string packageId, string version)
     : VerzException(5, $"prior tag {packageId}/v{version} exists but no configured registry hosts that version");

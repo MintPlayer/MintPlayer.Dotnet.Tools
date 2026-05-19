@@ -1,18 +1,20 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+		<TargetFramework>net10.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
-		<Version>10.0.0</Version>
+		<RootNamespace>MintPlayer.Verz.Sdks.Dotnet</RootNamespace>
+		<Version>0.0.0-placeholder</Version>
+		<Description>Verz IDevelopmentSdk plugin for .NET projects. Discovers .csproj libraries, stamps versions, packs nupkgs.</Description>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\..\MintPlayer.Verz.Core\MintPlayer.Verz.Core.csproj" />
+		<ProjectReference Include="..\..\MintPlayer.Verz.Abstractions\MintPlayer.Verz.Abstractions.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="PublicApiGenerator" Version="11.5.4" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
 	</ItemGroup>
 
 </Project>
