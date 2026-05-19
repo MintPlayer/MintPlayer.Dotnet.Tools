@@ -3,7 +3,7 @@ using MintPlayer.Verz.Abstractions;
 
 namespace MintPlayer.Verz.Hosting;
 
-public sealed class ProjectGraphBuilder(ILogger<ProjectGraphBuilder> logger)
+internal sealed class ProjectGraphBuilder(ILogger<ProjectGraphBuilder> logger)
 {
     public async Task<ProjectGraph> BuildAsync(
         IReadOnlyList<IDevelopmentSdk> sdks,

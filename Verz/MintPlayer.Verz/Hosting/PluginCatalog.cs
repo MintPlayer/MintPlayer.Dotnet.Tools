@@ -2,7 +2,7 @@ using MintPlayer.Verz.Abstractions;
 
 namespace MintPlayer.Verz.Hosting;
 
-public sealed class PluginCatalog
+internal sealed class PluginCatalog
 {
     public PluginCatalog(IReadOnlyList<IDevelopmentSdk> sdks, IReadOnlyList<IPackageRegistry> registries)
     {

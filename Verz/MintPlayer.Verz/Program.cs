@@ -39,24 +39,18 @@ internal static class Program
             o.TimestampFormat = null;
         });
 
+        builder.Services.AddSingleton<VerzConfigProvider>();
         builder.Services.AddSingleton<PluginLoader>();
-        builder.Services.AddSingleton(sp =>
-        {
-            var loader = sp.GetRequiredService<PluginLoader>();
-            return new PluginCatalogProvider(loader, TryLoadConfigFromCwd);
-        });
+        builder.Services.AddSingleton<PluginCatalogProvider>();
+        builder.Services.AddSingleton<ProjectGraphBuilder>();
+        builder.Services.AddSingleton<VersionPlanner>();
 
         builder.Services.AddSingleton<GitClient>();
         builder.Services.AddSingleton<InitCommand>();
         builder.Services.AddSingleton<SetVersionsCommand>();
+        builder.Services.AddSingleton<CreateTagCommand>();
 
         return builder.Build();
-    }
-
-    private static VerzConfig? TryLoadConfigFromCwd()
-    {
-        var path = Path.Combine(Directory.GetCurrentDirectory(), "verz.json");
-        return File.Exists(path) ? VerzConfigSerializer.Load(path) : null;
     }
 
     private static RootCommand BuildCommandTree(IServiceProvider services)
@@ -67,8 +61,42 @@ internal static class Program
 
         root.AddCommand(BuildInitCommand(services));
         root.AddCommand(BuildSetVersionsCommand(services));
+        root.AddCommand(BuildCreateTagCommand(services));
 
         return root;
+    }
+
+    private static Command BuildCreateTagCommand(IServiceProvider services)
+    {
+        var dryRun = new Option<bool>("--dry-run",
+            description: "Print the planned tags without creating or pushing them.");
+        var push = new Option<bool>("--push",
+            description: "After creating local tags, git push --tags to the remote.");
+        var remote = new Option<string>("--remote",
+            description: "Git remote name for --push. Default: origin.",
+            getDefaultValue: () => "origin");
+        var configuration = new Option<string>("--configuration",
+            description: "Build configuration whose bin output is hashed. Default: Release.",
+            getDefaultValue: () => "Release");
+
+        var cmd = new Command("create-tag",
+            "Compute next version(s) for affected projects and create tags.");
+        cmd.AddOption(dryRun);
+        cmd.AddOption(push);
+        cmd.AddOption(remote);
+        cmd.AddOption(configuration);
+        cmd.SetHandler(async ctx =>
+        {
+            var opts = new CreateTagOptions(
+                DryRun: ctx.ParseResult.GetValueForOption(dryRun),
+                Push: ctx.ParseResult.GetValueForOption(push),
+                Remote: ctx.ParseResult.GetValueForOption(remote) ?? "origin",
+                Configuration: ctx.ParseResult.GetValueForOption(configuration) ?? "Release");
+
+            var handler = services.GetRequiredService<CreateTagCommand>();
+            ctx.ExitCode = await handler.HandleAsync(opts, ctx.GetCancellationToken());
+        });
+        return cmd;
     }
 
     private static Command BuildSetVersionsCommand(IServiceProvider services)

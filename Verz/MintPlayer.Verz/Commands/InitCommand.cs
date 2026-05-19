@@ -4,7 +4,7 @@ using MintPlayer.Verz.Configuration;
 
 namespace MintPlayer.Verz.Commands;
 
-public sealed class InitCommand(ILogger<InitCommand> logger)
+internal sealed class InitCommand(ILogger<InitCommand> logger)
 {
     public Task<int> HandleAsync(InitOptions options, CancellationToken cancellationToken)
     {
@@ -70,4 +70,4 @@ public sealed class InitCommand(ILogger<InitCommand> logger)
     }
 }
 
-public sealed record InitOptions(bool StampPlaceholders, IReadOnlyList<string> Registries);
+internal sealed record InitOptions(bool StampPlaceholders, IReadOnlyList<string> Registries);

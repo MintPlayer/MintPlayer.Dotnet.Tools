@@ -35,6 +35,46 @@ public sealed class GitClient(ILogger<GitClient> logger)
             .ToArray();
     }
 
+    /// <summary>
+    /// True if <c>git diff --quiet {sinceRef}..HEAD -- {relativePath}</c>
+    /// reports any change. Exit code 0 = no diff, 1 = diff. Higher exit codes
+    /// throw (likely a malformed ref or an unreadable repository).
+    /// </summary>
+    public bool HasChanges(string sinceRef, string relativePath, string workingDirectory)
+    {
+        var result = Run(workingDirectory, "diff", "--quiet", $"{sinceRef}..HEAD", "--", relativePath);
+        return result.ExitCode switch
+        {
+            0 => false,
+            1 => true,
+            _ => throw new InvalidOperationException(
+                $"git diff --quiet {sinceRef}..HEAD -- {relativePath} failed (exit {result.ExitCode}): {result.Stderr.Trim()}"),
+        };
+    }
+
+    public void CreateTag(string tagName, string workingDirectory, bool annotated = false, string? message = null)
+    {
+        var args = annotated
+            ? new[] { "tag", "-a", tagName, "-m", message ?? tagName }
+            : new[] { "tag", tagName };
+        var result = Run(workingDirectory, args);
+        if (result.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"git tag {tagName} failed (exit {result.ExitCode}): {result.Stderr.Trim()}");
+        }
+    }
+
+    public void PushTags(string workingDirectory, string remote = "origin")
+    {
+        var result = Run(workingDirectory, "push", remote, "--tags", "--follow-tags");
+        if (result.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"git push {remote} --tags failed (exit {result.ExitCode}): {result.Stderr.Trim()}");
+        }
+    }
+
     public IReadOnlyList<string> TagList(string pattern, bool mergedHead, string workingDirectory)
     {
         var args = mergedHead

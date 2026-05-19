@@ -5,7 +5,7 @@ using MintPlayer.Verz.Hosting;
 
 namespace MintPlayer.Verz.Commands;
 
-public sealed class SetVersionsCommand(
+internal sealed class SetVersionsCommand(
     ILogger<SetVersionsCommand> logger,
     PluginCatalogProvider catalogProvider,
     GitClient git)
@@ -86,4 +86,4 @@ public sealed class SetVersionsCommand(
     }
 }
 
-public sealed record SetVersionsOptions(string Ref, bool DryRun);
+internal sealed record SetVersionsOptions(string Ref, bool DryRun);

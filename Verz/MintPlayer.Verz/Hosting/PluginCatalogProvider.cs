@@ -7,18 +7,10 @@ namespace MintPlayer.Verz.Hosting;
 /// triggers download/load of every plugin listed in verz.json; subsequent calls
 /// return the same instance.
 /// </summary>
-public sealed class PluginCatalogProvider
+internal sealed class PluginCatalogProvider(PluginLoader loader, VerzConfigProvider configProvider)
 {
-    private readonly PluginLoader _loader;
-    private readonly Func<VerzConfig?> _configAccessor;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private PluginCatalog? _cache;
-
-    internal PluginCatalogProvider(PluginLoader loader, Func<VerzConfig?> configAccessor)
-    {
-        _loader = loader;
-        _configAccessor = configAccessor;
-    }
 
     public async Task<PluginCatalog> GetAsync(CancellationToken cancellationToken)
     {
@@ -28,8 +20,8 @@ public sealed class PluginCatalogProvider
         try
         {
             if (_cache is not null) return _cache;
-            var config = _configAccessor() ?? new VerzConfig();
-            _cache = await _loader.LoadAsync(config, cancellationToken);
+            var config = configProvider.Get() ?? new VerzConfig();
+            _cache = await loader.LoadAsync(config, cancellationToken);
             return _cache;
         }
         finally

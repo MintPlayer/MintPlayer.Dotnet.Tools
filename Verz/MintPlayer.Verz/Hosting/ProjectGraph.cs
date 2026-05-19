@@ -2,7 +2,7 @@ using MintPlayer.Verz.Abstractions;
 
 namespace MintPlayer.Verz.Hosting;
 
-public sealed class ProjectNode
+internal sealed class ProjectNode
 {
     public required string PackageId { get; init; }
     public required string ProjectDir { get; init; }
@@ -14,7 +14,7 @@ public sealed class ProjectNode
     public required IReadOnlyList<string> Dependencies { get; init; }
 }
 
-public sealed class ProjectGraph
+internal sealed class ProjectGraph
 {
     public ProjectGraph(IReadOnlyDictionary<string, ProjectNode> nodes)
     {
