@@ -197,6 +197,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Registries", "Registries", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.Verz.Registries.NugetOrg", "Verz\Registries\MintPlayer.Verz.Registries.NugetOrg\MintPlayer.Verz.Registries.NugetOrg.csproj", "{BA773C04-F964-4049-843D-0CF9E5DD90D4}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.Verz.Sdks.NodeJS", "Verz\Sdks\MintPlayer.Verz.Sdks.NodeJS\MintPlayer.Verz.Sdks.NodeJS.csproj", "{6C94D342-7776-4E4E-A583-B40943E4A9FB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.Verz.Sdks.NodeJS.Tests", "Verz\Tests\MintPlayer.Verz.Sdks.NodeJS.Tests\MintPlayer.Verz.Sdks.NodeJS.Tests.csproj", "{D264E549-0D21-4874-B01B-212A9C595CDF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -963,6 +967,30 @@ Global
 		{BA773C04-F964-4049-843D-0CF9E5DD90D4}.Release|x64.Build.0 = Release|Any CPU
 		{BA773C04-F964-4049-843D-0CF9E5DD90D4}.Release|x86.ActiveCfg = Release|Any CPU
 		{BA773C04-F964-4049-843D-0CF9E5DD90D4}.Release|x86.Build.0 = Release|Any CPU
+		{6C94D342-7776-4E4E-A583-B40943E4A9FB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6C94D342-7776-4E4E-A583-B40943E4A9FB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6C94D342-7776-4E4E-A583-B40943E4A9FB}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{6C94D342-7776-4E4E-A583-B40943E4A9FB}.Debug|x64.Build.0 = Debug|Any CPU
+		{6C94D342-7776-4E4E-A583-B40943E4A9FB}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6C94D342-7776-4E4E-A583-B40943E4A9FB}.Debug|x86.Build.0 = Debug|Any CPU
+		{6C94D342-7776-4E4E-A583-B40943E4A9FB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6C94D342-7776-4E4E-A583-B40943E4A9FB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6C94D342-7776-4E4E-A583-B40943E4A9FB}.Release|x64.ActiveCfg = Release|Any CPU
+		{6C94D342-7776-4E4E-A583-B40943E4A9FB}.Release|x64.Build.0 = Release|Any CPU
+		{6C94D342-7776-4E4E-A583-B40943E4A9FB}.Release|x86.ActiveCfg = Release|Any CPU
+		{6C94D342-7776-4E4E-A583-B40943E4A9FB}.Release|x86.Build.0 = Release|Any CPU
+		{D264E549-0D21-4874-B01B-212A9C595CDF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D264E549-0D21-4874-B01B-212A9C595CDF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D264E549-0D21-4874-B01B-212A9C595CDF}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D264E549-0D21-4874-B01B-212A9C595CDF}.Debug|x64.Build.0 = Debug|Any CPU
+		{D264E549-0D21-4874-B01B-212A9C595CDF}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D264E549-0D21-4874-B01B-212A9C595CDF}.Debug|x86.Build.0 = Debug|Any CPU
+		{D264E549-0D21-4874-B01B-212A9C595CDF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D264E549-0D21-4874-B01B-212A9C595CDF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D264E549-0D21-4874-B01B-212A9C595CDF}.Release|x64.ActiveCfg = Release|Any CPU
+		{D264E549-0D21-4874-B01B-212A9C595CDF}.Release|x64.Build.0 = Release|Any CPU
+		{D264E549-0D21-4874-B01B-212A9C595CDF}.Release|x86.ActiveCfg = Release|Any CPU
+		{D264E549-0D21-4874-B01B-212A9C595CDF}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -1042,6 +1070,8 @@ Global
 		{A71C6BDF-9AB9-4091-B05A-A01369112966} = {77EE40C1-19D1-48AA-F298-9D3E80CAB1FB}
 		{A3CA6930-78AC-7506-D94A-2B32D933B654} = {0D1D2D90-BCFA-47EE-8C72-2E10405F96DF}
 		{BA773C04-F964-4049-843D-0CF9E5DD90D4} = {A3CA6930-78AC-7506-D94A-2B32D933B654}
+		{6C94D342-7776-4E4E-A583-B40943E4A9FB} = {86D38A69-F6F8-4955-70BF-0F661403D70D}
+		{D264E549-0D21-4874-B01B-212A9C595CDF} = {77EE40C1-19D1-48AA-F298-9D3E80CAB1FB}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D5378D43-9246-4355-8C4B-880DB15B07DA}
