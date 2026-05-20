@@ -49,6 +49,7 @@ internal static class Program
         builder.Services.AddSingleton<InitCommand>();
         builder.Services.AddSingleton<SetVersionsCommand>();
         builder.Services.AddSingleton<CreateTagCommand>();
+        builder.Services.AddSingleton<PublishCommand>();
 
         return builder.Build();
     }
@@ -62,8 +63,40 @@ internal static class Program
         root.AddCommand(BuildInitCommand(services));
         root.AddCommand(BuildSetVersionsCommand(services));
         root.AddCommand(BuildCreateTagCommand(services));
+        root.AddCommand(BuildPublishCommand(services));
 
         return root;
+    }
+
+    private static Command BuildPublishCommand(IServiceProvider services)
+    {
+        var configuration = new Option<string>(
+            name: "--configuration",
+            description: "Build configuration to pack. Default: Release.",
+            getDefaultValue: () => "Release");
+
+        var registry = new Option<string[]>(
+            name: "--registry",
+            description: "Limit publishing to listed registry IDs. Repeatable.")
+        {
+            AllowMultipleArgumentsPerToken = false,
+            Arity = ArgumentArity.ZeroOrMore,
+        };
+
+        var cmd = new Command("publish",
+            "Pack and push every package tagged at HEAD to each configured registry.");
+        cmd.AddOption(configuration);
+        cmd.AddOption(registry);
+        cmd.SetHandler(async ctx =>
+        {
+            var opts = new PublishOptions(
+                Configuration: ctx.ParseResult.GetValueForOption(configuration) ?? "Release",
+                Registries: ctx.ParseResult.GetValueForOption(registry));
+
+            var handler = services.GetRequiredService<PublishCommand>();
+            ctx.ExitCode = await handler.HandleAsync(opts, ctx.GetCancellationToken());
+        });
+        return cmd;
     }
 
     private static Command BuildCreateTagCommand(IServiceProvider services)
