@@ -1,0 +1,48 @@
+name: verz — create release tags
+
+# Workflow A of the Verz release loop. Triggered when commits land on
+# master that touch Verz sources. Verz computes the next version per
+# package, creates {PackageId}/v{semver} tags, and pushes them.
+# Pushing the tags triggers verz-publish.yml.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'Verz/**'
+
+permissions:
+  contents: write   # required for `git push --tags`
+
+concurrency:
+  group: verz-create-tag
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Tags + history are needed for prior-tag lookup and git diff.
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install Verz
+        run: dotnet tool install -g MintPlayer.Verz
+
+      - name: Build (so public-API hashes can be computed)
+        run: dotnet build -c Release
+        working-directory: Verz
+
+      - name: Configure git identity
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name  "github-actions[bot]"
+
+      - name: Create and push tags
+        working-directory: Verz
+        run: verz create-tag --push

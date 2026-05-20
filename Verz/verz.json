@@ -1,0 +1,20 @@
+{
+  "$schema": "https://mintplayer.com/verz/v1/schema.json",
+  "Registries": [
+    {
+      "id": "nuget.org",
+      "kind": "nuget",
+      "url": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "id": "github",
+      "kind": "nuget",
+      "url": "https://nuget.pkg.github.com/mintplayer/index.json"
+    }
+  ],
+  "Plugins": [
+    "MintPlayer.Verz.Sdks.Dotnet",
+    "MintPlayer.Verz.Registries.NugetOrg",
+    "MintPlayer.Verz.Registries.GithubPackageRegistry"
+  ]
+}
