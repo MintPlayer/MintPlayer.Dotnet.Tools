@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Text;
 using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
 using MintPlayer.Verz.Abstractions;
@@ -104,8 +106,50 @@ public sealed class NugetOrgRegistry(ILogger<NugetOrgRegistry> logger) : IPackag
         };
     }
 
-    public Task PushAsync(string registryUrl, Artifact artifact, CancellationToken cancellationToken)
-        => throw new NotImplementedException("Push lands in milestone 5 (verz publish).");
+    public async Task PushAsync(string registryUrl, Artifact artifact, CancellationToken cancellationToken)
+    {
+        if (!File.Exists(artifact.Path))
+        {
+            throw new PublishFailureException(
+                $"artifact not found at {artifact.Path}");
+        }
+
+        var psi = new ProcessStartInfo("dotnet")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        psi.ArgumentList.Add("nuget");
+        psi.ArgumentList.Add("push");
+        psi.ArgumentList.Add(artifact.Path);
+        psi.ArgumentList.Add("--source");
+        psi.ArgumentList.Add(registryUrl);
+        psi.ArgumentList.Add("--skip-duplicate");
+        // Symbols packages get pushed by name; main packages auto-detect.
+
+        using var proc = Process.Start(psi)
+            ?? throw new PublishFailureException("could not start dotnet; is the .NET SDK on PATH?");
+
+        var stdout = new StringBuilder();
+        var stderr = new StringBuilder();
+        proc.OutputDataReceived += (_, e) => { if (e.Data is not null) stdout.AppendLine(e.Data); };
+        proc.ErrorDataReceived += (_, e) => { if (e.Data is not null) stderr.AppendLine(e.Data); };
+        proc.BeginOutputReadLine();
+        proc.BeginErrorReadLine();
+        await proc.WaitForExitAsync(cancellationToken);
+
+        logger.LogInformation("[{Kind}] pushed {File} -> {Url} (exit {ExitCode})",
+            Kind, Path.GetFileName(artifact.Path), registryUrl, proc.ExitCode);
+
+        if (proc.ExitCode != 0)
+        {
+            var combined = $"dotnet nuget push {Path.GetFileName(artifact.Path)} -> {registryUrl} " +
+                $"failed (exit {proc.ExitCode}):\n{stderr}\n{stdout}";
+            throw new PublishFailureException(combined.TrimEnd());
+        }
+    }
 
     private static string? ReadCustom(XElement metadata, string localName) =>
         metadata.Elements()
