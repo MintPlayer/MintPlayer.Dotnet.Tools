@@ -188,9 +188,26 @@ public sealed class NodeJsSdk(ILogger<NodeJsSdk> logger) : IDevelopmentSdk
         return artifacts;
     }
 
+    private static string ResolveNpm()
+    {
+        if (!OperatingSystem.IsWindows()) return "npm";
+        var pathDirs = (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
+            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
+        foreach (var dir in pathDirs)
+        {
+            try
+            {
+                var candidate = Path.Combine(dir.Trim(), "npm.cmd");
+                if (File.Exists(candidate)) return candidate;
+            }
+            catch { /* malformed PATH entry; skip */ }
+        }
+        return "npm.cmd";
+    }
+
     private static async Task RunNpmPackAsync(string projectDir, string output, CancellationToken ct)
     {
-        var psi = new ProcessStartInfo("npm")
+        var psi = new ProcessStartInfo(ResolveNpm())
         {
             WorkingDirectory = projectDir,
             RedirectStandardOutput = true,

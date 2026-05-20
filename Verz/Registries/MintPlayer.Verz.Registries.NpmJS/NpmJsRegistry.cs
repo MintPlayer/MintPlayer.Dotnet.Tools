@@ -89,6 +89,23 @@ public sealed class NpmJsRegistry(ILogger<NpmJsRegistry> logger) : IPackageRegis
         };
     }
 
+    private static string ResolveNpm()
+    {
+        if (!OperatingSystem.IsWindows()) return "npm";
+        var pathDirs = (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
+            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
+        foreach (var dir in pathDirs)
+        {
+            try
+            {
+                var candidate = Path.Combine(dir.Trim(), "npm.cmd");
+                if (File.Exists(candidate)) return candidate;
+            }
+            catch { /* malformed PATH entry; skip */ }
+        }
+        return "npm.cmd";
+    }
+
     public async Task PushAsync(string registryUrl, Artifact artifact, CancellationToken cancellationToken)
     {
         if (!File.Exists(artifact.Path))
@@ -96,7 +113,7 @@ public sealed class NpmJsRegistry(ILogger<NpmJsRegistry> logger) : IPackageRegis
             throw new PublishFailureException($"artifact not found at {artifact.Path}");
         }
 
-        var psi = new ProcessStartInfo("npm")
+        var psi = new ProcessStartInfo(ResolveNpm())
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
