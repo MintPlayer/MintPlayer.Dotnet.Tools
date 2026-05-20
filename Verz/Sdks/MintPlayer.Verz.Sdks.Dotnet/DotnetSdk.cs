@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.IO.Compression;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using System.Security.Cryptography;
@@ -218,9 +220,143 @@ public sealed class DotnetSdk(ILogger<DotnetSdk> logger) : IDevelopmentSdk
         return Task.CompletedTask;
     }
 
-    public Task<IReadOnlyList<Artifact>> PackAsync(
+    public async Task<IReadOnlyList<Artifact>> PackAsync(
         DiscoveredProject project, string configuration, CancellationToken cancellationToken)
-        => throw new NotImplementedException("Packing lands in milestone 5.");
+    {
+        var output = Path.Combine(Path.GetTempPath(), $"verz-pack-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(output);
+
+        await RunDotnetPackAsync(project.ProjectFile, configuration, output, cancellationToken);
+
+        // Compute hash once and inject into every main-package nuspec produced.
+        // (Multi-tfm packs still produce a single nupkg per project.)
+        string? hash = null;
+        try
+        {
+            hash = await ComputePublicApiHashAsync(project, configuration, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "[{Sdk}] {PackageId}: could not compute public-API hash; nuspec will not carry <PublicApiHash>",
+                Id, project.PackageId);
+        }
+
+        var artifacts = new List<Artifact>();
+        foreach (var file in Directory.EnumerateFiles(output, "*.nupkg")
+                     .Concat(Directory.EnumerateFiles(output, "*.snupkg")))
+        {
+            var isSymbols = file.EndsWith(".snupkg", StringComparison.OrdinalIgnoreCase);
+            var kind = isSymbols ? ArtifactKinds.NugetSymbols : ArtifactKinds.Nuget;
+
+            if (!isSymbols && hash is not null)
+            {
+                try
+                {
+                    InjectNuspecMetadata(file, hash, project.FrameworkMajor);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex,
+                        "[{Sdk}] {PackageId}: failed to inject metadata into {Path}; pack continues",
+                        Id, project.PackageId, file);
+                }
+            }
+
+            artifacts.Add(new Artifact(file, kind));
+        }
+
+        logger.LogInformation("[{Sdk}] {PackageId}: packed {Count} artifact(s) into {Dir}",
+            Id, project.PackageId, artifacts.Count, output);
+
+        return artifacts;
+    }
+
+    private async Task RunDotnetPackAsync(
+        string csproj, string configuration, string output, CancellationToken cancellationToken)
+    {
+        var psi = new ProcessStartInfo("dotnet")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        psi.ArgumentList.Add("pack");
+        psi.ArgumentList.Add(csproj);
+        psi.ArgumentList.Add("-c");
+        psi.ArgumentList.Add(configuration);
+        psi.ArgumentList.Add("--output");
+        psi.ArgumentList.Add(output);
+        psi.ArgumentList.Add("--nologo");
+
+        using var proc = Process.Start(psi)
+            ?? throw new InvalidOperationException("could not start dotnet; is the .NET SDK on PATH?");
+
+        var stdout = new StringBuilder();
+        var stderr = new StringBuilder();
+        proc.OutputDataReceived += (_, e) => { if (e.Data is not null) stdout.AppendLine(e.Data); };
+        proc.ErrorDataReceived += (_, e) => { if (e.Data is not null) stderr.AppendLine(e.Data); };
+        proc.BeginOutputReadLine();
+        proc.BeginErrorReadLine();
+        await proc.WaitForExitAsync(cancellationToken);
+
+        if (proc.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"dotnet pack {csproj} failed (exit {proc.ExitCode}):\n{stdout}\n{stderr}");
+        }
+    }
+
+    private static void InjectNuspecMetadata(string nupkgPath, string publicApiHash, int? frameworkMajor)
+    {
+        using var archive = ZipFile.Open(nupkgPath, ZipArchiveMode.Update);
+        var nuspecEntry = archive.Entries.FirstOrDefault(e =>
+            e.FullName.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase));
+        if (nuspecEntry is null) return;
+
+        XDocument doc;
+        using (var stream = nuspecEntry.Open())
+        {
+            doc = XDocument.Load(stream);
+        }
+
+        var metadata = doc.Root?
+            .Elements()
+            .FirstOrDefault(e => string.Equals(e.Name.LocalName, "metadata", StringComparison.OrdinalIgnoreCase));
+        if (metadata is null) return;
+
+        var ns = metadata.Name.Namespace;
+        UpsertElement(metadata, ns + "PublicApiHash", publicApiHash);
+        if (frameworkMajor.HasValue)
+        {
+            UpsertElement(metadata, ns + "FrameworkMajor", frameworkMajor.Value.ToString());
+        }
+
+        // ZipArchiveMode.Update preserves entries we don't touch; we have to
+        // replace the nuspec by deleting + re-creating so the rewritten bytes
+        // land in the archive.
+        var entryName = nuspecEntry.FullName;
+        nuspecEntry.Delete();
+        var newEntry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
+        using var writeStream = newEntry.Open();
+        doc.Save(writeStream);
+    }
+
+    private static void UpsertElement(XElement metadata, XName name, string value)
+    {
+        var existing = metadata
+            .Elements()
+            .FirstOrDefault(e => string.Equals(e.Name.LocalName, name.LocalName, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            existing.Value = value;
+        }
+        else
+        {
+            metadata.Add(new XElement(name, value));
+        }
+    }
 
     private static bool IsInBinOrObj(string path, string repoRoot)
     {
