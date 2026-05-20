@@ -201,6 +201,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.Verz.Sdks.NodeJS
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.Verz.Sdks.NodeJS.Tests", "Verz\Tests\MintPlayer.Verz.Sdks.NodeJS.Tests\MintPlayer.Verz.Sdks.NodeJS.Tests.csproj", "{D264E549-0D21-4874-B01B-212A9C595CDF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.Verz.Registries.NpmJS", "Verz\Registries\MintPlayer.Verz.Registries.NpmJS\MintPlayer.Verz.Registries.NpmJS.csproj", "{C8CE8183-5258-4D43-9678-A348E5886836}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -991,6 +993,18 @@ Global
 		{D264E549-0D21-4874-B01B-212A9C595CDF}.Release|x64.Build.0 = Release|Any CPU
 		{D264E549-0D21-4874-B01B-212A9C595CDF}.Release|x86.ActiveCfg = Release|Any CPU
 		{D264E549-0D21-4874-B01B-212A9C595CDF}.Release|x86.Build.0 = Release|Any CPU
+		{C8CE8183-5258-4D43-9678-A348E5886836}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C8CE8183-5258-4D43-9678-A348E5886836}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C8CE8183-5258-4D43-9678-A348E5886836}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C8CE8183-5258-4D43-9678-A348E5886836}.Debug|x64.Build.0 = Debug|Any CPU
+		{C8CE8183-5258-4D43-9678-A348E5886836}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C8CE8183-5258-4D43-9678-A348E5886836}.Debug|x86.Build.0 = Debug|Any CPU
+		{C8CE8183-5258-4D43-9678-A348E5886836}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C8CE8183-5258-4D43-9678-A348E5886836}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C8CE8183-5258-4D43-9678-A348E5886836}.Release|x64.ActiveCfg = Release|Any CPU
+		{C8CE8183-5258-4D43-9678-A348E5886836}.Release|x64.Build.0 = Release|Any CPU
+		{C8CE8183-5258-4D43-9678-A348E5886836}.Release|x86.ActiveCfg = Release|Any CPU
+		{C8CE8183-5258-4D43-9678-A348E5886836}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -1072,6 +1086,7 @@ Global
 		{BA773C04-F964-4049-843D-0CF9E5DD90D4} = {A3CA6930-78AC-7506-D94A-2B32D933B654}
 		{6C94D342-7776-4E4E-A583-B40943E4A9FB} = {86D38A69-F6F8-4955-70BF-0F661403D70D}
 		{D264E549-0D21-4874-B01B-212A9C595CDF} = {77EE40C1-19D1-48AA-F298-9D3E80CAB1FB}
+		{C8CE8183-5258-4D43-9678-A348E5886836} = {A3CA6930-78AC-7506-D94A-2B32D933B654}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D5378D43-9246-4355-8C4B-880DB15B07DA}
