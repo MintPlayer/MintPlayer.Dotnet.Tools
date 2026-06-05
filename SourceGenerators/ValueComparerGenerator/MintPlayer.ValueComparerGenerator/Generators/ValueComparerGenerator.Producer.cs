@@ -1,4 +1,4 @@
-﻿using MintPlayer.SourceGenerators.Tools;
+using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.ValueComparerGenerator.Models;
 using System.CodeDom.Compiler;
 
@@ -136,8 +136,11 @@ public sealed class TreeValueComparerProducer : Producer
                             }
                         }
 
-                        using (writer.OpenBlock($"protected override void AddHash(ref global::MintPlayer.SourceGenerators.Tools.Polyfills.HashCodeCompat h, {baseType.FullName} obj)"))
+                        using (writer.OpenBlock($"protected override void AddHash(ref global::MintPlayer.SourceGenerators.Tools.Polyfills.HashCodeCompat h, {baseType.FullName}? obj)"))
                         {
+                            // Base GetHashCode(T? obj) forwards a possibly-null obj here unguarded; match the
+                            // null sentinel used by the runtime comparer (HashCodeCompat null handling).
+                            writer.WriteLine("if (obj is null) { h.Add(0); return; }");
                             foreach (var prop in baseType.AllProperties)
                             {
                                 writer.WriteLine($"{comparerType}<{baseType.FullName}>.AddHash(ref h, obj.{prop.Name});");
