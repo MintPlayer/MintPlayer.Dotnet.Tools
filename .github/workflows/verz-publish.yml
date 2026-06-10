@@ -1,0 +1,63 @@
+name: verz — publish on tag
+
+# Workflow B of the Verz release loop. Triggered when verz-create-tag.yml
+# pushes a {PackageId}/v{semver} tag for any Verz package. The tag's
+# {PackageId} prefix limits us to Verz-managed tags; other tags in the
+# repo (if any) don't fire this workflow.
+
+on:
+  push:
+    tags:
+      - 'MintPlayer.Verz*/v*'
+
+permissions:
+  contents: read
+  packages: write   # for nuget.pkg.github.com push
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install Verz
+        run: dotnet tool install -g MintPlayer.Verz
+
+      - name: Apply tag-derived versions
+        working-directory: Verz
+        run: verz set-versions
+
+      - name: Configure NuGet credentials
+        env:
+          NUGET_API_KEY: ${{ secrets.PUBLISH_TO_NUGET_ORG }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p ~/.nuget
+          cat > ~/.nuget/NuGet.config <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
+              <add key="github"    value="https://nuget.pkg.github.com/mintplayer/index.json" />
+            </packageSources>
+            <packageSourceCredentials>
+              <github>
+                <add key="Username"           value="github-actions" />
+                <add key="ClearTextPassword"  value="${GITHUB_TOKEN}" />
+              </github>
+            </packageSourceCredentials>
+            <apikeys>
+              <add key="https://api.nuget.org/v3/index.json" value="${NUGET_API_KEY}" />
+            </apikeys>
+          </configuration>
+          EOF
+
+      - name: Publish to nuget.org + GitHub Packages
+        working-directory: Verz
+        run: verz publish

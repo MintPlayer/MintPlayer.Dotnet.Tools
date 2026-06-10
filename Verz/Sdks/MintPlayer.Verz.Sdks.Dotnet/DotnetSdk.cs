@@ -1,153 +1,369 @@
-﻿using System.Security.Cryptography;
+using System.Diagnostics;
+using System.IO.Compression;
+using System.Runtime.CompilerServices;
+using System.Runtime.Loader;
+using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
-using MintPlayer.Verz.Core;
-using NuGet.Packaging;
+using Microsoft.Extensions.Logging;
+using MintPlayer.Verz.Abstractions;
 using PublicApiGenerator;
 
 namespace MintPlayer.Verz.Sdks.Dotnet;
 
-public class DotnetSdk : IDevelopmentSdk
+public sealed class DotnetSdk(ILogger<DotnetSdk> logger) : IDevelopmentSdk
 {
-    public bool CanHandle(string projectPath)
-    {
-        return projectPath.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase);
-    }
+    public string Id => "dotnet";
 
-    public Task<string> GetPackageIdAsync(string projectPath, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<DiscoveredProject>> DiscoverAsync(
+        string repoRoot, CancellationToken cancellationToken)
     {
-        var doc = XDocument.Load(projectPath);
-        var ns = doc.Root?.Name.Namespace;
-        var packageId = doc.Descendants(ns + "PackageId").FirstOrDefault()?.Value?.Trim();
-        if (string.IsNullOrWhiteSpace(packageId))
+        var discovered = new List<DiscoveredProject>();
+
+        foreach (var csproj in Directory.EnumerateFiles(repoRoot, "*.csproj", SearchOption.AllDirectories))
         {
-            packageId = Path.GetFileNameWithoutExtension(projectPath);
-        }
-        return Task.FromResult(packageId!);
-    }
+            cancellationToken.ThrowIfCancellationRequested();
+            if (IsInBinOrObj(csproj, repoRoot)) continue;
 
-    public Task<int> GetMajorVersionAsync(string projectPath, CancellationToken cancellationToken)
-    {
-        var doc = XDocument.Load(projectPath);
-        var ns = doc.Root?.Name.Namespace;
-        var tfm = doc.Descendants(ns + "TargetFramework").FirstOrDefault()?.Value?.Trim();
-        if (string.IsNullOrWhiteSpace(tfm))
-        {
-            var tfms = doc.Descendants(ns + "TargetFrameworks").FirstOrDefault()?.Value?.Trim();
-            tfm = tfms?.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(s => s.Trim())
-                .Where(IsNetTfm)
-                .OrderByDescending(ParseNetMajor)
-                .FirstOrDefault();
-        }
-        if (string.IsNullOrWhiteSpace(tfm) || !IsNetTfm(tfm))
-            throw new InvalidOperationException($"Cannot determine .NET TargetFramework for '{projectPath}'.");
+            CsprojReader reader;
+            try
+            {
+                reader = new CsprojReader(csproj);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "could not read {Csproj}; skipping", csproj);
+                continue;
+            }
 
-        var major = ParseNetMajor(tfm);
-        return Task.FromResult(major);
-    }
+            if (!reader.IsPackable) continue;
+            if (!reader.IsLibrary) continue;
 
-    public async Task<string> ComputeCurrentPublicApiHashAsync(string projectPath, string configuration, CancellationToken cancellationToken)
-    {
-        var doc = XDocument.Load(projectPath);
-        var ns = doc.Root?.Name.Namespace;
-        var assemblyName = doc.Descendants(ns + "AssemblyName").FirstOrDefault()?.Value?.Trim()
-            ?? Path.GetFileNameWithoutExtension(projectPath);
-
-        // Pick highest netX.Y TFM
-        var tfms = new List<string>();
-        var tfm = doc.Descendants(ns + "TargetFramework").FirstOrDefault()?.Value?.Trim();
-        if (!string.IsNullOrWhiteSpace(tfm)) tfms.Add(tfm);
-        var tfmsMulti = doc.Descendants(ns + "TargetFrameworks").FirstOrDefault()?.Value?.Trim();
-        if (!string.IsNullOrWhiteSpace(tfmsMulti))
-            tfms.AddRange(tfmsMulti.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
-
-        var selectedTfm = tfms.Where(IsNetTfm).OrderByDescending(ParseNetMajor).ThenByDescending(ParseNetMinor).FirstOrDefault()
-            ?? throw new InvalidOperationException("No supported net TargetFramework found.");
-
-        var projectDir = Path.GetDirectoryName(projectPath)!;
-        var outputPath = Path.Combine(projectDir, "bin", configuration, selectedTfm, assemblyName + ".dll");
-        if (!File.Exists(outputPath))
-        {
-            throw new FileNotFoundException($"Build output not found. Build the project first: {outputPath}");
+            discovered.Add(new DiscoveredProject
+            {
+                PackageId = reader.PackageId,
+                ProjectDir = Path.GetDirectoryName(csproj)!,
+                ProjectFile = csproj,
+                OwnerSdkId = Id,
+                FrameworkMajor = TfmHelper.DetectMajorFromTargets(reader.TargetFrameworks),
+            });
         }
 
-        var assembly = System.Reflection.Assembly.LoadFrom(outputPath);
+        return Task.FromResult<IReadOnlyList<DiscoveredProject>>(discovered);
+    }
+
+    public Task<IReadOnlyList<string>> EnumerateInRepoDependenciesAsync(
+        DiscoveredProject project,
+        IReadOnlyDictionary<string, DiscoveredProject> repoIndex,
+        CancellationToken cancellationToken)
+    {
+        // Reverse index: full path of csproj -> PackageId. Used to resolve
+        // <ProjectReference> Include paths to package identities.
+        var pathToPackageId = repoIndex.Values.ToDictionary(
+            p => Path.GetFullPath(p.ProjectFile),
+            p => p.PackageId,
+            StringComparer.OrdinalIgnoreCase);
+
+        var doc = XDocument.Load(project.ProjectFile, LoadOptions.PreserveWhitespace);
+        var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
+        var projectDir = Path.GetDirectoryName(project.ProjectFile)!;
+
+        var edges = new HashSet<string>(StringComparer.Ordinal);
+
+        // <ProjectReference Include="..\Other\Other.csproj" />
+        foreach (var pr in doc.Descendants(ns + "ProjectReference"))
+        {
+            if (pr.Attribute("Condition") is not null) continue;
+            var include = pr.Attribute("Include")?.Value;
+            if (string.IsNullOrWhiteSpace(include)) continue;
+
+            var absolute = Path.GetFullPath(Path.Combine(projectDir, include));
+            if (pathToPackageId.TryGetValue(absolute, out var targetId)
+                && !string.Equals(targetId, project.PackageId, StringComparison.Ordinal))
+            {
+                edges.Add(targetId);
+            }
+        }
+
+        // <PackageReference Include="X" /> where X matches another in-repo PackageId
+        foreach (var pkg in doc.Descendants(ns + "PackageReference"))
+        {
+            if (pkg.Attribute("Condition") is not null) continue;
+            var include = pkg.Attribute("Include")?.Value?.Trim();
+            if (string.IsNullOrEmpty(include)) continue;
+            if (string.Equals(include, project.PackageId, StringComparison.Ordinal)) continue;
+
+            if (repoIndex.ContainsKey(include))
+            {
+                edges.Add(include);
+            }
+        }
+
+        return Task.FromResult<IReadOnlyList<string>>(edges.ToArray());
+    }
+
+    public Task<string> ComputePublicApiHashAsync(
+        DiscoveredProject project, string configuration, CancellationToken cancellationToken)
+    {
+        var reader = new CsprojReader(project.ProjectFile);
+        var tfm = reader.TargetFrameworks
+            .Where(TfmHelper.IsNetTfm)
+            .OrderByDescending(TfmHelper.ParseNetMajor)
+            .ThenByDescending(TfmHelper.ParseNetMinor)
+            .FirstOrDefault()
+            ?? throw new InvalidOperationException(
+                $"{project.PackageId}: no net*.* TargetFramework found; cannot hash public API");
+
+        var assemblyPath = Path.Combine(
+            project.ProjectDir, "bin", configuration, tfm, reader.AssemblyName + ".dll");
+
+        if (!File.Exists(assemblyPath))
+        {
+            throw new FileNotFoundException(
+                $"{project.PackageId}: build output not found at {assemblyPath}. " +
+                "Run `dotnet build -c " + configuration + "` first.",
+                assemblyPath);
+        }
+
+        // Copy the dll to a unique temp path before loading. The collectible
+        // ALC below pins the loaded file until the ALC is unloaded *and* the
+        // GC has collected the last reference. Copying first means the real
+        // bin output is never pinned — a single `verz` invocation may rebuild
+        // the same project mid-run (e.g., a transitive bump downstream).
+        // PublicApiGenerator needs assembly.Location, so byte[] loads are out.
+        var tempPath = Path.Combine(
+            Path.GetTempPath(),
+            $"verz-hash-{Guid.NewGuid():N}-{Path.GetFileName(assemblyPath)}");
+        File.Copy(assemblyPath, tempPath, overwrite: true);
+
+        var (hex, weakAlc) = LoadAndHashIsolated(tempPath);
+
+        // Drive the unload to completion. `AssemblyLoadContext.Unload` only
+        // marks for unloading; the actual release happens after the GC sees
+        // no live references. With NoInlining isolating the load-frame above,
+        // 2-3 iterations are usually enough.
+        for (int i = 0; i < 10 && weakAlc.IsAlive; i++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+
+        try { File.Delete(tempPath); }
+        catch (Exception ex)
+        {
+            // Unload didn't release the pin in 10 GC cycles; rare but possible
+            // under heavy load. The OS will reclaim %TEMP% eventually.
+            logger.LogDebug(ex, "could not delete hash temp file {Path}", tempPath);
+        }
+
+        logger.LogDebug("[{Sdk}] {PackageId} ({Tfm}): public-API SHA256 = {Hash}",
+            Id, project.PackageId, tfm, hex);
+
+        return Task.FromResult(hex);
+    }
+
+    /// <summary>
+    /// Loads the assembly into its own collectible AssemblyLoadContext, runs
+    /// PublicApiGenerator, SHA-256s the result, then unloads. The
+    /// NoInlining attribute keeps the ALC + Assembly references confined to
+    /// this method's stack frame so they actually become collectible when the
+    /// method returns; without it the JIT can keep them alive on the caller's
+    /// frame and the unload never completes.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static (string Hash, WeakReference Alc) LoadAndHashIsolated(string assemblyPath)
+    {
+        var alc = new AssemblyLoadContext(name: $"verz-hash-{Guid.NewGuid():N}", isCollectible: true);
+        var assembly = alc.LoadFromAssemblyPath(assemblyPath);
         var publicApi = ApiGenerator.GeneratePublicApi(assembly);
-        using var sha256 = SHA256.Create();
-        var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(publicApi));
-        return Convert.ToHexString(hashBytes);
+
+        using var sha = SHA256.Create();
+        var hashBytes = sha.ComputeHash(Encoding.UTF8.GetBytes(publicApi));
+        var hex = Convert.ToHexString(hashBytes);
+
+        alc.Unload();
+        return (hex, new WeakReference(alc));
     }
 
-    public Task<string?> ComputePackagePublicApiHashAsync(Stream nupkgStream, int majorVersion, CancellationToken cancellationToken)
+    public Task StampVersionAsync(
+        DiscoveredProject project, string version, CancellationToken cancellationToken)
     {
-        using var reader = new PackageArchiveReader(nupkgStream, leaveStreamOpen: true);
-        // Try read nuspec <PublicApiHash>
+        var doc = XDocument.Load(project.ProjectFile, LoadOptions.PreserveWhitespace);
+        var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
+
+        var versionElem = doc.Descendants(ns + "Version")
+            .FirstOrDefault(e => e.Attribute("Condition") is null);
+
+        if (versionElem is not null)
+        {
+            versionElem.Value = version;
+        }
+        else
+        {
+            // Insert into the first unconditional PropertyGroup, or create one.
+            var propertyGroup = doc.Root?
+                .Elements(ns + "PropertyGroup")
+                .FirstOrDefault(pg => pg.Attribute("Condition") is null);
+
+            if (propertyGroup is null)
+            {
+                propertyGroup = new XElement(ns + "PropertyGroup");
+                doc.Root!.AddFirst(propertyGroup);
+            }
+            propertyGroup.Add(new XElement(ns + "Version", version));
+        }
+
+        doc.Save(project.ProjectFile, SaveOptions.DisableFormatting);
+        logger.LogInformation("[{Sdk}] {PackageId} -> {ProjectFile}: {Version}",
+            Id, project.PackageId, project.ProjectFile, version);
+
+        return Task.CompletedTask;
+    }
+
+    public async Task<IReadOnlyList<Artifact>> PackAsync(
+        DiscoveredProject project, string configuration, CancellationToken cancellationToken)
+    {
+        var output = Path.Combine(Path.GetTempPath(), $"verz-pack-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(output);
+
+        await RunDotnetPackAsync(project.ProjectFile, configuration, output, cancellationToken);
+
+        // Compute hash once and inject into every main-package nuspec produced.
+        // (Multi-tfm packs still produce a single nupkg per project.)
+        string? hash = null;
         try
         {
-            using var nuspec = reader.GetNuspec();
-            var xdoc = XDocument.Load(nuspec);
-            var metadata = xdoc.Root?.Elements().FirstOrDefault(e => e.Name.LocalName.Equals("metadata", StringComparison.OrdinalIgnoreCase));
-            var hashElem = metadata?.Elements().FirstOrDefault(e => e.Name.LocalName.Equals("PublicApiHash", StringComparison.OrdinalIgnoreCase));
-            var value = hashElem?.Value?.Trim();
-            if (!string.IsNullOrWhiteSpace(value))
-                return Task.FromResult<string?>(value);
+            hash = await ComputePublicApiHashAsync(project, configuration, cancellationToken);
         }
-        catch
+        catch (Exception ex)
         {
-            // ignore and fallback to compute from assembly
+            logger.LogWarning(ex,
+                "[{Sdk}] {PackageId}: could not compute public-API hash; nuspec will not carry <PublicApiHash>",
+                Id, project.PackageId);
         }
 
-        // Fallback: compute from contained lib assembly that matches major
-        var files = reader.GetFiles().Where(f => f.StartsWith("lib/", StringComparison.OrdinalIgnoreCase)).ToList();
-        var candidate = files
-            .Select(f => new { Path = f, Parts = f.Split('/') })
-            .Where(x => x.Parts.Length >= 3 && x.Parts[1].StartsWith("net", StringComparison.OrdinalIgnoreCase))
-            .Select(x => new { x.Path, Tfm = x.Parts[1], File = x.Parts[^1] })
-            .Where(x => TryParseNetMajor(x.Tfm, out var maj) && maj == majorVersion && x.File.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(x => ParseNetMinor(x.Tfm))
-            .FirstOrDefault();
+        var artifacts = new List<Artifact>();
+        foreach (var file in Directory.EnumerateFiles(output, "*.nupkg")
+                     .Concat(Directory.EnumerateFiles(output, "*.snupkg")))
+        {
+            var isSymbols = file.EndsWith(".snupkg", StringComparison.OrdinalIgnoreCase);
+            var kind = isSymbols ? ArtifactKinds.NugetSymbols : ArtifactKinds.Nuget;
 
-        if (candidate == null)
-            return Task.FromResult<string?>(null);
+            if (!isSymbols && hash is not null)
+            {
+                try
+                {
+                    InjectNuspecMetadata(file, hash, project.FrameworkMajor);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex,
+                        "[{Sdk}] {PackageId}: failed to inject metadata into {Path}; pack continues",
+                        Id, project.PackageId, file);
+                }
+            }
 
-        using var dll = reader.GetStream(candidate.Path);
-        using var temp = new MemoryStream();
-        dll.CopyTo(temp);
-        temp.Position = 0;
-        var raw = temp.ToArray();
-        var assembly = System.Reflection.Assembly.Load(raw);
-        var publicApi = ApiGenerator.GeneratePublicApi(assembly);
-        using var sha256 = SHA256.Create();
-        var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(publicApi));
-        return Task.FromResult<string?>(Convert.ToHexString(hashBytes));
+            artifacts.Add(new Artifact(file, kind));
+        }
+
+        logger.LogInformation("[{Sdk}] {PackageId}: packed {Count} artifact(s) into {Dir}",
+            Id, project.PackageId, artifacts.Count, output);
+
+        return artifacts;
     }
 
-    private static bool IsNetTfm(string tfm) => tfm.StartsWith("net", StringComparison.OrdinalIgnoreCase) && tfm.Length >= 4 && char.IsDigit(tfm[3]);
-    private static int ParseNetMajor(string tfm)
+    private async Task RunDotnetPackAsync(
+        string csproj, string configuration, string output, CancellationToken cancellationToken)
     {
-        // net8.0 -> 8, net10.0 -> 10
-        var digits = new string(tfm.Skip(3).TakeWhile(c => char.IsDigit(c)).ToArray());
-        if (int.TryParse(digits, out var major)) return major;
-        return 0;
-    }
-    private static int ParseNetMinor(string tfm)
-    {
-        var idx = tfm.IndexOf('.') + 1;
-        if (idx > 0)
+        var psi = new ProcessStartInfo("dotnet")
         {
-            var minorDigits = new string(tfm.Skip(idx).TakeWhile(char.IsDigit).ToArray());
-            if (int.TryParse(minorDigits, out var minor)) return minor;
-        }
-        return 0;
-    }
-    private static bool TryParseNetMajor(string tfm, out int major)
-    {
-        try
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        psi.ArgumentList.Add("pack");
+        psi.ArgumentList.Add(csproj);
+        psi.ArgumentList.Add("-c");
+        psi.ArgumentList.Add(configuration);
+        psi.ArgumentList.Add("--output");
+        psi.ArgumentList.Add(output);
+        psi.ArgumentList.Add("--nologo");
+
+        using var proc = Process.Start(psi)
+            ?? throw new InvalidOperationException("could not start dotnet; is the .NET SDK on PATH?");
+
+        var stdout = new StringBuilder();
+        var stderr = new StringBuilder();
+        proc.OutputDataReceived += (_, e) => { if (e.Data is not null) stdout.AppendLine(e.Data); };
+        proc.ErrorDataReceived += (_, e) => { if (e.Data is not null) stderr.AppendLine(e.Data); };
+        proc.BeginOutputReadLine();
+        proc.BeginErrorReadLine();
+        await proc.WaitForExitAsync(cancellationToken);
+
+        if (proc.ExitCode != 0)
         {
-            major = ParseNetMajor(tfm);
-            return major > 0;
+            throw new InvalidOperationException(
+                $"dotnet pack {csproj} failed (exit {proc.ExitCode}):\n{stdout}\n{stderr}");
         }
-        catch { major = 0; return false; }
+    }
+
+    private static void InjectNuspecMetadata(string nupkgPath, string publicApiHash, int? frameworkMajor)
+    {
+        using var archive = ZipFile.Open(nupkgPath, ZipArchiveMode.Update);
+        var nuspecEntry = archive.Entries.FirstOrDefault(e =>
+            e.FullName.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase));
+        if (nuspecEntry is null) return;
+
+        XDocument doc;
+        using (var stream = nuspecEntry.Open())
+        {
+            doc = XDocument.Load(stream);
+        }
+
+        var metadata = doc.Root?
+            .Elements()
+            .FirstOrDefault(e => string.Equals(e.Name.LocalName, "metadata", StringComparison.OrdinalIgnoreCase));
+        if (metadata is null) return;
+
+        var ns = metadata.Name.Namespace;
+        UpsertElement(metadata, ns + "PublicApiHash", publicApiHash);
+        if (frameworkMajor.HasValue)
+        {
+            UpsertElement(metadata, ns + "FrameworkMajor", frameworkMajor.Value.ToString());
+        }
+
+        // ZipArchiveMode.Update preserves entries we don't touch; we have to
+        // replace the nuspec by deleting + re-creating so the rewritten bytes
+        // land in the archive.
+        var entryName = nuspecEntry.FullName;
+        nuspecEntry.Delete();
+        var newEntry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
+        using var writeStream = newEntry.Open();
+        doc.Save(writeStream);
+    }
+
+    private static void UpsertElement(XElement metadata, XName name, string value)
+    {
+        var existing = metadata
+            .Elements()
+            .FirstOrDefault(e => string.Equals(e.Name.LocalName, name.LocalName, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            existing.Value = value;
+        }
+        else
+        {
+            metadata.Add(new XElement(name, value));
+        }
+    }
+
+    private static bool IsInBinOrObj(string path, string repoRoot)
+    {
+        var relative = Path.GetRelativePath(repoRoot, path);
+        return relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Any(seg =>
+                seg.Equals("bin", StringComparison.OrdinalIgnoreCase) ||
+                seg.Equals("obj", StringComparison.OrdinalIgnoreCase));
     }
 }

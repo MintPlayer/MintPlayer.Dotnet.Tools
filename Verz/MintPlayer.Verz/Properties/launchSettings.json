@@ -1,16 +1,33 @@
 {
   "profiles": {
-    "Init for .NET": {
+    "verz --help": {
       "commandName": "Project",
-      "commandLineArgs": "init-dotnet --root=\"C:\\Repos\\MintPlayer.DotnetDesktop.Tools\""
+      "commandLineArgs": "--help"
     },
-    "Compute .NET Version": {
+    "verz init": {
       "commandName": "Project",
-      "commandLineArgs": "dotnet-version --project=\"C:\\Repos\\MintPlayer.DotnetDesktop.Tools\\BrowserDialog\\MintPlayer.BrowserDialog\\MintPlayer.BrowserDialog.csproj\""
+      "commandLineArgs": "init",
+      "workingDirectory": "sandbox/init"
     },
-    "MintPlayer.Verz": {
+    "verz init --stamp-placeholders": {
       "commandName": "Project",
-      "commandLineArgs": "--file \"C:\\Repos\\debug.log\""
+      "commandLineArgs": "init --stamp-placeholders",
+      "workingDirectory": "sandbox/init-stamp"
+    },
+    "verz init --registry (multiple)": {
+      "commandName": "Project",
+      "commandLineArgs": "init --registry mygithub=https://nuget.pkg.github.com/mintplayer/index.json --registry npmjs=https://registry.npmjs.org/",
+      "workingDirectory": "sandbox/init-multi-registry"
+    },
+    "verz set-versions --dry-run": {
+      "commandName": "Project",
+      "commandLineArgs": "set-versions --dry-run",
+      "workingDirectory": "sandbox/fixture-set-versions"
+    },
+    "verz set-versions": {
+      "commandName": "Project",
+      "commandLineArgs": "set-versions",
+      "workingDirectory": "sandbox/fixture-set-versions"
     }
   }
 }

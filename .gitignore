@@ -455,3 +455,6 @@ $RECYCLE.BIN/
 
 # Claude Code
 .claude/settings.local.json
+
+# Verz sandbox (created by Verz/MintPlayer.Verz/scripts/setup-sandbox.ps1)
+Verz/MintPlayer.Verz/sandbox/

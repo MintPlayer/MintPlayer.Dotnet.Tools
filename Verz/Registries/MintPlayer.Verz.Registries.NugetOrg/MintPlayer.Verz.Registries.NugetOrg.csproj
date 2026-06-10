@@ -4,9 +4,9 @@
 		<TargetFramework>net10.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
-		<RootNamespace>MintPlayer.Verz.Sdks.Dotnet</RootNamespace>
+		<RootNamespace>MintPlayer.Verz.Registries.NugetOrg</RootNamespace>
 		<Version>0.0.0-placeholder</Version>
-		<Description>Verz IDevelopmentSdk plugin for .NET projects. Discovers .csproj libraries, stamps versions, packs nupkgs.</Description>
+		<Description>Verz IPackageRegistry plugin for NuGet v3 feeds (nuget.org and any other v3 feed that authenticates via NuGet.config).</Description>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -15,7 +15,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
-		<PackageReference Include="PublicApiGenerator" Version="11.5.4" />
+		<PackageReference Include="NuGet.Protocol" Version="6.10.1" />
 	</ItemGroup>
 
 </Project>
