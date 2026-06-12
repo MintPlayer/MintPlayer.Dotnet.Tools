@@ -1,0 +1,4 @@
+<Project>
+	<!-- Thin importer for NuGet clients that only consume build/; the real file ships in buildTransitive/ -->
+	<Import Project="$(MSBuildThisFileDirectory)..\buildTransitive\MintPlayer.TokenReplacer.Targets.props" />
+</Project>

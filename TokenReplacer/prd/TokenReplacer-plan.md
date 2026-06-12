@@ -4,7 +4,7 @@ Companion to [TokenReplacer-prd.md](TokenReplacer-prd.md). Phases are ordered so
 
 Structure: **one shipping project** (`MintPlayer.TokenReplacer.Targets` — tasks + props/targets in a single csproj, same shape as the restructured `MintPlayer.FolderHasher.Targets`) plus one test project.
 
-## Phase 1 — Single Targets project: engine, tasks, unit tests
+## Phase 1 — Single Targets project: engine, tasks, unit tests ✅ COMPLETED
 
 1. Create `TokenReplacer/MintPlayer.TokenReplacer.Targets/` (`netstandard2.0`):
    - `TokenReplacementEngine` (pure class, no MSBuild types): `Replace(string content, IReadOnlyDictionary<string,string> tokens, TokenDelimiters delims, MissingTokenPolicy policy)` returning content + diagnostics (replaced tokens, unmatched tokens).
@@ -21,18 +21,18 @@ Structure: **one shipping project** (`MintPlayer.TokenReplacer.Targets` — task
 
 **Done when:** `dotnet test` green locally; no packaging yet.
 
-## Phase 2 — Props/targets + packaging (same project)
+## Phase 2 — Props/targets + packaging (same project) ✅ COMPLETED
 
 4. Add the MSBuild surface to the same project and wire up packing (modeled on `FolderHasher/MintPlayer.FolderHasher.Targets/MintPlayer.FolderHasher.Targets.csproj`: `IncludeBuildOutput=false`, `SuppressDependenciesWhenPacking=true`, `DevelopmentDependency=true`, `IncludeSymbols=false`, own output DLL packed via `<None Include="bin\$(Configuration)\$(TargetFramework)\MintPlayer.TokenReplacer.Targets.dll" Pack="true" />`), but packing into **both** `build/` and `buildTransitive/`:
-   - `MintPlayer.TokenReplacer.props` — own-version derivation property (guarded by `'$(TokenReplacerOwnVersion)' == ''`), default item metadata.
-   - `MintPlayer.TokenReplacer.targets` — `UsingTask` registrations (`TaskName="MintPlayer.TokenReplacer.Targets.ReplaceTokensTask"`, `AssemblyFile="$(MSBuildThisFileDirectory)MintPlayer.TokenReplacer.Targets.dll"`, overridable via `$(TokenReplacerTasksAssembly)` for tests), `MintPlayerResolvePackageVersionTokens` target (`DependsOnTargets="ResolvePackageAssets"`, condition on `@(TokenReplacePackageVersion)`), `MintPlayerReplaceTokens` target (`BeforeTargets="AssignTargetPaths"`, `Inputs`/`Outputs` incremental, `FileWrites` for Clean, opt-in `Content` inclusion).
+   - `MintPlayer.TokenReplacer.Targets.props` — own-version derivation property (guarded by `'$(TokenReplacerOwnVersion)' == ''`), default item metadata.
+   - `MintPlayer.TokenReplacer.Targets.targets` — `UsingTask` registrations (`TaskName="MintPlayer.TokenReplacer.Targets.ReplaceTokensTask"`, `AssemblyFile="$(TokenReplacerTasksAssembly)"`, overridable via `$(TokenReplacerTasksAssembly)` for tests), `MintPlayerResolvePackageVersionTokens` target (`DependsOnTargets="ResolvePackageAssets"`, condition on `@(TokenReplacePackageVersion)`), `MintPlayerReplaceTokens` target (`BeforeTargets="AssignTargetPaths"`, `Inputs`/`Outputs` incremental, `FileWrites` for Clean, opt-in `Content` inclusion).
    - `build/` variants are one-line `<Import>` of the `buildTransitive/` files (pack the real files once into `buildTransitive/`, thin importers into `build/`).
    - `System.Text.Json` + its dependency closure packed next to the `.targets` only if assembly loading actually requires it (verify in Phase 4; trim to what fails to load).
 5. Version `1.0.0`, Apache-2.0, README — copy the metadata block style from FolderHasher.Targets.
 
 **Done when:** `dotnet pack MintPlayer.TokenReplacer.Targets` produces a nupkg whose layout (inspected with zip listing) matches the design.
 
-## Phase 3 — Integration & E2E tests
+## Phase 3 — Integration & E2E tests ✅ COMPLETED
 
 6. Test infrastructure in `MintPlayer.TokenReplacer.Tests` (new — the repo has no precedent for this; keep it self-contained in this family):
    - `MsBuildFixture` helper: runs `dotnet` CLI via `Process` in a temp dir, captures stdout/stderr, asserts exit code with output attached to the failure message. Pass `-tl:off` so target/skip messages are parseable.
@@ -47,13 +47,13 @@ Structure: **one shipping project** (`MintPlayer.TokenReplacer.Targets` — task
 
 **Done when:** full `dotnet test` green locally **and** in a run mimicking CI order (`restore → build -c Release → test --no-restore`).
 
-## Phase 4 — Hardening & cross-host verification
+## Phase 4 — Hardening & cross-host verification ⏳ PARTIAL
 
 9. Verify on Windows under **Visual Studio MSBuild** (`MSBuild.exe` from VS 2022+, .NET Framework host): task assembly + any JSON dependency closure loads. Adjust packed dependency set if assembly-load errors occur; fall back to a vendored minimal JSON parser if the closure gets ugly.
 10. Path handling: tokens/outputs with spaces, relative vs absolute `Output`, forward/back slashes (CI is ubuntu-latest — all fixture paths must be slash-agnostic).
 11. Run `dotnet pack` of the whole solution to confirm no NU* warnings introduced.
 
-## Phase 5 — Docs & release
+## Phase 5 — Docs & release ⏳ PARTIAL (README + PRD done; release happens on merge to master)
 
 12. `MintPlayer.TokenReplacer.Targets/README.md` (consumer modes, all items/metadata/properties reference table, package-author recipe based on the SamplePackage fixture). Pack via `PackageReadmeFile`.
 13. Update PRD status columns ❌ → ✅; add Version History table.
@@ -69,3 +69,13 @@ Structure: **one shipping project** (`MintPlayer.TokenReplacer.Targets` — task
 | Folder-layout version derivation breaks with non-standard package roots (fallback folders behave the same; future NuGet layout changes) | `TokenReplacerOwnVersion` override property is the documented escape hatch; E2E test guards the mechanism |
 | `BeforeTargets="AssignTargetPaths"` too late/early for some asset pipelines (e.g. StaticWebAssets) | Expose `$(MintPlayerReplaceTokensBeforeTargets)` property so consumers can re-hook without forking the targets |
 | Fixture csproj files under the test project confuse `dotnet build`/`dotnet test` of the solution | Fixtures kept out of the solution and named `*.csproj.template` (renamed on copy to temp) |
+
+## Implementation notes (deviations discovered while building)
+
+- **`Output` is a reserved MSBuild item metadata name** (MSB4118) — the metadata is called `OutputFile` instead.
+- **Packed props/targets file names must equal the package id** (`MintPlayer.TokenReplacer.Targets.props/.targets`), otherwise NuGet silently ignores them; this was caught by the E2E test (transitive package restored with zero build assets).
+- **Attribute-form item metadata requires xmlns-less project files** — the legacy `xmlns="...msbuild/2003"` namespace rejects it (MSB4066); all shipped props/targets omit the xmlns.
+- **Clean only tracks FileWrites under bin/obj** — generated files elsewhere are not removed by `dotnet clean` (documented in the README).
+- **Content/None/FileWrites registration happens in the always-running prep target**, not the incremental replacement target — otherwise the copy-to-bin stops happening on up-to-date builds.
+- Fixture projects are generated in code (raw strings) into temp workspaces instead of a checked-in `Tests/Fixtures/` folder.
+- Phase 4 step 9 (Visual Studio full-framework MSBuild verification) is still outstanding: no VS MSBuild on the dev machine. Risk is low — the task assembly is netstandard2.0 with no dependencies beyond MSBuild itself (vendored JSON scanner instead of System.Text.Json).

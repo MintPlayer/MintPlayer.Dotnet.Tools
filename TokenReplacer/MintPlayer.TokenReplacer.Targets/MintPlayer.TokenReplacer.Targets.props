@@ -1,0 +1,27 @@
+<Project>
+
+	<PropertyGroup>
+		<!-- Path to the assembly containing ReplaceTokensTask/GetPackageVersionTask. Overridable for testing/local development. -->
+		<TokenReplacerTasksAssembly Condition="'$(TokenReplacerTasksAssembly)' == ''">$(MSBuildThisFileDirectory)MintPlayer.TokenReplacer.Targets.dll</TokenReplacerTasksAssembly>
+
+		<!-- Token delimiters: tokens are written as $name$ by default -->
+		<TokenReplacerTokenStart Condition="'$(TokenReplacerTokenStart)' == ''">$</TokenReplacerTokenStart>
+		<TokenReplacerTokenEnd Condition="'$(TokenReplacerTokenEnd)' == ''">$</TokenReplacerTokenEnd>
+
+		<!-- What happens when a source file contains a token without a configured value: Warn | Error | Ignore -->
+		<TokenReplacerMissingTokenPolicy Condition="'$(TokenReplacerMissingTokenPolicy)' == ''">Warn</TokenReplacerMissingTokenPolicy>
+
+		<!-- Hook point of the replacement target; change to re-hook into a different pipeline (e.g. StaticWebAssets) -->
+		<MintPlayerReplaceTokensBeforeTargets Condition="'$(MintPlayerReplaceTokensBeforeTargets)' == ''">AssignTargetPaths</MintPlayerReplaceTokensBeforeTargets>
+
+		<!--
+			Version of the NuGet package this file ships in, derived from the package folder layout
+			(<packagesRoot>/<id>/<version>/buildTransitive/). Only meaningful when imported from the
+			package; preset TokenReplacerOwnVersion yourself for ProjectReference/source scenarios.
+			Package authors re-shipping this package use the same expression in their own targets
+			to derive *their* package version.
+		-->
+		<TokenReplacerOwnVersion Condition="'$(TokenReplacerOwnVersion)' == ''">$([System.IO.Path]::GetFileName($([System.IO.Path]::GetDirectoryName($([System.IO.Path]::GetDirectoryName($(MSBuildThisFileDirectory)))))))</TokenReplacerOwnVersion>
+	</PropertyGroup>
+
+</Project>

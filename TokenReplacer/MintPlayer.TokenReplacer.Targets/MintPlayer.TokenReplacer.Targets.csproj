@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<!-- netstandard2.0 so the task assembly loads in both `dotnet` (net) and Visual Studio (net472) MSBuild hosts -->
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<LangVersion>latest</LangVersion>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<OutputType>Library</OutputType>
+
+		<IsPackable>true</IsPackable>
+		<Version>1.0.0</Version>
+		<Authors>Pieterjan De Clippel</Authors>
+		<Company>MintPlayer</Company>
+		<Description>Generic MSBuild token replacement. Declare TokenReplaceFile/TokenReplaceValue items to replace $token$ placeholders in content files at build time, including resolved NuGet package versions. Ships buildTransitive targets so package authors can stamp their own package version into shipped assets.</Description>
+		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/TokenReplacer/MintPlayer.TokenReplacer.Targets</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageId>MintPlayer.TokenReplacer.Targets</PackageId>
+		<PackageTags>MSBuild Targets token replacement version buildTransitive</PackageTags>
+		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+
+		<!-- This package doesn't contain library code, only build assets -->
+		<IncludeBuildOutput>false</IncludeBuildOutput>
+		<SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+		<DevelopmentDependency>true</DevelopmentDependency>
+		<!-- No symbols package for targets-only packages (NU5017 error) -->
+		<IncludeSymbols>false</IncludeSymbols>
+	</PropertyGroup>
+
+	<!-- Include XML markups in the nupkg -->
+	<PropertyGroup Condition="'$(Configuration)'=='Release'">
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="/" />
+		<!-- The real props/targets/task assembly live in buildTransitive/; build/ contains thin importers for older NuGet clients -->
+		<None Include="MintPlayer.TokenReplacer.Targets.props" Pack="true" PackagePath="buildTransitive/" />
+		<None Include="MintPlayer.TokenReplacer.Targets.targets" Pack="true" PackagePath="buildTransitive/" />
+		<None Include="bin\$(Configuration)\$(TargetFramework)\MintPlayer.TokenReplacer.Targets.dll" Pack="true" PackagePath="buildTransitive/" />
+		<None Include="build\MintPlayer.TokenReplacer.Targets.props" Pack="true" PackagePath="build/" />
+		<None Include="build\MintPlayer.TokenReplacer.Targets.targets" Pack="true" PackagePath="build/" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Build.Utilities.Core" Version="18.4.0" />
+	</ItemGroup>
+
+</Project>
