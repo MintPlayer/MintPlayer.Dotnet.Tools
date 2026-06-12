@@ -10,7 +10,7 @@ When used with [MintPlayer.AspNetCore.SpaServices](https://github.com/MintPlayer
 
 ### Integration Strategy
 
-The SPA build commands (`npm install`, `npm run build`) are triggered through MSBuild targets in [MintPlayer.AspNetCore.NodeServices](https://github.com/MintPlayer/MintPlayer.AspNetCore.SpaServices/blob/master/MintPlayer.AspNetCore.NodeServices/Targets/nodeservices.targets). This target-based approach should be preserved. Integration with FolderHasher will be done through the `MintPlayer.FolderHasher.MSBuild` package, which can be used to conditionally skip the npm build targets when folder contents haven't changed.
+The SPA build commands (`npm install`, `npm run build`) are triggered through MSBuild targets in [MintPlayer.AspNetCore.NodeServices](https://github.com/MintPlayer/MintPlayer.AspNetCore.SpaServices/blob/master/MintPlayer.AspNetCore.NodeServices/Targets/nodeservices.targets). This target-based approach should be preserved. Integration with FolderHasher will be done through the `MintPlayer.FolderHasher.Targets` package, which can be used to conditionally skip the npm build targets when folder contents haven't changed.
 
 ---
 
@@ -78,9 +78,11 @@ The SPA build commands (`npm install`, `npm run build`) are triggered through MS
 |---------|---------|-------------|
 | `MintPlayer.FolderHasher.Abstractions` | 10.0.0 | Interface definitions (`IFolderHasher`) |
 | `MintPlayer.FolderHasher` | 10.2.0 | Core implementation |
-| `MintPlayer.FolderHasher.MSBuild` | 10.1.0 | MSBuild task implementation |
-| `MintPlayer.FolderHasher.Targets` | 10.1.0 | Auto-import .targets package |
+| `MintPlayer.FolderHasher.Targets` | 10.2.0 | MSBuild task (`ComputeFolderHashTask`) + auto-import .targets package |
 | `MintPlayer.FolderHasher.Test` | - | Demo/test console application |
+| `MintPlayer.FolderHasher.Tests` | - | xUnit test project |
+
+> Note: the former `MintPlayer.FolderHasher.MSBuild` project was merged into `MintPlayer.FolderHasher.Targets` (single project shipping both the task assembly and the .targets file). The `MintPlayer.FolderHasher.MSBuild` NuGet package is no longer published.
 
 ### Hash Algorithm
 
@@ -369,6 +371,7 @@ Thumbs.db
 
 | Version | Changes |
 |---------|---------|
+| 10.2.0 | MintPlayer.FolderHasher.Targets: Merged the `MintPlayer.FolderHasher.MSBuild` project into the Targets project; `ComputeFolderHashTask` now lives in `MintPlayer.FolderHasher.Targets.dll` (namespace `MintPlayer.FolderHasher.Targets`) |
 | 10.2.0 | MintPlayer.FolderHasher: Added large file streaming (>10MB), inaccessible file handling, made `HasherIgnoreParser` public |
 | 10.1.0 | MintPlayer.FolderHasher.MSBuild/Targets: Refactored to use shared `HasherIgnoreParser`, added large file streaming and inaccessible file handling |
 | 10.1.0 | MintPlayer.FolderHasher: Previous version |

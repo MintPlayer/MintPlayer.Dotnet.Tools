@@ -7,7 +7,7 @@
 		<OutputType>Library</OutputType>
 
 		<IsPackable>true</IsPackable>
-		<Version>10.1.0</Version>
+		<Version>10.2.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>MSBuild targets for computing folder hashes. Just install this package to use the ComputeFolderHashTask in your build process.</Description>
@@ -35,7 +35,7 @@
 	<ItemGroup>
 		<None Include="README.md" Pack="true" PackagePath="/" />
 		<None Include="MintPlayer.FolderHasher.Targets.targets" Pack="true" PackagePath="build/" />
-		<None Include="..\MintPlayer.FolderHasher.MSBuild\bin\$(Configuration)\$(TargetFramework)\MintPlayer.FolderHasher.MSBuild.dll" Pack="true" PackagePath="build/" />
+		<None Include="bin\$(Configuration)\$(TargetFramework)\MintPlayer.FolderHasher.Targets.dll" Pack="true" PackagePath="build/" />
 		<None Include="..\MintPlayer.FolderHasher\bin\$(Configuration)\$(TargetFramework)\MintPlayer.FolderHasher.dll" Pack="true" PackagePath="build/" />
 		<None Include="..\MintPlayer.FolderHasher.Abstractions\bin\$(Configuration)\$(TargetFramework)\MintPlayer.FolderHasher.Abstractions.dll" Pack="true" PackagePath="build/" />
 		<None Include="$(PkgMicrosoft_Extensions_FileSystemGlobbing)\lib\net10.0\Microsoft.Extensions.FileSystemGlobbing.dll" Pack="true" PackagePath="build/" />
@@ -43,12 +43,12 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<PackageReference Include="Microsoft.Build.Utilities.Core" Version="18.4.0" />
 		<PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" Version="10.0.5" GeneratePathProperty="true" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.5" GeneratePathProperty="true" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\MintPlayer.FolderHasher.MSBuild\MintPlayer.FolderHasher.MSBuild.csproj" />
 		<ProjectReference Include="..\MintPlayer.FolderHasher\MintPlayer.FolderHasher.csproj" />
 		<ProjectReference Include="..\MintPlayer.FolderHasher.Abstractions\MintPlayer.FolderHasher.Abstractions.csproj" />
 	</ItemGroup>

@@ -109,13 +109,12 @@ dist/
 
 This package is a development dependency that includes:
 - MSBuild targets for automatic task registration
-- `MintPlayer.FolderHasher.MSBuild.dll` - The MSBuild task
+- `MintPlayer.FolderHasher.Targets.dll` - The MSBuild task (`ComputeFolderHashTask`)
 - Required runtime dependencies
 
 ## Related Packages
 
 - [MintPlayer.FolderHasher](../MintPlayer.FolderHasher/README.md) - Runtime library for use with dependency injection
-- [MintPlayer.FolderHasher.MSBuild](../MintPlayer.FolderHasher.MSBuild/README.md) - MSBuild task (included in this package)
 
 ## License
 
