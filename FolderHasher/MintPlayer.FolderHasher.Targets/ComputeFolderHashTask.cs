@@ -2,7 +2,7 @@ using Microsoft.Build.Framework;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace MintPlayer.FolderHasher.MSBuild;
+namespace MintPlayer.FolderHasher.Targets;
 
 /// <summary>
 /// MSBuild task that computes a hash of a folder's contents.
@@ -26,6 +26,7 @@ public class ComputeFolderHashTask : Microsoft.Build.Utilities.Task
     [Output]
     public string Hash { get; private set; } = "";
 
+    /// <inheritdoc/>
     public override bool Execute()
     {
         try

@@ -1,0 +1,63 @@
+<Project>
+
+	<!-- Fallback defaults for when only this .targets file is imported (without the .props) -->
+	<PropertyGroup>
+		<TokenReplacerTasksAssembly Condition="'$(TokenReplacerTasksAssembly)' == ''">$(MSBuildThisFileDirectory)MintPlayer.TokenReplacer.Targets.dll</TokenReplacerTasksAssembly>
+		<TokenReplacerTokenStart Condition="'$(TokenReplacerTokenStart)' == ''">$</TokenReplacerTokenStart>
+		<TokenReplacerTokenEnd Condition="'$(TokenReplacerTokenEnd)' == ''">$</TokenReplacerTokenEnd>
+		<TokenReplacerMissingTokenPolicy Condition="'$(TokenReplacerMissingTokenPolicy)' == ''">Warn</TokenReplacerMissingTokenPolicy>
+		<MintPlayerReplaceTokensBeforeTargets Condition="'$(MintPlayerReplaceTokensBeforeTargets)' == ''">AssignTargetPaths</MintPlayerReplaceTokensBeforeTargets>
+	</PropertyGroup>
+
+	<UsingTask TaskName="MintPlayer.TokenReplacer.Targets.ReplaceTokensTask" AssemblyFile="$(TokenReplacerTasksAssembly)" />
+	<UsingTask TaskName="MintPlayer.TokenReplacer.Targets.GetPackageVersionTask" AssemblyFile="$(TokenReplacerTasksAssembly)" />
+
+	<!--
+		Defaults the OutputFile metadata (to obj/tokenreplacer/) and registers the generated files:
+		- as FileWrites so Clean removes them
+		- as Content/None (per IncludeAs metadata) so they participate in the build.
+		This runs unconditionally (not incrementally) so the registrations also happen on
+		up-to-date builds where MintPlayerReplaceTokens itself is skipped.
+	-->
+	<Target Name="MintPlayerPrepareTokenReplace" Condition="'@(TokenReplaceFile)' != ''">
+		<ItemGroup>
+			<TokenReplaceFile Condition="'%(TokenReplaceFile.OutputFile)' == ''">
+				<OutputFile>$(IntermediateOutputPath)tokenreplacer\%(Filename)%(Extension)</OutputFile>
+			</TokenReplaceFile>
+		</ItemGroup>
+		<ItemGroup>
+			<FileWrites Include="@(TokenReplaceFile->'%(OutputFile)')" />
+			<Content Include="@(TokenReplaceFile->'%(OutputFile)')" Condition="'%(TokenReplaceFile.IncludeAs)' == 'Content'" />
+			<None Include="@(TokenReplaceFile->'%(OutputFile)')" Condition="'%(TokenReplaceFile.IncludeAs)' == 'None'" />
+		</ItemGroup>
+	</Target>
+
+	<!-- Resolves @(TokenReplacePackageVersion) package ids to their restored versions and registers them as token values -->
+	<Target Name="MintPlayerResolvePackageVersionTokens"
+	        Condition="'@(TokenReplacePackageVersion)' != ''"
+	        DependsOnTargets="ResolvePackageAssets">
+		<GetPackageVersionTask AssetsFile="$(ProjectAssetsFile)" Packages="@(TokenReplacePackageVersion)">
+			<Output TaskParameter="ResolvedPackages" ItemName="_TokenReplacerResolvedPackage" />
+		</GetPackageVersionTask>
+		<ItemGroup>
+			<TokenReplaceValue Include="@(_TokenReplacerResolvedPackage)" />
+		</ItemGroup>
+	</Target>
+
+	<Target Name="MintPlayerReplaceTokens"
+	        BeforeTargets="$(MintPlayerReplaceTokensBeforeTargets)"
+	        DependsOnTargets="MintPlayerPrepareTokenReplace;MintPlayerResolvePackageVersionTokens"
+	        Condition="'@(TokenReplaceFile)' != ''"
+	        Inputs="@(TokenReplaceFile);$(MSBuildAllProjects);$(ProjectAssetsFile)"
+	        Outputs="@(TokenReplaceFile->'%(OutputFile)')">
+		<ReplaceTokensTask SourceFiles="@(TokenReplaceFile)"
+		                   Tokens="@(TokenReplaceValue)"
+		                   TokenStart="$(TokenReplacerTokenStart)"
+		                   TokenEnd="$(TokenReplacerTokenEnd)"
+		                   MissingTokenPolicy="$(TokenReplacerMissingTokenPolicy)"
+		                   BaseDirectory="$(MSBuildProjectDirectory)">
+			<Output TaskParameter="ReplacedFiles" ItemName="_MintPlayerReplacedFiles" />
+		</ReplaceTokensTask>
+	</Target>
+
+</Project>
