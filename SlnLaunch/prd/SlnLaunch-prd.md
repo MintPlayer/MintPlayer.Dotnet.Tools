@@ -41,7 +41,7 @@ Running `slnlaunch` in that directory starts both `Fleet` and `HR` under their `
 | **Discover** | If no path argument is given, find a single `.slnLaunch` (then `.slnLaunch.user`, `.slnxLaunch`) in the current directory. Zero → error with guidance; multiple → error listing them, asking for an explicit path. |
 | **Select profile** | A `.slnLaunch` is an array of named profiles. One profile → use it. Multiple → require `--profile <Name>` (otherwise error listing available names). `--list` prints profiles + their projects and exits. |
 | **Resolve projects** | For each project entry: resolve `Path` (solution-relative, `\\`-escaped, slash-normalized) against the `.slnLaunch` file's own directory. Skip entries with `Action: None` or absent action. |
-| **Map to command** | `dotnet run --project <resolvedPath> --launch-profile "<DebugTarget>"` (omit `--launch-profile` when `DebugTarget` is absent). `--watch` swaps `run` → `watch`. App args after `--` are not part of `.slnLaunch`. |
+| **Map to command** | `dotnet run --project <resolvedPath> --launch-profile "<DebugTarget>"` (omit `--launch-profile` when `DebugTarget` is absent). `--watch` swaps `run` → `watch`. Shared build options (`-c`/`-f`/`--no-build`/`-v`) and per-project forwarded app args (see **Argument Forwarding**) are appended. |
 | **Launch** | Start all resolved projects concurrently as child processes; prefix each project's stdout/stderr with a short label so interleaved output stays readable. |
 | **Teardown** | On Ctrl+C / SIGINT / SIGTERM, or when the tool is otherwise cancelled, kill **every** child process tree (cross-platform) and wait for exit before returning. |
 | **Exit code** | `0` only if every launched project exited `0` (or was cleanly cancelled by the user). Non-zero if any project failed to start or exited non-zero. |
@@ -54,31 +54,58 @@ Running `slnlaunch` in that directory starts both `Fleet` and `HR` under their `
 
 | Requirement | Description | Status |
 |-------------|-------------|--------|
-| **Schema** | Parse the JSON array of `{ Name, Projects[] }`; each project `{ Path (required), Action (required), DebugTarget? (optional) }`. Case-insensitive property matching; tolerate trailing commas / comments leniently. | ❌ |
-| **`.user` + `.slnx` variants** | Also recognize `<Solution>.slnLaunch.user` and `.slnxLaunch` (identical schema). | ❌ |
-| **Path resolution** | `Path` is relative to the `.slnLaunch` file's directory; backslashes in JSON are literal separators — normalize to the host separator so Windows-authored files run on Linux/macOS. | ❌ |
-| **Action mapping** | `Start` and `StartWithoutDebugging` → launch (the debugger distinction is moot for a CLI runner). `None` or absent → skip the project. Projects can also simply be omitted from the array (already skipped). | ❌ |
-| **Validation** | Missing file, malformed JSON, empty `Projects`, a `Path` that doesn't exist on disk → clear actionable errors, not stack traces. | ❌ |
+| **Schema** | Parse the JSON array of `{ Name, Projects[] }`; each project `{ Path (required), Action (required), DebugTarget? (optional), ForwardArguments? (optional string[]) }`. Case-insensitive property matching; tolerate trailing commas / comments leniently. `ForwardArguments` is a MintPlayer extension to the VS schema (VS ignores unknown fields). | ✅ |
+| **`.user` + `.slnx` variants** | Also recognize `<Solution>.slnLaunch.user` and `.slnxLaunch` (identical schema). | ✅ |
+| **Path resolution** | `Path` is relative to the `.slnLaunch` file's directory; backslashes in JSON are literal separators — normalize to the host separator so Windows-authored files run on Linux/macOS. | ✅ |
+| **Action mapping** | `Start` and `StartWithoutDebugging` → launch (the debugger distinction is moot for a CLI runner). `None` or absent → skip the project. Projects can also simply be omitted from the array (already skipped). | ✅ |
+| **Validation** | Missing file, malformed JSON, empty `Projects`, a `Path` that doesn't exist on disk → clear actionable errors, not stack traces. | ✅ |
 
 ### Profile / Launch-Target Resolution
 
 | Requirement | Description | Status |
 |-------------|-------------|--------|
-| **DebugTarget pass-through** | Pass `DebugTarget` verbatim as `--launch-profile "<value>"`; quote values containing spaces (e.g. `"IIS Express"`). Let the dotnet CLI apply the profile's `applicationUrl` / `environmentVariables` / `commandLineArgs` — do **not** re-implement launchSettings translation. | ❌ |
-| **Absent DebugTarget** | Omit `--launch-profile`; the CLI selects the first `commandName: Project` profile. | ❌ |
-| **Non-Project profiles** | When `DebugTarget` names a profile the CLI can't honor (`IIS Express`, `Docker`, `Executable`, etc.) — detected by reading the project's `Properties/launchSettings.json` — emit a **warning** and fall back to running the project **without** `--launch-profile` (CLI picks the first `Project` profile). `.dcproj` entries are skipped with a warning (Docker Compose is out of scope). | ❌ |
-| **`--project` not `-p`** | Always use the long `--project` form (`-p` now maps to `--property` when the arg contains `=`). | ❌ |
+| **DebugTarget pass-through** | Pass `DebugTarget` verbatim as `--launch-profile "<value>"`; quote values containing spaces (e.g. `"IIS Express"`). Let the dotnet CLI apply the profile's `applicationUrl` / `environmentVariables` / `commandLineArgs` — do **not** re-implement launchSettings translation. | ✅ |
+| **Absent DebugTarget** | Omit `--launch-profile`; the CLI selects the first `commandName: Project` profile. | ✅ |
+| **Non-Project profiles** | When `DebugTarget` names a profile the CLI can't honor (`IIS Express`, `Docker`, `Executable`, etc.) — detected by reading the project's `Properties/launchSettings.json` — emit a **warning** and fall back to running the project **without** `--launch-profile` (CLI picks the first `Project` profile). `.dcproj` entries are skipped with a warning (Docker Compose is out of scope). | ✅ |
+| **`--project` not `-p`** | Always use the long `--project` form (`-p` now maps to `--property` when the arg contains `=`). | ✅ |
+
+### Argument Forwarding
+
+`.slnLaunch` itself carries no build configuration or app arguments — the dotnet CLI already applies the selected launch profile's `environmentVariables`, `applicationUrl`, and `commandLineArgs`. On top of that, the tool forwards arguments from its own command line in two ways:
+
+| Requirement | Description | Status |
+|-------------|-------------|--------|
+| **Shared build options** | `--configuration`/`-c`, `--framework`/`-f`, `--no-build`, `--verbosity`/`-v` are appended (as run options, before any `--`) to **every** project's `dotnet run`/`watch`. Lets one command run the whole composition in e.g. Release. | ✅ |
+| **Per-project arg selection** | Everything after a standalone `--` on the `slnlaunch` command line is a *pool* of named arguments. Each project receives (as **app** args, after its own `--`) only the names it opted into via its `ForwardArguments` field — so one invocation can feed different args to different apps. | ✅ |
+| **Token-form preservation** | The pool preserves original token form: flags (`--verbose`), `--name value`, `--name=value`, and repeated occurrences. Names are matched ignoring leading dashes. | ✅ |
+| **argv split** | The first standalone `--` is split off in `Program.cs`; the left side is parsed by the CLI, the right side becomes the forwardable pool (works around the source generator's lack of trailing-token capture). | ❌ (Phase 4) |
+
+Example: with `ForwardArguments` on each project —
+
+```json
+[
+  {
+    "Name": "HR + Fleet",
+    "Projects": [
+      { "Path": "Demo\\HR\\HR\\HR.csproj", "Action": "Start", "DebugTarget": "https", "ForwardArguments": ["tenant", "region"] },
+      { "Path": "Demo\\Fleet\\Fleet\\Fleet.csproj", "Action": "Start", "DebugTarget": "https", "ForwardArguments": ["port"] }
+    ]
+  }
+]
+```
+
+`slnlaunch -c Release -- --tenant acme --region eu --port 5005` launches both projects in Release; HR's app gets `--tenant acme --region eu`, Fleet's app gets `--port 5005`.
 
 ### Process Group Management
 
 | Requirement | Description | Status |
 |-------------|-------------|--------|
-| **Concurrent launch** | Start all resolved projects at once (not sequentially). Honor `.slnLaunch` ordering only for log readability, not as a startup barrier. | ❌ |
-| **Output multiplexing** | Prefix each child's stdout/stderr lines with a per-project label (e.g. `[Fleet] ...`), optionally colorized, so concurrent output is attributable. A `--no-prefix`/raw mode is available. | ❌ |
-| **Cross-platform process-tree kill on cancel** | **Critical.** `dotnet run` is a *runner* that spawns the app (`<App>.exe`/`<App>` dll) as a child; killing only the runner leaves the app alive. On cancellation, kill the entire tree of every child via `Process.Kill(entireProcessTree: true)` on Windows, Linux, **and** macOS. Wait for exit (bounded) before returning. | ❌ |
-| **Signal handling** | Handle Ctrl+C (`Console.CancelKeyPress`) and POSIX `SIGINT`/`SIGTERM` (`PosixSignalRegistration`); trigger a single shared `CancellationTokenSource` that teardown observes. First signal → graceful teardown; second signal → force-kill immediately. | ❌ |
-| **Fail-fast option** | `--kill-on-fail` (opt-in): if any project exits non-zero, tear down the rest. Default: let the others keep running (VS-like). | ❌ |
-| **Exit-code aggregation** | Return non-zero if any project failed to start or exited non-zero; `0` if all succeeded or the user cleanly cancelled. | ❌ |
+| **Concurrent launch** | Start all resolved projects at once (not sequentially). Honor `.slnLaunch` ordering only for log readability, not as a startup barrier. | ✅ |
+| **Output multiplexing** | Prefix each child's stdout/stderr lines with a per-project label (e.g. `[Fleet] ...`), optionally colorized, so concurrent output is attributable. A `--no-prefix`/raw mode is available. | ✅ |
+| **Cross-platform process-tree kill on cancel** | **Critical.** `dotnet run` is a *runner* that spawns the app (`<App>.exe`/`<App>` dll) as a child; killing only the runner leaves the app alive. On cancellation, kill the entire tree of every child via `Process.Kill(entireProcessTree: true)` on Windows, Linux, **and** macOS. Wait for exit (bounded) before returning. | ✅ |
+| **Signal handling** | Handle Ctrl+C (`Console.CancelKeyPress`) and POSIX `SIGINT`/`SIGTERM` (`PosixSignalRegistration`); trigger a single shared `CancellationTokenSource` that teardown observes. First signal → graceful teardown; second signal → force-kill immediately. | ❌ (Phase 4) |
+| **Fail-fast option** | `--kill-on-fail` (opt-in): if any project exits non-zero, tear down the rest. Default: let the others keep running (VS-like). | ✅ |
+| **Exit-code aggregation** | Return non-zero if any project failed to start or exited non-zero; `0` if all succeeded or the user cleanly cancelled. | ✅ |
 
 ### CLI Surface
 
@@ -88,10 +115,14 @@ Running `slnlaunch` in that directory starts both `Fleet` and `HR` under their `
 | **`--profile <Name>` / `-p`** | Select a named profile when the file has more than one. | ❌ |
 | **`--list` / `-l`** | List profiles and their projects, then exit `0`. | ❌ |
 | **`--watch`** | Use `dotnet watch` instead of `dotnet run` per project (hot reload; also honors `launchBrowser`). Default: `dotnet run`. | ❌ |
+| **`--configuration`/`-c`** | Forwarded to every project's `dotnet run`/`watch`. | ❌ |
+| **`--framework`/`-f`** | Forwarded to every project. | ❌ |
+| **`--no-build`** | Forwarded to every project. | ❌ |
+| **`--verbosity`/`-v`** | Forwarded to every project's `dotnet run`/`watch` build. | ❌ |
+| **`-- <args>`** | Everything after a standalone `--` is the forwardable pool; projects opt in by name via `ForwardArguments` (see **Argument Forwarding**). | ❌ |
 | **`--no-prefix`** | Disable per-project log prefixing (raw passthrough). | ❌ |
 | **`--kill-on-fail`** | Tear down the group if any project exits non-zero. | ❌ |
 | **`--dry-run`** | Print the exact `dotnet` commands that would run (resolved paths, profiles, fallbacks/warnings) without launching. | ❌ |
-| **`--verbosity`** | Control the tool's own logging (separate from child `dotnetRunMessages`). | ❌ |
 | **Help/usage** | `--help` documents all of the above with examples. | ❌ |
 
 ### Packaging & Distribution

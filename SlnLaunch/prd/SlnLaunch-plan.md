@@ -4,7 +4,7 @@ Companion to [SlnLaunch-prd.md](SlnLaunch-prd.md). Phases are ordered so each en
 
 Structure: **one CLI project** (`MintPlayer.SlnLaunch`) + **one test project** (`MintPlayer.SlnLaunch.Tests`) — same shape as `Solve`, using the repo's CLI source generators.
 
-## Phase 1 — Project scaffold + parsing (no launching) ⏳ PENDING
+## Phase 1 — Project scaffold + parsing (no launching) ✅ COMPLETED
 
 1. Create `SlnLaunch/MintPlayer.SlnLaunch/MintPlayer.SlnLaunch.csproj` (`net10.0`, `Exe`, `ImplicitUsings`/`Nullable` enable, `LangVersion 14`), copying the package/tool metadata block from `Solve/Solve.csproj`:
    - `PackAsTool=true`, `ToolCommandName=slnlaunch`, `PackageId=MintPlayer.SlnLaunch`, `Version=10.0.0`, `IsPackable=true`, Apache-2.0, Authors/Company/Repository, `IncludeSymbols`/`snupkg`.
@@ -19,20 +19,22 @@ Structure: **one CLI project** (`MintPlayer.SlnLaunch`) + **one test project** (
 
 **Done when:** `dotnet test` green; parsing fully covered; nothing launches yet.
 
-## Phase 2 — Launch plan builder (path + profile resolution) ⏳ PENDING
+## Phase 2 — Launch plan builder (path + profile resolution + arg forwarding) ✅ COMPLETED
 
-6. `Models/LaunchCommand` (resolved: working dir, exe `dotnet`, arg list, project label, warnings) and `LaunchPlan` (commands + plan-level warnings).
-7. `ILaunchPlanBuilder` / `LaunchPlanBuilder`:
+6. `Models/LaunchCommand` (resolved: working dir, exe (stored `FileName`), arg list, project label) and `LaunchPlan` (commands + plan-level warnings).
+7. `ILaunchPlanBuilder` / `LaunchPlanBuilder` (takes a `LaunchPlanOptions`):
    - Resolve each `Path` against the `.slnLaunch` directory; normalize `\`/`/` to `Path.DirectorySeparatorChar`; verify the file exists (error if not).
    - Filter out `Action: None`/absent; map `Start`/`StartWithoutDebugging` → run.
    - Build args: `run --project <abs> --launch-profile "<DebugTarget>"` (omit `--launch-profile` if absent); `--watch` mode → `watch --project <abs> --launch-profile ...`.
-   - **Non-Project fallback:** read `<projectDir>/Properties/launchSettings.json`; if `DebugTarget` resolves to a profile whose `commandName != "Project"` (or `.dcproj`), drop `--launch-profile` and record a warning (`.dcproj` → skip + warning).
+   - **Non-Project fallback:** `LaunchSettingsReader` reads `<projectDir>/Properties/launchSettings.json`; if `DebugTarget` resolves to a profile whose `commandName != "Project"` (or `.dcproj`), drop `--launch-profile` and record a warning (`.dcproj` → skip + warning).
+   - **Shared build options:** append `--configuration`/`--framework`/`--no-build`/`--verbosity` from `LaunchPlanOptions` to every command.
+   - **Per-project arg forwarding:** `ForwardableArguments` parses the post-`--` pool (preserving flag/`name value`/`name=value`/repeat forms); each entry's `ForwardArguments` selects its names, appended after a `--` as app args.
    - `--label` derives from the project file name (e.g. `Fleet`).
-8. Tests: command construction for every branch (with/without DebugTarget, watch, spaces in profile name quoted, non-Project fallback via a fixture `launchSettings.json`, `.dcproj` skip), path normalization on a Windows-authored sample, missing-project error.
+8. Tests: command construction for every branch (with/without DebugTarget, watch, spaces in profile name quoted, non-Project fallback via a fixture `launchSettings.json`, `.dcproj` skip), shared build options, per-project forwarding + `ForwardableArguments` parsing, path normalization on a Windows-authored sample, missing-project error.
 
 **Done when:** given a parsed file the builder emits a correct, fully-tested `LaunchPlan`; still nothing spawns.
 
-## Phase 3 — Process orchestration + cross-platform teardown ⏳ PENDING
+## Phase 3 — Process orchestration + cross-platform teardown ✅ COMPLETED
 
 9. `IProcessOrchestrator` / `ProcessOrchestrator` — `Task<int> RunAsync(LaunchPlan, CancellationToken)`:
    - Spawn each `LaunchCommand` via `Process` (`RedirectStandardOutput/Error`, `UseShellExecute=false`); attach `OutputDataReceived`/`ErrorDataReceived` → `IConsoleService` with per-project prefix/color (`--no-prefix` raw mode; respect `NO_COLOR`).
@@ -51,11 +53,11 @@ Structure: **one CLI project** (`MintPlayer.SlnLaunch`) + **one test project** (
 
 ## Phase 4 — CLI command wiring ⏳ PENDING
 
-12. `Commands/SlnLaunchCommand.cs` — `[CliRootCommand(Name = "slnlaunch", Description = "Run a Visual Studio .slnLaunch multi-project launch profile from the CLI")]`, `[Inject]` the services, options/argument per the PRD CLI surface: `[CliArgument(0, "file", Required=false)]`, `--profile`/`-p`, `--list`/`-l`, `--watch`, `--no-prefix`, `--kill-on-fail`, `--dry-run`, `--verbosity`. `Execute(CancellationToken)`:
-    - discover/load file → select profile (single auto; multiple require `--profile`, else error with names) → `--list` prints and returns 0 → build plan (print warnings) → `--dry-run` prints resolved `dotnet` commands and returns 0 → else orchestrate.
-13. `Program.cs` — copy `Solve/Program.cs`: `Host.CreateApplicationBuilder` → `AddSlnLaunchCommand().AddSlnLaunchServices()` → `InvokeSlnLaunchCommandAsync(args)` with `ParseCommandException`/`Exception` handling.
-14. `IConsoleService`/`ConsoleService` (adapt `Solve`'s) for info/warn/error/success + prefixed child-line writing.
-15. Tests: end-to-end argument parsing (each option), `--list` output, `--dry-run` output for the sample file, multiple-profiles-without-`--profile` error.
+12. `Commands/SlnLaunchCommand.cs` — `[CliRootCommand(Name = "slnlaunch", Description = "Run a Visual Studio .slnLaunch multi-project launch profile from the CLI")]`, `[Inject]` the services (incl. the `ForwardableArguments` singleton), options/argument per the PRD CLI surface: `[CliArgument(0, "file", Required=false)]`, `--profile`/`-p`, `--list`/`-l`, `--watch`, `--configuration`/`-c`, `--framework`/`-f`, `--no-build`, `--verbosity`/`-v`, `--no-prefix`, `--kill-on-fail`, `--dry-run`. `Execute(CancellationToken)`:
+    - discover/load file → select profile (single auto; multiple require `--profile`, else error with names) → `--list` prints and returns 0 → assemble `LaunchPlanOptions` (watch + build options + the injected forwardable pool) and build the plan (print warnings) → `--dry-run` prints resolved `dotnet` commands and returns 0 → else orchestrate with `LaunchRunOptions`.
+13. `Program.cs` — split `argv` on the first standalone `--`: left side → `InvokeSlnLaunchCommandAsync`, right side → `ForwardableArguments.Parse(...)` registered as a singleton so the command can forward per project. Otherwise copy `Solve/Program.cs`: `Host.CreateApplicationBuilder` → `AddSlnLaunchCommand().AddSlnLaunchServices()` with `ParseCommandException`/`Exception` handling.
+14. **Signal handling:** wire `Console.CancelKeyPress` + `PosixSignalRegistration` (SIGINT/SIGTERM) to a shared `CancellationTokenSource` passed to the orchestrator; second signal shortens the grace window / force-kills. (`IConsoleService`/`ConsoleService` already built in Phase 3.)
+15. Tests: end-to-end argument parsing (each option), the `argv` `--` split feeding `ForwardableArguments`, `--list` output, `--dry-run` output (incl. forwarded args) for the sample file, multiple-profiles-without-`--profile` error.
 
 **Done when:** the tool runs end-to-end against the `MintPlayer.Spark.slnLaunch` example (`--dry-run` exercised in CI; live launch verified manually).
 
@@ -79,9 +81,12 @@ Structure: **one CLI project** (`MintPlayer.SlnLaunch`) + **one test project** (
 | `dotnet watch` opens browsers / extra noise | `--watch` is opt-in; document `DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER=1`. |
 | CI runs `dotnet test` before `pack` | Tests use a self-contained stub process; no dependency on a packed artifact. |
 | Source-generator wiring differs subtly from `Solve` | Copy the four analyzer `ProjectReference` lines and `Program.cs` verbatim; build early in Phase 1 to confirm `AddSlnLaunchCommand`/`AddSlnLaunchServices` generate. |
+| CLI generator can't capture trailing `--` tokens → forwardable pool unreachable | Split `argv` on the first standalone `--` in `Program.cs`; parse the right side with `ForwardableArguments` and register it as a singleton (Phase 4.13). |
+| A forwarded value that itself starts with `-` (e.g. a negative number) is misread as a flag | Documented edge; use `--name=value` form in `.slnLaunch` invocations when the value is dash-prefixed. |
 
 ## Notes / Decisions (from PRD)
 
 - Command name **`slnlaunch`**; `--watch` opt-in (default `dotnet run`); non-Project `DebugTarget` → **warn + run without profile**.
+- **Argument forwarding:** shared build options (`-c`/`-f`/`--no-build`/`-v`) go to every project; per-project app args are opted into via the new `ForwardArguments` field, selected from the post-`--` pool. The first standalone `--` is split off in `Program.cs` because the CLI source generator can't capture trailing tokens.
 - No debugger attach, no launchSettings re-implementation, no Docker Compose, no `.slnLaunch` authoring — see PRD Non-Goals.
 - Multiple profiles require explicit `--profile`; single profile runs flagless.
