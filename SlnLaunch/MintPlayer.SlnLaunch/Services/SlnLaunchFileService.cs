@@ -7,7 +7,7 @@ using MintPlayer.SourceGenerators.Attributes;
 namespace MintPlayer.SlnLaunch.Services;
 
 [Register(typeof(ISlnLaunchFileService), ServiceLifetime.Singleton, "SlnLaunchServices")]
-public sealed class SlnLaunchFileService : ISlnLaunchFileService
+internal sealed class SlnLaunchFileService : ISlnLaunchFileService
 {
     // Highest precedence first. Within a tier, every match is returned so the caller can report ambiguity.
     private static readonly string[] _searchPatterns = ["*.slnLaunch", "*.slnLaunch.user", "*.slnxLaunch"];
