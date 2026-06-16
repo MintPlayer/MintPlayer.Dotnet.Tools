@@ -11,8 +11,10 @@ public class LaunchPlanBuilderTests
     private static LaunchProfile Profile(params LaunchProjectEntry[] projects)
         => new() { Name = "P", Projects = [.. projects] };
 
-    private static LaunchProjectEntry Entry(string path, LaunchAction action = LaunchAction.Start, string? debugTarget = null)
-        => new() { Path = path, Action = action, DebugTarget = debugTarget };
+    private static LaunchProjectEntry Entry(string path, LaunchAction action = LaunchAction.Start, string? debugTarget = null, params string[] forwardArguments)
+        => new() { Path = path, Action = action, DebugTarget = debugTarget, ForwardArguments = [.. forwardArguments] };
+
+    private static LaunchPlanOptions Opts(bool watch = false) => new() { Watch = watch };
 
     /// <summary>Creates an empty project file under the temp dir and returns its sln-relative path.</summary>
     private static string AddProject(TempDirectory temp, string relativePath, string? launchSettings = null)
@@ -36,7 +38,7 @@ public class LaunchPlanBuilderTests
         using var temp = new TempDirectory();
         var rel = AddProject(temp, @"App\App.csproj", ProjectProfile("https"));
 
-        var plan = _builder.Build(Profile(Entry(rel, debugTarget: "https")), temp.Path, watch: false);
+        var plan = _builder.Build(Profile(Entry(rel, debugTarget: "https")), temp.Path, Opts());
 
         var cmd = Assert.Single(plan.Commands);
         Assert.Equal("App", cmd.Label);
@@ -51,7 +53,7 @@ public class LaunchPlanBuilderTests
         using var temp = new TempDirectory();
         var rel = AddProject(temp, @"src\Api\Api.csproj");
 
-        var cmd = Assert.Single(_builder.Build(Profile(Entry(rel)), temp.Path, watch: false).Commands);
+        var cmd = Assert.Single(_builder.Build(Profile(Entry(rel)), temp.Path, Opts()).Commands);
 
         Assert.True(Path.IsPathRooted(cmd.ProjectPath));
         Assert.True(File.Exists(cmd.ProjectPath));
@@ -64,7 +66,7 @@ public class LaunchPlanBuilderTests
         using var temp = new TempDirectory();
         var rel = AddProject(temp, @"App\App.csproj");
 
-        var cmd = Assert.Single(_builder.Build(Profile(Entry(rel)), temp.Path, watch: false).Commands);
+        var cmd = Assert.Single(_builder.Build(Profile(Entry(rel)), temp.Path, Opts()).Commands);
 
         Assert.Null(cmd.LaunchProfile);
         Assert.DoesNotContain("--launch-profile", cmd.Arguments);
@@ -77,7 +79,7 @@ public class LaunchPlanBuilderTests
         var settings = """{ "profiles": { "IIS Express": { "commandName": "IISExpress" } } }""";
         var rel = AddProject(temp, @"App\App.csproj", settings);
 
-        var plan = _builder.Build(Profile(Entry(rel, debugTarget: "IIS Express")), temp.Path, watch: false);
+        var plan = _builder.Build(Profile(Entry(rel, debugTarget: "IIS Express")), temp.Path, Opts());
 
         var cmd = Assert.Single(plan.Commands);
         Assert.Null(cmd.LaunchProfile);
@@ -91,7 +93,7 @@ public class LaunchPlanBuilderTests
         using var temp = new TempDirectory();
         var rel = AddProject(temp, @"App\App.csproj"); // no launchSettings.json
 
-        var cmd = Assert.Single(_builder.Build(Profile(Entry(rel, debugTarget: "https")), temp.Path, watch: false).Commands);
+        var cmd = Assert.Single(_builder.Build(Profile(Entry(rel, debugTarget: "https")), temp.Path, Opts()).Commands);
 
         Assert.Equal("https", cmd.LaunchProfile);
     }
@@ -102,7 +104,7 @@ public class LaunchPlanBuilderTests
         using var temp = new TempDirectory();
         var rel = AddProject(temp, @"App\App.csproj", ProjectProfile("http"));
 
-        var cmd = Assert.Single(_builder.Build(Profile(Entry(rel, debugTarget: "https")), temp.Path, watch: false).Commands);
+        var cmd = Assert.Single(_builder.Build(Profile(Entry(rel, debugTarget: "https")), temp.Path, Opts()).Commands);
 
         Assert.Equal("https", cmd.LaunchProfile);
     }
@@ -113,7 +115,7 @@ public class LaunchPlanBuilderTests
         using var temp = new TempDirectory();
         var rel = AddProject(temp, @"App\App.csproj", ProjectProfile("https"));
 
-        var cmd = Assert.Single(_builder.Build(Profile(Entry(rel, debugTarget: "https")), temp.Path, watch: true).Commands);
+        var cmd = Assert.Single(_builder.Build(Profile(Entry(rel, debugTarget: "https")), temp.Path, Opts(watch: true)).Commands);
 
         Assert.Equal("watch", cmd.Arguments[0]);
         Assert.Equal(["watch", "--project", cmd.ProjectPath, "--launch-profile", "https"], cmd.Arguments);
@@ -128,7 +130,7 @@ public class LaunchPlanBuilderTests
 
         var plan = _builder.Build(
             Profile(Entry(started, LaunchAction.Start), Entry(skipped, LaunchAction.None)),
-            temp.Path, watch: false);
+            temp.Path, Opts());
 
         var cmd = Assert.Single(plan.Commands);
         Assert.Equal("A", cmd.Label);
@@ -140,7 +142,7 @@ public class LaunchPlanBuilderTests
         using var temp = new TempDirectory();
         var rel = AddProject(temp, @"Compose\Compose.dcproj");
 
-        var plan = _builder.Build(Profile(Entry(rel)), temp.Path, watch: false);
+        var plan = _builder.Build(Profile(Entry(rel)), temp.Path, Opts());
 
         Assert.Empty(plan.Commands);
         Assert.Contains(plan.Warnings, w => w.Contains("Compose") && w.Contains(".dcproj"));
@@ -152,7 +154,7 @@ public class LaunchPlanBuilderTests
         using var temp = new TempDirectory();
 
         var ex = Assert.Throws<SlnLaunchException>(
-            () => _builder.Build(Profile(Entry(@"Ghost\Ghost.csproj")), temp.Path, watch: false));
+            () => _builder.Build(Profile(Entry(@"Ghost\Ghost.csproj")), temp.Path, Opts()));
         Assert.Contains("Ghost", ex.Message);
     }
 
@@ -162,9 +164,58 @@ public class LaunchPlanBuilderTests
         using var temp = new TempDirectory();
         var rel = AddProject(temp, @"App\App.csproj", ProjectProfile("With Stubs"));
 
-        var cmd = Assert.Single(_builder.Build(Profile(Entry(rel, debugTarget: "With Stubs")), temp.Path, watch: false).Commands);
+        var cmd = Assert.Single(_builder.Build(Profile(Entry(rel, debugTarget: "With Stubs")), temp.Path, Opts()).Commands);
 
         Assert.Equal("With Stubs", cmd.LaunchProfile);
         Assert.Contains("\"With Stubs\"", cmd.ToDisplayString());
+    }
+
+    [Fact]
+    public void Build_forwards_shared_build_options()
+    {
+        using var temp = new TempDirectory();
+        var rel = AddProject(temp, @"App\App.csproj");
+        var options = new LaunchPlanOptions { Configuration = "Release", Framework = "net10.0", NoBuild = true, Verbosity = "minimal" };
+
+        var cmd = Assert.Single(_builder.Build(Profile(Entry(rel)), temp.Path, options).Commands);
+
+        Assert.Equal(
+            ["run", "--project", cmd.ProjectPath, "--configuration", "Release", "--framework", "net10.0", "--no-build", "--verbosity", "minimal"],
+            cmd.Arguments);
+    }
+
+    [Fact]
+    public void Build_forwards_only_opted_in_arguments_per_project()
+    {
+        using var temp = new TempDirectory();
+        var hr = AddProject(temp, @"HR\HR.csproj");
+        var fleet = AddProject(temp, @"Fleet\Fleet.csproj");
+        var pool = ForwardableArguments.Parse(["--tenant", "acme", "--region", "eu", "--port", "5005"]);
+        var options = new LaunchPlanOptions { ForwardableArguments = pool };
+
+        var plan = _builder.Build(
+            Profile(
+                Entry(hr, forwardArguments: ["tenant", "region"]),
+                Entry(fleet, forwardArguments: ["port"])),
+            temp.Path, options);
+
+        var hrCmd = plan.Commands.Single(c => c.Label == "HR");
+        var fleetCmd = plan.Commands.Single(c => c.Label == "Fleet");
+
+        Assert.Equal(["run", "--project", hrCmd.ProjectPath, "--", "--tenant", "acme", "--region", "eu"], hrCmd.Arguments);
+        Assert.Equal(["run", "--project", fleetCmd.ProjectPath, "--", "--port", "5005"], fleetCmd.Arguments);
+    }
+
+    [Fact]
+    public void Build_emits_no_separator_when_nothing_forwarded()
+    {
+        using var temp = new TempDirectory();
+        var rel = AddProject(temp, @"App\App.csproj");
+        var pool = ForwardableArguments.Parse(["--tenant", "acme"]);
+
+        // Project opts into nothing.
+        var cmd = Assert.Single(_builder.Build(Profile(Entry(rel)), temp.Path, new LaunchPlanOptions { ForwardableArguments = pool }).Commands);
+
+        Assert.DoesNotContain("--", cmd.Arguments);
     }
 }

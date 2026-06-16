@@ -7,7 +7,7 @@ namespace MintPlayer.SlnLaunch.Services;
 [Register(typeof(ILaunchPlanBuilder), ServiceLifetime.Singleton, "SlnLaunchServices")]
 internal sealed class LaunchPlanBuilder : ILaunchPlanBuilder
 {
-    public LaunchPlan Build(LaunchProfile profile, string baseDirectory, bool watch)
+    public LaunchPlan Build(LaunchProfile profile, string baseDirectory, LaunchPlanOptions options)
     {
         var commands = new List<LaunchCommand>();
         var warnings = new List<string>();
@@ -32,7 +32,7 @@ internal sealed class LaunchPlanBuilder : ILaunchPlanBuilder
             }
 
             var launchProfile = ResolveLaunchProfile(entry, projectPath, label, warnings);
-            var arguments = BuildArguments(projectPath, launchProfile, watch);
+            var arguments = BuildArguments(projectPath, launchProfile, entry, options);
 
             commands.Add(new LaunchCommand(label, "dotnet", projectPath, baseDirectory, arguments, launchProfile));
         }
@@ -58,11 +58,11 @@ internal sealed class LaunchPlanBuilder : ILaunchPlanBuilder
         return entry.DebugTarget;
     }
 
-    private static IReadOnlyList<string> BuildArguments(string projectPath, string? launchProfile, bool watch)
+    private static IReadOnlyList<string> BuildArguments(string projectPath, string? launchProfile, LaunchProjectEntry entry, LaunchPlanOptions options)
     {
         var arguments = new List<string>
         {
-            watch ? "watch" : "run",
+            options.Watch ? "watch" : "run",
             "--project",
             projectPath,
         };
@@ -71,6 +71,33 @@ internal sealed class LaunchPlanBuilder : ILaunchPlanBuilder
         {
             arguments.Add("--launch-profile");
             arguments.Add(launchProfile);
+        }
+
+        // Shared build options forwarded to every project.
+        if (!string.IsNullOrWhiteSpace(options.Configuration))
+        {
+            arguments.Add("--configuration");
+            arguments.Add(options.Configuration!);
+        }
+        if (!string.IsNullOrWhiteSpace(options.Framework))
+        {
+            arguments.Add("--framework");
+            arguments.Add(options.Framework!);
+        }
+        if (options.NoBuild)
+            arguments.Add("--no-build");
+        if (!string.IsNullOrWhiteSpace(options.Verbosity))
+        {
+            arguments.Add("--verbosity");
+            arguments.Add(options.Verbosity!);
+        }
+
+        // Per-project app arguments selected from the post-`--` pool, passed after `--` to the app.
+        var forwarded = options.ForwardableArguments.Select(entry.ForwardArguments);
+        if (forwarded.Count > 0)
+        {
+            arguments.Add("--");
+            arguments.AddRange(forwarded);
         }
 
         return arguments;

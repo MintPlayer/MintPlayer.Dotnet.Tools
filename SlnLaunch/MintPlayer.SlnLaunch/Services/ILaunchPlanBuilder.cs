@@ -11,7 +11,7 @@ public interface ILaunchPlanBuilder
 {
     /// <param name="profile">The selected profile.</param>
     /// <param name="baseDirectory">Directory that project paths are relative to (the .slnLaunch directory).</param>
-    /// <param name="watch">Use <c>dotnet watch</c> instead of <c>dotnet run</c>.</param>
+    /// <param name="options">Build options and the forwardable-argument pool.</param>
     /// <exception cref="SlnLaunchException">A referenced project file does not exist.</exception>
-    LaunchPlan Build(LaunchProfile profile, string baseDirectory, bool watch);
+    LaunchPlan Build(LaunchProfile profile, string baseDirectory, LaunchPlanOptions options);
 }

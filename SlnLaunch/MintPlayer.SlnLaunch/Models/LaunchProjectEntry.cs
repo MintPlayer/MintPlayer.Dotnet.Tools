@@ -22,6 +22,13 @@ public sealed class LaunchProjectEntry
     /// </summary>
     public string? DebugTarget { get; set; }
 
+    /// <summary>
+    /// Names of command-line arguments this project opts into receiving. When <c>slnlaunch</c> is invoked
+    /// with extra arguments after a <c>--</c> separator, only the ones listed here are forwarded to this
+    /// project's app (as app arguments). Lets one invocation feed different args to different projects.
+    /// </summary>
+    public List<string> ForwardArguments { get; set; } = [];
+
     /// <summary>True when this entry should actually be launched.</summary>
     [JsonIgnore]
     public bool ShouldLaunch => Action is LaunchAction.Start or LaunchAction.StartWithoutDebugging;
