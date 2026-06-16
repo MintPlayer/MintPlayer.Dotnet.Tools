@@ -6,9 +6,10 @@ namespace MintPlayer.SlnLaunch.Models;
 /// </summary>
 public sealed class LaunchCommand
 {
-    public LaunchCommand(string label, string projectPath, string workingDirectory, IReadOnlyList<string> arguments, string? launchProfile)
+    public LaunchCommand(string label, string fileName, string projectPath, string workingDirectory, IReadOnlyList<string> arguments, string? launchProfile)
     {
         Label = label;
+        FileName = fileName;
         ProjectPath = projectPath;
         WorkingDirectory = workingDirectory;
         Arguments = arguments;
@@ -18,14 +19,14 @@ public sealed class LaunchCommand
     /// <summary>Short, human-friendly name (the project file name without extension) used to prefix output.</summary>
     public string Label { get; }
 
+    /// <summary>The executable to run (normally <c>dotnet</c>).</summary>
+    public string FileName { get; }
+
     /// <summary>Absolute path to the project file.</summary>
     public string ProjectPath { get; }
 
     /// <summary>Directory the process is started in (the solution directory).</summary>
     public string WorkingDirectory { get; }
-
-    /// <summary>The executable to run — always <c>dotnet</c>.</summary>
-    public string FileName => "dotnet";
 
     /// <summary>Arguments passed to <c>dotnet</c> (e.g. <c>run --project … --launch-profile …</c>).</summary>
     public IReadOnlyList<string> Arguments { get; }
@@ -35,5 +36,5 @@ public sealed class LaunchCommand
 
     /// <summary>The full command line as it would appear in a shell (for <c>--dry-run</c>).</summary>
     public string ToDisplayString()
-        => "dotnet " + string.Join(" ", Arguments.Select(a => a.Contains(' ') ? $"\"{a}\"" : a));
+        => FileName + " " + string.Join(" ", Arguments.Select(a => a.Contains(' ') ? $"\"{a}\"" : a));
 }

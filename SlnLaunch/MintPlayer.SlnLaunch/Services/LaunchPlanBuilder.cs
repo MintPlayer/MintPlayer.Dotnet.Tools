@@ -34,7 +34,7 @@ internal sealed class LaunchPlanBuilder : ILaunchPlanBuilder
             var launchProfile = ResolveLaunchProfile(entry, projectPath, label, warnings);
             var arguments = BuildArguments(projectPath, launchProfile, watch);
 
-            commands.Add(new LaunchCommand(label, projectPath, baseDirectory, arguments, launchProfile));
+            commands.Add(new LaunchCommand(label, "dotnet", projectPath, baseDirectory, arguments, launchProfile));
         }
 
         return new LaunchPlan(profile.Name, commands, warnings);
