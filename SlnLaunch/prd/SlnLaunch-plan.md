@@ -51,7 +51,7 @@ Structure: **one CLI project** (`MintPlayer.SlnLaunch`) + **one test project** (
 
 **Done when:** `slnlaunch` launches a multi-process plan, multiplexes output, and leaves **zero** orphans after Ctrl+C — verified by test on Linux (CI) and manually on Windows.
 
-## Phase 4 — CLI command wiring ⏳ PENDING
+## Phase 4 — CLI command wiring ✅ COMPLETED
 
 12. `Commands/SlnLaunchCommand.cs` — `[CliRootCommand(Name = "slnlaunch", Description = "Run a Visual Studio .slnLaunch multi-project launch profile from the CLI")]`, `[Inject]` the services (incl. the `ForwardableArguments` singleton), options/argument per the PRD CLI surface: `[CliArgument(0, "file", Required=false)]`, `--profile`/`-p`, `--list`/`-l`, `--watch`, `--configuration`/`-c`, `--framework`/`-f`, `--no-build`, `--verbosity`/`-v`, `--no-prefix`, `--kill-on-fail`, `--dry-run`. `Execute(CancellationToken)`:
     - discover/load file → select profile (single auto; multiple require `--profile`, else error with names) → `--list` prints and returns 0 → assemble `LaunchPlanOptions` (watch + build options + the injected forwardable pool) and build the plan (print warnings) → `--dry-run` prints resolved `dotnet` commands and returns 0 → else orchestrate with `LaunchRunOptions`.
@@ -61,18 +61,22 @@ Structure: **one CLI project** (`MintPlayer.SlnLaunch`) + **one test project** (
 
 **Done when:** the tool runs end-to-end against the `MintPlayer.Spark.slnLaunch` example (`--dry-run` exercised in CI; live launch verified manually).
 
-## Phase 5 — Docs, packaging & release ⏳ PENDING
+## Phase 5 — Docs, packaging & release ⏳ PARTIAL (README + pack verified; release on merge)
 
-16. `MintPlayer.SlnLaunch/README.md` — install, all options, the Spark example, non-Project fallback note, teardown guarantee, cross-platform note. Wire `PackageReadmeFile`.
-17. `dotnet pack -c Release` locally; inspect the nupkg (tool layout, no NU* warnings). Confirm `dotnet tool install --global --add-source ./nupkg MintPlayer.SlnLaunch` then `slnlaunch --help` works.
-18. Flip PRD status columns ❌ → ✅; add a Version History table.
-19. Merge to `master` → CI publishes `MintPlayer.SlnLaunch` to nuget.org + GitHub Packages automatically.
+16. ✅ `MintPlayer.SlnLaunch/README.md` — install (incl. `dnx` one-off run), all options, the Spark example, forwarding, non-Project fallback note, teardown guarantee, cross-platform note. Wired via `PackageReadmeFile`.
+17. ✅ `dotnet pack -c Release` produces `.nupkg` + `.snupkg` with no NU* warnings; `dotnet tool install --global --add-source <feed> MintPlayer.SlnLaunch` then `slnlaunch --help` confirmed working.
+18. ✅ Flipped PRD status columns ❌ → ✅.
+19. ⏳ Merge to `master` → CI publishes `MintPlayer.SlnLaunch` to nuget.org + GitHub Packages automatically.
+
+### Outstanding
+- Manual verification of a real concurrent launch + Ctrl+C teardown on Windows (the POSIX grandchild-tree-kill assertion runs in CI; Windows is covered by the cross-platform `Kill(entireProcessTree:true)` primitive but not asserted by an automated test).
+- `dotnet watch` real-run smoke test (only `dotnet run` paths exercised live so far).
 
 ## Risks / Watch-outs
 
 | Risk | Mitigation |
 |------|------------|
-| **Orphaned child processes after cancel** (the headline risk: `dotnet run` spawns the app as a child, so killing only the runner leaks the app) | Always `Kill(entireProcessTree: true)`; Phase 3 test asserts a *grandchild* PID is gone, not just the runner. Bounded grace wait + force-kill on second signal. |
+| **Orphaned child processes after cancel** (the headline risk: `dotnet run` spawns the app as a child, so killing only the runner leaks the app) | Always `Kill(entireProcessTree: true)`; Phase 3 test asserts a *grandchild* PID is gone, not just the runner. Bounded grace wait, then force-kill the whole tree. |
 | Process-tree kill behaves differently across OSes | `Process.Kill(entireProcessTree:true)` is the .NET cross-platform primitive (Win/Linux/macOS); CI proves Linux, manual check on Windows; note macOS as a verification gap if no runner available. |
 | `--launch-profile` only honors `commandName: Project` profiles | Inspect `launchSettings.json`; warn + fall back to no-profile for IIS Express/Docker/Executable; skip `.dcproj`. |
 | `-p` ambiguity (`--project` vs `--property`) | Always emit the long `--project`; reserve `-p` as the **tool's own** `--profile` short alias (the tool never forwards `-p` to `dotnet`). |

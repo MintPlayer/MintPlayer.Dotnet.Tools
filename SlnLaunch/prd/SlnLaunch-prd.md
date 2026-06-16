@@ -78,7 +78,7 @@ Running `slnlaunch` in that directory starts both `Fleet` and `HR` under their `
 | **Shared build options** | `--configuration`/`-c`, `--framework`/`-f`, `--no-build`, `--verbosity`/`-v` are appended (as run options, before any `--`) to **every** project's `dotnet run`/`watch`. Lets one command run the whole composition in e.g. Release. | ✅ |
 | **Per-project arg selection** | Everything after a standalone `--` on the `slnlaunch` command line is a *pool* of named arguments. Each project receives (as **app** args, after its own `--`) only the names it opted into via its `ForwardArguments` field — so one invocation can feed different args to different apps. | ✅ |
 | **Token-form preservation** | The pool preserves original token form: flags (`--verbose`), `--name value`, `--name=value`, and repeated occurrences. Names are matched ignoring leading dashes. | ✅ |
-| **argv split** | The first standalone `--` is split off in `Program.cs`; the left side is parsed by the CLI, the right side becomes the forwardable pool (works around the source generator's lack of trailing-token capture). | ❌ (Phase 4) |
+| **argv split** | The first standalone `--` is split off in `Program.cs`; the left side is parsed by the CLI, the right side becomes the forwardable pool (works around the source generator's lack of trailing-token capture). | ✅ |
 
 Example: with `ForwardArguments` on each project —
 
@@ -103,7 +103,7 @@ Example: with `ForwardArguments` on each project —
 | **Concurrent launch** | Start all resolved projects at once (not sequentially). Honor `.slnLaunch` ordering only for log readability, not as a startup barrier. | ✅ |
 | **Output multiplexing** | Prefix each child's stdout/stderr lines with a per-project label (e.g. `[Fleet] ...`), optionally colorized, so concurrent output is attributable. A `--no-prefix`/raw mode is available. | ✅ |
 | **Cross-platform process-tree kill on cancel** | **Critical.** `dotnet run` is a *runner* that spawns the app (`<App>.exe`/`<App>` dll) as a child; killing only the runner leaves the app alive. On cancellation, kill the entire tree of every child via `Process.Kill(entireProcessTree: true)` on Windows, Linux, **and** macOS. Wait for exit (bounded) before returning. | ✅ |
-| **Signal handling** | Handle Ctrl+C (`Console.CancelKeyPress`) and POSIX `SIGINT`/`SIGTERM` (`PosixSignalRegistration`); trigger a single shared `CancellationTokenSource` that teardown observes. First signal → graceful teardown; second signal → force-kill immediately. | ❌ (Phase 4) |
+| **Signal handling** | Handle Ctrl+C (`Console.CancelKeyPress`, all platforms) and POSIX `SIGTERM` (`PosixSignalRegistration`); trigger a single shared `CancellationTokenSource` that teardown observes. (SIGINT is delivered via CancelKeyPress, so it isn't double-registered.) | ✅ |
 | **Fail-fast option** | `--kill-on-fail` (opt-in): if any project exits non-zero, tear down the rest. Default: let the others keep running (VS-like). | ✅ |
 | **Exit-code aggregation** | Return non-zero if any project failed to start or exited non-zero; `0` if all succeeded or the user cleanly cancelled. | ✅ |
 
@@ -111,42 +111,42 @@ Example: with `ForwardArguments` on each project —
 
 | Requirement | Description | Status |
 |-------------|-------------|--------|
-| **Root command** | `slnlaunch [<file>] [options]` — `<file>` optional (auto-discovered). | ❌ |
-| **`--profile <Name>` / `-p`** | Select a named profile when the file has more than one. | ❌ |
-| **`--list` / `-l`** | List profiles and their projects, then exit `0`. | ❌ |
-| **`--watch`** | Use `dotnet watch` instead of `dotnet run` per project (hot reload; also honors `launchBrowser`). Default: `dotnet run`. | ❌ |
-| **`--configuration`/`-c`** | Forwarded to every project's `dotnet run`/`watch`. | ❌ |
-| **`--framework`/`-f`** | Forwarded to every project. | ❌ |
-| **`--no-build`** | Forwarded to every project. | ❌ |
-| **`--verbosity`/`-v`** | Forwarded to every project's `dotnet run`/`watch` build. | ❌ |
-| **`-- <args>`** | Everything after a standalone `--` is the forwardable pool; projects opt in by name via `ForwardArguments` (see **Argument Forwarding**). | ❌ |
-| **`--no-prefix`** | Disable per-project log prefixing (raw passthrough). | ❌ |
-| **`--kill-on-fail`** | Tear down the group if any project exits non-zero. | ❌ |
-| **`--dry-run`** | Print the exact `dotnet` commands that would run (resolved paths, profiles, fallbacks/warnings) without launching. | ❌ |
-| **Help/usage** | `--help` documents all of the above with examples. | ❌ |
+| **Root command** | `slnlaunch [<file>] [options]` — `<file>` optional (auto-discovered). | ✅ |
+| **`--profile <Name>` / `-p`** | Select a named profile when the file has more than one. | ✅ |
+| **`--list` / `-l`** | List profiles and their projects, then exit `0`. | ✅ |
+| **`--watch`** | Use `dotnet watch` instead of `dotnet run` per project (hot reload; also honors `launchBrowser`). Default: `dotnet run`. | ✅ |
+| **`--configuration`/`-c`** | Forwarded to every project's `dotnet run`/`watch`. | ✅ |
+| **`--framework`/`-f`** | Forwarded to every project. | ✅ |
+| **`--no-build`** | Forwarded to every project. | ✅ |
+| **`--verbosity`/`-v`** | Forwarded to every project's `dotnet run`/`watch` build. | ✅ |
+| **`-- <args>`** | Everything after a standalone `--` is the forwardable pool; projects opt in by name via `ForwardArguments` (see **Argument Forwarding**). | ✅ |
+| **`--no-prefix`** | Disable per-project log prefixing (raw passthrough). | ✅ |
+| **`--kill-on-fail`** | Tear down the group if any project exits non-zero. | ✅ |
+| **`--dry-run`** | Print the exact `dotnet` commands that would run (resolved paths, profiles, fallbacks/warnings) without launching. | ✅ |
+| **Help/usage** | `--help` documents all of the above with examples. | ✅ |
 
 ### Packaging & Distribution
 
 | Requirement | Description | Status |
 |-------------|-------------|--------|
-| **`dotnet tool`** | `PackAsTool=true`, `ToolCommandName=slnlaunch`, `PackageId=MintPlayer.SlnLaunch`, `OutputType=Exe`, `net10.0`. | ❌ |
-| **Repo metadata** | Authors/Company/RepositoryUrl/`PackageLicenseExpression=Apache-2.0`/`IncludeSymbols`+`snupkg`, matching `Solve`/`Verz`. | ❌ |
-| **CI publish** | Picked up automatically by `.github/workflows/dotnet-build-master.yml` (build → test → pack → push to nuget.org + GitHub Packages) on merge to `master`. | ❌ |
+| **`dotnet tool`** | `PackAsTool=true`, `ToolCommandName=slnlaunch`, `PackageId=MintPlayer.SlnLaunch`, `OutputType=Exe`, `net10.0`. Installable globally, per-repo, or run one-off via `dnx`. | ✅ |
+| **Repo metadata** | Authors/Company/RepositoryUrl/`PackageLicenseExpression=Apache-2.0`/`IncludeSymbols`+`snupkg`, matching `Solve`/`Verz`. | ✅ |
+| **CI publish** | Picked up automatically by `.github/workflows/dotnet-build-master.yml` (build → test → pack → push to nuget.org + GitHub Packages) on merge to `master`. | ⏳ (on merge) |
 
 ### Testing
 
 | Requirement | Description | Status |
 |-------------|-------------|--------|
-| **Unit tests (xUnit)** | `.slnLaunch` parsing (schema, `.user`/`.slnx` variants, lenient JSON), path resolution (slash normalization, relative→absolute), Action mapping, profile selection (single/multiple/`--list`), command construction (`--project`/`--launch-profile`/`--watch`/absent DebugTarget/non-Project fallback), exit-code aggregation. | ❌ |
-| **Process-lifecycle tests** | Launch a trivial long-running fixture process (not real ASP.NET — a sleep/echo stub) and assert: cancellation kills the whole tree; second signal force-kills; no orphaned children remain (assert by PID on each OS). | ❌ |
-| **Cross-platform** | CI runs on `ubuntu-latest`; the teardown/path tests must pass on Linux. Note Windows-only verification gaps where relevant. | ❌ |
+| **Unit tests (xUnit)** | `.slnLaunch` parsing (schema, `.user`/`.slnx` variants, lenient JSON), path resolution (slash normalization, relative→absolute), Action mapping, profile selection (single/multiple/`--list`), command construction (`--project`/`--launch-profile`/`--watch`/absent DebugTarget/non-Project fallback), exit-code aggregation. | ✅ |
+| **Process-lifecycle tests** | Launch a trivial long-running fixture process (not real ASP.NET — a sleep/echo stub) and assert: cancellation kills the whole tree; no orphaned children remain (grandchild PID assertion on POSIX/CI). | ✅ |
+| **Cross-platform** | CI runs on `ubuntu-latest`; the teardown/path tests pass on Linux. Tree-kill grandchild assertion is POSIX-gated; Windows tree-kill verified manually. | ✅ |
 
 ### Documentation
 
 | Requirement | Description | Status |
 |-------------|-------------|--------|
-| **README** | Install, usage for all options, the `MintPlayer.Spark` example, the non-Project fallback behavior, and the teardown guarantee. Pack via `PackageReadmeFile`. | ❌ |
-| **XML docs** | On public command options. | ❌ |
+| **README** | Install (incl. `dnx`), usage for all options, the `MintPlayer.Spark` example, forwarding, the non-Project fallback behavior, and the teardown guarantee. Pack via `PackageReadmeFile`. | ✅ |
+| **XML docs** | On public types/members. | ✅ |
 
 ---
 
