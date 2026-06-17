@@ -125,6 +125,84 @@ public class SlnLaunchCommandTests
     }
 
     [Fact]
+    public async Task Default_launch_builds_first_then_runs_with_no_build()
+    {
+        using var temp = new TempDirectory();
+        AddProject(temp, "HR/HR.csproj");
+        AddProject(temp, "Fleet/Fleet.csproj");
+        var path = temp.WriteFile("App.slnLaunch", TwoProjectsOneProfile);
+        var orchestrator = new FakeOrchestrator();
+        var command = Build(new FakeConsole(), orchestrator);
+        command.FilePath = path;
+
+        var code = await command.Execute(CancellationToken.None);
+
+        Assert.Equal(0, code);
+        Assert.True(orchestrator.BuildWasCalled);
+        Assert.True(orchestrator.WasCalled);
+        Assert.True(orchestrator.BuildRanBeforeRun);
+        Assert.All(orchestrator.Plan!.Commands, c => Assert.Contains("--no-build", c.Arguments));
+    }
+
+    [Fact]
+    public async Task Explicit_no_build_skips_build_phase_but_keeps_no_build_arg()
+    {
+        using var temp = new TempDirectory();
+        AddProject(temp, "HR/HR.csproj");
+        AddProject(temp, "Fleet/Fleet.csproj");
+        var path = temp.WriteFile("App.slnLaunch", TwoProjectsOneProfile);
+        var orchestrator = new FakeOrchestrator();
+        var command = Build(new FakeConsole(), orchestrator);
+        command.FilePath = path;
+        command.NoBuild = true;
+
+        var code = await command.Execute(CancellationToken.None);
+
+        Assert.Equal(0, code);
+        Assert.False(orchestrator.BuildWasCalled);
+        Assert.True(orchestrator.WasCalled);
+        Assert.All(orchestrator.Plan!.Commands, c => Assert.Contains("--no-build", c.Arguments));
+    }
+
+    [Fact]
+    public async Task Watch_skips_build_phase_and_does_not_pass_no_build()
+    {
+        using var temp = new TempDirectory();
+        AddProject(temp, "HR/HR.csproj");
+        AddProject(temp, "Fleet/Fleet.csproj");
+        var path = temp.WriteFile("App.slnLaunch", TwoProjectsOneProfile);
+        var orchestrator = new FakeOrchestrator();
+        var command = Build(new FakeConsole(), orchestrator);
+        command.FilePath = path;
+        command.Watch = true;
+
+        var code = await command.Execute(CancellationToken.None);
+
+        Assert.Equal(0, code);
+        Assert.False(orchestrator.BuildWasCalled);
+        Assert.True(orchestrator.WasCalled);
+        Assert.All(orchestrator.Plan!.Commands, c => Assert.DoesNotContain("--no-build", c.Arguments));
+    }
+
+    [Fact]
+    public async Task Build_failure_returns_one_and_does_not_launch()
+    {
+        using var temp = new TempDirectory();
+        AddProject(temp, "HR/HR.csproj");
+        AddProject(temp, "Fleet/Fleet.csproj");
+        var path = temp.WriteFile("App.slnLaunch", TwoProjectsOneProfile);
+        var orchestrator = new FakeOrchestrator { BuildResult = false };
+        var command = Build(new FakeConsole(), orchestrator);
+        command.FilePath = path;
+
+        var code = await command.Execute(CancellationToken.None);
+
+        Assert.Equal(1, code);
+        Assert.True(orchestrator.BuildWasCalled);
+        Assert.False(orchestrator.WasCalled);
+    }
+
+    [Fact]
     public async Task Forwards_pooled_arguments_per_project()
     {
         using var temp = new TempDirectory();
