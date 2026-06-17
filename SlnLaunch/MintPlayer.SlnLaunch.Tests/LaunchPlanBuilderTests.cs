@@ -16,13 +16,19 @@ public class LaunchPlanBuilderTests
 
     private static LaunchPlanOptions Opts(bool watch = false) => new() { Watch = watch };
 
-    /// <summary>Creates an empty project file under the temp dir and returns its sln-relative path.</summary>
+    /// <summary>
+    /// Creates an empty project file under the temp dir and returns its sln-relative path.
+    /// The returned path keeps its original (possibly backslash) form so the builder's separator
+    /// normalization is exercised; the file itself is written at an OS-normalized path so the test
+    /// works on Linux/macOS too (where '\' is a literal filename character, not a separator).
+    /// </summary>
     private static string AddProject(TempDirectory temp, string relativePath, string? launchSettings = null)
     {
-        temp.WriteFile(relativePath, "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+        var osPath = relativePath.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
+        temp.WriteFile(osPath, "<Project Sdk=\"Microsoft.NET.Sdk\" />");
         if (launchSettings is not null)
         {
-            var dir = Path.GetDirectoryName(relativePath)!;
+            var dir = Path.GetDirectoryName(osPath)!;
             temp.WriteFile(Path.Combine(dir, "Properties", "launchSettings.json"), launchSettings);
         }
         return relativePath;
