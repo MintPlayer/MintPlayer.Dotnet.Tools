@@ -74,6 +74,12 @@ public partial class SlnLaunchCommand : ICliCommand
         if (profile is null)
             return 1;
 
+        // Build once, sequentially, then run with --no-build — concurrent `dotnet run` builds race on the
+        // MSBuild server pipe and shared output DLLs. Skip the auto-build for --watch (it manages its own
+        // rebuilds) and for an explicit --no-build (the user builds themselves).
+        var autoBuild = !Watch && !NoBuild;
+        var effectiveNoBuild = NoBuild || autoBuild;
+
         LaunchPlan plan;
         try
         {
@@ -82,7 +88,7 @@ public partial class SlnLaunchCommand : ICliCommand
                 Watch = Watch,
                 Configuration = Configuration,
                 Framework = Framework,
-                NoBuild = NoBuild,
+                NoBuild = effectiveNoBuild,
                 Verbosity = Verbosity,
                 ForwardableArguments = _forwardable,
             };
@@ -105,7 +111,8 @@ public partial class SlnLaunchCommand : ICliCommand
 
         if (DryRun)
         {
-            _console.WriteInfo($"Profile '{plan.ProfileName}' would launch {plan.Commands.Count} project(s):");
+            var verb = autoBuild ? "would build then launch" : "would launch";
+            _console.WriteInfo($"Profile '{plan.ProfileName}' {verb} {plan.Commands.Count} project(s):");
             foreach (var command in plan.Commands)
                 _console.WriteLine($"  [{command.Label}] {command.ToDisplayString()}");
             return 0;
@@ -115,6 +122,13 @@ public partial class SlnLaunchCommand : ICliCommand
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         using var signals = new SignalScope(cts, _console);
+
+        if (autoBuild)
+        {
+            var buildOptions = new LaunchBuildOptions { Configuration = Configuration, Framework = Framework, Verbosity = Verbosity, NoPrefix = NoPrefix };
+            if (!await _orchestrator.BuildAsync(plan, buildOptions, cts.Token))
+                return cts.IsCancellationRequested ? 0 : 1;
+        }
 
         var runOptions = new LaunchRunOptions { NoPrefix = NoPrefix, KillOnFail = KillOnFail };
         return await _orchestrator.RunAsync(plan, runOptions, cts.Token);

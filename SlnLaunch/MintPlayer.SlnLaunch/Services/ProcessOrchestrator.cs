@@ -82,33 +82,87 @@ internal sealed class ProcessOrchestrator : IProcessOrchestrator
 
     private Process StartProcess(LaunchCommand command, ConsoleColor color, bool noPrefix)
     {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = command.FileName,
-            WorkingDirectory = command.WorkingDirectory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-        };
-        foreach (var argument in command.Arguments)
-            startInfo.ArgumentList.Add(argument);
-
-        var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
-        var prefix = noPrefix ? string.Empty : $"[{command.Label}] ";
-
-        process.OutputDataReceived += (_, e) =>
-        {
-            if (e.Data is not null) _console.WriteChildLine(prefix, e.Data, color, isError: false);
-        };
-        process.ErrorDataReceived += (_, e) =>
-        {
-            if (e.Data is not null) _console.WriteChildLine(prefix, e.Data, color, isError: true);
-        };
-
+        var process = CreateProcess(command.Label, command.WorkingDirectory, command.FileName, command.Arguments, color, noPrefix);
         process.Start();
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
         return process;
+    }
+
+    private Process CreateProcess(string label, string workingDirectory, string fileName, IReadOnlyList<string> arguments, ConsoleColor color, bool noPrefix)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = fileName,
+            WorkingDirectory = workingDirectory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        foreach (var argument in arguments)
+            startInfo.ArgumentList.Add(argument);
+
+        var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
+        var prefix = noPrefix ? string.Empty : $"[{label}] ";
+
+        process.OutputDataReceived += (_, e) => { if (e.Data is not null) _console.WriteChildLine(prefix, e.Data, color, isError: false); };
+        process.ErrorDataReceived += (_, e) => { if (e.Data is not null) _console.WriteChildLine(prefix, e.Data, color, isError: true); };
+        return process;
+    }
+
+    public async Task<bool> BuildAsync(LaunchPlan plan, LaunchBuildOptions options, CancellationToken cancellationToken)
+    {
+        if (plan.Commands.Count == 0)
+            return true;
+
+        _console.WriteInfo($"Building {plan.Commands.Count} project(s) before launch…");
+
+        for (var i = 0; i < plan.Commands.Count; i++)
+        {
+            var command = plan.Commands[i];
+            var color = _palette[i % _palette.Length];
+
+            var arguments = new List<string> { "build", command.ProjectPath };
+            if (!string.IsNullOrWhiteSpace(options.Configuration)) { arguments.Add("--configuration"); arguments.Add(options.Configuration!); }
+            if (!string.IsNullOrWhiteSpace(options.Framework)) { arguments.Add("--framework"); arguments.Add(options.Framework!); }
+            if (!string.IsNullOrWhiteSpace(options.Verbosity)) { arguments.Add("--verbosity"); arguments.Add(options.Verbosity!); }
+
+            int exitCode;
+            try
+            {
+                exitCode = await BuildOneAsync(command.Label, command.WorkingDirectory, arguments, color, options.NoPrefix, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return false; // cancelled — the caller maps this to a clean exit.
+            }
+
+            if (exitCode != 0)
+            {
+                _console.WriteError($"[{command.Label}] build failed (exit code {exitCode}). Not launching.");
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private async Task<int> BuildOneAsync(string label, string workingDirectory, IReadOnlyList<string> arguments, ConsoleColor color, bool noPrefix, CancellationToken cancellationToken)
+    {
+        using var process = CreateProcess(label, workingDirectory, "dotnet", arguments, color, noPrefix);
+        process.Start();
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+
+        try { await process.WaitForExitAsync(cancellationToken); }
+        catch (OperationCanceledException)
+        {
+            try { process.Kill(entireProcessTree: true); }
+            catch (Exception ex) when (ex is InvalidOperationException or Win32Exception) { }
+            throw;
+        }
+
+        return SafeExitCode(process);
     }
 
     /// <summary>
