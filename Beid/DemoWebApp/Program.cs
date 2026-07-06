@@ -89,7 +89,11 @@ public class Program
             {
                 k.ConfigureHttpsDefaults(http =>
                 {
-                    // Fixes ERR_SSL_CLIENT_AUTH_SIGNATURE_FAILED
+                    // Fixes ERR_SSL_CLIENT_AUTH_SIGNATURE_FAILED.
+                    // TLS 1.2 is pinned on purpose: RSA eID cards sign CertificateVerify
+                    // with PKCS#1 v1.5, which TLS 1.3 forbids (RFC 8446 §4.2.3 mandates
+                    // RSA-PSS). TLS 1.2 is the only version an RSA eID card can use.
+                    // See Beid/DemoWebApp/PRD-tls-version-independence.md
                     http.SslProtocols = System.Security.Authentication.SslProtocols.Tls12;
                     http.ClientCertificateValidation = (_, __, ___) =>
                     {
