@@ -91,7 +91,7 @@ ssl_conf_command SignatureAlgorithms RSA+SHA256:RSA+SHA384:RSA+SHA512:ECDSA+SHA2
 
 The browser selects the scheme matching the *selected card's key type*: RSA cards sign `RSA+SHA256` (v1.5, unchanged), ECC cards sign `ECDSA+SHA256`. No regression for RSA; ECC cards now work. All still under pinned TLS 1.2. **No .NET change** — `PersonInfo` parses the subject DN via BouncyCastle and the cert is forwarded as PEM, both key-algorithm-agnostic. **No Dockerfile change** — nginx runs the stock `nginx:alpine` image with `nginx.conf` and the CA bundle mounted as compose volumes.
 
-**Remaining caveat — the CA bundle.** `ssl_client_certificate` (the acceptable-CA names in the `CertificateRequest`) currently lists only `Belgium Root CA4` + `Citizen CA 201701`. Firefox only *offers* a card whose issuer is in that list, so ECC cards won't appear until their issuing Citizen CA (and root, if newer) is added to `traefik-dynamic-config/belgian-eid-cas.pem`. This is a cert-collection task, tracked in §6 Track 1.
+**Remaining caveat — the CA bundle.** `ssl_client_certificate` (the acceptable-CA names in the `CertificateRequest`) currently lists only `Belgium Root CA4` + `Citizen CA 201701`. Firefox only *offers* a card whose issuer is in that list, so ECC cards won't appear until their issuing Citizen CA (and its root) is added to `traefik-dynamic-config/belgian-eid-cas.pem`. Because the current config uses `ssl_verify_client optional_no_ca` (nginx does **not** verify the chain — it only advertises the CA names, and the .NET app decides), the bundle's job here is purely to make browsers *offer* the right card; exact trust-anchor completeness matters only if verification is later turned on. Concrete cert sources are in §9. Tracked in §6 Track 1, task 4.
 
 ---
 
@@ -153,7 +153,7 @@ Do **not** invest in trying to make the *current mTLS design* span TLS versions 
 | 1 | Comment linking `SslProtocols.Tls12` to this PRD (mandatory for PKCS#1-v1.5 eID cards; TLS 1.3 bans v1.5 CertificateVerify — RFC 8446 §4.2.3) | `Program.cs` | ✅ done |
 | 2 | Comment on `ssl_protocols TLSv1.2;` marking the pin as intentional | `nginx.conf` | ✅ done |
 | 3 | Broaden `SignatureAlgorithms` to add `ECDSA+SHA*` (support ECC cards, still no PSS) | `nginx.conf` | ✅ done |
-| 4 | **Add the current Belgian Citizen CA(s) — and any newer root — to the client-CA bundle** so Firefox offers ECC cards. Source: `repository.eid.belgium.be` (Root + Citizen listings) | `traefik-dynamic-config/belgian-eid-cas.pem` | ⏳ needs CA files |
+| 4 | **Add Belgium Root CA6 + a current ECC Citizen CA to the client-CA bundle** so Firefox offers ECC cards (RSA side already present). Sources & gotchas in §9 | `traefik-dynamic-config/belgian-eid-cas.pem` | ⏳ needs CA files |
 | 5 | Note the RSA/ECC support + CA-bundle requirement | `Readme.md` | ⏳ |
 | 6 | (opt.) Detect the empty-cert / handshake-fail case and render a clear "use Chrome, or a TLS-1.2 client" message instead of a hang | `Program.cs` | ⏳ |
 
@@ -196,3 +196,38 @@ Do **not** invest in trying to make the *current mTLS design* span TLS versions 
 - CVE-2019-11727 (Mozilla bug 1552208) — NSS PKCS#1-v1.5 in TLS 1.3 removed as a security bug
 - [golang/go#45266](https://github.com/golang/go/issues/45266) — Go `crypto/tls` won't expose `SignatureAlgorithms` (why Traefik can't do the nginx trick)
 - Companion: [`FIREFOX-MTLS-PSS-ROOTCAUSE.md`](FIREFOX-MTLS-PSS-ROOTCAUSE.md), [`Readme.md`](Readme.md)
+
+---
+
+## 9. Appendix: Belgian eID CA hierarchy & the client-CA bundle
+
+Belgium runs **two parallel, disjoint hierarchies**, one per card generation. A relying party that accepts both must trust **both roots and an intermediate from each family**.
+
+| Card generation | Leaf key | Citizen CA intermediate | Root |
+|---|---|---|---|
+| **Older / RSA** (incl. the card in use, applet < 1.8) | RSA-2048 | `CN=Citizen CA, O=Certipost N.V./S.A.`, serial e.g. `201701`, `202110` (RSA-4096) | **Belgium Root CA4** (RSA-4096, serial `4F33208CC594BF38`, valid → 2032-10-22) |
+| **New / ECC** (applet 1.8) | ECDSA P-384 | `CN=Citizen CA, O=Kingdom of Belgium - Federal Government…` (ECDSA P-384) | **Belgium Root CA6** (ECDSA P-384, valid 2020-06-03 → 2040-06-03) |
+
+### Download sources
+
+- **Public repository** — `https://repository.eid.belgium.be/certificates.php?cert=Root|Citizen&lang=en`. Direct files at `http://certs.eid.belgium.be/…` (**DER**, despite the `.crt` extension): roots `belgiumrca2/3/4.crt`; RSA Citizen CAs `citizen{YYYYNN}.crt` (newest listed `202110`). **Root CA6 and the ECC Citizen CAs are NOT published here** (new issuance moved to ECC in 2020, but the repo still stops at the RSA CAs).
+- **`Fedict/eid-mw`** (the only public source for the ECC hierarchy, **PEM**):
+  - `plugins_tools/eid-viewer/certs/belgiumrca6.pem` (+ `belgiumrca4b.pem` = renewed RCA4 to 2032)
+  - `doc/sdk/documentation/Applet 1.8 eID Cards/Certificate_samples/` → `BRCA6.pem`, `CitizenCA202002.pem`, `ForeignerCA202001.pem`
+- **Harvest from a live card** (most reliable for the *current* ECC Citizen CA): eID Viewer → Certificates → export, or this repo's `MintPlayer.EidReader` (`EidCard.CaCert` / `RootCert`).
+
+### Gotchas
+
+- **serialNumber is reused across hierarchies** — e.g. `202002` exists as both an RSA (Certipost/RootCA4) and an ECC (Kingdom of Belgium/RootCA6) Citizen CA. Identify by issuer / `O=` / key type, never by serial alone.
+- **No combined bundle exists**; Citizen CAs rotate ~every 6 months. Plan to refresh the intermediates periodically.
+- **DER → PEM** before concatenating: `openssl x509 -inform DER -in citizenXXXXXX.crt -out citizenXXXXXX.pem`.
+
+### Minimal-but-complete bundle to accept both card types
+
+Concatenate as PEM into `traefik-dynamic-config/belgian-eid-cas.pem`:
+1. Belgium Root CA4 *(already present)*
+2. Current RSA Citizen CA(s) — `201701` present; add newer if accepting other RSA cards
+3. Belgium Root CA6 *(from eid-mw)*
+4. Current ECC Citizen CA *(harvested or eid-mw sample)*
+
+If nginx-side verification is ever enabled (i.e. move off `optional_no_ca`), also set `ssl_verify_depth 2` (leaf → Citizen CA → root).
