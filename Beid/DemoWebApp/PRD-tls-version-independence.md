@@ -91,7 +91,7 @@ ssl_conf_command SignatureAlgorithms RSA+SHA256:RSA+SHA384:RSA+SHA512:ECDSA+SHA2
 
 The browser selects the scheme matching the *selected card's key type*: RSA cards sign `RSA+SHA256` (v1.5, unchanged), ECC cards sign `ECDSA+SHA256`. No regression for RSA; ECC cards now work. All still under pinned TLS 1.2. **No .NET change** — `PersonInfo` parses the subject DN via BouncyCastle and the cert is forwarded as PEM, both key-algorithm-agnostic. **No Dockerfile change** — nginx runs the stock `nginx:alpine` image with `nginx.conf` and the CA bundle mounted as compose volumes.
 
-**Remaining caveat — the CA bundle.** `ssl_client_certificate` (the acceptable-CA names in the `CertificateRequest`) currently lists only `Belgium Root CA4` + `Citizen CA 201701`. Firefox only *offers* a card whose issuer is in that list, so ECC cards won't appear until their issuing Citizen CA (and its root) is added to `traefik-dynamic-config/belgian-eid-cas.pem`. Because the current config uses `ssl_verify_client optional_no_ca` (nginx does **not** verify the chain — it only advertises the CA names, and the .NET app decides), the bundle's job here is purely to make browsers *offer* the right card; exact trust-anchor completeness matters only if verification is later turned on. Concrete cert sources are in §9. Tracked in §6 Track 1, task 4.
+**CA bundle.** `ssl_client_certificate` (the acceptable-CA names in the `CertificateRequest`) previously listed only `Belgium Root CA4` + `Citizen CA 201701`. Firefox only *offers* a card whose issuer chain appears in that list, so the ECC hierarchy (`Belgium Root CA6` + an ECC `Citizen CA`) has now been added to `traefik-dynamic-config/belgian-eid-cas.pem`. Because the config uses `ssl_verify_client optional_no_ca` (nginx does **not** verify the chain — it only advertises the CA names, and the .NET app decides), the bundle's job here is purely to make browsers *offer* the right card. The ECC Citizen CA is the eid-mw **sample** and is unverified against a real ECC card — see §9 and Track 1 task 4b. Concrete cert sources in §9.
 
 ---
 
@@ -153,7 +153,8 @@ Do **not** invest in trying to make the *current mTLS design* span TLS versions 
 | 1 | Comment linking `SslProtocols.Tls12` to this PRD (mandatory for PKCS#1-v1.5 eID cards; TLS 1.3 bans v1.5 CertificateVerify — RFC 8446 §4.2.3) | `Program.cs` | ✅ done |
 | 2 | Comment on `ssl_protocols TLSv1.2;` marking the pin as intentional | `nginx.conf` | ✅ done |
 | 3 | Broaden `SignatureAlgorithms` to add `ECDSA+SHA*` (support ECC cards, still no PSS) | `nginx.conf` | ✅ done |
-| 4 | **Add Belgium Root CA6 + a current ECC Citizen CA to the client-CA bundle** so Firefox offers ECC cards (RSA side already present). Sources & gotchas in §9 | `traefik-dynamic-config/belgian-eid-cas.pem` | ⏳ needs CA files |
+| 4 | Add **Belgium Root CA6** + an **ECC Citizen CA** to the client-CA bundle so Firefox offers ECC cards (RSA side already present). Sources & gotchas in §9 | `traefik-dynamic-config/{belgium-root-ca6,citizen-ca-ecc}.pem`, `belgian-eid-cas.pem` | ✅ done (ECC Citizen CA = eid-mw **sample** `202002`; see ⚠️ below) |
+| 4b | Replace the sample ECC Citizen CA with the **actual in-circulation** one (harvest from a real ECC card via `EidReader.CaCert`) and validate Firefox offers it | `traefik-dynamic-config/citizen-ca-ecc.pem` | ⏳ needs an ECC card (none available yet) |
 | 5 | Note the RSA/ECC support + CA-bundle requirement | `Readme.md` | ⏳ |
 | 6 | (opt.) Detect the empty-cert / handshake-fail case and render a clear "use Chrome, or a TLS-1.2 client" message instead of a hang | `Program.cs` | ⏳ |
 
@@ -224,10 +225,12 @@ Belgium runs **two parallel, disjoint hierarchies**, one per card generation. A 
 
 ### Minimal-but-complete bundle to accept both card types
 
-Concatenate as PEM into `traefik-dynamic-config/belgian-eid-cas.pem`:
-1. Belgium Root CA4 *(already present)*
-2. Current RSA Citizen CA(s) — `201701` present; add newer if accepting other RSA cards
-3. Belgium Root CA6 *(from eid-mw)*
-4. Current ECC Citizen CA *(harvested or eid-mw sample)*
+`traefik-dynamic-config/belgian-eid-cas.pem` now concatenates four certs (individual copies alongside it):
+1. **Belgium Root CA4** — `belgium-root-ca4.pem` *(RSA root)*
+2. **Citizen CA 201701** — `citizen-ca.pem` *(RSA intermediate; matches the current card)*
+3. **Belgium Root CA6** — `belgium-root-ca6.pem` *(ECC root, from eid-mw)*
+4. **Citizen CA 202002 (ECC)** — `citizen-ca-ecc.pem` *(ECC intermediate)*
+
+> ⚠️ **Cert #4 is the eid-mw *sample* (`CitizenCA202002.pem`), not necessarily a CA currently issuing cards.** Belgium never published the ECC Citizen CAs, and they rotate ~every 6 months. It's included so the ECC Root+intermediate DNs are advertised in the `CertificateRequest`, but **whether Firefox actually offers a real-world ECC card has not been verified** (no ECC card available). Root CA6 is the more robust half — with the eID PKCS#11 module loaded, Firefox can build the chain to the root, so the root's presence alone may suffice to *offer*. Replace #4 with the real in-circulation intermediate (harvest via `EidReader.CaCert`) once an ECC card is on hand — see Track 1 task 4b.
 
 If nginx-side verification is ever enabled (i.e. move off `optional_no_ca`), also set `ssl_verify_depth 2` (leaf → Citizen CA → root).
