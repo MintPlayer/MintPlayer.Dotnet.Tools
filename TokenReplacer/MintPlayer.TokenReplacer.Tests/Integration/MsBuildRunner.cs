@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using MintPlayer.Assertions;
 using System.Reflection;
 
 namespace MintPlayer.TokenReplacer.Tests.Integration;
@@ -69,6 +70,6 @@ internal static class MsBuildRunner
 
     public static void AssertBuildSucceeded((int ExitCode, string Output) result)
     {
-        Assert.True(result.ExitCode == 0, $"Expected the build to succeed, but it exited with {result.ExitCode}:{Environment.NewLine}{result.Output}");
+        result.ExitCode.Should().Be(0, because: $"the build should succeed, but it exited with {result.ExitCode}:{Environment.NewLine}{result.Output}");
     }
 }

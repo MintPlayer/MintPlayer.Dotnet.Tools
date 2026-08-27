@@ -28,6 +28,42 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
         }
     }
 
+    /// <summary>
+    /// Looks a key up the way the subject itself would. A dictionary carries its own
+    /// <see cref="IEqualityComparer{T}"/> — <c>StringComparer.OrdinalIgnoreCase</c>, say — so
+    /// comparing keys with <see cref="EqualityComparer{T}.Default"/> instead would report a key as
+    /// missing that the dictionary really holds, and would let <see cref="NotContainKey"/> pass
+    /// for a key that is present. Sequences of pairs that are not dictionaries have no comparer of
+    /// their own and fall back to the default one.
+    /// </summary>
+    private bool TryGetValueForKey(TKey key, out TValue value)
+    {
+        // A null key throws in Dictionary<,>.TryGetValue, so scan for it instead.
+        if (key is not null)
+        {
+            switch (Subject)
+            {
+                case IDictionary<TKey, TValue> dictionary:
+                    return dictionary.TryGetValue(key, out value!);
+                case IReadOnlyDictionary<TKey, TValue> readOnlyDictionary:
+                    return readOnlyDictionary.TryGetValue(key, out value!);
+            }
+        }
+
+        var comparer = EqualityComparer<TKey>.Default;
+        foreach (var pair in Pairs ?? [])
+        {
+            if (comparer.Equals(pair.Key, key))
+            {
+                value = pair.Value;
+                return true;
+            }
+        }
+
+        value = default!;
+        return false;
+    }
+
     private AndConstraint<GenericDictionaryAssertions<TKey, TValue>> FailNull(string expectation, string? because, object?[] becauseArgs)
     {
         Assert().ForCondition(false).BecauseOf(because, becauseArgs)
@@ -78,12 +114,8 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
             return new(this, default!);
         }
 
-        var comparer = EqualityComparer<TKey>.Default;
-        foreach (var pair in pairs)
-        {
-            if (comparer.Equals(pair.Key, expected))
-                return new(this, pair.Value);
-        }
+        if (TryGetValueForKey(expected, out var found))
+            return new(this, found);
 
         Assert().ForCondition(false).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to contain key {0}{reason}, but found {1}.", expected, pairs);
@@ -102,16 +134,10 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
         var expectedKeys = expected as IReadOnlyList<TKey> ?? [.. expected];
         if (pairs is null) return FailNull($"to contain keys {Formatting.Formatter.Format(expectedKeys)}", because, becauseArgs);
 
-        var presentKeys = new HashSet<TKey>();
-        foreach (var pair in pairs)
-        {
-            presentKeys.Add(pair.Key);
-        }
-
         var missingKeys = new List<TKey>();
         foreach (var key in expectedKeys)
         {
-            if (!presentKeys.Contains(key)) missingKeys.Add(key);
+            if (!TryGetValueForKey(key, out _)) missingKeys.Add(key);
         }
 
         Assert().ForCondition(missingKeys.Count == 0).BecauseOf(because, becauseArgs)
@@ -125,12 +151,7 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
         var pairs = Pairs;
         if (pairs is null) return FailNull($"not to contain key {Formatting.Formatter.Format(unexpected)}", because, becauseArgs);
 
-        var comparer = EqualityComparer<TKey>.Default;
-        var found = false;
-        foreach (var pair in pairs)
-        {
-            if (comparer.Equals(pair.Key, unexpected)) { found = true; break; }
-        }
+        var found = TryGetValueForKey(unexpected, out _);
 
         Assert().ForCondition(!found).BecauseOf(because, becauseArgs)
             .FailWith("Did not expect {subject} to contain key {0}{reason}.", unexpected);
@@ -208,27 +229,15 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
         var pairs = Pairs;
         if (pairs is null) return FailNull($"to contain {Formatting.Formatter.Format(value)} at key {Formatting.Formatter.Format(key)}", because, becauseArgs);
 
-        var keyComparer = EqualityComparer<TKey>.Default;
-        var valueComparer = EqualityComparer<TValue>.Default;
-        var keyFound = false;
-        foreach (var pair in pairs)
-        {
-            if (!keyComparer.Equals(pair.Key, key)) continue;
-            keyFound = true;
-            if (valueComparer.Equals(pair.Value, value)) return new(this);
-        }
-
-        if (!keyFound)
+        if (!TryGetValueForKey(key, out var actual))
         {
             Assert().ForCondition(false).BecauseOf(because, becauseArgs)
                 .FailWith("Expected {subject} to contain {0} at key {1}{reason}, but the key was not found.", value, key);
+            return new(this);
         }
-        else
-        {
-            var actual = FirstValueFor(pairs, key);
-            Assert().ForCondition(false).BecauseOf(because, becauseArgs)
-                .FailWith("Expected {subject} to contain {0} at key {1}{reason}, but found {2}.", value, key, actual);
-        }
+
+        Assert().ForCondition(EqualityComparer<TValue>.Default.Equals(actual, value)).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to contain {0} at key {1}{reason}, but found {2}.", value, key, actual);
         return new(this);
     }
 
@@ -242,13 +251,8 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
         var pairs = Pairs;
         if (pairs is null) return FailNull($"not to contain {Formatting.Formatter.Format(value)} at key {Formatting.Formatter.Format(key)}", because, becauseArgs);
 
-        var keyComparer = EqualityComparer<TKey>.Default;
-        var valueComparer = EqualityComparer<TValue>.Default;
-        var found = false;
-        foreach (var pair in pairs)
-        {
-            if (keyComparer.Equals(pair.Key, key) && valueComparer.Equals(pair.Value, value)) { found = true; break; }
-        }
+        var found = TryGetValueForKey(key, out var actual)
+            && EqualityComparer<TValue>.Default.Equals(actual, value);
 
         Assert().ForCondition(!found).BecauseOf(because, becauseArgs)
             .FailWith("Did not expect {subject} to contain {0} at key {1}{reason}.", value, key);

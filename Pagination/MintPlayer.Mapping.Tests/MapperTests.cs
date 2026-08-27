@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using MintPlayer.Assertions;
 using MintPlayer.Mapping.Extensions;
 
 namespace MintPlayer.Mapping.Tests;
@@ -85,12 +86,8 @@ public class MapperTests
         };
 
         var dto = await services.Mapper(entity).MapTo<PersonDTO>();
-        Assert.NotNull(dto);
-        Assert.IsType<PersonDTO>(dto);
-
-        Assert.Equal(1, dto.Id);
-        Assert.Equal("MyFirstName", dto.FirstName);
-        Assert.Equal("MyLastName", dto.LastName);
+        dto.Should().NotBeNull().And.BeOfType<PersonDTO>();
+        dto.Should().BeEquivalentTo(new { Id = 1, FirstName = "MyFirstName", LastName = "MyLastName" });
     }
 
     [Fact]
@@ -105,12 +102,8 @@ public class MapperTests
         };
 
         var entity = await services.Mapper(dto).MapTo<Person>();
-        Assert.NotNull(entity);
-        Assert.IsType<Person>(entity);
-
-        Assert.Equal(1, entity.Id);
-        Assert.Equal("MyFirstName", entity.FirstName);
-        Assert.Equal("MyLastName", entity.LastName);
+        entity.Should().NotBeNull().And.BeOfType<Person>();
+        entity.Should().BeEquivalentTo(new { Id = 1, FirstName = "MyFirstName", LastName = "MyLastName" });
     }
 
     private IServiceProvider SetupClassMapper()
@@ -132,12 +125,8 @@ public class MapperTests
         };
 
         var dto = await services.Mapper(entity).MapTo<PersonDTO>();
-        Assert.NotNull(dto);
-        Assert.IsType<PersonDTO>(dto);
-
-        Assert.Equal(1, dto.Id);
-        Assert.Equal("MyFirstName", dto.FirstName);
-        Assert.Equal("MyLastName", dto.LastName);
+        dto.Should().NotBeNull().And.BeOfType<PersonDTO>();
+        dto.Should().BeEquivalentTo(new { Id = 1, FirstName = "MyFirstName", LastName = "MyLastName" });
     }
 
     [Fact]
@@ -152,11 +141,7 @@ public class MapperTests
         };
 
         var entity = await services.Mapper(dto).MapTo<Person>();
-        Assert.NotNull(entity);
-        Assert.IsType<Person>(entity);
-
-        Assert.Equal(1, entity.Id);
-        Assert.Equal("MyFirstName", entity.FirstName);
-        Assert.Equal("MyLastName", entity.LastName);
+        entity.Should().NotBeNull().And.BeOfType<Person>();
+        entity.Should().BeEquivalentTo(new { Id = 1, FirstName = "MyFirstName", LastName = "MyLastName" });
     }
 }

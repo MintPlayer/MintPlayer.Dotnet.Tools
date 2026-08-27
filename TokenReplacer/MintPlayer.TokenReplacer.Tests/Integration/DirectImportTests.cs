@@ -1,4 +1,6 @@
 using System.Text;
+using MintPlayer.Assertions;
+using MintPlayer.Assertions.Execution;
 using static MintPlayer.TokenReplacer.Tests.Integration.MsBuildRunner;
 
 namespace MintPlayer.TokenReplacer.Tests.Integration;
@@ -47,10 +49,13 @@ public class DirectImportTests
             AssertBuildSucceeded(RunDotnet(dir, "build -tl:off"));
 
             var generated = File.ReadAllText(Path.Combine(dir, "generated", "result.txt"));
-            Assert.Equal("greeting=Hello version=1.2.3 property=$(NotAToken)", generated);
-
             var copied = Path.Combine(dir, "bin", "Debug", "net10.0", "generated", "result.txt");
-            Assert.True(File.Exists(copied), $"Expected the generated file to be copied to '{copied}'.");
+
+            using (new AssertionScope("the generated file"))
+            {
+                generated.Should().Be("greeting=Hello version=1.2.3 property=$(NotAToken)");
+                File.Exists(copied).Should().BeTrue(because: $"the generated file should be copied to '{copied}'");
+            }
         }
         finally
         {
@@ -73,8 +78,8 @@ public class DirectImportTests
             AssertBuildSucceeded(RunDotnet(dir, "build -tl:off"));
 
             var generated = Path.Combine(dir, "obj", "Debug", "net10.0", "tokenreplacer", "template.txt");
-            Assert.True(File.Exists(generated), $"Expected default output at '{generated}'.");
-            Assert.Equal("v=7.7.7", File.ReadAllText(generated));
+            File.Exists(generated).Should().BeTrue(because: $"the default output belongs at '{generated}'");
+            File.ReadAllText(generated).Should().Be("v=7.7.7");
         }
         finally
         {
@@ -98,7 +103,7 @@ public class DirectImportTests
             var second = RunDotnet(dir, "build --no-restore -tl:off -v:d");
             AssertBuildSucceeded(second);
 
-            Assert.Contains("Skipping target \"MintPlayerReplaceTokens\"", second.Output);
+            second.Output.Should().Contain("Skipping target \"MintPlayerReplaceTokens\"");
         }
         finally
         {
@@ -122,10 +127,10 @@ public class DirectImportTests
         {
             AssertBuildSucceeded(RunDotnet(dir, "build -tl:off"));
             var generated = Path.Combine(dir, "obj", "Debug", "net10.0", "tokenreplacer", "template.txt");
-            Assert.True(File.Exists(generated));
+            File.Exists(generated).Should().BeTrue();
 
             AssertBuildSucceeded(RunDotnet(dir, "clean -tl:off"));
-            Assert.False(File.Exists(generated), "Expected 'dotnet clean' to remove the generated file (FileWrites).");
+            File.Exists(generated).Should().BeFalse(because: "'dotnet clean' should remove the generated file (FileWrites)");
         }
         finally
         {
@@ -148,8 +153,8 @@ public class DirectImportTests
             var result = RunDotnet(dir, "build -tl:off");
             AssertBuildSucceeded(result);
 
-            Assert.Contains("MPTR002", result.Output);
-            Assert.Equal("x $unknown$", File.ReadAllText(Path.Combine(dir, "generated", "result.txt")));
+            result.Output.Should().Contain("MPTR002");
+            File.ReadAllText(Path.Combine(dir, "generated", "result.txt")).Should().Be("x $unknown$");
         }
         finally
         {
@@ -171,8 +176,8 @@ public class DirectImportTests
         {
             var result = RunDotnet(dir, "build -tl:off");
 
-            Assert.NotEqual(0, result.ExitCode);
-            Assert.Contains("MPTR002", result.Output);
+            result.ExitCode.Should().NotBe(0);
+            result.Output.Should().Contain("MPTR002");
         }
         finally
         {
@@ -195,7 +200,7 @@ public class DirectImportTests
         {
             AssertBuildSucceeded(RunDotnet(dir, "build -tl:off"));
 
-            Assert.Equal("newtonsoft=13.0.3", File.ReadAllText(Path.Combine(dir, "generated", "result.txt")));
+            File.ReadAllText(Path.Combine(dir, "generated", "result.txt")).Should().Be("newtonsoft=13.0.3");
         }
         finally
         {
@@ -217,8 +222,8 @@ public class DirectImportTests
         {
             var result = RunDotnet(dir, "build -tl:off");
 
-            Assert.NotEqual(0, result.ExitCode);
-            Assert.Contains("MPTR001", result.Output);
+            result.ExitCode.Should().NotBe(0);
+            result.Output.Should().Contain("MPTR001");
         }
         finally
         {
@@ -243,8 +248,9 @@ public class DirectImportTests
             AssertBuildSucceeded(RunDotnet(dir, "build -tl:off"));
 
             var bytes = File.ReadAllBytes(Path.Combine(dir, "generated", "result.txt"));
-            Assert.True(bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF, "Expected the BOM to be preserved.");
-            Assert.Equal("v=1.0.0", Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3));
+
+            bytes.Should().StartWith([(byte)0xEF, (byte)0xBB, (byte)0xBF], because: "the UTF-8 BOM should be preserved");
+            Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3).Should().Be("v=1.0.0");
         }
         finally
         {

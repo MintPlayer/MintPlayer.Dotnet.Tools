@@ -58,6 +58,27 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         return new(this);
     }
 
+    /// <summary>
+    /// Asserts the collection is neither null nor empty — the collection counterpart of the string
+    /// assertion of the same name.
+    /// </summary>
+    public AndConstraint<GenericCollectionAssertions<T>> NotBeNullOrEmpty(string? because = null, params object?[] becauseArgs)
+    {
+        var items = Items;
+        Assert().ForCondition(items is { Count: > 0 }).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} not to be null or empty{reason}, but found {0}.", (object?)items);
+        return new(this);
+    }
+
+    /// <summary>Asserts the collection is either null or empty.</summary>
+    public AndConstraint<GenericCollectionAssertions<T>> BeNullOrEmpty(string? because = null, params object?[] becauseArgs)
+    {
+        var items = Items;
+        Assert().ForCondition(items is null or { Count: 0 }).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to be null or empty{reason}, but found {0}.", (object?)items);
+        return new(this);
+    }
+
     /// <summary>Asserts the collection contains exactly <paramref name="expected"/> items.</summary>
     public AndConstraint<GenericCollectionAssertions<T>> HaveCount(int expected, string? because = null, params object?[] becauseArgs)
     {

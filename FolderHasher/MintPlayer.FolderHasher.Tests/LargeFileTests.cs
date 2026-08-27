@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using MintPlayer.Assertions;
 using MintPlayer.FolderHasher.Abstractions;
 
 namespace MintPlayer.FolderHasher.Tests;
@@ -42,7 +43,7 @@ public class LargeFileTests : IDisposable
         var hash2 = await _hasher.GetFolderHashAsync(_tempDir);
 
         // Assert
-        Assert.Equal(hash1, hash2);
+        hash2.Should().Be(hash1);
     }
 
     [Fact]
@@ -65,7 +66,7 @@ public class LargeFileTests : IDisposable
         var hash2 = await _hasher.GetFolderHashAsync(_tempDir);
 
         // Assert
-        Assert.NotEqual(hash1, hash2);
+        hash2.Should().NotBe(hash1);
     }
 
     [Fact]
@@ -89,7 +90,7 @@ public class LargeFileTests : IDisposable
         var hash2 = await _hasher.GetFolderHashAsync(_tempDir);
 
         // Assert
-        Assert.NotEqual(hash1, hash2);
+        hash2.Should().NotBe(hash1);
     }
 
     [Fact]
@@ -107,7 +108,7 @@ public class LargeFileTests : IDisposable
         var hash2 = await _hasher.GetFolderHashAsync(_tempDir);
 
         // Assert
-        Assert.Equal(hash1, hash2);
+        hash2.Should().Be(hash1);
     }
 
     [Fact]
@@ -125,7 +126,7 @@ public class LargeFileTests : IDisposable
         var hash2 = await _hasher.GetFolderHashAsync(_tempDir);
 
         // Assert
-        Assert.Equal(hash1, hash2);
+        hash2.Should().Be(hash1);
     }
 
     [Fact]
@@ -140,6 +141,6 @@ public class LargeFileTests : IDisposable
         var hash2 = await _hasher.GetFolderHashAsync(_tempDir);
 
         // Assert
-        Assert.Equal(hash1, hash2);
+        hash2.Should().Be(hash1);
     }
 }
