@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - 'master'
-      # - 'release/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
@@ -22,7 +21,7 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v5
-      
+
     - name: Setup .NET Core
       uses: actions/setup-dotnet@v5
       with:
@@ -31,24 +30,38 @@ jobs:
         source-url: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
       env:
         NUGET_AUTH_TOKEN: '%NUGET_AUTH_TOKEN%'
-    
+
     - name: Install dependencies
       run: dotnet restore
       env:
         NUGET_AUTH_TOKEN: ${{ github.token }}
-        
+
     - name: Build
       run: dotnet build --configuration Release --no-restore
-      
+
     - name: Test
-      run: dotnet test --no-restore --verbosity normal
+      # --collect writes coverage.cobertura.xml into a GUID-named subdirectory
+      # of --results-directory, one per test project, hence the ** in the
+      # upload glob below.
+      run: dotnet test --no-restore --verbosity normal --collect:"XPlat Code Coverage" --results-directory coverage
+
+    - name: Upload coverage
+      uses: MintPlayer/CodeCoverage/action@master
+      with:
+        url: https://coverage.mintplayer.com
+        token: ${{ secrets.COVERAGE_TOKEN }}
+        files: |
+          coverage/**/coverage.cobertura.xml
+        # With search on, a glob that matches nothing silently falls back to
+        # auto-detection and would upload stray unparsable reports.
+        disable-search: true
+        flags: unit
+        finish: true
+        fail-ci-if-error: true
 
     - name: Pack
       run: dotnet pack --no-build --configuration Release /p:ContinuousIntegrationBuild=true
 
-    # - name: Publish web app
-    #   run: dotnet publish Beid/DemoWebApp/DemoWebApp.csproj --configuration Release /p:PublishProfile=FolderProfile.pubxml
-      
     - name: PushNuget
       run: dotnet nuget push **/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.PUBLISH_TO_NUGET_ORG }} --skip-duplicate
 
@@ -56,45 +69,3 @@ jobs:
       run: dotnet nuget push **/*.nupkg --no-symbols --skip-duplicate
       env:
         NUGET_AUTH_TOKEN: ${{ github.token }}
-    
-    # - name: CreateAppOffline
-    #   run: |
-    #     mkdir -p tmp
-    #     echo > tmp/app_offline.htm
-
-    # - name: UploadAppOffline
-    #   # uses: genietim/ftp-action@v4.0.1
-    #   uses: tomasbkk/action-ftp-upload@v1.0
-    #   with:
-    #     host: ${{ secrets.FTP_SERVER }}
-    #     user: ${{ secrets.FTP_USERNAME }}
-    #     password: ${{ secrets.FTP_PASSWORD }}
-    #     src: tmp/app_offline.htm
-    #     dest: app_offline.htm
-
-    # - name: Delay
-    #   uses: MintPlayer/github-actions/delay@v3
-    #   with:
-    #     milliseconds: 5000
-
-    # # - name: UploadApplication
-    # #   uses: tomasbkk/action-ftp-upload@v1.0
-    # #   with:
-    # #     host: ${{ secrets.FTP_SERVER }}
-    # #     user: ${{ secrets.FTP_USERNAME }}
-    # #     password: ${{ secrets.FTP_PASSWORD }}
-    # #     src: ./Beid/DemoWebApp/bin/Release/net8.0/win-x64/publish
-    # #     dest: ./
-
-    # - name: Upload application
-    #   uses: SamKirkland/FTP-Deploy-Action@v4.3.4
-    #   with:
-    #     server: ${{ secrets.FTP_SERVER }}
-    #     username: ${{ secrets.FTP_USERNAME }}
-    #     password: ${{ secrets.FTP_PASSWORD }}
-    #     local-dir: ./Beid/DemoWebApp/bin/Release/net8.0/win-x64/publish/
-    #     server-dir: ./
-    #     exclude: |
-    #       app_offline.htm
-    #       appsettings.*.json
-    
