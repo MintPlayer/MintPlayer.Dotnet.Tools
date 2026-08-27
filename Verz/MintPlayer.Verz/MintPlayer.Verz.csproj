@@ -25,7 +25,7 @@
 		<ProjectReference Include="..\MintPlayer.Verz.Core\MintPlayer.Verz.Core.csproj" />
 
 		<!-- Source generator project references -->
-		<ProjectReference Include="..\..\SourceGenerators\SourceGenerators\MintPlayer.SourceGenerators\MintPlayer.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
+		<ProjectReference Include="..\..\SourceGenerators\SourceGenerators\MintPlayer.SourceGenerators\MintPlayer.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 		<ProjectReference Include="..\..\SourceGenerators\SourceGenerators\MintPlayer.SourceGenerators.Attributes\MintPlayer.SourceGenerators.Attributes.csproj" />
 		<ProjectReference Include="..\..\SourceGenerators\Cli\MintPlayer.CliGenerator.Attributes\MintPlayer.CliGenerator.Attributes.csproj" />
 		<ProjectReference Include="..\..\SourceGenerators\Cli\MintPlayer.CliGenerator\MintPlayer.CliGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
