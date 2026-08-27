@@ -476,9 +476,39 @@ thin orchestration over the four adapter seams listed in Out of Scope.
 | The Debug→Release switch drops the rate ~2pp and reads as a regression. | Land M1 as one commit with a clear message; it is a re-baseline, not a regression. |
 | `ReferenceOutputAssembly="false"` breaks the `slnlaunch` build. | Unverified by the spike — the runtime types live in the separate `*.Attributes` projects, which are referenced normally, so it should be fine, and Spark uses exactly this style. **Build it in M1 before moving on.** If it genuinely cannot be false, the fallback is `IsPackable`-scoped rather than a coverage filter — a filter would also block M10. |
 | `TokenReplacer.Tests` shells out to ~12 nested `dotnet build`/`pack` processes (5-min timeout each) inside the coverage-collecting host. | **Network dependency removed.** It was the only test in the repo touching a live API. `PackAndConsumeTests` now uses the local folder feed as its ONLY package source, and its sample fixture targets net10.0 instead of netstandard2.0 — netstandard2.0 was the sole reason `NETStandard.Library` had to come from nuget.org into the per-run isolated `NUGET_PACKAGES` folder. `DirectImportTests`' Newtonsoft.Json fixture moved 13.0.3 → 13.0.4, the version this repo already restores, so it resolves from the warm cache. Verified: reverting the fixture TFM makes restore fail with NU1101 in 4s, so "no network" is now enforced rather than incidental. Suite 25s → 17s. The nested-process cost remains and is inherent to testing MSBuild targets. |
-| `FolderHasher.Tests`' `IsIgnored_CaseInsensitive_OnWindows` has **no OS guard** and has only ever run on Windows. | May fail on ext4. Verify on the first CI run of this branch. |
+| `FolderHasher.Tests`' `IsIgnored_CaseInsensitive_OnWindows` has **no OS guard** and had only ever run on Windows. | **Resolved.** The first CI run on ubuntu-latest passed all 42 FolderHasher tests, so `HasherIgnoreParser` does compare case-insensitively regardless of filesystem. |
 | `SlnLaunch`'s 74.3% is the *Linux* path — `ProcessOrchestratorTests` branches on `OperatingSystem.IsWindows()`, so the Windows tree-kill path is permanently uncovered in CI. | Understood and accepted. Do not chase it. |
 | Snapshot tests (Layer 4) lock in a wrong-but-accepted output. | Always pair with `Assert.Empty(result.Errors)`; a snapshot proves the output did not change, never that it is correct. |
+
+## What the first CI run caught
+
+One test out of 1,723 failed on `ubuntu-latest` while passing locally on Windows —
+`GetPaginationLinks_IgnoresARelativeUrl`, and the fault was in the test, not the product:
+
+```
+Expected ... to be (, , , ), but found (file:///p2, , , )
+```
+
+It asserted that `Uri.TryCreate(/p2, UriKind.Absolute, out _)` returns false. That is true on
+Windows and **false on Linux**, where a leading slash is a valid Unix file path and the value
+parses as the absolute URI `file:///p2`.
+
+The underlying product behaviour was worse than the test failure suggested: `GetPaginationLinks`
+accepted any absolute URI, so a server returning a relative RFC 5988 Link target got silently
+dropped on Windows and turned into a bogus `file://` URI on Linux — one a caller might then try
+to fetch. Fixed by requiring http/https, which makes the result identical on both platforms and
+preserves the behaviour the library already shipped on Windows.
+
+Two process notes worth keeping:
+
+- The risks table above named `FolderHasher.Tests`' Windows-titled test as the Linux hazard, and
+  that one passed. The hazard that actually bit was an unremarkable `Uri.TryCreate` call. Naming a
+  suspect is not the same as auditing the class of problem — a follow-up grep across all new tests
+  for `UriKind`, drive letters, `Environment.NewLine` and culture-sensitive casing found nothing
+  else, and that grep should have come first.
+- Resolving relative Link targets against the response's request URI would be the fully
+  RFC-correct behaviour and is deliberately **not** done here: it adds a capability rather than
+  fixing a defect. Worth its own issue.
 
 ## Appendices
 

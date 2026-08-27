@@ -38,5 +38,11 @@ jobs:
       run: dotnet build --configuration Release --no-restore
       
     - name: Test
-      run: dotnet test --no-restore --verbosity normal
+      # --no-build --configuration Release: `--no-restore` alone does NOT imply --no-build,
+      # so this step used to rebuild all 69 projects in Debug and test THAT, while the Build
+      # step above produced Release. Visible in the logs as a second full compile, ~74s.
+      #
+      # No coverage collection here on purpose: master and pull-request already upload, and a
+      # feature-branch push would report a third build for the same commit.
+      run: dotnet test --no-restore --no-build --configuration Release
     

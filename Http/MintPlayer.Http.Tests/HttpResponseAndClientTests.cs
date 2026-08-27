@@ -290,11 +290,35 @@ public class HttpResponseAndClientTests
         => WithLink("<https://example.test/x>; rel=\"describedby\"").GetPaginationLinks()
             .Should().Be((null, null, null, null));
 
+    /// <summary>
+    /// Regression for a platform split. The assertion used to rely on
+    /// <c>Uri.TryCreate("/p2", UriKind.Absolute, …)</c> returning false — true on Windows, but
+    /// FALSE on Linux, where a leading slash is a valid Unix file path and the value parses as
+    /// the absolute URI <c>file:///p2</c>. So this passed locally and failed on the CI runner,
+    /// and the library handed back a bogus <c>file://</c> URI a caller might try to fetch.
+    /// <c>GetPaginationLinks</c> now requires http/https, which makes the result identical on
+    /// both platforms.
+    /// </summary>
     [Fact]
     public void GetPaginationLinks_IgnoresARelativeUrl()
+        => WithLink("</p2>; rel=\"next\"").GetPaginationLinks().Should().Be((null, null, null, null));
+
+    [Fact]
+    public void GetPaginationLinks_IgnoresANonHttpScheme()
     {
-        // Uri.TryCreate with UriKind.Absolute rejects it, so the entry is skipped.
-        WithLink("</p2>; rel=\"next\"").GetPaginationLinks().Should().Be((null, null, null, null));
+        // The guard is on the scheme, not on parse success, so an explicitly non-HTTP target is
+        // dropped too. Without it, this is what a relative target silently became on Linux.
+        WithLink("<file:///p2>; rel=\"next\"").GetPaginationLinks().Should().Be((null, null, null, null));
+        WithLink("<ftp://example.test/p2>; rel=\"next\"").GetPaginationLinks().Should().Be((null, null, null, null));
+    }
+
+    [Fact]
+    public void GetPaginationLinks_AcceptsBothHttpAndHttps()
+    {
+        WithLink("<http://example.test/p2>; rel=\"next\"").GetPaginationLinks()
+            .next!.Scheme.Should().Be("http");
+        WithLink("<https://example.test/p2>; rel=\"next\"").GetPaginationLinks()
+            .next!.Scheme.Should().Be("https");
     }
 
     [Fact]
