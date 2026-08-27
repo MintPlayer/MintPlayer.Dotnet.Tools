@@ -1,7 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net10.0</TargetFramework>
+		<!--
+		MintPlayer.Assertions ships net8.0;net9.0;net10.0. Testing only net10.0 left two
+		shipped legs entirely unverified. Safe to multi-target here because the library has
+		ZERO conditional-compilation directives, so all three TFMs share identical source
+		lines and the coverage server unions the three reports per file rather than growing
+		the denominator.
+		-->
+		<TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
 		<LangVersion>14</LangVersion>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
