@@ -209,6 +209,8 @@ public static class Formatter
         }
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Best-effort failure-message rendering only. If ToString() was trimmed away, the value renders member-by-member instead — message detail changes, correctness does not.")]
     private static bool OverridesToString(Type type)
     {
         try
