@@ -133,6 +133,10 @@ patch version bump so the fix actually reaches NuGet.
 | D15 | `SourceGenerators/…Tools/ValueComparers/ValueComparer.cs` | The `ImmutableArray<T>` branch of `IsEquals<TProp>` (and of the static `AddHash<TProp>`) passed **`TProp` — the array type — where the ELEMENT type was expected**. So `ImmutableArrayEquals` cast an `ImmutableArray<int>` to `ImmutableArray<ImmutableArray<int>>` and threw `InvalidCastException`: **every `ImmutableArray`-valued property comparison failed at runtime**, in the code path that exists to make incremental-generator caching work. Fixed by closing the generic over `GetGenericArguments()[0]`, with a cached `MethodInfo` per element type. |
 | D16 | `StringBuilder/…/StringBuilderExtensions.cs` | `AppendIndented` advanced past the last line unconditionally: `valueSpan.Slice(index + nl.Length)` with `index == -1`. On **Windows** `Environment.NewLine` is two characters, so that is `Slice(1)` on an already-consumed span → `ArgumentOutOfRangeException` for an empty string, or for any input ending in a newline. On **Linux** NewLine is one character, so it was `Slice(0)` and the bug never showed. A platform-dependent crash on the simplest possible input. |
 | D17 | `StringBuilder/…/StringExtensions.cs` | `Dedent` on text with no indentation threw `"Line … contains too few spaces at the start (should start with 0 spaces)"`. `DedentLine` only compares `trimmedSpaces >= spaces` **after** consuming a character, so with `spaces == 0` it consumed the first real character and fell into the throw. Guarded. |
+| D18 | `SourceGenerators/…Tools/Producer.cs` + 6 producer sites | Six producers across four generator projects write `namespace {RootNamespace}` **unguarded**. With no `build_property.rootnamespace` that emitted a bare `namespace` — CS1001 — so the generator silently broke the consumer's build. MSBuild always sets RootNamespace, which is why it never showed in a normal build; it bites any other host, a plain `CSharpGeneratorDriver` included. Fixed once in the `Producer` base by normalizing to `Producer.DefaultRootNamespace`. |
+| D19 | `SourceGenerators/…/ClassNamesSourceGenerator.Producer.cs` | Emitted `new[] { }` for a compilation with no matching classes — CS0826, "no best type found for implicitly-typed array". Uncompilable output for the empty case. Now an explicitly-typed `new string[] { }`. |
+| D20 | `SourceGenerators/Mapper/…/MapperGenerator.Producer.cs` and `Cli/…/CliCommandSourceGenerator.Producer.cs` | The generated code called `.Select(...)` and `new NotSupportedException(...)` **unqualified and without imports**, so it compiled only because a default SDK project has `ImplicitUsings` on. A consumer with `<ImplicitUsings>disable</ImplicitUsings>` got CS1061/CS0246 from a generated file they cannot edit. Now emits `using System.Linq;` and fully qualifies `global::System.NotSupportedException`. |
+| D21 | `SourceGenerators/…/InjectSourceGenerator` | Emits a `partial` declaration for a class the consumer did NOT declare partial, so the build fails with CS0260 pointing at the consumer's own class and no explanation. **Not fixed** — see Out of Scope. Pinned by a characterization test. |
 
 ## Requirements
 
@@ -403,6 +407,12 @@ Genuinely not being done in this unit of work — not deferred to avoid a large 
   matching `net<digit>` and `ParseNetMajor` reads every leading digit, so `net472` parses
   as major version **472** and outranks `net10.0`. Pinned by a characterization test.
   Whether .NET Framework targets should be supported at all is a product decision.
+- **D21 (`InjectSourceGenerator` on a non-partial class).** The generator should report a
+  diagnostic naming the `[Inject]` field instead of emitting a partial that cannot
+  compile. Adding a diagnostic means choosing an id, a severity and a message, and
+  deciding whether it is an error or a warning — a decision about the generator's public
+  contract, not a coverage change. Characterized by a test so the current behaviour is at
+  least documented.
 - **A coverage threshold or merge gate.** Deliberately: get the number honest and rising first. A
   `coverage.yml` with `blocking: false` may be added once the figures settle.
 - **Multi-TFM test projects beyond R4.1**, and `MSBuildWorkspace` (Appendix B).

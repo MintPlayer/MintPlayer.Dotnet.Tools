@@ -7,9 +7,22 @@ namespace MintPlayer.SourceGenerators.Tools;
 
 public abstract class Producer
 {
+    /// <summary>
+    /// Used when the host supplies no <c>build_property.rootnamespace</c>.
+    /// </summary>
+    /// <remarks>
+    /// Six producers across four generator projects write <c>namespace {RootNamespace}</c>
+    /// unguarded. With a null or empty value that emitted a bare <c>namespace</c> — CS1001,
+    /// "Identifier expected" — so the generator silently broke the consumer's build. MSBuild
+    /// always sets RootNamespace, which is why it never showed in a normal build; it bites
+    /// any other host, including a plain CSharpGeneratorDriver. Normalizing here fixes every
+    /// producer at once, including ones written later.
+    /// </remarks>
+    public const string DefaultRootNamespace = "GeneratedCode";
+
     protected Producer(string rootNamespace, string filename)
     {
-        RootNamespace = rootNamespace;
+        RootNamespace = string.IsNullOrWhiteSpace(rootNamespace) ? DefaultRootNamespace : rootNamespace;
         Filename = filename;
     }
 
@@ -41,16 +54,36 @@ public abstract class Producer
         {
             ProduceSource(writer, context.CancellationToken);
 
-            //if (producedSource.FileName == "FieldNameList.g.cs") Debugger.Break();
-            //if (producedSource.FileName == "ClassNames.g.cs") Debugger.Break();
-            //if (producedSource.FileName == "ClassNameList.g.cs") Debugger.Break();
-
             var code = textWriter.ToString();
             if (!string.IsNullOrEmpty(code))
                 context.AddSource(Filename, SourceText.From(code, Encoding.UTF8));
         }
-        catch (System.Exception)
+        catch (OperationCanceledException)
         {
+            // Cancellation is not a failure; let the driver handle it.
+            throw;
+        }
+        catch (System.Exception ex)
+        {
+            // This used to be `catch (System.Exception) { }`. A generator that threw
+            // produced no file AND no diagnostic, so the consumer got a silent miscompile —
+            // missing generated members with nothing anywhere to explain why. Reporting it
+            // keeps the build alive (an unhandled exception here would take the whole
+            // compilation down) while making the failure visible.
+            context.ReportDiagnostic(Diagnostic.Create(ProducerFailed, Location.None, Filename, ex.GetType().Name, ex.Message));
         }
     }
+
+    /// <summary>
+    /// Reported when <see cref="ProduceSource"/> throws. Deliberately an error: a generator
+    /// that cannot produce its file has broken the consumer's build in a way that is very
+    /// hard to diagnose from the symptoms alone.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ProducerFailed = new(
+        id: "MPSG001",
+        title: "Source generator failed to produce a file",
+        messageFormat: "The source generator failed while producing '{0}': {1}: {2}",
+        category: "MintPlayer.SourceGenerators",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

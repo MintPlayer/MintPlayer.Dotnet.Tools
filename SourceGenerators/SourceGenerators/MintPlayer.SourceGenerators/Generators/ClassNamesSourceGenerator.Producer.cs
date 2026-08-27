@@ -56,7 +56,12 @@ public class ClassNameListProducer : Producer, IDiagnosticReporter
             using (writer.OpenBlock("public static class ClassNameList"))
             {
                 var list = string.Join(", ", declarations.Select(d => $"\"{d.Name}\""));
-                writer.WriteLine($"public static string[] List => new[] {{ {list} }};");
+
+                // `new[] { }` with no elements is CS0826, "no best type found for
+                // implicitly-typed array" — so this emitted uncompilable code for any
+                // compilation with no matching classes. An explicitly-typed array is valid
+                // whether or not there are elements.
+                writer.WriteLine($"public static string[] List => new string[] {{ {list} }};");
             }
         }
     }

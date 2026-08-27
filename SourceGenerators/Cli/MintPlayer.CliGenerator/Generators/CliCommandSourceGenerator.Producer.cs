@@ -25,6 +25,11 @@ internal sealed class CliCommandProducer : Producer
 
         writer.WriteLine(Header);
         writer.WriteLine();
+        // Generated code must not depend on the consumer ImplicitUsings setting. Without
+        // this, the emitted .Select(...) calls resolved only because a default SDK project
+        // implicitly imports System.Linq; a project with ImplicitUsings disabled got CS1061.
+        writer.WriteLine("using System.Linq;");
+        writer.WriteLine();
 
         // Group commands by their ACTUAL declared namespace for partial class generation
         // Important: Use the symbol's namespace directly, NOT the fallback to RootNamespace
