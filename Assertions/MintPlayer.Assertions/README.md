@@ -66,6 +66,46 @@ text at zero runtime cost — no PDB reading, no expression trees.
 **A stable extension surface.** Custom assertions are one method chain, or one attribute. That
 surface will not break underneath you.
 
+### How it compares
+
+| | License | Object-graph equivalency | AOT / trimming | Analyzer safety net |
+|---|---|---|---|---|
+| **MintPlayer.Assertions** | Apache-2.0, pledged permanent | Rich options, source-generated | **Clean** | **In the box**, un-awaited = error |
+| FluentAssertions 8+ | Commercial (Xceed) | Rich options, reflection | Reflection-heavy | Separate package |
+| FluentAssertions 7 | Apache-2.0, maintenance-only | Rich options, reflection | Reflection-heavy | Separate package |
+| AwesomeAssertions | Apache-2.0 | Rich options, reflection (FA 7 fork) | Reflection-heavy | Separate package |
+| Shouldly | MIT | Basic | Reads call site from source/PDB | — |
+| TUnit.Assertions | MIT | Basic-to-moderate | Designed for AOT | Yes (TUnit's own) |
+| xUnit `Assert.Equivalent` | Apache-2.0 | Shallow, no options | Fine | — |
+
+The short version: several libraries give you a free licence, and a couple give you AOT
+support, but the combination of **FluentAssertions-grade equivalency options, no reflection on
+that path, and analyzers that turn a silently-passing assertion into a build error** is what
+this library exists for.
+
+<sub>Comparison reflects these libraries as of 2026; all of them are actively developed, so check
+before treating any row as current.</sub>
+
+### When another library is the better choice
+
+Honest guidance, because the wrong tool wastes more time than a missing feature:
+
+- **You have a large existing FluentAssertions codebase and want the smallest possible diff.**
+  Use [AwesomeAssertions](https://awesomeassertions.org/) — it is a fork of FA 7 that keeps the
+  original namespaces and type names, so migration is a package swap. This library changes the
+  namespace and a handful of method names (there's a [code fix](#migrating-from-fluentassertions),
+  but it is still a real diff).
+- **You already use TUnit.** Its assertions are integrated with its runner and worth staying with.
+- **You prefer terse over fluent.** Shouldly's `value.ShouldBe(expected)` is a smaller surface to
+  learn, if you don't need deep object-graph comparison.
+- **You are comparing big object graphs and mostly want to eyeball the diff.** Snapshot testing
+  with [Verify](https://github.com/VerifyTests/Verify) suits that better than any assertion
+  library, this one included; the two compose fine.
+- **You need battle-tested maturity today.** This library is new. FluentAssertions and Shouldly
+  have years of accumulated edge cases behind them; here, a bug you hit may be one nobody has hit
+  yet. (Everything documented on this page is covered by tests, including the samples above — but
+  that is not the same as years in the field.)
+
 ---
 
 ## The basics
