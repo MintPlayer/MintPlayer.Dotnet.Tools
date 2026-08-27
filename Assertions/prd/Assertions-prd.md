@@ -164,9 +164,11 @@ Assertions/
   prd/Assertions-plan.md
   MintPlayer.Assertions/                      net8.0;net9.0;net10.0 — core runtime library
   MintPlayer.Assertions.SourceGenerator/      netstandard2.0, imports SourceGenerators/eng/sourcegenerator.targets
-                                              equivalency generator + [GenerateAssertion] + interceptors
-  MintPlayer.Assertions.Analyzers/            netstandard2.0 — un-awaited/vacuous-assertion analyzers,
-                                              FA→MintPlayer migration code fix
+                                              Generators/  — equivalency accessors + [GenerateAssertion]
+                                              Diagnostics/ — analyzers + code fixes, FA migration fixer
+                                              (one project for both, as MintPlayer.SourceGenerators does:
+                                               the shared targets reference the Microsoft.CodeAnalysis
+                                               metapackage, so splitting would not isolate Workspaces)
   MintPlayer.Assertions.Tests/                xUnit, net10.0 — also the first consumer (self-hosted:
                                               the library's own tests use the library)
 ```

@@ -37,10 +37,8 @@
 	     PackageReference gives consumers the full experience. -->
 	<ItemGroup>
 		<ProjectReference Include="..\MintPlayer.Assertions.SourceGenerator\MintPlayer.Assertions.SourceGenerator.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
-		<ProjectReference Include="..\MintPlayer.Assertions.Analyzers\MintPlayer.Assertions.Analyzers.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
 
 		<None Include="..\MintPlayer.Assertions.SourceGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.Assertions.SourceGenerator.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-		<None Include="..\MintPlayer.Assertions.Analyzers\bin\$(Configuration)\netstandard2.0\MintPlayer.Assertions.Analyzers.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 		<None Condition="'$(Configuration)' == 'Release'" Include="..\..\SourceGenerators\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Tools.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 	</ItemGroup>
 

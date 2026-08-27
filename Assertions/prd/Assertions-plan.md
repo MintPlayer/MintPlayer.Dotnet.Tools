@@ -23,8 +23,8 @@ once, after the last milestone (repo policy).
 
 - Branch off master; create `Assertions/` family: `MintPlayer.Assertions`
   (net8.0;net9.0;net10.0), `MintPlayer.Assertions.SourceGenerator` (netstandard2.0, imports
-  `SourceGenerators/eng/sourcegenerator.targets`), `MintPlayer.Assertions.Analyzers`
-  (netstandard2.0), `MintPlayer.Assertions.Tests` (xUnit, net10.0), benchmark project
+  `SourceGenerators/eng/sourcegenerator.targets`, holding both the generators and the
+  analyzers), `MintPlayer.Assertions.Tests` (xUnit, net10.0), benchmark project
   (non-packable). Add to the solution mirroring disk layout.
 - Standard metadata (Apache-2.0, snupkg, README with the license pledge); generator +
   analyzers packed as analyzer assets of the core package.

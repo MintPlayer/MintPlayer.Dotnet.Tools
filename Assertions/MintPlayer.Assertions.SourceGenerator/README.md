@@ -1,4 +1,4 @@
-# MintPlayer.Assertions.Analyzers
+# MintPlayer.Assertions analyzers
 
 Roslyn analyzers and code fixes that ship inside the `MintPlayer.Assertions` package
 (`analyzers/dotnet/cs`). They catch the assertion mistakes that make a test silently pass, and

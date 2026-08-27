@@ -6,7 +6,7 @@
 		<Version>1.0.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
-		<Description>Source generator for MintPlayer.Assertions: reflection-free equivalency member accessors and [GenerateAssertion] custom assertions</Description>
+		<Description>Compiler extensions for MintPlayer.Assertions: source generators (reflection-free equivalency member accessors, [GenerateAssertion] custom assertions) and analyzers with code fixes (un-awaited assertions, vacuous Should(), undisposed AssertionScope, FluentAssertions migration)</Description>
 	</PropertyGroup>
 
 	<Import Project="..\..\SourceGenerators\eng\sourcegenerator.targets" />

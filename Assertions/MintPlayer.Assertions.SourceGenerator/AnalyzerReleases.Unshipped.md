@@ -6,4 +6,8 @@
 
 Rule ID  | Category              | Severity | Notes
 ---------|-----------------------|----------|--------------------------------------------------------
+MPA0001  | MintPlayer.Assertions | Error    | Assertion returning a Task is not awaited
+MPA0002  | MintPlayer.Assertions | Warning  | Should() without an assertion does nothing
+MPA0003  | MintPlayer.Assertions | Warning  | AssertionScope is never disposed
+MPA0100  | MintPlayer.Assertions | Info     | FluentAssertions usage detected; migration fix available
 MPAG001  | MintPlayer.Assertions | Warning  | [GenerateAssertion] method has an unsupported shape

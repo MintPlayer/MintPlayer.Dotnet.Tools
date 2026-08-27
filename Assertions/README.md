@@ -6,8 +6,7 @@ FluentAssertions v8 went commercial (January 2025).
 | Project | Purpose |
 |---|---|
 | `MintPlayer.Assertions` | The library (net8.0–net10.0). The only NuGet package; it embeds the generator and analyzers. |
-| `MintPlayer.Assertions.SourceGenerator` | Emits reflection-free equivalency member accessors + `[GenerateAssertion]` custom assertions. |
-| `MintPlayer.Assertions.Analyzers` | MPA0001 un-awaited assertion (error) and friends, plus the FluentAssertions migration code fix. |
+| `MintPlayer.Assertions.SourceGenerator` | All compiler extensions: `Generators/` emits reflection-free equivalency accessors and `[GenerateAssertion]` assertions; `Diagnostics/` holds the analyzers and code fixes (MPA0001 un-awaited assertion, MPA0002/0003, and the FluentAssertions migration fix). Mirrors the layout of `MintPlayer.SourceGenerators`. |
 | `MintPlayer.Assertions.Tests` | xUnit test suite (self-hosted: written with the library itself). |
 | `MintPlayer.Assertions.Benchmarks` | BenchmarkDotNet comparison vs FluentAssertions 7. |
 
