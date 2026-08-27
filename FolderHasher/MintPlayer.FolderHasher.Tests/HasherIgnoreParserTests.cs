@@ -1,5 +1,4 @@
 using MintPlayer.Assertions;
-using MintPlayer.Assertions.Execution;
 
 namespace MintPlayer.FolderHasher.Tests;
 

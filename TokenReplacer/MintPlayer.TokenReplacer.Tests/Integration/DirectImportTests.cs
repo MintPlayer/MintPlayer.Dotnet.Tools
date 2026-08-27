@@ -1,6 +1,5 @@
 using System.Text;
 using MintPlayer.Assertions;
-using MintPlayer.Assertions.Execution;
 using static MintPlayer.TokenReplacer.Tests.Integration.MsBuildRunner;
 
 namespace MintPlayer.TokenReplacer.Tests.Integration;

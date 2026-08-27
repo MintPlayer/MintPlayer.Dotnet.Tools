@@ -26,7 +26,7 @@ public class AssertionScopeNotDisposedAnalyzer : DiagnosticAnalyzer
         context.EnableConcurrentExecution();
         context.RegisterCompilationStartAction(compilationContext =>
         {
-            var scopeType = compilationContext.Compilation.GetTypeByMetadataName("MintPlayer.Assertions.Execution.AssertionScope");
+            var scopeType = compilationContext.Compilation.GetTypeByMetadataName("MintPlayer.Assertions.AssertionScope");
             if (scopeType is null)
                 return;
 

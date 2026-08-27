@@ -54,7 +54,7 @@ result.Should().Be(42);
 
 ### MPA0003 — AssertionScope not disposed (Warning)
 
-**Triggers when** a `new MintPlayer.Assertions.Execution.AssertionScope(...)` is never disposed.
+**Triggers when** a `new MintPlayer.Assertions.AssertionScope(...)` is never disposed.
 An undisposed scope swallows every failure collected inside it. Two high-precision shapes are
 detected:
 
@@ -82,9 +82,9 @@ of FluentAssertions symbols is attempted.
 
 **Code fix: "Migrate file to MintPlayer.Assertions"** (Fix All capable, document-wide):
 
-1. Replaces every FluentAssertions using with `using MintPlayer.Assertions;` (always) and
-   `using MintPlayer.Assertions.Execution;` (when `FluentAssertions.Execution` was imported),
-   deduplicated against existing usings.
+1. Replaces every FluentAssertions using with `using MintPlayer.Assertions;`, deduplicated
+   against existing usings. No second using is added: `AssertionScope` — the reason
+   `FluentAssertions.Execution` was usually imported — lives in the root namespace here.
 2. Renames the known-renamed calls (table in
    `FluentAssertionsMigrationCodeFixProvider.RenameTable`, extend it there):
 
@@ -109,7 +109,6 @@ value.Should().BeGreaterOrEqualTo(1);
 
 // After
 using MintPlayer.Assertions;
-using MintPlayer.Assertions.Execution;
 ...
 list.Should().HaveCountGreaterThanOrEqualTo(3);
 value.Should().BeGreaterThanOrEqualTo(1);

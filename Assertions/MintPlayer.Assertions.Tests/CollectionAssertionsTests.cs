@@ -434,7 +434,7 @@ public class CollectionAssertionsTests
     {
         var exception = Record.Exception(() =>
         {
-            using var scope = new Execution.AssertionScope();
+            using var scope = new AssertionScope();
             new[] { 1 }.Should().BeEmpty();
             new[] { 1 }.Should().HaveCount(2);
         });

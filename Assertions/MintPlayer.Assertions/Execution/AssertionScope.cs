@@ -1,4 +1,8 @@
-namespace MintPlayer.Assertions.Execution;
+// Root namespace, not MintPlayer.Assertions.Execution: soft assertions are an everyday feature,
+// and requiring a second using for `new AssertionScope(...)` was the only boilerplate left in the
+// consumer-facing API. The rest of Execution (the Assertion builder) is for extension authors and
+// stays there. Types under MintPlayer.Assertions.* still see this via enclosing-namespace lookup.
+namespace MintPlayer.Assertions;
 
 /// <summary>
 /// Collects assertion failures instead of throwing on the first one ("soft assertions").

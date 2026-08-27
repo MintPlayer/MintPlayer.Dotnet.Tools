@@ -1,5 +1,4 @@
 using MintPlayer.Assertions;
-using MintPlayer.Assertions.Execution;
 using MintPlayer.SlnLaunch;
 using MintPlayer.SlnLaunch.Models;
 using MintPlayer.SlnLaunch.Services;

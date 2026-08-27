@@ -119,9 +119,8 @@ public class FluentAssertionsMigrationCodeFixProvider : CodeFixProvider
         var replacements = new List<UsingDirectiveSyntax>();
         if (!existingUsingNames.Contains("MintPlayer.Assertions"))
             replacements.Add(CreateUsing("MintPlayer.Assertions"));
-        if (fluentAssertionsUsings.Any(u => u.Name?.ToString() == "FluentAssertions.Execution")
-            && !existingUsingNames.Contains("MintPlayer.Assertions.Execution"))
-            replacements.Add(CreateUsing("MintPlayer.Assertions.Execution"));
+        // FluentAssertions.Execution carried AssertionScope; here that lives in the root
+        // namespace, which `using MintPlayer.Assertions;` already covers — so nothing to add.
 
         root = root.TrackNodes(fluentAssertionsUsings);
 

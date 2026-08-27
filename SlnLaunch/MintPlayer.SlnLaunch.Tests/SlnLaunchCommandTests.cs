@@ -1,6 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
 using MintPlayer.Assertions;
-using MintPlayer.Assertions.Execution;
 using MintPlayer.SlnLaunch;
 using MintPlayer.SlnLaunch.Commands;
 using MintPlayer.SlnLaunch.Models;

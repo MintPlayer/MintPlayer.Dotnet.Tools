@@ -1,7 +1,6 @@
 using System.Net.Sockets;
 using System.Text.Json;
 using MintPlayer.Assertions;
-using MintPlayer.Assertions.Execution;
 using MintPlayer.Assertions.Primitives;
 
 namespace MintPlayer.Assertions.Tests.DocSamples;

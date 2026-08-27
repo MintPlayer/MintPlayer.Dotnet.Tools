@@ -31,6 +31,18 @@ One package reference brings three things: the assertion library (`net8.0`, `net
 `net10.0`), the source generator that makes object-graph comparison reflection-free, and the
 analyzers that catch assertions which cannot fail.
 
+And one using covers everything you write in a test:
+
+```csharp
+using MintPlayer.Assertions;
+```
+
+That includes `AssertionScope`, `Monitor()`, `BeEquivalentTo` and the async assertions — no
+second namespace, and no `ConfigureAwait` or other ceremony at the call site. (Authoring a
+*custom* assertion additionally needs `MintPlayer.Assertions.Execution` and
+`MintPlayer.Assertions.Primitives`; see [Extending](#extending).) A test that imports nothing
+else is part of the test suite, so this stays true.
+
 ---
 
 ## Why another assertion library
@@ -79,8 +91,6 @@ Inside an `AssertionScope`, failures are collected instead of throwing at the fi
 reported together. Without it you fix one failure only to discover the next.
 
 ```csharp
-using MintPlayer.Assertions.Execution;
-
 using (new AssertionScope("the response"))
 {
     response.Status.Should().Be(200);
