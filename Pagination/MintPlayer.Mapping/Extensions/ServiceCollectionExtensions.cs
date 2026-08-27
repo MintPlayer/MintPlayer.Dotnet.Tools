@@ -27,10 +27,11 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddMapper<TMapper>(this IServiceCollection services)
     {
-        var mapperType = typeof(TMapper);
-        var i = typeof(TMapper).GetInterfaces();
         var ifaces = typeof(TMapper).GetInterfaces()
-            .Where(iface => typeof(IMapper<,>) == iface.GetGenericTypeDefinition())
+            // IsGenericType first: GetGenericTypeDefinition throws InvalidOperationException
+            // on a non-generic interface, so a mapper that also implemented, say,
+            // IDisposable could not be registered at all.
+            .Where(iface => iface.IsGenericType && typeof(IMapper<,>) == iface.GetGenericTypeDefinition())
             .Select(iface => new
             {
                 Interface = iface,
@@ -52,9 +53,8 @@ public static class ServiceCollectionExtensions
             .GetMethod(nameof(AddMapper), System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!
             .MakeGenericMethod(typeof(TMapper), ifaces[0].TypeArguments[0], ifaces[0].TypeArguments[1]);
 
-        // We only have to call the method once,
-        // The method registers both IMappers
-        var res = dm.Invoke(null, [services]);
+        // One call is enough: the private overload registers both IMapper directions.
+        dm.Invoke(null, [services]);
 
         return services;
     }

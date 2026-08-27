@@ -56,10 +56,15 @@ public class PaginationResponse<TDto>
     #endregion
     #region TotalPages
     /// <summary>Total number of pages, readonly.</summary>
+    /// <remarks>
+    /// A non-positive page size means there is no paging, hence no page count — this used
+    /// to be an unguarded division and threw DivideByZeroException for a
+    /// default-constructed request.
+    /// </remarks>
     [DataMember]
     public int TotalPages
     {
-        get => (totalRecords - 1) / perPage + 1;
+        get => perPage <= 0 ? 0 : (totalRecords - 1) / perPage + 1;
         set { }
     }
     #endregion

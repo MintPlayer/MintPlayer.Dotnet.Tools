@@ -47,32 +47,56 @@ public static class IQueryableExtensions
     /// <param name="request">Pagination request</param>
     public static IQueryable<T> Paginate<T>(this IQueryable<T> source, PaginationRequest<T> request)
     {
-        // 1) Sort
-        var orderedItems = source.OrderBySortColumns(request.GetEffectiveSortColumns());
-
-        // 2) Page
-        var pagedItems = orderedItems
-            .Skip((request.Page - 1) * request.PerPage)
-            .Take(request.PerPage);
-
-        return pagedItems;
+        return source.ApplySort(request).ApplyPaging(request);
     }
 
     public static async Task<PaginationResponse<TDto>> Paginate<TDto, TEntity>(this IQueryable<TEntity> source, PaginationRequest<TDto> request, IMapper<TEntity, TDto> mapper)
     {
-        // 1) Sort
-        var orderedItems = source.OrderBySortColumns(request.GetEffectiveSortColumns());
+        var pagedItems = source.ApplySort(request).ApplyPaging(request);
 
-        // 2) Page
-        var pagedItems = orderedItems
-            .Skip((request.Page - 1) * request.PerPage)
-            .Take(request.PerPage);
-
-        // 3) Convert to DTO
         var dtoItems = (await Task.WhenAll(pagedItems.Select(item => mapper.Map(item)))).ToList();
 
         var countItems = source.Count();
         return new PaginationResponse<TDto>(request, countItems, dtoItems);
+    }
+
+    /// <summary>
+    /// Applies the request's effective sort columns, if it has any.
+    /// </summary>
+    /// <remarks>
+    /// A request with no sort is legitimate — page 1 of an unordered list — but it used to
+    /// be handed straight to <see cref="OrderBySortColumns"/>, which throws on an empty
+    /// array. So <c>Paginate</c> threw for every request that set neither SortProperty nor
+    /// SortColumns, which is the default-constructed request. Note that paging without a
+    /// sort has no guaranteed order across pages; <see cref="OrderBySortColumns"/> stays
+    /// strict for callers who ask for sorting explicitly.
+    /// </remarks>
+    private static IQueryable<T> ApplySort<T, TDto>(this IQueryable<T> source, PaginationRequest<TDto> request)
+    {
+        var sortColumns = request.GetEffectiveSortColumns();
+        return sortColumns.Length == 0 ? source : source.OrderBySortColumns(sortColumns);
+    }
+
+    /// <summary>
+    /// Applies Skip/Take for the request's page.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="PaginationRequest{TDto}.Page"/> is 1-based, so a default-constructed
+    /// request (Page = 0) produced <c>Skip(-PerPage)</c> and an
+    /// ArgumentOutOfRangeException. A non-positive PerPage means "no page size", which is
+    /// treated as no paging rather than <c>Take(0)</c> — silently returning nothing for an
+    /// unset page size is worse than returning everything.
+    /// </remarks>
+    private static IQueryable<T> ApplyPaging<T, TDto>(this IQueryable<T> query, PaginationRequest<TDto> request)
+    {
+        if (request.PerPage <= 0)
+            return query;
+
+        var page = request.Page < 1 ? 1 : request.Page;
+
+        return query
+            .Skip((page - 1) * request.PerPage)
+            .Take(request.PerPage);
     }
 
     private static IOrderedQueryable<TSource> SortByBase<TSource>(this IQueryable<TSource> query, string propertyName, bool ascending, bool isFirst)
@@ -104,7 +128,9 @@ public static class IQueryableExtensions
 
         var genericMethod = method.MakeGenericMethod(entityType, info.PropertyType);
 
-        var newQuery = (IOrderedQueryable<TSource>)genericMethod.Invoke(genericMethod, new object[] { query, lambda });
+        // Static method, so the target is null. It used to pass genericMethod as the
+        // target, which Invoke ignores for statics — harmless, but it read as a bug.
+        var newQuery = (IOrderedQueryable<TSource>)genericMethod.Invoke(null, new object[] { query, lambda })!;
         return newQuery;
     }
 }
