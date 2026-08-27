@@ -3,6 +3,19 @@
 Family folder for **MintPlayer.Assertions** — a fluent assertion library for .NET, created after
 FluentAssertions v8 went commercial (January 2025).
 
+## Version info
+
+| License | Build status |
+|---------|--------------|
+| [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](https://opensource.org/licenses/Apache-2.0) | ![publish-release](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/actions/workflows/dotnet-build-master.yml/badge.svg) |
+
+| Package | Release | Preview | Downloads |
+|---------|---------|---------|-----------|
+| MintPlayer.Assertions | [![NuGet Version](https://img.shields.io/nuget/v/MintPlayer.Assertions.svg?style=flat)](https://www.nuget.org/packages/MintPlayer.Assertions) | [![NuGet Version](https://img.shields.io/nuget/vpre/MintPlayer.Assertions.svg?style=flat)](https://www.nuget.org/packages/MintPlayer.Assertions) | [![NuGet](https://img.shields.io/nuget/dt/MintPlayer.Assertions.svg?style=flat)](https://www.nuget.org/packages/MintPlayer.Assertions) |
+
+> The NuGet badges read "not found" until the package is first published; CI pushes it on merge to
+> `master`. Only `MintPlayer.Assertions` is published — the generator and analyzers ship inside it.
+
 | Project | Purpose |
 |---|---|
 | `MintPlayer.Assertions` | The library (net8.0–net10.0). The only NuGet package; it embeds the generator and analyzers. |
