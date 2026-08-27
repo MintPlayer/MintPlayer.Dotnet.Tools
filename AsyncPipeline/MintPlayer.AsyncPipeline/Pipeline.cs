@@ -127,18 +127,38 @@ public class Pipeline<Tin, Tout> : Pipeline
 
     public override TaskAwaiter GetAwaiter()
     {
-        //if (inner is Pipeline<,> pipeline)
-        if (inner is { CanAwait: true })
+        var upstream = inner is { CanAwait: true }
+            ? Task.WhenAll([.. tasks, Task.Run(async () => await (Pipeline)inner)])
+            : Task.WhenAll(tasks);
+
+        return CompleteAsync(upstream).GetAwaiter();
+    }
+
+    /// <summary>
+    /// Awaits the consumer tasks and then closes the output channel.
+    /// </summary>
+    /// <remarks>
+    /// This used to be <c>upstream.ContinueWith(_ =&gt; output.Writer.Complete())</c>, which
+    /// had two bugs. ContinueWith produces a NEW task that succeeds regardless of whether
+    /// the antecedent faulted, so awaiting the pipeline <b>silently swallowed every
+    /// exception</b> thrown by an action — a failed pipeline was indistinguishable from a
+    /// successful one. And <c>Complete()</c> throws on an already-completed writer, so
+    /// awaiting the same pipeline twice raised ChannelClosedException from inside the
+    /// continuation.
+    ///
+    /// Awaiting <paramref name="upstream"/> rethrows its exception, and TryComplete makes
+    /// the close idempotent. The finally block still closes the channel on failure, so a
+    /// downstream stage cannot hang waiting on a producer that already died.
+    /// </remarks>
+    private async Task CompleteAsync(Task upstream)
+    {
+        try
         {
-            return Task.WhenAll([.. tasks, Task.Run(async () => await (Pipeline)inner)])
-                .ContinueWith(_ => output.Writer.Complete())
-                .GetAwaiter();
+            await upstream;
         }
-        else
+        finally
         {
-            return Task.WhenAll(tasks)
-                .ContinueWith(_ => output.Writer.Complete())
-                .GetAwaiter();
+            output.Writer.TryComplete();
         }
     }
 }

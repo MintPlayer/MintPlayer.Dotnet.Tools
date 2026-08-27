@@ -110,7 +110,7 @@ public static class Casing
 
     /// <summary>Converts a kebab-case string to camel-case string.</summary>
     /// <param name="str">Input string</param>
-    /// <returns>Kebab-case string.</returns>
+    /// <returns>Camel-case string.</returns>
     public static string Kebab2Camel(this string str)
     {
         if (string.IsNullOrEmpty(str))
@@ -119,7 +119,12 @@ public static class Casing
         }
         else
         {
-            return string.Join(string.Empty, str.Split('-').Select(s => s.UcFirst()));
+            // The first word stays lower-case, matching Snake2Camel. Upper-casing it
+            // too produced PascalCase from a method named Camel.
+            var words = str.Split(new[] { '-' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select((w, i) => i == 0 ? w.ToLowerInvariant() : w.ToLowerInvariant().UcFirst());
+
+            return string.Join(string.Empty, words);
         }
     }
 
@@ -148,11 +153,18 @@ public static class Casing
         return sb.ToString();
     }
 
+    /// <summary>Returns the index of the nth occurance of a character, or -1 when there are fewer.</summary>
+    /// <param name="str">Input string</param>
+    /// <param name="c">Character to find</param>
+    /// <param name="occurance">Which occurance to return, counting from 1.</param>
     public static int NthIndexOf(this string str, char c, int occurance)
     {
-        var index = -1;
+        if (str is null) throw new ArgumentNullException(nameof(str));
+        if (occurance < 1) throw new ArgumentOutOfRangeException(nameof(occurance), occurance, "Occurance counts from 1.");
+
+        var index = 0;
         var counter = 0;
-        while (true)
+        while (index < str.Length)
         {
             var nextIndex = str.IndexOf(c, index);
             if (nextIndex == -1)
@@ -163,10 +175,13 @@ public static class Casing
             {
                 return nextIndex;
             }
-            else
-            {
-                index = nextIndex;
-            }
+
+            // Advance PAST the match. Resuming at nextIndex re-finds the same
+            // position, so every occurance after the first reported the index of
+            // the first one.
+            index = nextIndex + 1;
         }
+
+        return -1;
     }
 }

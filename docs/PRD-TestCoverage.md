@@ -76,7 +76,8 @@ This is why the ~7,500 lines under `SourceGenerators/` (plus 1,441 in
 and `Solve` ship to NuGet with zero automated tests. They contribute neither numerator nor
 denominator today — they are simply absent from the report.
 
-Reading them surfaced **seven live bugs before a single test was written** (§[Defects](#defects-found-during-investigation)).
+Reading them surfaced **seven live bugs before a single test was written**, and writing the
+tests has since surfaced two more (§[Defects](#defects-found-during-investigation)).
 
 ## Goals
 
@@ -122,6 +123,8 @@ patch version bump so the fix actually reaches NuGet.
 | D5 | `EnumerableExtensions` | `Pairwise` uses `Count()` + `ElementAt`, enumerating the source multiple times — wrong for a one-shot sequence. |
 | D6 | `Http/MintPlayer.Http` | `FromStreamAsync` sets `Position = 0`, throwing on a non-seekable stream. |
 | D7 | `SourceGenerators/MintPlayer.SourceGenerators.Tools/Producer.cs:48-51` | `Producer.Produce` wraps `ProduceSource` in a bare `catch (System.Exception) { }`. **A generator crash produces no file and no diagnostic** — a silent miscompile of the consumer, and the reason a naively-written generator test can pass green while generating nothing. |
+| D8 | `SourceGenerators/ValueComparers/.../JObjectValueComparer.cs` | Overrides `AreEqual` but not `AddHash`, so `GetHashCode` fell through to `JObject`'s own non-structural hash. Two objects the comparer called **equal returned different hashes**, breaking the `IEqualityComparer` contract and silently losing entries in any dictionary or set keyed on it — including the incremental-generator caches the comparer exists to serve. Found by a test, not by reading. |
+| D9 | `AsyncPipeline/MintPlayer.AsyncPipeline/Pipeline.cs` | `GetAwaiter` used `upstream.ContinueWith(_ => output.Writer.Complete())`. `ContinueWith` yields a new task that succeeds regardless of whether the antecedent faulted, so **awaiting a pipeline silently swallowed every exception thrown by an action** — a failed pipeline was indistinguishable from a successful one. Separately, `Complete()` throws on an already-completed writer, so awaiting the same pipeline twice raised `ChannelClosedException` from inside the continuation. Both found by tests. |
 
 ## Requirements
 

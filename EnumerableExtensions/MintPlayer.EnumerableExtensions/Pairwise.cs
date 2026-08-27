@@ -7,25 +7,19 @@ public static class PairwiseExtension
     /// <param name="enumerable">Enumerable</param>
     public static IEnumerable<Tuple<T, T?>> Pairwise<T>(this IEnumerable<T> enumerable)
     {
-        var count = enumerable.Count();
-        return enumerable
-            .Select((item, index) =>
-            {
-                if (index % 2 == 0)
-                {
-                    return new Tuple<T, T?>(
-                        item,
-                        index + 1 >= count
-                            ? default(T)
-                            : enumerable.ElementAt(index + 1)
-                    );
-                }
-                else
-                {
-                    return null;
-                }
-            })
-            .Where(item => item != null)
-            .Cast<Tuple<T, T?>>();
+        if (enumerable is null) throw new ArgumentNullException(nameof(enumerable));
+
+        // Materialize once. The previous implementation called Count() and then
+        // ElementAt(index + 1) per pair, walking the source O(n) extra times and
+        // producing wrong results for a one-shot sequence (an iterator, a reader)
+        // that cannot be enumerated twice.
+        var items = enumerable as IList<T> ?? enumerable.ToList();
+
+        for (var index = 0; index < items.Count; index += 2)
+        {
+            yield return new Tuple<T, T?>(
+                items[index],
+                index + 1 >= items.Count ? default : items[index + 1]);
+        }
     }
 }
