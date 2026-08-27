@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<TargetFramework>net10.0</TargetFramework>
@@ -12,11 +12,12 @@
 
 		<IsPackable>true</IsPackable>
 		<PackageId>MintPlayer.ObservableCollection.Extensions</PackageId>
-		<Version>10.0.0</Version>
+		<Version>10.0.1</Version>
 		<Description>Extension methods for MintPlayer.ObservableCollection</Description>
 		<Company>MintPlayer</Company>
 		<Authors>Pieterjan De Clippel</Authors>
 		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/ObservableCollection/MintPlayer.ObservableCollection.Extensions</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
 		<PackageTags>ObservableCollection, RemoveRange</PackageTags>
@@ -31,6 +32,11 @@
 	</PropertyGroup>
 	<ItemGroup>
 	  <ProjectReference Include="..\MintPlayer.ObservableCollection\MintPlayer.ObservableCollection.csproj" />
+	</ItemGroup>
+
+	<!-- The package README is the canonical docs; ship it to NuGet. -->
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
 
 </Project>
