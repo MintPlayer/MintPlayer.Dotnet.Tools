@@ -1,0 +1,12 @@
+//---- Inject.g.cs ----
+namespace Demo
+{
+    partial class Consumer
+    {
+        public Consumer(global::Demo.IA a, global::Demo.IB b)
+        {
+            this.a = a;
+            this.b = b;
+        }
+    }
+}

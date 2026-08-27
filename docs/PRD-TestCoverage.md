@@ -413,6 +413,12 @@ Genuinely not being done in this unit of work — not deferred to avoid a large 
   deciding whether it is an error or a warning — a decision about the generator's public
   contract, not a coverage change. Characterized by a test so the current behaviour is at
   least documented.
+- **`UnusedUsingsCodeFixProvider`'s over-promising title.** The action is called "Remove all
+  unused usings", but it reads `context.Diagnostics` to decide what to remove and Roslyn
+  validates that every diagnostic in a `CodeFixContext` shares the requested span — so a
+  provider can only ever see the one at the cursor. Document-wide removal comes from its
+  `BatchFixer` FixAll provider. Either the title or the implementation should change;
+  which one is a UX decision. Pinned by a characterization test.
 - **A coverage threshold or merge gate.** Deliberately: get the number honest and rising first. A
   `coverage.yml` with `blocking: false` may be added once the figures settle.
 - **Multi-TFM test projects beyond R4.1**, and `MSBuildWorkspace` (Appendix B).
