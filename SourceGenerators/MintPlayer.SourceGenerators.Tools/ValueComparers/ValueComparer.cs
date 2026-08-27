@@ -54,7 +54,11 @@ public abstract partial class ValueComparer<T> : IEqualityComparer<T?>
         if (typeof(TProp).IsGenericType &&
             typeof(TProp).GetGenericTypeDefinition() == typeof(ImmutableArray<>))
         {
-            return ImmutableArrayEquals<TProp>(x!, y!);
+            // ImmutableArrayEquals<TArr> wants the ELEMENT type. This used to pass TProp —
+            // i.e. ImmutableArray<int> — which made it cast to
+            // ImmutableArray<ImmutableArray<int>> and throw InvalidCastException, so every
+            // ImmutableArray-valued property comparison failed at runtime.
+            return ImmutableArrayEqualsDynamic(typeof(TProp), x!, y!);
         }
 
         // 3) IReadOnlyList<T> structural compare
@@ -81,7 +85,8 @@ public abstract partial class ValueComparer<T> : IEqualityComparer<T?>
         if (typeof(TProp).IsGenericType &&
             typeof(TProp).GetGenericTypeDefinition() == typeof(ImmutableArray<>))
         {
-            ImmutableArrayHash<TProp>(ref h, value);
+            // Same element-type-versus-array-type mistake as in IsEquals above.
+            ImmutableArrayHashDynamic(typeof(TProp), ref h, value!);
             return;
         }
 

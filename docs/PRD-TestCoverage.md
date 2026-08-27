@@ -130,6 +130,9 @@ patch version bump so the fix actually reaches NuGet.
 | D12 | `ObservableCollection/…Extensions/ObservableCollectionExtensions.cs` | All eight `AddDistinctRange` overloads returned the filtered query **lazily**. `AddRange` enumerated it to do the inserting; the caller's enumeration then re-ran `!collection.Contains(item)`, by which point every item was in the collection — so the documented "items that were actually added" return value was **always empty**. Fixed by materializing before the add. |
 | D13 | `ObservableCollection/…Extensions/ObservableCollectionExtensions.cs` | `RemoveRange(start, count)` resolves the slice **by index** and then hands it to the value-based `RemoveRange(IEnumerable<T>)`, which removes the FIRST match of each item. With duplicates it therefore deletes the wrong positions — and `RemoveExceedingAt` routes every `maxItemCount` trim through it. **Not fixed here**, see below. |
 | D14 | `Beid/MintPlayer.EidReader.Core/Extensions/ByteArrayExtensions.cs` | The TLV length-continuation check read `(lenByte & 0x08) == 0x80`. `& 0x08` yields only 0 or 8, so it could never equal `0x80`: the do-while always ran exactly once and the multi-byte length form was **unreachable dead code**, despite the `len << 7` shift showing that is what was intended. A length byte of 0x80 or above was read as `lenByte & 0x7F` with the rest of the length treated as payload. Every documented BEID identity field is under 128 bytes, so real cards parsed identically — it was latent, not live. Fixed to `& 0x80`. |
+| D15 | `SourceGenerators/…Tools/ValueComparers/ValueComparer.cs` | The `ImmutableArray<T>` branch of `IsEquals<TProp>` (and of the static `AddHash<TProp>`) passed **`TProp` — the array type — where the ELEMENT type was expected**. So `ImmutableArrayEquals` cast an `ImmutableArray<int>` to `ImmutableArray<ImmutableArray<int>>` and threw `InvalidCastException`: **every `ImmutableArray`-valued property comparison failed at runtime**, in the code path that exists to make incremental-generator caching work. Fixed by closing the generic over `GetGenericArguments()[0]`, with a cached `MethodInfo` per element type. |
+| D16 | `StringBuilder/…/StringBuilderExtensions.cs` | `AppendIndented` advanced past the last line unconditionally: `valueSpan.Slice(index + nl.Length)` with `index == -1`. On **Windows** `Environment.NewLine` is two characters, so that is `Slice(1)` on an already-consumed span → `ArgumentOutOfRangeException` for an empty string, or for any input ending in a newline. On **Linux** NewLine is one character, so it was `Slice(0)` and the bug never showed. A platform-dependent crash on the simplest possible input. |
+| D17 | `StringBuilder/…/StringExtensions.cs` | `Dedent` on text with no indentation threw `"Line … contains too few spaces at the start (should start with 0 spaces)"`. `DedentLine` only compares `trimmedSpaces >= spaces` **after** consuming a character, so with `spaces == 0` it consumed the first real character and fell into the throw. Guarded. |
 
 ## Requirements
 
@@ -396,6 +399,10 @@ Genuinely not being done in this unit of work — not deferred to avoid a large 
   or new index-range support on `MintPlayer.ObservableCollection` itself. Both change
   observable notification behaviour for every UI consumer, which is a design decision
   for the owner rather than something a coverage pass should settle.
+- **`Verz.Sdks.Dotnet` misreading .NET Framework monikers.** `IsNetTfm` accepts anything
+  matching `net<digit>` and `ParseNetMajor` reads every leading digit, so `net472` parses
+  as major version **472** and outranks `net10.0`. Pinned by a characterization test.
+  Whether .NET Framework targets should be supported at all is a product decision.
 - **A coverage threshold or merge gate.** Deliberately: get the number honest and rising first. A
   `coverage.yml` with `blocking: false` may be added once the figures settle.
 - **Multi-TFM test projects beyond R4.1**, and `MSBuildWorkspace` (Appendix B).

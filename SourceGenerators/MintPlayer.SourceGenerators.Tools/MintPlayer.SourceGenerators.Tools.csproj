@@ -8,7 +8,7 @@
 	</PropertyGroup>
 
 	<PropertyGroup>
-		<Version>10.20.1</Version>
+		<Version>10.20.2</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains useful tools for building source generators</Description>
@@ -46,6 +46,11 @@
 	<!-- The package README is the canonical docs for this library; ship it to NuGet. -->
 	<ItemGroup>
 		<None Include="README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+	<!-- TypeExtensions is internal; the tests exercise it directly. -->
+	<ItemGroup>
+		<InternalsVisibleTo Include="MintPlayer.SourceGenerators.Tools.Tests" />
 	</ItemGroup>
 
 </Project>

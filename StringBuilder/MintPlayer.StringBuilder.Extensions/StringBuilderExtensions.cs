@@ -49,21 +49,26 @@ public static class StringBuilderExtensions
         var valueSpan = value.AsSpan();
         var nl = Environment.NewLine;
 
-        var index = -1;
-        var hasNext = false;
-        do
+        // The slice past the last line used to happen unconditionally, with index == -1:
+        // Slice(-1 + nl.Length). On Windows NewLine is two characters, so that was Slice(1)
+        // on an already-consumed span and threw ArgumentOutOfRangeException — for an empty
+        // string, or for any input ending in a newline. On Linux NewLine is one character,
+        // so it was Slice(0) and the bug never showed. Advancing only when there IS a next
+        // line removes the platform dependency.
+        while (true)
         {
-            index = valueSpan.IndexOf(nl);
-            hasNext = (index >= 0);
+            var index = valueSpan.IndexOf(nl);
+            var hasNext = index >= 0;
 
-            var line = hasNext ? valueSpan.Slice(0, index) : valueSpan.Slice(0);
+            var line = hasNext ? valueSpan.Slice(0, index) : valueSpan;
             builder.AppendIndentation();
             builder.Append(line);
             builder.AppendLine();
 
+            if (!hasNext) break;
+
             valueSpan = valueSpan.Slice(index + nl.Length);
         }
-        while (hasNext);
 
         return builder;
     }
