@@ -1,3 +1,4 @@
+using MintPlayer.Assertions;
 using MintPlayer.TokenReplacer.Targets;
 
 namespace MintPlayer.TokenReplacer.Tests;
@@ -49,7 +50,7 @@ public class AssetsFileVersionReaderTests
     {
         var versions = AssetsFileVersionReader.ReadLibraryVersions(SampleAssetsJson);
 
-        Assert.Equal("13.0.3", versions["Newtonsoft.Json"]);
+        versions.Should().Contain("Newtonsoft.Json", "13.0.3");
     }
 
     [Fact]
@@ -57,7 +58,7 @@ public class AssetsFileVersionReaderTests
     {
         var versions = AssetsFileVersionReader.ReadLibraryVersions(SampleAssetsJson);
 
-        Assert.Equal("9.0.0", versions["Microsoft.Extensions.Logging.Abstractions"]);
+        versions.Should().Contain("Microsoft.Extensions.Logging.Abstractions", "9.0.0");
     }
 
     [Fact]
@@ -65,7 +66,9 @@ public class AssetsFileVersionReaderTests
     {
         var versions = AssetsFileVersionReader.ReadLibraryVersions(SampleAssetsJson);
 
-        Assert.Equal("13.0.3", versions["newtonsoft.json"]);
+        // Deliberately the indexer: this test is about the map's own case-insensitive comparer,
+        // which the dictionary assertions do not honour (they use EqualityComparer<TKey>.Default).
+        versions["newtonsoft.json"].Should().Be("13.0.3");
     }
 
     [Fact]
@@ -73,7 +76,7 @@ public class AssetsFileVersionReaderTests
     {
         var versions = AssetsFileVersionReader.ReadLibraryVersions(SampleAssetsJson);
 
-        Assert.False(versions.ContainsKey("Absent.Package"));
+        versions.Should().NotContainKey("Absent.Package");
     }
 
     [Fact]
@@ -87,8 +90,7 @@ public class AssetsFileVersionReaderTests
             """;
         var versions = AssetsFileVersionReader.ReadLibraryVersions(json);
 
-        Assert.Equal("1.0.0", versions["Real.Package"]);
-        Assert.False(versions.ContainsKey("Fake.Package"));
+        versions.Should().Contain("Real.Package", "1.0.0").And.NotContainKey("Fake.Package");
     }
 
     [Fact]
@@ -102,14 +104,17 @@ public class AssetsFileVersionReaderTests
             """;
         var versions = AssetsFileVersionReader.ReadLibraryVersions(json);
 
-        Assert.Equal("2.0.0", versions["Pkg"]);
+        versions.Should().Contain("Pkg", "2.0.0");
     }
 
     [Fact]
     public void Malformed_Json_Throws_FormatException()
     {
-        Assert.Throws<FormatException>(() => AssetsFileVersionReader.ReadLibraryVersions("{ \"libraries\": "));
-        Assert.Throws<FormatException>(() => AssetsFileVersionReader.ReadLibraryVersions("not json"));
+        var truncated = () => AssetsFileVersionReader.ReadLibraryVersions("{ \"libraries\": ");
+        var garbage = () => AssetsFileVersionReader.ReadLibraryVersions("not json");
+
+        truncated.Should().Throw<FormatException>();
+        garbage.Should().Throw<FormatException>();
     }
 
     [Fact]
@@ -117,6 +122,6 @@ public class AssetsFileVersionReaderTests
     {
         var versions = AssetsFileVersionReader.ReadLibraryVersions("{}");
 
-        Assert.Empty(versions);
+        versions.Should().BeEmpty();
     }
 }

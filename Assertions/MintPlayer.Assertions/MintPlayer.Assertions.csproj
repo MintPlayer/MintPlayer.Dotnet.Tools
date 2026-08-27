@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+		<LangVersion>14</LangVersion>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<OutputType>Library</OutputType>
+		<IsAotCompatible>true</IsAotCompatible>
+
+		<IsPackable>true</IsPackable>
+		<Version>1.0.0</Version>
+		<Authors>Pieterjan De Clippel</Authors>
+		<Company>MintPlayer</Company>
+		<Description>Fluent assertion library for .NET. Free forever (Apache-2.0), AOT/trimming-safe, with source-generated object-graph equivalency and first-class analyzers.</Description>
+		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/Assertions/MintPlayer.Assertions</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageId>MintPlayer.Assertions</PackageId>
+		<PackageTags>Assertions,Testing,Fluent,FluentAssertions,xUnit,NUnit,MSTest,TUnit,AOT</PackageTags>
+		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+	</PropertyGroup>
+
+	<!-- Include XML markups in the nupkg -->
+	<PropertyGroup Condition="'$(Configuration)'=='Release'">
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+	<!-- The source generator and analyzers ship inside this package so a single
+	     PackageReference gives consumers the full experience. -->
+	<ItemGroup>
+		<ProjectReference Include="..\MintPlayer.Assertions.SourceGenerator\MintPlayer.Assertions.SourceGenerator.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+
+		<None Include="..\MintPlayer.Assertions.SourceGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.Assertions.SourceGenerator.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Condition="'$(Configuration)' == 'Release'" Include="..\..\SourceGenerators\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Tools.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+	</ItemGroup>
+
+</Project>

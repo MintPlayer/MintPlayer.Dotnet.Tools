@@ -1,3 +1,4 @@
+using MintPlayer.Assertions;
 using static MintPlayer.TokenReplacer.Tests.Integration.MsBuildRunner;
 
 namespace MintPlayer.TokenReplacer.Tests.Integration;
@@ -104,10 +105,9 @@ public class PackAndConsumeTests
             AssertBuildSucceeded(build);
 
             var copied = Path.Combine(consumerDir, "bin", "Debug", "net10.0", "web-loader.js");
-            Assert.True(File.Exists(copied), $"Expected the stamped asset at '{copied}'. Build output:{Environment.NewLine}{build.Output}");
-            Assert.Equal(
-                $"""export const loaderUrl = "https://cdn.example.com/sample-web-component@{SampleVersion}/loader.js";""",
-                File.ReadAllText(copied));
+            File.Exists(copied).Should().BeTrue(because: $"the stamped asset belongs at '{copied}'. Build output:{Environment.NewLine}{build.Output}");
+            File.ReadAllText(copied).Should().Be(
+                $"""export const loaderUrl = "https://cdn.example.com/sample-web-component@{SampleVersion}/loader.js";""");
         }
         finally
         {

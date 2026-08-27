@@ -1,3 +1,4 @@
+using MintPlayer.Assertions;
 using MintPlayer.TokenReplacer.Targets;
 
 namespace MintPlayer.TokenReplacer.Tests;
@@ -17,9 +18,12 @@ public class TokenReplacementEngineTests
     {
         var result = TokenReplacementEngine.Replace("v=$version$", Tokens(("version", "1.2.3")));
 
-        Assert.Equal("v=1.2.3", result.Content);
-        Assert.Equal(1, result.ReplacedCount);
-        Assert.Empty(result.UnmatchedTokens);
+        using (new AssertionScope("the replacement result"))
+        {
+            result.Content.Should().Be("v=1.2.3");
+            result.ReplacedCount.Should().Be(1);
+            result.UnmatchedTokens.Should().BeEmpty();
+        }
     }
 
     [Fact]
@@ -29,8 +33,8 @@ public class TokenReplacementEngineTests
             "$greeting$ $name$! Again: $greeting$.",
             Tokens(("greeting", "Hello"), ("name", "World")));
 
-        Assert.Equal("Hello World! Again: Hello.", result.Content);
-        Assert.Equal(3, result.ReplacedCount);
+        result.Content.Should().Be("Hello World! Again: Hello.");
+        result.ReplacedCount.Should().Be(3);
     }
 
     [Fact]
@@ -38,7 +42,7 @@ public class TokenReplacementEngineTests
     {
         var result = TokenReplacementEngine.Replace("$VERSION$", Tokens(("version", "2.0.0")));
 
-        Assert.Equal("2.0.0", result.Content);
+        result.Content.Should().Be("2.0.0");
     }
 
     [Fact]
@@ -46,8 +50,8 @@ public class TokenReplacementEngineTests
     {
         var result = TokenReplacementEngine.Replace("$a$ $unknown$ $unknown$", Tokens(("a", "x")));
 
-        Assert.Equal("x $unknown$ $unknown$", result.Content);
-        Assert.Equal(["unknown"], result.UnmatchedTokens);
+        result.Content.Should().Be("x $unknown$ $unknown$");
+        result.UnmatchedTokens.Should().Equal("unknown");
     }
 
     [Fact]
@@ -56,8 +60,8 @@ public class TokenReplacementEngineTests
         var content = "path=$(OutputPath) v=$version$";
         var result = TokenReplacementEngine.Replace(content, Tokens(("version", "1.0")));
 
-        Assert.Equal("path=$(OutputPath) v=1.0", result.Content);
-        Assert.Empty(result.UnmatchedTokens);
+        result.Content.Should().Be("path=$(OutputPath) v=1.0");
+        result.UnmatchedTokens.Should().BeEmpty();
     }
 
     [Fact]
@@ -65,7 +69,7 @@ public class TokenReplacementEngineTests
     {
         var result = TokenReplacementEngine.Replace("v={{version}}", Tokens(("version", "3.1.4")), "{{", "}}");
 
-        Assert.Equal("v=3.1.4", result.Content);
+        result.Content.Should().Be("v=3.1.4");
     }
 
     [Fact]
@@ -74,8 +78,8 @@ public class TokenReplacementEngineTests
         var result = TokenReplacementEngine.Replace("$a$$b$", Tokens(("a", "$b$"), ("b", "B")));
 
         // Single pass left-to-right: $a$ -> "$b$", then the original $b$ -> "B"
-        Assert.Equal("$b$B", result.Content);
-        Assert.Equal(2, result.ReplacedCount);
+        result.Content.Should().Be("$b$B");
+        result.ReplacedCount.Should().Be(2);
     }
 
     [Fact]
@@ -85,7 +89,7 @@ public class TokenReplacementEngineTests
             "$my.token-name_1$",
             Tokens(("my.token-name_1", "ok")));
 
-        Assert.Equal("ok", result.Content);
+        result.Content.Should().Be("ok");
     }
 
     [Fact]
@@ -93,8 +97,8 @@ public class TokenReplacementEngineTests
     {
         var result = TokenReplacementEngine.Replace("", Tokens(("a", "x")));
 
-        Assert.Equal("", result.Content);
-        Assert.Equal(0, result.ReplacedCount);
+        result.Content.Should().BeEmpty();
+        result.ReplacedCount.Should().Be(0);
     }
 
     [Fact]
@@ -104,8 +108,8 @@ public class TokenReplacementEngineTests
         var result = TokenReplacementEngine.Replace(content, Tokens(("version", "1.0")));
 
         // "$5 and $10 together" — "$5 and $10" is not a valid token pair ($5 and $10... "5 and ..." contains spaces)
-        Assert.Equal(content, result.Content);
-        Assert.Equal(0, result.ReplacedCount);
+        result.Content.Should().Be(content);
+        result.ReplacedCount.Should().Be(0);
     }
 
     [Fact]
@@ -115,13 +119,16 @@ public class TokenReplacementEngineTests
         var once = TokenReplacementEngine.Replace("v=$version$", tokens).Content;
         var twice = TokenReplacementEngine.Replace(once, tokens).Content;
 
-        Assert.Equal(once, twice);
+        twice.Should().Be(once);
     }
 
     [Fact]
     public void Empty_Delimiters_Throw()
     {
-        Assert.Throws<ArgumentException>(() => TokenReplacementEngine.Replace("x", Tokens(), "", "$"));
-        Assert.Throws<ArgumentException>(() => TokenReplacementEngine.Replace("x", Tokens(), "$", ""));
+        var emptyStart = () => TokenReplacementEngine.Replace("x", Tokens(), "", "$");
+        var emptyEnd = () => TokenReplacementEngine.Replace("x", Tokens(), "$", "");
+
+        emptyStart.Should().Throw<ArgumentException>();
+        emptyEnd.Should().Throw<ArgumentException>();
     }
 }

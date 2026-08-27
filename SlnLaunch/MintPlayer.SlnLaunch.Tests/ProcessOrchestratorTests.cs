@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using MintPlayer.Assertions;
 using MintPlayer.SlnLaunch.Models;
 using MintPlayer.SlnLaunch.Services;
 
@@ -30,7 +31,7 @@ public class ProcessOrchestratorTests
             .RunAsync(Plan(Cmd("a", ExitWith(0)), Cmd("b", ExitWith(0))), FastTeardown, CancellationToken.None)
             .WaitAsync(TimeSpan.FromSeconds(30));
 
-        Assert.Equal(0, code);
+        code.Should().Be(0);
     }
 
     [Fact]
@@ -40,7 +41,7 @@ public class ProcessOrchestratorTests
             .RunAsync(Plan(Cmd("a", ExitWith(0)), Cmd("b", ExitWith(3))), FastTeardown, CancellationToken.None)
             .WaitAsync(TimeSpan.FromSeconds(30));
 
-        Assert.Equal(3, code);
+        code.Should().Be(3);
     }
 
     [Fact]
@@ -52,7 +53,7 @@ public class ProcessOrchestratorTests
             .RunAsync(plan, FastTeardown, CancellationToken.None)
             .WaitAsync(TimeSpan.FromSeconds(30));
 
-        Assert.Equal(1, code);
+        code.Should().Be(1);
     }
 
     [Fact]
@@ -61,7 +62,7 @@ public class ProcessOrchestratorTests
         var code = await new ProcessOrchestrator(new FakeConsole())
             .RunAsync(Plan(), FastTeardown, CancellationToken.None);
 
-        Assert.Equal(0, code);
+        code.Should().Be(0);
     }
 
     [Fact]
@@ -75,7 +76,7 @@ public class ProcessOrchestratorTests
         cts.Cancel();
 
         var code = await run.WaitAsync(TimeSpan.FromSeconds(30));
-        Assert.Equal(0, code);
+        code.Should().Be(0);
     }
 
     [Fact]
@@ -89,7 +90,7 @@ public class ProcessOrchestratorTests
             .RunAsync(plan, options, CancellationToken.None)
             .WaitAsync(TimeSpan.FromSeconds(30));
 
-        Assert.Equal(7, code);
+        code.Should().Be(7);
     }
 
     [Fact]
@@ -109,14 +110,13 @@ public class ProcessOrchestratorTests
         var run = orchestrator.RunAsync(plan, FastTeardown, cts.Token);
 
         var grandchildPid = await WaitForGrandchildPid(console, TimeSpan.FromSeconds(10));
-        Assert.True(ProcessIsAlive(grandchildPid), "grandchild should be alive before cancellation");
+        ProcessIsAlive(grandchildPid).Should().BeTrue(because: "the grandchild should be alive before cancellation");
 
         cts.Cancel();
         await run.WaitAsync(TimeSpan.FromSeconds(30));
 
-        Assert.True(
-            await WaitUntil(() => !ProcessIsAlive(grandchildPid), TimeSpan.FromSeconds(10)),
-            "the grandchild process should have been killed with the tree");
+        (await WaitUntil(() => !ProcessIsAlive(grandchildPid), TimeSpan.FromSeconds(10)))
+            .Should().BeTrue(because: "the grandchild process should have been killed with the tree");
     }
 
     private static async Task<int> WaitForGrandchildPid(FakeConsole console, TimeSpan timeout)

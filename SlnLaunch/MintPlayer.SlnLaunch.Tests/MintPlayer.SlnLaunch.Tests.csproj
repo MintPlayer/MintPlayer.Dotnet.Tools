@@ -24,6 +24,8 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\MintPlayer.SlnLaunch\MintPlayer.SlnLaunch.csproj" />
+		<ProjectReference Include="..\..\Assertions\MintPlayer.Assertions\MintPlayer.Assertions.csproj" />
+		<ProjectReference Include="..\..\Assertions\MintPlayer.Assertions.SourceGenerator\MintPlayer.Assertions.SourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 	</ItemGroup>
 
 	<ItemGroup>

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using MintPlayer.Assertions;
 using MintPlayer.FolderHasher.Abstractions;
 using System.Security.Cryptography;
 
@@ -38,9 +39,8 @@ public class FolderHasherTests : IDisposable
         var hash2 = await _hasher.GetFolderHashAsync(_tempDir);
 
         // Assert
-        Assert.NotNull(hash1);
-        Assert.NotEmpty(hash1);
-        Assert.Equal(hash1, hash2);
+        hash1.Should().NotBeNullOrEmpty();
+        hash2.Should().Be(hash1);
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public class FolderHasherTests : IDisposable
         var hash2 = await _hasher.GetFolderHashAsync(_tempDir);
 
         // Assert
-        Assert.Equal(hash1, hash2);
+        hash2.Should().Be(hash1);
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public class FolderHasherTests : IDisposable
         var hash2 = await _hasher.GetFolderHashAsync(_tempDir);
 
         // Assert
-        Assert.NotEqual(hash1, hash2);
+        hash2.Should().NotBe(hash1);
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public class FolderHasherTests : IDisposable
         var hash2 = await _hasher.GetFolderHashAsync(_tempDir);
 
         // Assert
-        Assert.NotEqual(hash1, hash2);
+        hash2.Should().NotBe(hash1);
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class FolderHasherTests : IDisposable
         var hash2 = await _hasher.GetFolderHashAsync(_tempDir);
 
         // Assert
-        Assert.NotEqual(hash1, hash2);
+        hash2.Should().NotBe(hash1);
     }
 
     [Fact]
@@ -135,7 +135,7 @@ public class FolderHasherTests : IDisposable
         var hash2 = await _hasher.GetFolderHashAsync(_tempDir);
 
         // Assert - hash should be the same since .log files are ignored
-        Assert.Equal(hash1, hash2);
+        hash2.Should().Be(hash1);
     }
 
     [Fact]
@@ -159,7 +159,7 @@ public class FolderHasherTests : IDisposable
         var hash2 = await _hasher.GetFolderHashAsync(_tempDir);
 
         // Assert
-        Assert.NotEqual(hash1, hash2);
+        hash2.Should().NotBe(hash1);
     }
 
     [Fact]
@@ -181,7 +181,7 @@ public class FolderHasherTests : IDisposable
         var hash2 = await _hasher.GetFolderHashAsync(_tempDir, ["node_modules"]);
 
         // Assert - hash should be the same since node_modules is ignored
-        Assert.Equal(hash1, hash2);
+        hash2.Should().Be(hash1);
     }
 
     [Fact]
@@ -205,8 +205,11 @@ public class FolderHasherTests : IDisposable
         var hashSha512 = await hasher2.GetFolderHashAsync(_tempDir, [], sha512);
 
         // Assert - different algorithms produce different length hashes
-        Assert.Equal(64, hashSha256.Length);  // SHA256 = 32 bytes = 64 hex chars
-        Assert.Equal(128, hashSha512.Length); // SHA512 = 64 bytes = 128 hex chars
+        using (new AssertionScope("hash lengths"))
+        {
+            hashSha256.Should().HaveLength(64);  // SHA256 = 32 bytes = 64 hex chars
+            hashSha512.Should().HaveLength(128); // SHA512 = 64 bytes = 128 hex chars
+        }
     }
 
     [Fact]
@@ -220,8 +223,7 @@ public class FolderHasherTests : IDisposable
         var hash = await _hasher.GetFolderHashAsync(_tempDir);
 
         // Assert
-        Assert.NotNull(hash);
-        Assert.NotEmpty(hash);
+        hash.Should().NotBeNullOrEmpty();
     }
 
     [Fact]
@@ -254,7 +256,7 @@ public class FolderHasherTests : IDisposable
         var hash2 = await _hasher.GetFolderHashAsync(_tempDir);
 
         // Assert - hash should be the same since all modified files are ignored
-        Assert.Equal(hash1, hash2);
+        hash2.Should().Be(hash1);
     }
 
     [Fact]
@@ -267,7 +269,7 @@ public class FolderHasherTests : IDisposable
         var hash = await _hasher.GetFolderHashAsync(_tempDir);
 
         // Assert - hash should be lowercase hexadecimal
-        Assert.Matches("^[0-9a-f]+$", hash);
+        hash.Should().MatchRegex("^[0-9a-f]+$");
     }
 
     [Fact]
@@ -290,6 +292,6 @@ public class FolderHasherTests : IDisposable
         }
 
         // Assert - all hashes should be identical
-        Assert.All(hashes, h => Assert.Equal(hashes[0], h));
+        hashes.Should().AllSatisfy(h => h.Should().Be(hashes[0]));
     }
 }

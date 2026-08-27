@@ -1,3 +1,4 @@
+using MintPlayer.Assertions;
 using MintPlayer.SlnLaunch;
 using MintPlayer.SlnLaunch.Models;
 using MintPlayer.SlnLaunch.Services;
@@ -28,12 +29,15 @@ public class SlnLaunchFileServiceTests
 
         var file = _service.Load(path);
 
-        var profile = Assert.Single(file.Profiles);
-        Assert.Equal("HR + Fleet", profile.Name);
-        Assert.Equal(2, profile.Projects.Count);
-        Assert.All(profile.Projects, p => Assert.Equal(LaunchAction.Start, p.Action));
-        Assert.All(profile.Projects, p => Assert.Equal("https", p.DebugTarget));
-        Assert.Equal(@"Demo\Fleet\Fleet\Fleet.csproj", profile.Projects[0].Path);
+        var profile = file.Profiles.Should().ContainSingle().Which;
+        using (new AssertionScope("the parsed profile"))
+        {
+            profile.Name.Should().Be("HR + Fleet");
+            profile.Projects.Should().HaveCount(2);
+            profile.Projects.Should().AllSatisfy(p => p.Action.Should().Be(LaunchAction.Start));
+            profile.Projects.Should().AllSatisfy(p => p.DebugTarget.Should().Be("https"));
+            profile.Projects[0].Path.Should().Be(@"Demo\Fleet\Fleet\Fleet.csproj");
+        }
     }
 
     [Fact]
@@ -44,7 +48,7 @@ public class SlnLaunchFileServiceTests
 
         var file = _service.Load(path);
 
-        Assert.Equal(temp.Path, file.Directory);
+        file.Directory.Should().Be(temp.Path);
     }
 
     [Theory]
@@ -62,7 +66,7 @@ public class SlnLaunchFileServiceTests
 
         var file = _service.Load(path);
 
-        Assert.Equal(expected, file.Profiles[0].Projects[0].Action);
+        file.Profiles[0].Projects[0].Action.Should().Be(expected);
     }
 
     [Fact]
@@ -74,8 +78,8 @@ public class SlnLaunchFileServiceTests
 
         var entry = _service.Load(path).Profiles[0].Projects[0];
 
-        Assert.Equal(LaunchAction.None, entry.Action);
-        Assert.False(entry.ShouldLaunch);
+        entry.Action.Should().Be(LaunchAction.None);
+        entry.ShouldLaunch.Should().BeFalse();
     }
 
     [Fact]
@@ -85,7 +89,7 @@ public class SlnLaunchFileServiceTests
         var json = """[ { "Name": "P", "Projects": [ { "Path": "a.csproj", "Action": "Start" } ] } ]""";
         var path = temp.WriteFile("App.slnLaunch", json);
 
-        Assert.Null(_service.Load(path).Profiles[0].Projects[0].DebugTarget);
+        _service.Load(path).Profiles[0].Projects[0].DebugTarget.Should().BeNull();
     }
 
     [Fact]
@@ -100,7 +104,7 @@ public class SlnLaunchFileServiceTests
             """;
         var path = temp.WriteFile("App.slnLaunch", json);
 
-        Assert.Equal("P", _service.Load(path).Profiles[0].Name);
+        _service.Load(path).Profiles[0].Name.Should().Be("P");
     }
 
     [Fact]
@@ -109,8 +113,9 @@ public class SlnLaunchFileServiceTests
         using var temp = new TempDirectory();
         var path = Path.Combine(temp.Path, "nope.slnLaunch");
 
-        var ex = Assert.Throws<SlnLaunchException>(() => _service.Load(path));
-        Assert.Contains("not found", ex.Message, StringComparison.OrdinalIgnoreCase);
+        var act = () => _service.Load(path);
+
+        act.Should().Throw<SlnLaunchException>().WithMessage("*not found*");
     }
 
     [Fact]
@@ -119,7 +124,9 @@ public class SlnLaunchFileServiceTests
         using var temp = new TempDirectory();
         var path = temp.WriteFile("App.slnLaunch", "{ this is not valid");
 
-        Assert.Throws<SlnLaunchException>(() => _service.Load(path));
+        var act = () => _service.Load(path);
+
+        act.Should().Throw<SlnLaunchException>();
     }
 
     [Fact]
@@ -128,8 +135,9 @@ public class SlnLaunchFileServiceTests
         using var temp = new TempDirectory();
         var path = temp.WriteFile("App.slnLaunch", "[]");
 
-        var ex = Assert.Throws<SlnLaunchException>(() => _service.Load(path));
-        Assert.Contains("no launch profiles", ex.Message, StringComparison.OrdinalIgnoreCase);
+        var act = () => _service.Load(path);
+
+        act.Should().Throw<SlnLaunchException>().WithMessage("*no launch profiles*");
     }
 
     [Fact]
@@ -139,20 +147,22 @@ public class SlnLaunchFileServiceTests
         var json = """[ { "Name": "P", "Projects": [ { "Action": "Start" } ] } ]""";
         var path = temp.WriteFile("App.slnLaunch", json);
 
-        Assert.Throws<SlnLaunchException>(() => _service.Load(path));
+        var act = () => _service.Load(path);
+
+        act.Should().Throw<SlnLaunchException>();
     }
 
     [Fact]
     public void Find_returns_empty_when_no_files()
     {
         using var temp = new TempDirectory();
-        Assert.Empty(_service.Find(temp.Path));
+        _service.Find(temp.Path).Should().BeEmpty();
     }
 
     [Fact]
     public void Find_returns_empty_for_missing_directory()
     {
-        Assert.Empty(_service.Find(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"))));
+        _service.Find(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"))).Should().BeEmpty();
     }
 
     [Fact]
@@ -163,7 +173,7 @@ public class SlnLaunchFileServiceTests
 
         var found = _service.Find(temp.Path);
 
-        Assert.Equal(path, Assert.Single(found));
+        found.Should().ContainSingle().Which.Should().Be(path);
     }
 
     [Fact]
@@ -176,7 +186,7 @@ public class SlnLaunchFileServiceTests
 
         var found = _service.Find(temp.Path);
 
-        Assert.Equal("App.slnLaunch", Path.GetFileName(Assert.Single(found)));
+        Path.GetFileName(found.Should().ContainSingle().Which).Should().Be("App.slnLaunch");
     }
 
     [Fact]
@@ -188,7 +198,7 @@ public class SlnLaunchFileServiceTests
 
         var found = _service.Find(temp.Path);
 
-        Assert.Equal("App.slnLaunch.user", Path.GetFileName(Assert.Single(found)));
+        Path.GetFileName(found.Should().ContainSingle().Which).Should().Be("App.slnLaunch.user");
     }
 
     [Fact]
@@ -200,6 +210,6 @@ public class SlnLaunchFileServiceTests
 
         var found = _service.Find(temp.Path);
 
-        Assert.Equal(2, found.Count);
+        found.Should().HaveCount(2);
     }
 }
