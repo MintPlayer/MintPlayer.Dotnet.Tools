@@ -8,7 +8,7 @@
 	</PropertyGroup>
 
 	<PropertyGroup>
-		<Version>10.20.0</Version>
+		<Version>10.20.1</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>Value-comparer for Newtonsoft.Json JObject, so incremental source generators carrying JObject in their models still cache correctly</Description>
