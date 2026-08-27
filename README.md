@@ -1,7 +1,7 @@
 # .NET Tools
 
 ## Assertions
-[MintPlayer.Assertions](Assertions/README.md) is a fluent assertion library for .NET — a free-forever alternative to FluentAssertions, which became a commercial product in January 2025.
+[MintPlayer.Assertions](Assertions/MintPlayer.Assertions/README.md) is a fluent assertion library for .NET — a free-forever alternative to FluentAssertions, which became a commercial product in January 2025.
 
 | Package | Release | Preview | Downloads |
 |---------|---------|---------|-----------|
@@ -18,13 +18,15 @@ await act.Should().ThrowAsync<TimeoutException>().WithMessage("*timed out*");
 ```
 
 ## Source Generators
-This repository contains several .NET Source generators
-- [ValueComparerGenerator](SourceGenerators/ValueComparerGenerator/README.md): Makes it easier to write your own source-generators by generating the value-comparers for you
-- [MapperGenerator](SourceGenerators/Mapper/README.md): Automatically generates mapper-extension-methods for you. It has support for property-name remapping and property-type remapping
-- [SourceGenerators](SourceGenerators/SourceGenerators/README.md)
+This repository contains several .NET source generators ([overview](SourceGenerators/README.md)):
+- [MintPlayer.SourceGenerators](SourceGenerators/SourceGenerators/MintPlayer.SourceGenerators/README.md)
     - Generates extension methods to register services decorated with the `[Register]` attribute
     - Allows you to use the `[Inject]` attribute, removing the constructor completely
     - Contains an interface-implementation analyzer
+- [MintPlayer.Mapper](SourceGenerators/Mapper/MintPlayer.Mapper/README.md): Automatically generates mapper-extension-methods for you. It has support for property-name remapping and property-type remapping
+- [MintPlayer.ValueComparerGenerator](SourceGenerators/ValueComparerGenerator/MintPlayer.ValueComparerGenerator/README.md): Makes it easier to write your own source-generators by generating the value-comparers for you
+- [MintPlayer.CliGenerator](SourceGenerators/Cli/MintPlayer.CliGenerator/README.md): Builds a `System.CommandLine` command tree from your classes, with DI wiring
+- [MintPlayer.SourceGenerators.Tools](SourceGenerators/MintPlayer.SourceGenerators.Tools/README.md): The toolkit those generators are built on — use it to write your own
 
 ## HTTP helpers
 This repository contains [extension methods](Http/MintPlayer.Http/README.md) that build on the .NET standard `Http` library. Example:

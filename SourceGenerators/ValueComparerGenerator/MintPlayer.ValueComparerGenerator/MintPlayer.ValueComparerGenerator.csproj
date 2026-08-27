@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
@@ -22,6 +22,7 @@
 		<PackageId>MintPlayer.ValueComparerGenerator</PackageId>
 		<PackageTags>SourceGenerators,ValueComparerGenerator</PackageTags>
 		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
 	</PropertyGroup>
 
     <ItemGroup>
@@ -45,4 +46,9 @@
 	  <PackageReference Update="Microsoft.CodeAnalysis.Analyzers" Version="5.3.0" />
 	  <PackageReference Update="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />
 	</ItemGroup>
+	<!-- The package README is the canonical docs for this generator; ship it to NuGet. -->
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
 </Project>

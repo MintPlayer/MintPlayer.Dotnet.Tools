@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<TargetFramework>netstandard2.0</TargetFramework>
@@ -14,6 +14,7 @@
 		<PackageId>MintPlayer.SourceGenerators.Attributes</PackageId>
 		<PackageTags>SourceGenerators</PackageTags>
 		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<IncludeSymbols>true</IncludeSymbols>
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -25,6 +26,11 @@
 
 	<ItemGroup>
 		<None Include="build\*.props" Pack="true" PackagePath="build" />
+	</ItemGroup>
+
+	<!-- The package README is the canonical docs; ship it to NuGet. -->
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
 
 </Project>

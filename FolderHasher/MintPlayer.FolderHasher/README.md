@@ -100,7 +100,7 @@ The same folder contents will always produce the same hash, making it suitable f
 
 ## MSBuild Integration
 
-For build-time folder hashing (e.g., cache invalidation in CI/CD), see [MintPlayer.FolderHasher.Targets](../MintPlayer.FolderHasher.Targets/README.md).
+For build-time folder hashing (e.g., cache invalidation in CI/CD), see [MintPlayer.FolderHasher.Targets](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/blob/master/FolderHasher/MintPlayer.FolderHasher.Targets/README.md).
 
 ## API Reference
 

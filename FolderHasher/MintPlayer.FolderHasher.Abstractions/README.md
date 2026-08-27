@@ -58,8 +58,8 @@ public interface IFolderHasher
 
 ## Related Packages
 
-- [MintPlayer.FolderHasher](../MintPlayer.FolderHasher/README.md) - Concrete implementation
-- [MintPlayer.FolderHasher.SpaServices](../MintPlayer.FolderHasher.SpaServices/README.md) - ASP.NET Core SPA integration
+- [MintPlayer.FolderHasher](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/blob/master/FolderHasher/MintPlayer.FolderHasher/README.md) - Concrete implementation
+- [MintPlayer.FolderHasher.Targets](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/blob/master/FolderHasher/MintPlayer.FolderHasher.Targets/README.md) - MSBuild task that computes a folder hash at build time
 
 ## License
 

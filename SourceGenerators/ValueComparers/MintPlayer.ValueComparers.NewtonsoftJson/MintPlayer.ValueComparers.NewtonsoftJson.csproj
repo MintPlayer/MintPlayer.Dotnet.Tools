@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<TargetFramework>netstandard2.0</TargetFramework>
@@ -11,13 +11,14 @@
 		<Version>10.20.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
-		<Description>This package contains useful tools for building source generators</Description>
+		<Description>Value-comparer for Newtonsoft.Json JObject, so incremental source generators carrying JObject in their models still cache correctly</Description>
 		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/SourceGenerators/ValueComparers/MintPlayer.ValueComparers.NewtonsoftJson</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<PackageId>MintPlayer.ValueComparers.NewtonsoftJson</PackageId>
 		<PackageTags>SourceGenerators,ValueComparers</PackageTags>
 		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<IncludeSymbols>true</IncludeSymbols>
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 	</PropertyGroup>
@@ -28,6 +29,11 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\..\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj" />
+	</ItemGroup>
+
+	<!-- The package README is the canonical docs; ship it to NuGet. -->
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
 
 </Project>

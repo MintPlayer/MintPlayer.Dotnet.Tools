@@ -845,6 +845,6 @@ Found 3 items to address...
 ### References
 
 - [DeCronosGroep Claude Commands](https://github.com/DeCronosGroep/claude/tree/development/plugins/dcg/commands)
-- [MintPlayer.CliGenerator](./SourceGenerators/Cli)
+- [MintPlayer.CliGenerator](../SourceGenerators/Cli/MintPlayer.CliGenerator/README.md)
 - [GitHub CLI (`gh`) Documentation](https://cli.github.com/)
 - [Claude Code Documentation](https://docs.anthropic.com/en/docs/claude-code)

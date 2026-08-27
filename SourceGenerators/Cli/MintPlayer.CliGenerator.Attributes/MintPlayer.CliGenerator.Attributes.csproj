@@ -14,6 +14,7 @@
 		<PackageId>MintPlayer.CliGenerator.Attributes</PackageId>
 		<PackageTags>SourceGenerators,CommandLine,System.CommandLine</PackageTags>
 		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<IncludeSymbols>true</IncludeSymbols>
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -26,6 +27,11 @@
 
 	<ItemGroup>
 		<None Include="build\*.props" Pack="true" PackagePath="build" />
+	</ItemGroup>
+
+	<!-- The package README is the canonical docs; ship it to NuGet. -->
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
 
 </Project>

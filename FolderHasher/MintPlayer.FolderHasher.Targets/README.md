@@ -114,7 +114,7 @@ This package is a development dependency that includes:
 
 ## Related Packages
 
-- [MintPlayer.FolderHasher](../MintPlayer.FolderHasher/README.md) - Runtime library for use with dependency injection
+- [MintPlayer.FolderHasher](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/blob/master/FolderHasher/MintPlayer.FolderHasher/README.md) - Runtime library for use with dependency injection
 
 ## License
 
