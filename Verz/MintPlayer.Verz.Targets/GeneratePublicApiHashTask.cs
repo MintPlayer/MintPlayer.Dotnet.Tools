@@ -22,7 +22,9 @@ public class GeneratePublicApiHashTask : Microsoft.Build.Utilities.Task
                 return false;
             }
 
-            var assembly = Assembly.Load(AssemblyPath);
+            // LoadFrom, not Load: Assembly.Load(string) takes an assembly NAME, so passing a
+            // file path threw for every input and the task could never succeed.
+            var assembly = Assembly.LoadFrom(AssemblyPath);
             var publicApi = ApiGenerator.GeneratePublicApi(assembly);
 
             using var sha256 = SHA256.Create();

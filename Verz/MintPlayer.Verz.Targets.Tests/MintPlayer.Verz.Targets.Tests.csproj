@@ -2,6 +2,7 @@
 
 	<PropertyGroup>
 		<TargetFramework>net10.0</TargetFramework>
+		<LangVersion>14</LangVersion>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<IsPackable>false</IsPackable>
@@ -13,21 +14,18 @@
 		  <PrivateAssets>all</PrivateAssets>
 		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
-		<PackageReference Include="Microsoft.Build.Utilities.Core" Version="18.4.0" />
 		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
 		<PackageReference Include="xunit" Version="2.9.3" />
 		<PackageReference Include="xunit.runner.visualstudio" Version="4.0.0">
 		  <PrivateAssets>all</PrivateAssets>
 		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
+		<PackageReference Include="Microsoft.Build.Utilities.Core" Version="18.4.0" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\MintPlayer.FolderHasher\MintPlayer.FolderHasher.csproj" />
-		<ProjectReference Include="..\MintPlayer.FolderHasher.Targets\MintPlayer.FolderHasher.Targets.csproj" />
 		<ProjectReference Include="..\..\Assertions\MintPlayer.Assertions\MintPlayer.Assertions.csproj" />
-		<ProjectReference Include="..\..\Assertions\MintPlayer.Assertions.SourceGenerator\MintPlayer.Assertions.SourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+		<ProjectReference Include="..\MintPlayer.Verz.Targets\MintPlayer.Verz.Targets.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -36,6 +34,7 @@
 
 	<ItemGroup>
 		<Using Include="Xunit" />
+		<Using Include="MintPlayer.Assertions" />
 	</ItemGroup>
 
 </Project>
