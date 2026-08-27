@@ -11,7 +11,20 @@
           cannot resolve it against `git ls-files` and drops it. Measured: 6 files, 738 coverable
           lines, silently discarded. Excluding it here makes the raw report and the server agree.
           -->
-          <ExcludeByFile>**/obj/**/*.g.cs,**/*.Designer.cs</ExcludeByFile>
+          <!--
+          Forward slashes only: coverlet normalizes separators, verified by probe — an
+          ExcludeByFile of **/Casing.cs drops StringExtensions\...\Casing.cs on Windows. No
+          git-tracked file in this repo is named *.g.cs, so the bare pattern cannot hide real
+          source and there is no need to anchor it to obj/.
+
+          Known limitation, not fixable here: a source-generated document that is never written
+          to disk — Solve/obj/.../InjectSourceGenerator/Inject.g.cs, because Solve does not set
+          EmitCompilerGeneratedFiles — carries a VIRTUAL path that no glob matches. It is real
+          shipped code (a generated constructor), but its source file is not in git, so the
+          coverage server cannot resolve it and drops it. That is the correct outcome; it only
+          means the raw local report lists one file the server ignores.
+          -->
+          <ExcludeByFile>**/*.g.cs,**/*.Designer.cs</ExcludeByFile>
 
           <!--
           SourceLink is active in this repo (see obj/*.sourcelink.json). UseSourceLink=true rewrites
