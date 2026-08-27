@@ -20,7 +20,7 @@ using MintPlayer.Assertions.Specialized;
 /// </remarks>
 public static class AsyncExceptionAssertionExtensions
 {
-    /// <summary>Asserts the thrown exception's message matches a wildcard pattern (case-insensitive).</summary>
+    /// <summary>Asserts the thrown exception's message matches a wildcard pattern, case-sensitively.</summary>
     public static async Task<ExceptionAssertions<TException>> WithMessage<TException>(
         this Task<ExceptionAssertions<TException>> assertions,
         string wildcardPattern, string? because = null, params object?[] becauseArgs)
@@ -28,6 +28,17 @@ public static class AsyncExceptionAssertionExtensions
     {
         var awaited = await assertions.ConfigureAwait(false);
         awaited.WithMessage(wildcardPattern, because, becauseArgs);
+        return awaited;
+    }
+
+    /// <summary>Asserts the thrown exception's message matches a wildcard pattern using an explicit comparison.</summary>
+    public static async Task<ExceptionAssertions<TException>> WithMessage<TException>(
+        this Task<ExceptionAssertions<TException>> assertions,
+        string wildcardPattern, StringComparison comparison, string? because = null, params object?[] becauseArgs)
+        where TException : Exception
+    {
+        var awaited = await assertions.ConfigureAwait(false);
+        awaited.WithMessage(wildcardPattern, comparison, because, becauseArgs);
         return awaited;
     }
 

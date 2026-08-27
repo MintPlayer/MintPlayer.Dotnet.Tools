@@ -18,16 +18,34 @@ public class ExceptionAssertions<TException> : ReferenceTypeAssertions<TExceptio
     public TException Which => Subject!;
 
     /// <summary>
-    /// Asserts the exception message matches the given wildcard pattern, ignoring case.
+    /// Asserts the exception message matches the given wildcard pattern, <b>case-sensitively</b>.
     /// <c>*</c> matches any sequence (including newlines), <c>?</c> matches exactly one character.
+    /// To ignore case, pass a <see cref="StringComparison"/>:
+    /// <c>WithMessage("*not found*", StringComparison.OrdinalIgnoreCase)</c>.
     /// </summary>
     public AndConstraint<ExceptionAssertions<TException>> WithMessage(string wildcardPattern, string? because = null, params object?[] becauseArgs)
+        => WithMessage(wildcardPattern, StringComparison.Ordinal, because, becauseArgs);
+
+    /// <summary>
+    /// Asserts the exception message matches the given wildcard pattern using an explicit
+    /// <paramref name="comparison"/> — so the call site says whether case matters instead of
+    /// leaving the reader to guess.
+    /// </summary>
+    /// <remarks>
+    /// A separate overload rather than an optional parameter on the one above: an optional
+    /// parameter would have to sit before <paramref name="because"/> and would break every
+    /// existing positional <c>WithMessage(pattern, "reason")</c> call.
+    /// </remarks>
+    public AndConstraint<ExceptionAssertions<TException>> WithMessage(string wildcardPattern, StringComparison comparison, string? because = null, params object?[] becauseArgs)
     {
         ArgumentNullException.ThrowIfNull(wildcardPattern);
+        var casing = comparison is StringComparison.Ordinal or StringComparison.InvariantCulture or StringComparison.CurrentCulture
+            ? "matching"
+            : "matching (ignoring case)";
         Assert().ForCondition(Subject is not null).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to have a message matching {0}{reason}, but the exception was <null>.", wildcardPattern)
-            .ForCondition(Subject is null || WildcardPattern.IsMatch(Subject.Message, wildcardPattern, ignoreCase: true)).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to have a message matching {0}{reason}, but found {1}.", wildcardPattern, Subject?.Message);
+            .FailWith($"Expected {{subject}} to have a message {casing} {{0}}{{reason}}, but the exception was <null>.", wildcardPattern)
+            .ForCondition(Subject is null || WildcardPattern.IsMatch(Subject.Message, wildcardPattern, comparison)).BecauseOf(because, becauseArgs)
+            .FailWith($"Expected {{subject}} to have a message {casing} {{0}}{{reason}}, but found {{1}}.", wildcardPattern, Subject?.Message);
         return new(this);
     }
 

@@ -94,11 +94,12 @@ public class ExceptionAssertionsTests
     }
 
     [Fact]
-    public void WithMessage_Passes_WhenWildcardMatchesIgnoringCase()
+    public void WithMessage_IgnoringCase_Passes_WhenWildcardMatchesIgnoringCase()
     {
         Action act = () => throw new InvalidOperationException("Something went BOOM today");
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*went boom*");
+        act.Should().Throw<InvalidOperationException>().WithMessage("*went boom*", StringComparison.OrdinalIgnoreCase);
+        act.Should().Throw<InvalidOperationException>().WithMessage("*went BOOM*");
     }
 
     [Fact]

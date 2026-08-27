@@ -115,10 +115,31 @@ MPA0002/MPA0003 as warnings, and MPA0003 correctly stays silent on `using var`.
 4. Two trim suppressions cited the wrong diagnostic id (IL2075 instead of IL2070), so the
    AOT-clean claim was not actually being enforced.
 
-### Deferred (deliberately, with reasons)
+### Follow-up gaps — closed
 
-- `ExceptionAssertions.WithMessage` has no case-sensitivity switch; dogfooding wanted one.
-- `ContainSingle().Which.Should()` is verbose for the very common xUnit `Assert.Single` shape.
+Both items dogfooding raised have been addressed, and closing them surfaced more than expected:
+
+- **`WithMessage` case sensitivity.** It silently ignored case, which the call site gave no hint
+  of. It is now case-sensitive, with an explicit `StringComparison` overload
+  (`WithMessage(pattern, StringComparison.OrdinalIgnoreCase)`) rather than a second method name —
+  an *optional* parameter was rejected because it would have to precede `because` and would break
+  positional `WithMessage(pattern, "reason")` calls. Exposing `StringComparison` also forced a
+  fix in `WildcardPattern`, which honoured only `OrdinalIgnoreCase` and would have treated
+  `CurrentCultureIgnoreCase` as case-*sensitive*.
+- **`ContainSingle().Which.Should().Be(x)` verbosity.** Deliberately *not* fixed with a
+  `ContainSingle(T expected)` overload: for `IEnumerable<string>` — the most common element type —
+  it would be ambiguous with this method's `because` parameter, breaking existing calls. The terse
+  form already exists as `Equal(x)`; that is now documented in `ContainSingle`'s remarks.
+
+### Async deadlock safety
+
+Prompted by review: every `await` in the async assertion path uses `ConfigureAwait(false)`, so the
+library never deadlocks a caller who blocks on it. `AsyncDeadlockTests` proves this by reproducing
+the classic single-threaded `SynchronizationContext` scenario, with thread joins bounded so a
+regression fails the suite instead of hanging CI. Two boundaries are pinned there: a subject that
+itself captures the context deadlocks the *caller* (ordinary sync-over-async — await instead, which
+MPA0001 already mandates), while `CompleteWithinAsync` is bounded by its own timeout and fails
+rather than hangs.
 
 ### Benchmarks — run, target met
 

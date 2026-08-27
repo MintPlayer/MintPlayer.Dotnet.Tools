@@ -141,6 +141,10 @@ public class DocSamples
 
         var number = 4;
         number.Should().BeEven();
+
+        Action missing = () => throw new InvalidOperationException("The Widget was NOT FOUND");
+        missing.Should().Throw<InvalidOperationException>()
+               .WithMessage("*not found*", StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

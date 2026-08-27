@@ -257,9 +257,16 @@ act.Should().ThrowExactly<ArgumentException>().WithMessage("*must not be empty*"
 act.Should().NotThrow();
 ```
 
-On the thrown exception: `WithMessage` (glob, case-insensitive) `WithInnerException<T>`
-`WithInnerExactly<T>` `WithParameterName` `Where(predicate)`, plus `Which` for the exception
-itself.
+On the thrown exception: `WithMessage` `WithInnerException<T>` `WithInnerExactly<T>`
+`WithParameterName` `Where(predicate)`, plus `Which` for the exception itself.
+
+`WithMessage` matches a glob **case-sensitively**. When case should not matter, say so at the
+call site rather than relying on a hidden default:
+
+```csharp
+act.Should().Throw<SomeException>()
+   .WithMessage("*not found*", StringComparison.OrdinalIgnoreCase);
+```
 
 `Invoking` and `Awaiting` wrap a subject so the call stays inline:
 
@@ -294,6 +301,14 @@ await act.Should().ThrowAsync<HttpRequestException>()
 
 **Every one of these must be awaited.** Skipping the `await` makes the assertion meaningless,
 so it is a compile error rather than a green test — see [MPA0001](#analyzers).
+
+Await them; do not block on them with `.Result` or `.GetAwaiter().GetResult()`. Every `await`
+inside the library uses `ConfigureAwait(false)`, so the library itself never deadlocks — that is
+covered by tests that reproduce the classic single-threaded `SynchronizationContext` scenario.
+But if the *code under test* awaits without `ConfigureAwait(false)`, its own continuation is
+queued back to the thread you just blocked, and nothing can complete. That is the ordinary
+"sync over async" deadlock, and awaiting the assertion avoids it entirely. `CompleteWithinAsync`
+is bounded by its own timeout and so fails rather than hangs.
 
 ### Execution time
 

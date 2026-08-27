@@ -172,7 +172,17 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         return new(this);
     }
 
-    /// <summary>Asserts the collection contains exactly one item, and exposes it via Which.</summary>
+    /// <summary>
+    /// Asserts the collection contains exactly one item, and exposes it via <c>Which</c> — the
+    /// equivalent of xUnit's <c>Assert.Single(collection)</c>.
+    /// </summary>
+    /// <remarks>
+    /// To assert only that the one item equals a value, <see cref="Equal(T[])"/> says it in one
+    /// call: <c>found.Should().Equal(path)</c> rather than
+    /// <c>found.Should().ContainSingle().Which.Should().Be(path)</c>. There is deliberately no
+    /// <c>ContainSingle(T expected)</c> overload: for a collection of strings it would be
+    /// ambiguous with the <paramref name="because"/> parameter here.
+    /// </remarks>
     public AndWhichConstraint<GenericCollectionAssertions<T>, T> ContainSingle(string? because = null, params object?[] becauseArgs)
     {
         var items = Items;
