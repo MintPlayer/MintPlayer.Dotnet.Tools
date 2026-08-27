@@ -187,9 +187,12 @@ public class DirectImportTests
     [Fact]
     public void Resolves_Referenced_Package_Version_From_Assets_File()
     {
+        // 13.0.4 is the version this repo itself restores, so the runner's own
+        // `dotnet restore` has already cached it and this fixture resolves offline. Any other
+        // version would be a genuine download on a cold CI machine, for no added coverage.
         var dir = WriteFixture("""
             	<ItemGroup>
-            		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+            		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
             		<TokenReplacePackageVersion Include="Newtonsoft.Json" TokenName="njVersion" />
             		<TokenReplaceFile Include="template.txt" OutputFile="generated/result.txt" />
             	</ItemGroup>
@@ -199,7 +202,7 @@ public class DirectImportTests
         {
             AssertBuildSucceeded(RunDotnet(dir, "build -tl:off"));
 
-            File.ReadAllText(Path.Combine(dir, "generated", "result.txt")).Should().Be("newtonsoft=13.0.3");
+            File.ReadAllText(Path.Combine(dir, "generated", "result.txt")).Should().Be("newtonsoft=13.0.4");
         }
         finally
         {

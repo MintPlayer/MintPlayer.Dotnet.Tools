@@ -1,0 +1,114 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<LangVersion>14</LangVersion>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<IsPackable>false</IsPackable>
+		<IsTestProject>true</IsTestProject>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="coverlet.collector" Version="10.0.1">
+		  <PrivateAssets>all</PrivateAssets>
+		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
+		<PackageReference Include="xunit" Version="2.9.3" />
+		<PackageReference Include="xunit.runner.visualstudio" Version="4.0.0">
+		  <PrivateAssets>all</PrivateAssets>
+		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+
+		<!-- Roslyn host, at the version the generators are compiled against. -->
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />
+		<!--
+		The generator assemblies also contain CodeFixProviders, which reference
+		Microsoft.CodeAnalysis.Workspaces (this is what the RS1038 warnings on those projects
+		are about). Reflecting over the assembly loads every type, so Workspaces has to be
+		present or GetTypes throws ReflectionTypeLoadException.
+		-->
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.3.0" />
+		<!-- ServiceRegistrationsGenerator returns nothing unless this is in the reference set. -->
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.5" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
+		<!-- The CLI generator emits code against System.CommandLine. -->
+		<PackageReference Include="System.CommandLine" Version="2.0.5" />
+		<!-- The CLI generator emits a host builder against Microsoft.Extensions.Hosting. -->
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.5" />
+	</ItemGroup>
+
+	<!--
+	The generator projects are referenced with ReferenceOutputAssembly="false" and their DLLs
+	are copied into the bin ROOT by CopyGeneratorRuntimeAssets below. A plain ProjectReference
+	does NOT work: the generators are netstandard2.0 and MintPlayer.SourceGenerators.Tools
+	carries polyfilled BCL types, so letting their compile assets into this net10.0 project
+	puts a second ModuleInitializerAttribute in scope and every use becomes ambiguous with
+	System.Runtime's (CS0433).
+
+	The harness then loads them by name via Assembly.Load into the DEFAULT load context, which
+	is what makes coverlet's instrumented copy the one that actually runs. Referencing them as
+	OutputItemType="Analyzer" instead would have Roslyn load them from their own bin/ through
+	AnalyzerFileReference, and coverage would be exactly zero.
+	-->
+	<ItemGroup>
+		<ProjectReference Include="..\SourceGenerators\MintPlayer.SourceGenerators\MintPlayer.SourceGenerators.csproj"
+		                  ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\Mapper\MintPlayer.Mapper\MintPlayer.Mapper.csproj"
+		                  ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\Cli\MintPlayer.CliGenerator\MintPlayer.CliGenerator.csproj"
+		                  ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator\MintPlayer.ValueComparerGenerator.csproj"
+		                  ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
+
+		<!-- Attribute assemblies ARE referenced normally: the test input sources need them to compile. -->
+		<ProjectReference Include="..\SourceGenerators\MintPlayer.SourceGenerators.Attributes\MintPlayer.SourceGenerators.Attributes.csproj" />
+		<ProjectReference Include="..\Cli\MintPlayer.CliGenerator.Attributes\MintPlayer.CliGenerator.Attributes.csproj" />
+		<ProjectReference Include="..\Mapper\MintPlayer.Mapper.Attributes\MintPlayer.Mapper.Attributes.csproj" />
+		<ProjectReference Include="..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator.Attributes\MintPlayer.ValueComparerGenerator.Attributes.csproj" />
+		<ProjectReference Include="..\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj" />
+		<!--
+		MintPlayer.SourceGenerators' <Module> initializer registers the JObject comparer, so
+		this assembly (and its Newtonsoft.Json dependency) must be resolvable or the very
+		first Assembly.Load of the generator throws TypeInitializationException.
+		-->
+		<ProjectReference Include="..\ValueComparers\MintPlayer.ValueComparers.NewtonsoftJson\MintPlayer.ValueComparers.NewtonsoftJson.csproj" />
+
+		<ProjectReference Include="..\..\Assertions\MintPlayer.Assertions\MintPlayer.Assertions.csproj" />
+	</ItemGroup>
+
+	<!--
+	Copy each generator DLL and its PDB into the test bin ROOT, not a subfolder, because
+	coverlet's collector scans the test host directory and does not recurse.
+
+	Unlike MintPlayer.Spark's equivalent target, the PDB copy is NOT conditioned on Debug.
+	This repo's CI runs dotnet test with no-build and configuration Release, so a Debug-only
+	condition would mean no PDBs in the measured build and generator coverage would silently
+	drop back to zero. The project is IsPackable=false and never published, so there is no
+	artifact for the PDBs to leak into.
+	-->
+	<Target Name="CopyGeneratorRuntimeAssets" AfterTargets="Build">
+		<ItemGroup>
+			<_GeneratorAssets Include="$(MSBuildThisFileDirectory)..\SourceGenerators\MintPlayer.SourceGenerators\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.dll" />
+			<_GeneratorAssets Include="$(MSBuildThisFileDirectory)..\SourceGenerators\MintPlayer.SourceGenerators\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.pdb" />
+			<_GeneratorAssets Include="$(MSBuildThisFileDirectory)..\Mapper\MintPlayer.Mapper\bin\$(Configuration)\netstandard2.0\MintPlayer.Mapper.dll" />
+			<_GeneratorAssets Include="$(MSBuildThisFileDirectory)..\Mapper\MintPlayer.Mapper\bin\$(Configuration)\netstandard2.0\MintPlayer.Mapper.pdb" />
+			<_GeneratorAssets Include="$(MSBuildThisFileDirectory)..\Cli\MintPlayer.CliGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.CliGenerator.dll" />
+			<_GeneratorAssets Include="$(MSBuildThisFileDirectory)..\Cli\MintPlayer.CliGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.CliGenerator.pdb" />
+			<_GeneratorAssets Include="$(MSBuildThisFileDirectory)..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.ValueComparerGenerator.dll" />
+			<_GeneratorAssets Include="$(MSBuildThisFileDirectory)..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.ValueComparerGenerator.pdb" />
+		</ItemGroup>
+		<Error Condition="'@(_GeneratorAssets)' == ''"
+		       Text="No generator assemblies found to copy. Coverage for the generators would silently be zero, so this is a hard failure rather than a warning." />
+		<Copy SourceFiles="@(_GeneratorAssets)"
+		      DestinationFolder="$(OutputPath)"
+		      SkipUnchangedFiles="true" />
+	</Target>
+
+	<ItemGroup>
+		<Using Include="Xunit" />
+		<Using Include="MintPlayer.Assertions" />
+	</ItemGroup>
+
+</Project>

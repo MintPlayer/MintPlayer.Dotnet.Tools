@@ -21,7 +21,14 @@ internal static class ByteArrayExtensions
             {
                 lenByte = file[i++];
                 len = (len << 7) + (lenByte & 0x7F);
-            } while ((lenByte & 0x08) == 0x80);
+
+                // The continuation bit is 0x80, not 0x08. `lenByte & 0x08` yields only 0 or
+                // 8, so it could never equal 0x80 — the loop always ran exactly once and the
+                // multi-byte length form was unreachable. Every documented BEID identity
+                // field is shorter than 128 bytes, so real cards parse identically either
+                // way; a length byte of 0x80 or above was mis-parsed before and is handled
+                // now.
+            } while ((lenByte & 0x80) == 0x80);
 
             byte[] val = new byte[len];
             Array.Copy(file, i, val, 0, len);

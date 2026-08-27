@@ -4,6 +4,13 @@ namespace MintPlayer.ObservableCollection.Extensions;
 
 public static class ObservableCollectionExtensions
 {
+    // NOTE on the .ToList() in every AddDistinctRange overload: the filtered query used to
+    // be returned lazily. AddRange enumerated it once to do the inserting, and then the
+    // CALLER's enumeration re-evaluated `!collection.Contains(item)` — by which point every
+    // item was in the collection, so the "items that were actually added" return value was
+    // always empty. Materializing before the add fixes both the return value and the
+    // repeated Contains scans.
+
     #region Remove Exceeding
 
     /// <summary>
@@ -156,7 +163,7 @@ public static class ObservableCollectionExtensions
     /// <returns></returns>
     public static IEnumerable<T> AddDistinctRange<T>(this ObservableCollection<T> collection, System.Collections.IEnumerable items)
     {
-        var distinctItems = items.Cast<T>().Distinct().Where(item => !collection.Contains(item));
+        var distinctItems = items.Cast<T>().Distinct().Where(item => !collection.Contains(item)).ToList();
         collection.AddRange(distinctItems);
         return distinctItems;
     }
@@ -171,7 +178,7 @@ public static class ObservableCollectionExtensions
     /// <returns></returns>
     public static IEnumerable<T> AddDistinctRange<T>(this ObservableCollection<T> collection, System.Collections.IEnumerable items, int maxItemCount)
     {
-        var distinctItems = items.Cast<T>().Distinct().Where(item => !collection.Contains(item));
+        var distinctItems = items.Cast<T>().Distinct().Where(item => !collection.Contains(item)).ToList();
         collection.AddRange(distinctItems);
         collection.RemoveExceedingAt(maxItemCount, ECollectionSide.Head);
         return distinctItems;
@@ -186,7 +193,7 @@ public static class ObservableCollectionExtensions
     /// <returns></returns>
     public static IEnumerable<T> AddDistinctRange<T>(this ObservableCollection<T> collection, IEnumerable<T> items)
     {
-        var distinctItems = items.Distinct().Where(item => !collection.Contains(item));
+        var distinctItems = items.Distinct().Where(item => !collection.Contains(item)).ToList();
         collection.AddRange(distinctItems);
         return distinctItems;
     }
@@ -201,7 +208,7 @@ public static class ObservableCollectionExtensions
     /// <returns></returns>
     public static IEnumerable<T> AddDistinctRange<T>(this ObservableCollection<T> collection, IEnumerable<T> items, int maxItemCount)
     {
-        var distinctItems = items.Distinct().Where(item => !collection.Contains(item));
+        var distinctItems = items.Distinct().Where(item => !collection.Contains(item)).ToList();
         collection.AddRange(distinctItems);
         collection.RemoveExceedingAt(maxItemCount, ECollectionSide.Head);
         return distinctItems;
@@ -217,7 +224,7 @@ public static class ObservableCollectionExtensions
     /// <returns></returns>
     public static IEnumerable<T> AddDistinctRange<T>(this ObservableCollection<T> collection, System.Collections.IEnumerable items, IEqualityComparer<T> comparer)
     {
-        var distinctItems = items.Cast<T>().Distinct(comparer).Where(item => !collection.Contains(item, comparer));
+        var distinctItems = items.Cast<T>().Distinct(comparer).Where(item => !collection.Contains(item, comparer)).ToList();
         collection.AddRange(distinctItems);
         return distinctItems;
     }
@@ -233,7 +240,7 @@ public static class ObservableCollectionExtensions
     /// <returns></returns>
     public static IEnumerable<T> AddDistinctRange<T>(this ObservableCollection<T> collection, System.Collections.IEnumerable items, int maxItemCount, IEqualityComparer<T> comparer)
     {
-        var distinctItems = items.Cast<T>().Distinct(comparer).Where(item => !collection.Contains(item, comparer));
+        var distinctItems = items.Cast<T>().Distinct(comparer).Where(item => !collection.Contains(item, comparer)).ToList();
         collection.AddRange(distinctItems);
         collection.RemoveExceedingAt(maxItemCount, ECollectionSide.Head);
         return distinctItems;
@@ -249,7 +256,7 @@ public static class ObservableCollectionExtensions
     /// <returns></returns>
     public static IEnumerable<T> AddDistinctRange<T>(this ObservableCollection<T> collection, IEnumerable<T> items, IEqualityComparer<T> comparer)
     {
-        var distinctItems = items.Distinct(comparer).Where(item => !collection.Contains(item, comparer));
+        var distinctItems = items.Distinct(comparer).Where(item => !collection.Contains(item, comparer)).ToList();
         collection.AddRange(distinctItems);
         return distinctItems;
     }
@@ -265,7 +272,7 @@ public static class ObservableCollectionExtensions
     /// <returns></returns>
     public static IEnumerable<T> AddDistinctRange<T>(this ObservableCollection<T> collection, IEnumerable<T> items, int maxItemCount, IEqualityComparer<T> comparer)
     {
-        var distinctItems = items.Distinct(comparer).Where(item => !collection.Contains(item, comparer));
+        var distinctItems = items.Distinct(comparer).Where(item => !collection.Contains(item, comparer)).ToList();
         collection.AddRange(distinctItems);
         collection.RemoveExceedingAt(maxItemCount, ECollectionSide.Head);
         return distinctItems;

@@ -33,6 +33,11 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         writer.WriteLine("#nullable enable");
         writer.WriteLine(Header);
         writer.WriteLine();
+        // Generated code must not depend on the consumer ImplicitUsings setting. Without
+        // this, the emitted .Select(...) calls resolved only because a default SDK project
+        // implicitly imports System.Linq; a project with ImplicitUsings disabled got CS1061.
+        writer.WriteLine("using System.Linq;");
+        writer.WriteLine();
 
         using (writer.OpenBlock($"namespace {RootNamespace}"))
         {
@@ -73,7 +78,7 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
                         }
 
                         using (writer.OpenBlock("default:"))
-                            writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
+                            writer.WriteLine("throw new global::System.NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
                     }
 
                     writer.WriteLine("return (TDest?)result;");
@@ -416,6 +421,11 @@ public sealed class MapperEntrypointProducer : Producer
         writer.WriteLine("#nullable enable");
         writer.WriteLine(Header);
         writer.WriteLine();
+        // Generated code must not depend on the consumer ImplicitUsings setting. Without
+        // this, the emitted .Select(...) calls resolved only because a default SDK project
+        // implicitly imports System.Linq; a project with ImplicitUsings disabled got CS1061.
+        writer.WriteLine("using System.Linq;");
+        writer.WriteLine();
 
         using (writer.OpenBlock($"namespace {RootNamespace}"))
         {
@@ -453,7 +463,7 @@ public sealed class MapperEntrypointProducer : Producer
                                     }
 
                                     using (writer.OpenBlock("default:", false))
-                                        writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
+                                        writer.WriteLine("throw new global::System.NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
                                 }
 
                                 writer.WriteLine("break;");
@@ -461,7 +471,7 @@ public sealed class MapperEntrypointProducer : Producer
                         }
 
                         using (writer.OpenBlock("default:", false))
-                            writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
+                            writer.WriteLine("throw new global::System.NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
                     }
 
                     writer.WriteLine();
@@ -491,7 +501,7 @@ public sealed class MapperEntrypointProducer : Producer
                                     }
 
                                     using (writer.OpenBlock("default:", false))
-                                        writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
+                                        writer.WriteLine("throw new global::System.NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
                                 }
 
                                 writer.WriteLine("break;");
@@ -499,7 +509,7 @@ public sealed class MapperEntrypointProducer : Producer
                         }
 
                         using (writer.OpenBlock("default:", false))
-                            writer.WriteLine("throw new NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
+                            writer.WriteLine("throw new global::System.NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
                     }
                 }
             }

@@ -8,7 +8,7 @@
 		<PublishAot>true</PublishAot>
 
 		<IsPackable>true</IsPackable>
-		<Version>10.0.0</Version>
+		<Version>10.0.1</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>Core classes for the Belgian eID-reader</Description>
@@ -26,5 +26,14 @@
 	<PropertyGroup Condition="'$(Configuration)'=='Release'">
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 	</PropertyGroup>
+
+	<!--
+	The TLV parsing and the date/gender/doctype/spec conversions are the whole substance of
+	this package, and they are internal static helpers. Exposing them publicly just to test
+	them would widen the supported surface; this keeps them internal.
+	-->
+	<ItemGroup>
+		<InternalsVisibleTo Include="MintPlayer.EidReader.Core.Tests" />
+	</ItemGroup>
 
 </Project>

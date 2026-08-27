@@ -150,6 +150,14 @@ coverage*.xml
 coverage*.info
 /coverage/
 
+# Verz scratch area for manual tool runs. Contains a real nested git repo,
+# so it must never be walked by a recursive glob or `git add`.
+/Verz/MintPlayer.Verz/sandbox/
+
+# Approval-test output written when a snapshot does not match. Review it, then accept
+# with MINTPLAYER_ACCEPT_SNAPSHOTS=1; never commit it.
+*.received.txt
+
 # Visual Studio code coverage results
 *.coverage
 *.coveragexml

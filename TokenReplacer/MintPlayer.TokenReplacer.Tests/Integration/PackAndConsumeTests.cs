@@ -29,13 +29,22 @@ public class PackAndConsumeTests
             Directory.CreateDirectory(feed);
             var env = new Dictionary<string, string> { ["NUGET_PACKAGES"] = packagesDir };
 
+            // The local feed is the ONLY source: no nuget.org, deliberately. NUGET_PACKAGES is
+            // redirected to an empty folder per run (needed so the version-derivation assertion
+            // below runs against a genuine package install), which would otherwise mean every
+            // run re-downloads whatever is not in the feed. Everything these fixtures need is
+            // either produced by the test or comes from the SDK's targeting packs, so there is
+            // nothing left to fetch.
+            //
+            // Keeping the remote out is what makes that an enforced property rather than a
+            // coincidence: if a future change introduces a package that is not in the feed,
+            // restore fails loudly with NU1101 instead of quietly reaching for the network.
             var nugetConfig = $"""
                 <?xml version="1.0" encoding="utf-8"?>
                 <configuration>
                 	<packageSources>
                 		<clear />
                 		<add key="local" value="{Slashed(feed)}" />
-                		<add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
                 	</packageSources>
                 </configuration>
                 """;
@@ -66,10 +75,17 @@ public class PackAndConsumeTests
                 	</ItemGroup>
                 </Project>
                 """);
+            // net10.0, not netstandard2.0. The package ships no compiled output
+            // (IncludeBuildOutput=false), so the TFM is incidental to what is being tested --
+            // but netstandard2.0 pulls in NETStandard.Library, which is the one package that
+            // would have to come from nuget.org into the isolated packages folder on every run.
+            // net10.0 resolves entirely from the SDK's targeting packs, so the test needs no
+            // network at all. Do not change this back without re-reading the nuget.config
+            // comment above.
             File.WriteAllText(Path.Combine(sampleDir, "sample.csproj"), $"""
                 <Project Sdk="Microsoft.NET.Sdk">
                 	<PropertyGroup>
-                		<TargetFramework>netstandard2.0</TargetFramework>
+                		<TargetFramework>net10.0</TargetFramework>
                 		<PackageId>{SamplePackageId}</PackageId>
                 		<IncludeBuildOutput>false</IncludeBuildOutput>
                 		<NoWarn>$(NoWarn);NU5128</NoWarn>

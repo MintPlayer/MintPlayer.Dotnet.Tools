@@ -11,6 +11,38 @@ public partial class ValueComparer<T>
     private static readonly ConcurrentDictionary<Type, Func<object, object, bool>> _equalsDelegateCache = new();
     private static readonly ConcurrentDictionary<Type, Func<object, int>> _hashDelegateCache = new();
 
+    private static readonly ConcurrentDictionary<Type, MethodInfo> _immutableArrayEqualsCache = new();
+    private static readonly ConcurrentDictionary<Type, MethodInfo> _immutableArrayHashCache = new();
+
+    /// <summary>
+    /// Closes <see cref="ImmutableArrayEquals{TArr}"/> over the array's ELEMENT type. The
+    /// generic parameter is the element type, not the ImmutableArray type — getting that
+    /// wrong is what made every ImmutableArray comparison throw InvalidCastException.
+    /// </summary>
+    private static bool ImmutableArrayEqualsDynamic(Type immutableArrayType, object a, object b)
+    {
+        var closed = _immutableArrayEqualsCache.GetOrAdd(immutableArrayType, static t =>
+            typeof(ValueComparer<T>)
+                .GetMethod(nameof(ImmutableArrayEquals), BindingFlags.Static | BindingFlags.NonPublic)!
+                .MakeGenericMethod(t.GetGenericArguments()[0]));
+
+        return (bool)closed.Invoke(null, new[] { a, b })!;
+    }
+
+    private static void ImmutableArrayHashDynamic(Type immutableArrayType, ref HashCodeCompat h, object o)
+    {
+        var closed = _immutableArrayHashCache.GetOrAdd(immutableArrayType, static t =>
+            typeof(ValueComparer<T>)
+                .GetMethod(nameof(ImmutableArrayHash), BindingFlags.Static | BindingFlags.NonPublic)!
+                .MakeGenericMethod(t.GetGenericArguments()[0]));
+
+        // h is a by-ref struct parameter, so Invoke writes the mutated value back into the
+        // argument array and it has to be copied out again.
+        var args = new object[] { h, o };
+        closed.Invoke(null, args);
+        h = (HashCodeCompat)args[0];
+    }
+
     private static bool ImmutableArrayEquals<TArr>(object a, object b)
     {
         var x = (ImmutableArray<TArr>)a;

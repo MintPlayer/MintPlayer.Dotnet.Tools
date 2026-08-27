@@ -25,6 +25,13 @@ public static class StringExtensions
 
     private static string DedentLine(this string line, int spaces)
     {
+        // Nothing to strip. The loop below only compares trimmedSpaces >= spaces AFTER
+        // consuming a character, so with spaces == 0 it consumed the first real character
+        // and threw "contains too few spaces" — meaning Dedent threw on any text that was
+        // not indented at all, which is exactly the no-op case.
+        if (spaces <= 0)
+            return line;
+
         var lineSpan = line.AsSpan();
         var trimmedChars = 0;
         var trimmedSpaces = 0;

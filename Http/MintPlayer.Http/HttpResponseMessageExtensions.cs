@@ -27,8 +27,14 @@ public static class HttpResponseMessageExtensions
     {
         await response.EnsureSuccessWithBodyAsync(ct);
         await using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-        options ??= new JsonSerializerOptions(JsonSerializerDefaults.Web);
-        options.PropertyNameCaseInsensitive = true;
+
+        // Copy rather than mutate. A JsonSerializerOptions becomes read-only the first time
+        // it is used, so assigning PropertyNameCaseInsensitive directly on the caller's
+        // instance threw InvalidOperationException on the second call with the same options
+        // — and silently changed the caller's options on the first.
+        options = options is null
+            ? new JsonSerializerOptions(JsonSerializerDefaults.Web) { PropertyNameCaseInsensitive = true }
+            : new JsonSerializerOptions(options) { PropertyNameCaseInsensitive = true };
 
         var data = await JsonSerializer.DeserializeAsync<T>(stream, options, ct).ConfigureAwait(false);
 
@@ -74,7 +80,15 @@ public static class HttpResponseMessageExtensions
                 var segs = part.Split(';', StringSplitOptions.TrimEntries);
                 var url = segs[0].Trim().Trim('<', '>');
                 var rel = segs.Skip(1).FirstOrDefault(s => s.StartsWith("rel=", StringComparison.OrdinalIgnoreCase))?.Split('=')[1].Trim('"');
-                if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+
+                // UriKind.Absolute alone is not enough, and the difference is platform-dependent:
+                // a relative link target like "/p2" is rejected on Windows but parses as the
+                // absolute file URI "file:///p2" on Linux, because a leading slash is a valid
+                // Unix file path. That produced a bogus file:// URI a caller might then try to
+                // fetch. Requiring http/https makes the result identical on both platforms and
+                // keeps the Windows behaviour the library already shipped with.
+                if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                    (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
                 {
                     switch (rel) { case "next": next = uri; break; case "prev": prev = uri; break; case "first": first = uri; break; case "last": last = uri; break; }
                 }

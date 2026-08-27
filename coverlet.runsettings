@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+
+          <!--
+          Source-generator output under obj/ has no git-tracked counterpart, so the coverage server
+          cannot resolve it against `git ls-files` and drops it. Measured: 6 files, 738 coverable
+          lines, silently discarded. Excluding it here makes the raw report and the server agree.
+          -->
+          <!--
+          Forward slashes only: coverlet normalizes separators, verified by probe — an
+          ExcludeByFile of **/Casing.cs drops StringExtensions\...\Casing.cs on Windows. No
+          git-tracked file in this repo is named *.g.cs, so the bare pattern cannot hide real
+          source and there is no need to anchor it to obj/.
+
+          Known limitation, not fixable here: a source-generated document that is never written
+          to disk — Solve/obj/.../InjectSourceGenerator/Inject.g.cs, because Solve does not set
+          EmitCompilerGeneratedFiles — carries a VIRTUAL path that no glob matches. It is real
+          shipped code (a generated constructor), but its source file is not in git, so the
+          coverage server cannot resolve it and drops it. That is the correct outcome; it only
+          means the raw local report lists one file the server ignores.
+          -->
+          <ExcludeByFile>**/*.g.cs,**/*.Designer.cs</ExcludeByFile>
+
+          <!--
+          SourceLink is active in this repo (see obj/*.sourcelink.json). UseSourceLink=true rewrites
+          `filename` to raw.githubusercontent.com URLs; the server suffix-matches report paths against
+          `git ls-files`, and a URL tail makes every duplicated basename ambiguous — which the server
+          drops silently. Pinned rather than left to the default.
+          -->
+          <UseSourceLink>false</UseSourceLink>
+
+          <!--
+          Not needed today, because the Test step does not set ContinuousIntegrationBuild — but the
+          very next step in publish-release does (`dotnet pack /p:ContinuousIntegrationBuild=true`).
+          If that property ever moves into a Directory.Build.props, paths become /_/Assertions/... and
+          this must flip to true. Pinned so the coupling is visible rather than discovered.
+          -->
+          <DeterministicReport>false</DeterministicReport>
+
+          <!--
+          Measured on MintPlayer.Assertions: SkipAutoProps=true moves 3202/3426 to 3109/3331 — a
+          0.13pp change — and drops three files from the server's file tree entirely. Not worth it.
+          -->
+          <SkipAutoProps>false</SkipAutoProps>
+
+          <!--
+          ExcludeByAttribute is deliberately NOT set. The usual snippet is actively harmful here;
+          each value was measured against MintPlayer.Assertions (baseline 3202/3426 covered):
+
+            GeneratedCodeAttribute      0 lines - nothing instrumented in this repo carries it
+            Obsolete                 -125 lines - Roslyn puts a synthetic [Obsolete] on
+                                                  `readonly ref struct`, so SpanAssertions<T> and
+                                                  ReadOnlySpanAssertions<T> vanish
+            CompilerGeneratedAttribute -194 lines - every async state machine, i.e. the bodies of
+                                                  all async methods
+
+          There is also NO assembly Exclude list. Excluding the generator assemblies would suppress
+          exactly what MintPlayer.SourceGenerators.Tests exists to measure, and it would do so
+          invisibly. The generators are kept out of unrelated reports at the root instead, by
+          ReferenceOutputAssembly="false" on the OutputItemType="Analyzer" references.
+          -->
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>
