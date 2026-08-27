@@ -127,6 +127,8 @@ patch version bump so the fix actually reaches NuGet.
 | D9 | `AsyncPipeline/MintPlayer.AsyncPipeline/Pipeline.cs` | `GetAwaiter` used `upstream.ContinueWith(_ => output.Writer.Complete())`. `ContinueWith` yields a new task that succeeds regardless of whether the antecedent faulted, so **awaiting a pipeline silently swallowed every exception thrown by an action** — a failed pipeline was indistinguishable from a successful one. Separately, `Complete()` throws on an already-completed writer, so awaiting the same pipeline twice raised `ChannelClosedException` from inside the continuation. Both found by tests. |
 | D10 | `Http/MintPlayer.Http/HttpResult.cs` | `public static implicit operator HttpResult<T?>(HttpResult<string?> result) => result;` — the body's conversion resolves to the operator itself, so for any `T` other than `string` it recursed until the process died of an **uncatchable `StackOverflowException`**. Reachable from `SendAsync<T>` whenever a server answered a typed request with `text/plain`. Removed; `SendAsync` now converts explicitly and throws a catchable `NotSupportedException`. |
 | D11 | `Http/MintPlayer.Http/HttpResponseMessageExtensions.cs` | `ReadJsonAsync` assigned `PropertyNameCaseInsensitive` directly on the **caller's** `JsonSerializerOptions`. Those become read-only after first use, so the second call with the same instance threw `InvalidOperationException` — and the first silently mutated the caller's options. Now copies. |
+| D12 | `ObservableCollection/…Extensions/ObservableCollectionExtensions.cs` | All eight `AddDistinctRange` overloads returned the filtered query **lazily**. `AddRange` enumerated it to do the inserting; the caller's enumeration then re-ran `!collection.Contains(item)`, by which point every item was in the collection — so the documented "items that were actually added" return value was **always empty**. Fixed by materializing before the add. |
+| D13 | `ObservableCollection/…Extensions/ObservableCollectionExtensions.cs` | `RemoveRange(start, count)` resolves the slice **by index** and then hands it to the value-based `RemoveRange(IEnumerable<T>)`, which removes the FIRST match of each item. With duplicates it therefore deletes the wrong positions — and `RemoveExceedingAt` routes every `maxItemCount` trim through it. **Not fixed here**, see below. |
 
 ## Requirements
 
@@ -386,6 +388,13 @@ Genuinely not being done in this unit of work — not deferred to avoid a large 
   uses `DateTime.Now`, and indexes `chain.ChainElements[1]/[2]` unguarded.
 - **`CodeMigrations.Runner`** — a publishable global tool whose `Program.cs` is 3 lines and two
   `Console.WriteLine`s. Whether it should exist at all is a separate question.
+- **D13 (`RemoveRange(start, count)` removing by value).** Pinned by a characterization
+  test rather than fixed. The correct fix is index-based removal, which the base
+  `System.Collections.ObjectModel.ObservableCollection<T>` does not offer for a range —
+  so it means either N single `RemoveAt` calls, turning one batched notification into N,
+  or new index-range support on `MintPlayer.ObservableCollection` itself. Both change
+  observable notification behaviour for every UI consumer, which is a design decision
+  for the owner rather than something a coverage pass should settle.
 - **A coverage threshold or merge gate.** Deliberately: get the number honest and rising first. A
   `coverage.yml` with `blocking: false` may be added once the figures settle.
 - **Multi-TFM test projects beyond R4.1**, and `MSBuildWorkspace` (Appendix B).
