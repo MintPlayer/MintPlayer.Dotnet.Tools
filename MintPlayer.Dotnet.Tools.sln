@@ -231,6 +231,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.Http.Tests", "Ht
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.ObservableCollection.Tests", "ObservableCollection\MintPlayer.ObservableCollection.Tests\MintPlayer.ObservableCollection.Tests.csproj", "{F8AFDF32-996E-4311-AD12-23EE14368C53}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.EidReader.Core.Tests", "Beid\MintPlayer.EidReader.Core.Tests\MintPlayer.EidReader.Core.Tests.csproj", "{D0193737-52EB-4BEB-97B9-E1DF2C1EB07F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -1177,6 +1179,18 @@ Global
 		{F8AFDF32-996E-4311-AD12-23EE14368C53}.Release|x64.Build.0 = Release|Any CPU
 		{F8AFDF32-996E-4311-AD12-23EE14368C53}.Release|x86.ActiveCfg = Release|Any CPU
 		{F8AFDF32-996E-4311-AD12-23EE14368C53}.Release|x86.Build.0 = Release|Any CPU
+		{D0193737-52EB-4BEB-97B9-E1DF2C1EB07F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D0193737-52EB-4BEB-97B9-E1DF2C1EB07F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D0193737-52EB-4BEB-97B9-E1DF2C1EB07F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D0193737-52EB-4BEB-97B9-E1DF2C1EB07F}.Debug|x64.Build.0 = Debug|Any CPU
+		{D0193737-52EB-4BEB-97B9-E1DF2C1EB07F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D0193737-52EB-4BEB-97B9-E1DF2C1EB07F}.Debug|x86.Build.0 = Debug|Any CPU
+		{D0193737-52EB-4BEB-97B9-E1DF2C1EB07F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D0193737-52EB-4BEB-97B9-E1DF2C1EB07F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D0193737-52EB-4BEB-97B9-E1DF2C1EB07F}.Release|x64.ActiveCfg = Release|Any CPU
+		{D0193737-52EB-4BEB-97B9-E1DF2C1EB07F}.Release|x64.Build.0 = Release|Any CPU
+		{D0193737-52EB-4BEB-97B9-E1DF2C1EB07F}.Release|x86.ActiveCfg = Release|Any CPU
+		{D0193737-52EB-4BEB-97B9-E1DF2C1EB07F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -1269,6 +1283,7 @@ Global
 		{4825E2DA-5D4E-48E0-8ADC-9C048A61E2C3} = {38F03713-481F-4C03-84BC-F49703201C8A}
 		{A5651FDD-7E2C-4475-9076-F8E941982A42} = {BE967E23-E7A7-4A55-912D-38FD21068E1D}
 		{F8AFDF32-996E-4311-AD12-23EE14368C53} = {A67D3C5B-2DCD-45B7-BFB6-D019F39C67D9}
+		{D0193737-52EB-4BEB-97B9-E1DF2C1EB07F} = {C5FE5E74-C82B-4597-8A6C-1347F2B309FE}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D5378D43-9246-4355-8C4B-880DB15B07DA}
