@@ -306,8 +306,11 @@ Assertions on the thrown exception chain directly onto the awaited call — no p
 
 ```csharp
 await act.Should().ThrowAsync<HttpRequestException>()
-         .WithInnerException<HttpRequestException, SocketException>();
+         .WithInnerException<SocketException>();
 ```
+
+Only the genuinely new type is named — the outer exception type is already known from
+`ThrowAsync<T>()`, so the async chain reads exactly like the synchronous one.
 
 **Every one of these must be awaited.** Skipping the `await` makes the assertion meaningless,
 so it is a compile error rather than a green test — see [MPA0001](#analyzers).

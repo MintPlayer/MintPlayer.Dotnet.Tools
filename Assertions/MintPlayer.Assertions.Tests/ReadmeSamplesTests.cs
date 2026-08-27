@@ -159,7 +159,7 @@ public class DocSamples
         var inner = () => Task.FromException(
             new HttpRequestException("outer", new SocketException(10061)));
         await inner.Should().ThrowAsync<HttpRequestException>()
-                   .WithInnerException<HttpRequestException, SocketException>();
+                   .WithInnerException<SocketException>();
     }
 
     [Fact]

@@ -28,7 +28,11 @@ public class GenericAsyncFunctionAssertions<TResult>
     public Assertion Assert() => Assertion.For(SubjectExpression);
 
     /// <summary>Asserts that awaiting the function throws an exception assignable to <typeparamref name="TException"/>.</summary>
-    public async Task<ExceptionAssertions<TException>> ThrowAsync<TException>(string? because = null, params object?[] becauseArgs)
+    public ThrownExceptionTask<TException> ThrowAsync<TException>(string? because = null, params object?[] becauseArgs)
+        where TException : Exception
+        => new(ThrowAsyncCore<TException>(because, becauseArgs));
+
+    private async Task<ExceptionAssertions<TException>> ThrowAsyncCore<TException>(string? because, object?[] becauseArgs)
         where TException : Exception
     {
         var caught = await InvokeAndCatchAsync(because, becauseArgs, typeof(TException)).ConfigureAwait(false);
@@ -38,7 +42,11 @@ public class GenericAsyncFunctionAssertions<TResult>
     }
 
     /// <summary>Asserts that awaiting the function throws an exception of exactly type <typeparamref name="TException"/> (not a derived type).</summary>
-    public async Task<ExceptionAssertions<TException>> ThrowExactlyAsync<TException>(string? because = null, params object?[] becauseArgs)
+    public ThrownExceptionTask<TException> ThrowExactlyAsync<TException>(string? because = null, params object?[] becauseArgs)
+        where TException : Exception
+        => new(ThrowExactlyAsyncCore<TException>(because, becauseArgs));
+
+    private async Task<ExceptionAssertions<TException>> ThrowExactlyAsyncCore<TException>(string? because, object?[] becauseArgs)
         where TException : Exception
     {
         var caught = await InvokeAndCatchAsync(because, becauseArgs, typeof(TException)).ConfigureAwait(false);

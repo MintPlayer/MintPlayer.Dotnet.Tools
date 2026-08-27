@@ -37,7 +37,7 @@ public class AsyncAssertionsTests
     {
         Func<Task> act = () => Task.CompletedTask;
 
-        var ex = await Record.ExceptionAsync(() => act.Should().ThrowAsync<InvalidOperationException>());
+        var ex = await Record.ExceptionAsync(async () => await act.Should().ThrowAsync<InvalidOperationException>());
 
         var failure = Assert.IsType<AssertionFailedException>(ex);
         Assert.Contains("Expected act to throw System.InvalidOperationException", failure.Message);
@@ -49,7 +49,7 @@ public class AsyncAssertionsTests
     {
         Func<Task> act = () => Task.FromException(new FormatException("bad format"));
 
-        var ex = await Record.ExceptionAsync(() => act.Should().ThrowAsync<InvalidOperationException>());
+        var ex = await Record.ExceptionAsync(async () => await act.Should().ThrowAsync<InvalidOperationException>());
 
         var failure = Assert.IsType<AssertionFailedException>(ex);
         Assert.Contains("System.FormatException", failure.Message);
@@ -69,7 +69,7 @@ public class AsyncAssertionsTests
     {
         Func<Task> act = () => Task.FromException(new ArgumentNullException("param"));
 
-        var ex = await Record.ExceptionAsync(() => act.Should().ThrowExactlyAsync<ArgumentException>());
+        var ex = await Record.ExceptionAsync(async () => await act.Should().ThrowExactlyAsync<ArgumentException>());
 
         var failure = Assert.IsType<AssertionFailedException>(ex);
         Assert.Contains("to throw exactly System.ArgumentException", failure.Message);
@@ -89,7 +89,7 @@ public class AsyncAssertionsTests
     {
         Func<Task> act = () => Task.FromException(new InvalidOperationException("kaboom"));
 
-        var ex = await Record.ExceptionAsync(() => act.Should().NotThrowAsync());
+        var ex = await Record.ExceptionAsync(async () => await act.Should().NotThrowAsync());
 
         var failure = Assert.IsType<AssertionFailedException>(ex);
         Assert.Contains("Did not expect act to throw", failure.Message);
@@ -173,7 +173,7 @@ public class AsyncAssertionsTests
     {
         Func<Task<int>> act = () => Task.FromResult(42);
 
-        var ex = await Record.ExceptionAsync(() => act.Should().ThrowAsync<InvalidOperationException>());
+        var ex = await Record.ExceptionAsync(async () => await act.Should().ThrowAsync<InvalidOperationException>());
 
         var failure = Assert.IsType<AssertionFailedException>(ex);
         Assert.Contains("no exception was thrown", failure.Message);
@@ -184,7 +184,7 @@ public class AsyncAssertionsTests
     {
         Func<Task<int>> act = () => Task.FromException<int>(new ArgumentNullException("param"));
 
-        var ex = await Record.ExceptionAsync(() => act.Should().ThrowExactlyAsync<ArgumentException>());
+        var ex = await Record.ExceptionAsync(async () => await act.Should().ThrowExactlyAsync<ArgumentException>());
 
         var failure = Assert.IsType<AssertionFailedException>(ex);
         Assert.Contains("to throw exactly System.ArgumentException", failure.Message);
@@ -205,7 +205,7 @@ public class AsyncAssertionsTests
     {
         Func<Task<int>> act = () => Task.FromException<int>(new InvalidOperationException("kaboom"));
 
-        var ex = await Record.ExceptionAsync(() => act.Should().NotThrowAsync());
+        var ex = await Record.ExceptionAsync(async () => await act.Should().NotThrowAsync());
 
         var failure = Assert.IsType<AssertionFailedException>(ex);
         Assert.Contains("kaboom", failure.Message);

@@ -83,7 +83,7 @@ public class AsyncDeadlockTests
 
         AssertCompletesWithoutDeadlock(() =>
             act.Should().ThrowAsync<InvalidOperationException>()
-               .WithInnerException<InvalidOperationException, ArgumentException>()
+               .WithInnerException<ArgumentException>()
                .GetAwaiter().GetResult());
     }
 
