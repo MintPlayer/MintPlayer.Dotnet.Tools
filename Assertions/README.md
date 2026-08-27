@@ -3,6 +3,12 @@
 Family folder for **MintPlayer.Assertions** — a fluent assertion library for .NET, created after
 FluentAssertions v8 went commercial (January 2025).
 
+> ### 📖 [Read the documentation →](MintPlayer.Assertions/README.md)
+>
+> This page is only an index of the projects in this folder. The full documentation — every
+> assertion, the equivalency options, the analyzers, migration from FluentAssertions — lives in
+> the package README, which is also what ships to NuGet.
+
 ## Version info
 
 | License | Build status |

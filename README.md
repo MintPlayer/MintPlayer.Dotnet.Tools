@@ -1,7 +1,7 @@
 # .NET Tools
 
 ## Assertions
-[MintPlayer.Assertions](Assertions/README.md) is a fluent assertion library for .NET — a free-forever alternative to FluentAssertions, which became a commercial product in January 2025.
+[MintPlayer.Assertions](Assertions/MintPlayer.Assertions/README.md) is a fluent assertion library for .NET — a free-forever alternative to FluentAssertions, which became a commercial product in January 2025.
 
 | Package | Release | Preview | Downloads |
 |---------|---------|---------|-----------|
