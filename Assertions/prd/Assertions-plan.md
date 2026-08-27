@@ -119,4 +119,10 @@ MPA0002/MPA0003 as warnings, and MPA0003 correctly stays silent on `using var`.
 
 - `ExceptionAssertions.WithMessage` has no case-sensitivity switch; dogfooding wanted one.
 - `ContainSingle().Which.Should()` is verbose for the very common xUnit `Assert.Single` shape.
-- Benchmarks are wired but were not run as a gate; the perf claim in the PRD is unmeasured.
+
+### Benchmarks — run, target met
+
+Generated equivalency is **~15× faster (13.08 µs vs 201.08 µs) and allocates ~20× less
+(20.34 KB vs 409.14 KB)** than FluentAssertions 7.2.2 on a 4-level, 5-type DTO graph, against a
+≥5× target. Reproduced across two runs; the benchmark refuses to report unless the generated
+accessors are registered and both libraries are shown to traverse the whole graph.

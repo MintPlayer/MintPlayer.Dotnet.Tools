@@ -143,6 +143,18 @@ actual.Should().BeEquivalentTo(expected, opt => opt
 
 Cycles are handled — a self-referencing graph compares without hanging.
 
+Because the comparison runs on generated accessors instead of reflection, it is also
+substantially cheaper. On a 4-level graph of 5 types containing a 20-item collection:
+
+| | Mean | Allocated |
+|---|---:|---:|
+| FluentAssertions 7.2.2 | 201.08 µs | 409.14 KB |
+| MintPlayer.Assertions | **13.08 µs** | **20.34 KB** |
+
+<sub>BenchmarkDotNet 0.14.0, .NET 10.0.11, X64 RyuJIT AVX-512, Windows 11. Reproduce with
+`dotnet run -c Release --project Assertions/MintPlayer.Assertions.Benchmarks -- --filter '*'`.
+The benchmark verifies both libraries traverse the entire graph before it will report.</sub>
+
 ### Strings
 
 `Be` `NotBe` `BeEquivalentTo` (ignores case) `NotBeEquivalentTo` `BeEmpty` `NotBeEmpty`

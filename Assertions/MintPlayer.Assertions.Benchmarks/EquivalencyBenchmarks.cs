@@ -29,7 +29,7 @@ public class EquivalencyBenchmarks
     public void MintPlayerAssertions_BeEquivalentTo()
         => global::MintPlayer.Assertions.AssertionExtensions.Should((object)actual).BeEquivalentTo(expected);
 
-    private static Order CreateOrder() => new()
+    internal static Order CreateOrder() => new()
     {
         Id = 42,
         Reference = "ORD-2026-000042",

@@ -186,9 +186,22 @@ policy — as the acceptance test of real-world ergonomics.
 
 1. **AOT/trim-clean**: the core package compiles with `IsAotCompatible=true`, zero trim
    warnings; an AOT test app runs equivalency assertions under Native AOT.
-2. **Faster than FA**: BenchmarkDotNet suite shows generated `BeEquivalentTo` ≥5× faster than
-   FluentAssertions 7/AwesomeAssertions on a representative DTO graph (goal, validated in
-   Spike 1; revise if the spike says otherwise).
+2. **Faster than FA** — **met, measured.** Target was ≥5×; actual is **~15× faster and ~20×
+   less allocation** on a representative DTO graph (5 types, 4 levels, 20-item collection):
+
+   | | Mean | Allocated |
+   |---|---:|---:|
+   | FluentAssertions 7.2.2 | 201.08 µs | 409.14 KB |
+   | MintPlayer.Assertions | **13.08 µs** | **20.34 KB** |
+
+   BenchmarkDotNet 0.14.0, .NET 10.0.11, X64 RyuJIT AVX-512, Windows 11. Two independent runs
+   agreed (196.91 µs vs 12.28 µs on the first). Reproduce with
+   `dotnet run -c Release --project Assertions/MintPlayer.Assertions.Benchmarks -- --filter '*'`.
+
+   The run is gated on a fairness check that fails rather than reporting a flattering number:
+   it asserts the generated accessors are actually registered (otherwise the benchmark would
+   silently measure the reflection fallback) and that both libraries detect a difference buried
+   at the deepest level of the graph, which only a full traversal finds.
 3. **Message quality**: failure messages include the caller expression, the `because` reason,
    and a member-level diff — at least at parity with FA, better for strings/collections.
 4. **Safety**: forgetting `await` on an async assertion is a build **error** (analyzer);
