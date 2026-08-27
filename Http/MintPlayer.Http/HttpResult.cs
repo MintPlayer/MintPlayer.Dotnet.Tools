@@ -23,6 +23,11 @@ public sealed record HttpResult<T>(T? Value, System.Net.HttpStatusCode StatusCod
         location = Location;
     }
 
-    // Used for the SendAsync switch case when T is string
-    public static implicit operator HttpResult<T?>(HttpResult<string?> result) => result;
+    // NOTE: there used to be an
+    //     public static implicit operator HttpResult<T?>(HttpResult<string?> result) => result;
+    // here, "used for the SendAsync switch case when T is string". Its body converted
+    // HttpResult<string?> to HttpResult<T?>, which resolves to the operator itself — so for
+    // any T other than string it recursed until the process died of a StackOverflowException,
+    // which cannot be caught. It was reachable from SendAsync<T> whenever a server answered
+    // a typed request with text/plain. SendAsync now converts explicitly instead.
 }

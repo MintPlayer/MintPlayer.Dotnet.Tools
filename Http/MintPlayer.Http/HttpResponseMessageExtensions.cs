@@ -27,8 +27,14 @@ public static class HttpResponseMessageExtensions
     {
         await response.EnsureSuccessWithBodyAsync(ct);
         await using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-        options ??= new JsonSerializerOptions(JsonSerializerDefaults.Web);
-        options.PropertyNameCaseInsensitive = true;
+
+        // Copy rather than mutate. A JsonSerializerOptions becomes read-only the first time
+        // it is used, so assigning PropertyNameCaseInsensitive directly on the caller's
+        // instance threw InvalidOperationException on the second call with the same options
+        // — and silently changed the caller's options on the first.
+        options = options is null
+            ? new JsonSerializerOptions(JsonSerializerDefaults.Web) { PropertyNameCaseInsensitive = true }
+            : new JsonSerializerOptions(options) { PropertyNameCaseInsensitive = true };
 
         var data = await JsonSerializer.DeserializeAsync<T>(stream, options, ct).ConfigureAwait(false);
 

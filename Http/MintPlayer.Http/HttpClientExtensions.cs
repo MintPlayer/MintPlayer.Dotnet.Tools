@@ -18,7 +18,13 @@ public static class HttpClientExtensions
                 case "application/xml":
                     return await response.ReadXmlAsync<T>(ct).ConfigureAwait(false);
                 case "text/plain":
-                    return await response.ReadTextAsync(ct).ConfigureAwait(false);
+                {
+                    if (typeof(T) != typeof(string))
+                        throw new NotSupportedException($"A text/plain response can only be read as string, not as {typeof(T).Name}.");
+
+                    var text = await response.ReadTextAsync(ct).ConfigureAwait(false);
+                    return new HttpResult<T?>((T?)(object?)text.Value, text.StatusCode, text.Version, text.Headers, text.ReasonPhrase, text.Location);
+                }
                 default:
                     throw new NotSupportedException("Unsupported content type");
             }
@@ -42,7 +48,13 @@ public static class HttpClientExtensions
     {
         var response = await client.SendAsync(message, ct).ConfigureAwait(false);
         var fileContents = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-        fileContents.Position = 0;
+
+        // Only rewind a stream that can be rewound. An unbuffered network stream is not
+        // seekable, and setting Position on it threw NotSupportedException — which is the
+        // normal case for a large download, i.e. exactly what this method is for.
+        if (fileContents.CanSeek)
+            fileContents.Position = 0;
+
         return fileContents;
     }
 }
