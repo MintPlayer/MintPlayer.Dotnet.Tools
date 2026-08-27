@@ -150,6 +150,10 @@ coverage*.xml
 coverage*.info
 /coverage/
 
+# Verz scratch area for manual tool runs. Contains a real nested git repo,
+# so it must never be walked by a recursive glob or `git add`.
+/Verz/MintPlayer.Verz/sandbox/
+
 # Visual Studio code coverage results
 *.coverage
 *.coveragexml
