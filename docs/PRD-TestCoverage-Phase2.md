@@ -222,7 +222,25 @@ correct output, it just recomputes everything on every keystroke. Folded into R4
 
 ### R1 — Bring shipped code into the denominator
 
-**R1.1 — `MintPlayer.Assertions.SourceGenerator` test project.** *(highest value in this PRD)*
+**R1.1 — `MintPlayer.Assertions.SourceGenerator` test project.** *(highest value in this PRD — **done**)*
+
+> **Delivered.** 58 tests. The component went from **absent from the report** to
+> **594/756 = 78.6%**, against a projection of 40–60%. All four analyzers, all four code fixes and
+> both generators are covered, including every MPAG001 rejection path — which had never been
+> executed by anything.
+>
+> Two things learned, both now in the package:
+> - The generators derive from Tools' `IncrementalGenerator`, so `MintPlayer.SourceGenerators.Tools`
+>   must be referenced by the test project or `GetTypes` silently drops exactly those two types
+>   while the analyzers load fine and mask it. The harness's error message now says so.
+> - `FluentAssertionsMigrationCodeFixProvider`'s class doc claimed it emits
+>   `using MintPlayer.Assertions.Execution;`. It does not, and should not — `AssertionScope` is in
+>   the root namespace despite living in an `Execution/` folder. The inline comment was right, the
+>   doc comment was stale, and the doc comment is what a test author reads first. Corrected.
+>
+> Remaining 162 uncovered are concentrated in `AssertionMethodDeclaration` (35),
+> `EquivalencyScanner` (33), `UnawaitedAssertionAnalyzer.CodeFix` (27) and `EquatableArray` (13) —
+> mostly generated equality members and defensive branches.
 
 Create `Assertions/MintPlayer.Assertions.SourceGenerator.Tests`, wired with the harness that already
 works in `SourceGenerators/MintPlayer.SourceGenerators.Tests`:

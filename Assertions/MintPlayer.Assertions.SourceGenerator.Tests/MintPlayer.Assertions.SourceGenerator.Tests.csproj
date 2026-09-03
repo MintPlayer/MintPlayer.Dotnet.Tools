@@ -52,6 +52,15 @@
 		<!-- Referenced normally: test input sources are compiled against the assertion API. -->
 		<ProjectReference Include="..\MintPlayer.Assertions\MintPlayer.Assertions.csproj" />
 
+		<!--
+		Both generators derive from MintPlayer.SourceGenerators.Tools' IncrementalGenerator base,
+		so Tools must be resolvable when the component assembly is reflected over. Without it
+		GetTypes drops exactly those two types and the harness reports the assembly as containing
+		no IIncrementalGenerator - the analyzers, which have no Tools dependency, load fine and
+		mask the problem.
+		-->
+		<ProjectReference Include="..\..\SourceGenerators\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj" />
+
 		<!-- Copied into the bin ROOT with its PDB by CopyComponentUnderTest, so coverage attributes. -->
 		<ComponentUnderTest Include="..\MintPlayer.Assertions.SourceGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.Assertions.SourceGenerator.dll" />
 	</ItemGroup>

@@ -291,10 +291,17 @@ public sealed class GeneratorHarness
             var candidates = LoadableTypes().Where(t => typeof(T).IsAssignableFrom(t) && !t.IsAbstract)
                 .Select(t => t.Name).OrderBy(n => n, StringComparer.Ordinal).ToList();
 
+            // "None at all" almost never means a wrong assembly name — the load would have failed
+            // outright. It usually means GetTypes partially failed: a type whose BASE class lives
+            // in an assembly the test project does not reference is silently dropped, while its
+            // siblings that have no such dependency load fine and hide the problem.
             throw new InvalidOperationException(
                 $"'{typeName}' was not found as a {typeof(T).Name} in '{_assemblyName}'. " +
                 (candidates.Count == 0
-                    ? $"That assembly contains no {typeof(T).Name} at all — check the assembly name."
+                    ? $"No {typeof(T).Name} loaded from that assembly at all. If it definitely contains one, " +
+                      $"a dependency is missing: types whose base class or interface cannot be resolved are " +
+                      $"dropped silently. Reference the assemblies the component is built against — most " +
+                      $"often the package providing its generator base class — and try again."
                     : $"Available: {string.Join(", ", candidates)}."));
         }
 
