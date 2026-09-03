@@ -459,6 +459,23 @@ surface only, and re-scope R1.1's estimate down.
 +690 coverable lines rests entirely on the harness transplanting cleanly. Finding out on day four is
 much worse than finding out in two hours.
 
+**RESULT — run 2026-09-03. Clean pass. Proceed with R1.1 as written.**
+
+`Assertions/MintPlayer.Assertions.SourceGenerator.Tests` builds, loads the generator by name, and
+runs both analyzers and generators. `MintPlayer.Assertions.SourceGenerator` **now appears as a
+package in the cobertura report**, which it never has before. No reference-set seeding beyond
+`MintPlayer.Assertions` itself was needed; `EquivalencyScanner` and `EquatableArray` loaded without
+special handling. `Microsoft.CodeAnalysis.CSharp.Workspaces` is required — reflecting over the
+assembly loads the four `CodeFixProvider` types, and `GetTypes` throws without it.
+
+**Newly measurable surface: 756 coverable lines** (estimate was ~690 — M3's projection stands, and
+is slightly conservative). Three smoke tests already cover 50 of them (6.6%).
+
+One useful accident: all four `*.Rule.cs` files went to **100%** off a single analyzer
+instantiation, because `DiagnosticRules` is one static partial class whose initializer constructs
+every descriptor. The same shape should hold for the generators' `*.Rules.cs` files in R3.3 — the
+descriptors themselves are nearly free; what R3.3 actually buys is the *emission* paths.
+
 ### S2 — What does a second driver run actually cover? *(gates M1/R3.1 and R4.1b, 2h)*
 
 **Question.** [P4](#p4--the-uncovered-generator-mass-is-fixtures-not-harness) predicts that running

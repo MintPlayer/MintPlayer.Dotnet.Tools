@@ -1,0 +1,79 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<LangVersion>14</LangVersion>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<IsPackable>false</IsPackable>
+		<IsTestProject>true</IsTestProject>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="coverlet.collector" Version="10.0.1">
+		  <PrivateAssets>all</PrivateAssets>
+		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
+		<PackageReference Include="xunit" Version="2.9.3" />
+		<PackageReference Include="xunit.runner.visualstudio" Version="4.0.0">
+		  <PrivateAssets>all</PrivateAssets>
+		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+
+		<!-- Roslyn host, at the version the generator is compiled against. -->
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />
+		<!--
+		The assembly contains four CodeFixProviders, which derive from types in
+		Microsoft.CodeAnalysis.Workspaces. Reflecting over the assembly loads every type, so
+		Workspaces must be resolvable or GetTypes throws ReflectionTypeLoadException.
+		-->
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.3.0" />
+	</ItemGroup>
+
+	<!--
+	Same wiring as SourceGenerators/MintPlayer.SourceGenerators.Tests, and for the same reason:
+	the generator is netstandard2.0 and its MintPlayer.SourceGenerators.Tools dependency
+	polyfills BCL types, so letting its compile assets into this net10.0 project makes every
+	use of e.g. ModuleInitializerAttribute ambiguous with System.Runtime's (CS0433). The DLL is
+	copied into the bin ROOT instead and loaded by name.
+
+	This is deliberately a SECOND, separate reference. MintPlayer.Assertions.Tests keeps its
+	OutputItemType="Analyzer" reference to the same project, because its 553 tests consume the
+	code the generator produces. Converting that one would break them — and it would not help
+	anyway, since Roslyn loads analyzers from the generator's own bin/ via AnalyzerFileReference,
+	which coverlet never instrumented. That is exactly why this project exists.
+	-->
+	<ItemGroup>
+		<ProjectReference Include="..\MintPlayer.Assertions.SourceGenerator\MintPlayer.Assertions.SourceGenerator.csproj"
+		                  ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
+
+		<!-- Referenced normally: test input sources are compiled against the assertion API. -->
+		<ProjectReference Include="..\MintPlayer.Assertions\MintPlayer.Assertions.csproj" />
+		<ProjectReference Include="..\..\SourceGenerators\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj" />
+	</ItemGroup>
+
+	<!--
+	Copy the generator DLL and its PDB into the bin ROOT, not a subfolder: coverlet's collector
+	scans the test host directory and does not recurse. The PDB copy is unconditional because CI
+	runs dotnet test with no-build in Release; a Debug-only condition would mean no PDBs in the
+	measured build and coverage would silently drop back to zero.
+	-->
+	<Target Name="CopyGeneratorRuntimeAssets" AfterTargets="Build">
+		<ItemGroup>
+			<_GeneratorAssets Include="$(MSBuildThisFileDirectory)..\MintPlayer.Assertions.SourceGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.Assertions.SourceGenerator.dll" />
+			<_GeneratorAssets Include="$(MSBuildThisFileDirectory)..\MintPlayer.Assertions.SourceGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.Assertions.SourceGenerator.pdb" />
+		</ItemGroup>
+		<Error Condition="'@(_GeneratorAssets)' == ''"
+		       Text="No generator assembly found to copy. Coverage for MintPlayer.Assertions.SourceGenerator would silently be zero, so this is a hard failure rather than a warning." />
+		<Copy SourceFiles="@(_GeneratorAssets)"
+		      DestinationFolder="$(OutputPath)"
+		      SkipUnchangedFiles="true" />
+	</Target>
+
+	<ItemGroup>
+		<Using Include="Xunit" />
+		<Using Include="MintPlayer.Assertions" />
+	</ItemGroup>
+
+</Project>
