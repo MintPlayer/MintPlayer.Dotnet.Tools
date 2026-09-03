@@ -20,10 +20,31 @@ Import `newtonsoftjson.targets`. A dependency that only *some* generators need b
 eng file, **not** in `sourcegenerator.targets` — needing the value comparer is a property of using
 it, not of being a generator.
 
-**Do not import `sourcegenerator.targets` into a shipped library.** It forces `netstandard2.0`,
-`IncludeBuildOutput=false` and `DevelopmentDependency=true`, which strips `lib/`.
-`MintPlayer.Assertions` ships its analyzer *inside the library package* and therefore carries its
-own small pack target — that is deliberate, not an oversight.
+### Who imports `sourcegenerator.targets`, and who cannot
+
+Every standalone generator package — `MintPlayer.SourceGenerators`, `MintPlayer.Mapper`,
+`MintPlayer.CliGenerator`, `MintPlayer.ValueComparerGenerator` — imports it, and should. Those
+packages ship **no assembly the consumer compiles or links against**: their whole payload sits under
+`analyzers/`, loaded by Roslyn at build time and never referenced by consumer code.
+
+The attributes are the apparent exception and are worth being precise about. A consumer does write
+`[Inject]` or `[AutoValueComparer]`, but those types come from a separate `*.Attributes` package
+that the generator package takes a **NuGet dependency** on — that is the one with the `lib/`. The
+copies under `analyzers/dotnet/cs` exist purely so Roslyn can resolve the attributes while loading
+the generator; the consumer never binds to them.
+
+So `netstandard2.0`, `IsRoslynComponent`, `DevelopmentDependency=true` and
+`IncludeBuildOutput=false` are all exactly right here, and a `lib/` folder would be wrong.
+
+`MintPlayer.Assertions` is a different kind of package: it ships **consumer code and a generator in
+the same nupkg**, so that one `PackageReference` gives you the assertion API *and* its analyzers. It
+therefore must **not** import `sourcegenerator.targets` — `IncludeBuildOutput=false` would strip the
+`lib/` the whole library lives in, and `DevelopmentDependency=true` would mark a runtime dependency
+as build-only. It carries its own small pack target instead. That asymmetry is deliberate; do not
+"tidy" it into an import.
+
+The test: **does anything in this package run in the consumer's process?** No → import the shared
+targets. Yes → hand-roll the analyzer payload alongside the library.
 
 ## Package layout
 
