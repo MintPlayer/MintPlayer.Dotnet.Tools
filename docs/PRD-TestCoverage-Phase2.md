@@ -259,9 +259,15 @@ staying silent on a clean one; each of the 4 code-fix providers producing compil
 `GenerateAssertionGenerator` and `EquivalencyRegistrationGenerator` happy path plus one diagnostic
 path each.
 
-**R1.2 — `MintPlayer.GraphQL` test project.** 48 LOC of pure string cleaning with zero dependencies,
-currently 0% and shipped. The cheapest 0→~100% in the repo. New project
-`GraphQL/MintPlayer.GraphQL.Tools.Tests`.
+**R1.2 — `MintPlayer.GraphQL` test project.** ~~48 LOC of pure string cleaning with zero
+dependencies, the cheapest 0→~100% in the repo.~~
+
+> **Re-scoped — not done, and not cheap.** The investigation's description was wrong. The package's
+> single public method, `GraphQlExtensions.Run`, takes an `Octokit.GraphQL.Connection` and makes
+> network calls; the only pure logic is the private `[GeneratedRegex]` helpers behind it. Covering
+> it needs either a connection seam or widening the regex helpers to `internal` — a production
+> change made for testability, not a free win. Deferred deliberately rather than forced; the
+> package is 48 lines and moves the headline by ~0.2pp either way.
 
 **R1.3 — `MintPlayer.Verz` CLI test project.** 290 LOC, currently referenced by no test project.
 `VerzCommand`, `ToolCatalog`, `VersionPackagePathResolver`, `VerzConfig`. Note it is
@@ -280,6 +286,21 @@ revisit this.
 ### R2 — `Solve`
 
 The decision is to test it, and the seams already exist.
+
+> **Delivered. `Solve`: 302/1410 = 21.4% → 1020/1422 = 71.7%.** All seven command classes went from
+> literally zero to 96–100%, on 241 tests, with no production seam work — S3 confirmed the existing
+> interfaces were enough. Five fakes in `Solve.Tests/_Fakes/` carry the suite.
+>
+> **Found a real defect on the way.** `PrCommand.ProcessPrTemplate` substituted placeholders in
+> dictionary insertion order, so `{issue_number}` matched the inside of `{{issue_number}}` and
+> emitted `{42}` rather than `42`. Every doubled-brace form the code advertises was broken — the
+> Handlebars-style spelling a template author is most likely to reach for. Fixed by substituting
+> longest-placeholder-first.
+>
+> **Not done: R2.2, the four concrete I/O services** (`GitHubService` 154, `GitService` 94,
+> `ClaudeService` 60, `ConsoleService` 59 — 367 lines). They shell out to `git`, `gh` and `claude`,
+> and a process-runner seam does not exist. Left measured and visibly red rather than excluded: the
+> decision on this PRD was to test `Solve`, not to hide it.
 
 **R2.1 — Command tests against fakes.** All seven `*Command` types, driven through their
 `System.CommandLine` handlers with in-memory fakes for `IGitService`, `IGitHubService`,
@@ -461,6 +482,50 @@ matches `*.g.cs`.
 **R6.2 — Do not add a coverage threshold gate yet.** Phase 1 deferred this pending stable figures.
 It should stay deferred until Phase 2's milestones land, because M1 and M2 deliberately move the
 number in opposite directions and a gate would fire on the honest dip.
+
+## Outcome
+
+**Measured 2026-09-03 on `feature/test-coverage-phase2`, full CI sequence, 25 test runs, 0 failures.**
+
+| | Before (`c7b13b9`) | After | |
+|---|---|---|---|
+| Lines | 6,747 / 10,544 = **64.0%** | 8,260 / 11,437 = **72.2%** | **+8.2pp** |
+| Branches | 2,847 / 6,001 = 47.4% | 3,622 / 6,624 = 54.7% | +7.3pp |
+| Files measured | 261 | 286 | |
+
+The denominator **grew by 893 lines** while the percentage rose, which was the point of the
+correctness-first decision: the old 64.0% was flattering because `MintPlayer.Assertions.SourceGenerator`
+was hidden from it entirely.
+
+| Folder | Before | After |
+|---|---|---|
+| Assertions *(now includes the generator)* | 2332/2437 = 95.7% | 2926/3193 = **91.6%** |
+| Solve | 302/1410 = 21.4% | 1008/1392 = **72.4%** |
+| SourceGenerators | 2255/4537 = 49.7% | 2465/4710 = **52.3%** |
+| SlnLaunch | 372/498 = 74.7% | 370/477 = 77.6% |
+| Verz | 78/126 = 61.9% | 81/129 = 62.8% |
+
+Defects found and fixed while writing the tests:
+
+1. **`PrCommand` template placeholders** — every doubled-brace form (`{{issue_number}}`,
+   `{{issue_title}}`, `{{pr_type}}`, `{{changes}}`, `{{labels}}`, `{{author}}`) rendered as
+   `{42}` rather than `42`, because substitution ran in dictionary insertion order and the single-brace
+   form matched the inside of the double. Fixed by substituting longest-placeholder-first.
+2. **`InjectPublicApiHashTask`** — returned `true` from every failure path, so a pack that could not
+   record its API hash reported success (R5.1).
+3. **`FluentAssertionsMigrationCodeFixProvider`'s class doc** contradicted its own implementation
+   about `using MintPlayer.Assertions.Execution;`. The code was right; the doc was what misled.
+
+Not delivered, and why:
+
+| Item | Status |
+|---|---|
+| **R2.2** — `Solve`'s four concrete I/O services (367 lines) | Need a process-runner seam that does not exist. Left measured and red rather than excluded. |
+| **R1.2** — `MintPlayer.GraphQL` | Re-scoped: not the cheap win it was described as. See R1.2. |
+| **R1.3** — `MintPlayer.Verz` CLI | Still blocked on R5.5 (`InitDotnetCommand` rewrites `<Version>` repo-wide). |
+| **R5.2 / S4** — packaging smoke test | Not started. The largest remaining verification gap. |
+| **R3.5, R3.6** — `ServiceRegistrations`, `Mapper`/`Cli` producers | Not started. |
+| **R5.5** — the two unfiled issues | Not filed. |
 
 ## Milestones
 
