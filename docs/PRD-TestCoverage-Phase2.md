@@ -538,6 +538,45 @@ The silent dropping is pinned by `AnOrphanCommand_IsSilentlyDroppedFromTheTree` 
 Discarding a decorated command with no diagnostic is a poor failure mode — the consumer gets a CLI
 missing a subcommand and nothing to search for — but that is a design decision, not a test fix.
 
+<a id="inject-outcome"></a>
+### `InjectSourceGenerator` outcome: the tests were the problem
+
+The plan listed "~382 lines still uncovered" as a sizing note. The lines were the least of it.
+
+**A codegen bug.** `[Config] private readonly DateTime? _when;` emitted
+`global::System.DateTime?.Parse(...)` — CS0119, in a file the consumer cannot edit. `DateTime` is
+the only category that passes `cfg.Type` to the parse emitter rather than a hardcoded type name,
+because it covers both `DateTime` and `DateTimeOffset`; `cfg.Type` is the *declared* type, so a
+nullable field carried the `?` through. Nullable `Guid`, `TimeSpan` and the numerics were unaffected
+only because they pass fixed non-nullable names. `WriteParsedAssignment` also took a `typeName`
+parameter **it never read** — the declared type reached the output solely through the caller's
+interpolated parse expression, so the argument that appeared to carry the type was decorative and
+nothing could validate it. Removed with the fix.
+
+**Three defects in the tests this plan itself added**, all of the same family — assertions that
+cannot fail:
+
+| | |
+|---|---|
+| Nine diagnostic tests | asserted `run.Diagnostics.Should().NotBeEmpty()` — "some diagnostic fired", which any unrelated diagnostic satisfies. Now each asserts its own id. All nine still pass, so the rules were correct; the tests were not checking. |
+| `ItReadsAConfigValue` | asserted `Of("MPCFG001")` was empty. That id exists nowhere in the repo — vacuously true. |
+| Every config test | never compiled the generated code. The fixture compilation lacked `Microsoft.Extensions.Configuration`, so each one emitted "the namespace 'Configuration' does not exist" and passed regardless, because only `GeneratedSources` was checked. `ItBindsAnOptionsSection` was worse: it bound a bare POCO that the generator rejects with `OPTIONS001`, so a test named for successful binding asserted success on an erroring path. |
+
+**This is the cautionary result of the whole exercise.** That generator went from 30% to 54.8% and
+was on its way up while none of the above was true of it. Coverage counts lines that *execute*; it
+cannot tell whether anything was *asserted*. The guidance in `SourceGenerators/CLAUDE.md` — assert
+that generated code compiles — exists because of exactly this, and the config tests predated it.
+
+Two boundaries were pinned rather than changed: `IReadOnlyList<T>`/`IReadOnlyCollection<T>` sit
+outside the closed list of supported collection shapes, and `CONFIG003`'s message never mentions
+collections at all, so a consumer hitting it gets no hint that some collection types do work.
+
+Also noted while reading the rules file, and **not** acted on: `CONFIG005`
+(`ConfigDefaultValueTypeMismatch`), `OPTIONS002` (`OptionsBindingHint`) and `OPTIONS004`
+(`OptionsConflictWithConfig`) are declared but referenced by no code path — three descriptors that
+can never fire. `TheConfigRulesAreWellFormed` constructs them, so they even count as covered.
+Removing a public descriptor is an API change and belongs to a deliberate decision, not to this.
+
 | | Before (`c7b13b9`) | After (branch head) | |
 |---|---|---|---|
 | Lines | 6,747 / 10,544 = **64.0%** | 9,321 / 11,475 = **81.2%** | **+17.2pp** |
@@ -622,7 +661,8 @@ Not delivered, and why:
 | **R3.6** — `Mapper` / `Cli` producers | **Done, and the estimate was wrong.** Mapper 56.9% → **88.1%**, Cli 56.6% → **78.1%**; 14 tests, +307 lines overall. See [R3.6 outcome](#r36-outcome). |
 | **R5.4** — correct the Phase 1 PRD on snapshots | **Done.** `docs/PRD-TestCoverage.md` now carries the correction inline. |
 | **R5.5** — the two unfiled issues | **Done.** [#173](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/173) (`verz init-dotnet` rewrites `<Version>` repo-wide by default) and [#174](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/174) (`GetPaginationLinks` drops relative `Link` targets). Both verified against the code before filing. |
-| **`InjectSourceGenerator` remainder** | ~382 lines still uncovered after the `[Config]`/`[Options]`/`[ConnectionString]` fixtures took it 30% → 54.8%. |
+| **`InjectSourceGenerator` remainder** | **Done.** 53 cases over the type-classification table and the untouched properties half. Found a nullable-`DateTime` codegen bug and three defects in this branch's own tests — see [the Inject outcome](#inject-outcome). |
+| **R6.1** — narrow `ExcludeByFile` | **Done.** `**/*.g.cs` → `**/obj/**/*.g.cs`, verified to leave totals identical. |
 
 ### Also delivered, beyond the original plan
 

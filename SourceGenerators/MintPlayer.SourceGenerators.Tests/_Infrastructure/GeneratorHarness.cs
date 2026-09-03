@@ -38,6 +38,17 @@ internal static class GeneratorHarness
         typeof(Microsoft.Extensions.DependencyInjection.IServiceCollection),
         typeof(Microsoft.Extensions.DependencyInjection.ServiceCollection),
         typeof(IServiceProvider),
+
+        // The [Config] / [ConnectionString] / [Options] half of InjectSourceGenerator emits code
+        // against these. Without them the generated file cannot compile, which went unnoticed for
+        // as long as no test asserted Errors: every config fixture emitted
+        // "Microsoft.Extensions.Configuration does not exist" and still passed, because the
+        // assertions only checked that *something* had been generated.
+        typeof(Microsoft.Extensions.Configuration.IConfiguration),
+        typeof(Microsoft.Extensions.Configuration.ConfigurationBinder),
+        typeof(Microsoft.Extensions.Options.IOptions<>),
+        typeof(Microsoft.Extensions.DependencyInjection.OptionsConfigurationServiceCollectionExtensions),
+        typeof(Microsoft.Extensions.DependencyInjection.OptionsServiceCollectionExtensions),
         typeof(System.CommandLine.Command),
         typeof(Microsoft.Extensions.Hosting.IHost),
         typeof(Microsoft.Extensions.Hosting.Host),

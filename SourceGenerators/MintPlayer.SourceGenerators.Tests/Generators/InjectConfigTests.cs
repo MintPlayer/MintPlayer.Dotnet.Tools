@@ -1,4 +1,4 @@
-using MintPlayer.SourceGenerators.Tests._Infrastructure;
+﻿using MintPlayer.SourceGenerators.Tests._Infrastructure;
 
 namespace MintPlayer.SourceGenerators.Tests.Generators;
 
@@ -36,7 +36,7 @@ public class InjectConfigTests
     {
         var run = Run("""    [Config("Database:MaxRetries")] private readonly int _maxRetries;""");
 
-        run.Of("MPCFG001").Should().BeEmpty();
+        run.Of("CONFIG001").Should().BeEmpty();
         run.GeneratedSources.Should().NotBeEmpty();
     }
 
@@ -61,14 +61,16 @@ public class InjectConfigTests
     public void ItBindsAnOptionsSection()
     {
         var run = Run("""
-                [Options("Database")] private readonly DatabaseOptions _options;
+                [Options("Database")] private readonly IOptions<DatabaseOptions> _options;
             }
 
             public class DatabaseOptions
             {
                 public string Host { get; set; } = "";
-            """);
+            """, usings: "using Microsoft.Extensions.Options;");
 
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        run.Of("OPTIONS001").Should().BeEmpty("IOptions<T> is the shape [Options] requires");
         run.GeneratedSources.Should().NotBeEmpty();
     }
 
@@ -106,7 +108,8 @@ public class InjectConfigTests
             }
             """]);
 
-        run.Diagnostics.Should().NotBeEmpty();
+        run.Of("CONFIG001").Should().NotBeEmpty(
+            "the generator emits into a partial and cannot add a constructor otherwise");
     }
 
     [Fact]
@@ -114,7 +117,8 @@ public class InjectConfigTests
     {
         var run = Run("""    [Config("")] private readonly int _maxRetries;""");
 
-        run.Diagnostics.Should().NotBeEmpty();
+        run.Of("CONFIG002").Should().NotBeEmpty(
+            "an empty key binds nothing");
     }
 
     [Fact]
@@ -122,7 +126,8 @@ public class InjectConfigTests
     {
         var run = Run("""    [ConnectionString("")] private readonly string _connection;""");
 
-        run.Diagnostics.Should().NotBeEmpty();
+        run.Of("CONNSTR001").Should().NotBeEmpty(
+            "an empty name resolves no connection string");
     }
 
     /// <summary>
@@ -134,7 +139,8 @@ public class InjectConfigTests
     {
         var run = Run("""    [ConnectionString("DefaultConnection")] private readonly int _connection;""");
 
-        run.Diagnostics.Should().NotBeEmpty();
+        run.Of("CONNSTR002").Should().NotBeEmpty(
+            "a connection string is a string");
     }
 
     [Fact]
@@ -146,7 +152,8 @@ public class InjectConfigTests
                 private readonly string _value;
             """);
 
-        run.Diagnostics.Should().NotBeEmpty();
+        run.Of("CONFIG006").Should().NotBeEmpty(
+            "the two attributes bind the same field from different sources");
     }
 
     [Fact]
@@ -158,7 +165,8 @@ public class InjectConfigTests
                 private readonly string _value;
             """);
 
-        run.Diagnostics.Should().NotBeEmpty();
+        run.Of("CONFIG008").Should().NotBeEmpty(
+            "a field cannot be both injected and bound from configuration");
     }
 
     [Fact]
@@ -169,7 +177,8 @@ public class InjectConfigTests
                 [Config("Db:Host")] private readonly string _second;
             """);
 
-        run.Diagnostics.Should().NotBeEmpty();
+        run.Of("CONFIG007").Should().NotBeEmpty(
+            "two fields bound to one key is a copy-paste error, not a feature");
     }
 
     /// <summary>
@@ -181,7 +190,8 @@ public class InjectConfigTests
     {
         var run = Run("""    [Options("Database")] private readonly int _options;""");
 
-        run.Diagnostics.Should().NotBeEmpty();
+        run.Of("OPTIONS001").Should().NotBeEmpty(
+            "a primitive cannot be bound as an options section");
     }
 
     [Fact]
@@ -196,7 +206,8 @@ public class InjectConfigTests
             public class DatabaseOptions { public string Host { get; set; } = ""; }
             """);
 
-        run.Diagnostics.Should().NotBeEmpty();
+        run.Of("OPTIONS003").Should().NotBeEmpty(
+            "a field cannot be both injected and bound as options");
     }
 
     #endregion
