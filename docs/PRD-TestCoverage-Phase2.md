@@ -461,7 +461,8 @@ different payload than a Release pack.
 **R5.3 — Golden known-answer hash in `FolderHasher.Tests`.** Pin a fixed input tree to a literal
 expected hash, so a change of scheme fails loudly. Second half of Phase 1's R4.3. See P3.3.
 
-**R5.4 — Correct the Phase 1 PRD text on snapshots.** R3.4 Layer 4 specifies `Verify.Xunit` 31.12.5;
+**R5.4 — Correct the Phase 1 PRD text on snapshots.** *(Done — the correction is inline in
+`docs/PRD-TestCoverage.md`, in Appendix D's snapshot row.)* R3.4 Layer 4 specifies `Verify.Xunit` 31.12.5;
 the repo uses a hand-rolled `_Infrastructure/Snapshot.cs` instead (fewer dependencies, functionally
 equivalent). The substitution is fine; the document describing something that does not exist is not.
 Amend `PRD-TestCoverage.md` in place with a note.
@@ -485,13 +486,14 @@ number in opposite directions and a gate would fire on the honest dip.
 
 ## Outcome
 
-**Reported by coverage.mintplayer.com for `d241e77` (PR #172), CI green.**
+**Measured locally over the full CI sequence, 25 test runs, 0 failures.** The server figure lags the
+branch head; it read 75.3% at `c9007ed`, before the last tranche of generator tests landed.
 
-| | Before (`c7b13b9`) | After (`d241e77`) | |
+| | Before (`c7b13b9`) | After (branch head) | |
 |---|---|---|---|
-| Lines | 6,747 / 10,544 = **64.0%** | 8,624 / 11,451 = **75.3%** | **+11.3pp** |
-| Branches | 2,847 / 6,001 = 47.4% | 3,723 / 6,624 = 56.2% | +8.8pp |
-| Files measured | 261 | 287 | |
+| Lines | 6,747 / 10,544 = **64.0%** | 8,997 / 11,456 = **78.5%** | **+14.5pp** |
+| Branches | 2,847 / 6,001 = 47.4% | 3,901 / 6,634 = 58.8% | +11.4pp |
+| Files measured | 261 | 286 | |
 
 The denominator **grew by 893 lines** while the percentage rose, which was the point of the
 correctness-first decision: the old 64.0% was flattering because `MintPlayer.Assertions.SourceGenerator`
@@ -501,7 +503,7 @@ was hidden from it entirely.
 |---|---|---|
 | Assertions *(now includes the generator)* | 2332/2437 = 95.7% | 2926/3193 = **91.6%** |
 | Solve | 302/1410 = 21.4% | 1008/1392 = **72.4%** |
-| SourceGenerators | 2255/4537 = 49.7% | 2814/4710 = **59.7%** |
+| SourceGenerators | 2255/4537 = 49.7% | 3200/4727 = **67.7%** |
 | SlnLaunch | 372/498 = 74.7% | 372/477 = 78.0% |
 | FolderHasher | 170/214 = 79.4% | 172/216 = 79.6% |
 | Verz | 78/126 = 61.9% | 81/129 = 62.8% |
@@ -526,6 +528,38 @@ run:
    already producing, so Linux-side caches survive and only Windows-computed ones invalidate once.
    **Caught by R5.3's golden test on its first CI run** — the thing all 13 pre-existing relative
    tests were structurally incapable of seeing.
+5. **`ServiceRegistrationsGenerator` factory handling** — a `[RegisterFactory]` whose signature the
+   DI overload cannot accept was emitted as a bare method group and failed with CS1503 in the
+   *consumer's* build; and a factory returning the implementation was silently ignored when
+   registering an interface, so the container constructed the service itself and the factory never
+   ran. Both found by asserting the generated code compiles.
+6. **`DescriptionSourceGenerator`** emitted `partial class` for a documented `record`, producing
+   CS0261 in the consumer. A record class reports `TypeKind.Class`; `IsRecord` was never consulted.
+7. **Generator packages shipped with no analyzer in them from a clean `dotnet pack`** (R5.2). The
+   analyzer payloads were collected by static `ItemGroup` globs over sibling `bin` folders, which
+   MSBuild expands at *evaluation* time — before those projects are built. The packages looked
+   correct only because a prior full build had populated those folders. Now collected in
+   `TargetsForTfmSpecificContentInPackage` targets with `<Error>` guards, per concern, in the
+   `eng/` file that owns it.
+
+### Defects introduced by this branch and caught before merge
+
+Recorded because the ratio matters when judging the work:
+
+- The `FolderHasher` fix was **incomplete** — the separator was normalised for hashing but the file
+  ordering still sorted raw OS paths culture-sensitively, and feed order is part of the hash. The
+  golden fixture had no filename straddling the separator in sort order, so it passed.
+- The `<Error>` guards in `sourcegenerator.targets` **could never fire**: a literal `Include`
+  creates the item regardless of file existence, so `'@(x)' == ''` is always false.
+- The factory fix (5 above) initially handled only the parameterless case and used a conversion
+  check too permissive for a method group.
+- `MintPlayer.ValueComparerGenerator.Attributes.dll` was removed from the payload as "stale
+  residue". It is required at generator load time; removing it disables the package.
+- Windows-only path separators in a test theory; an over-broad `catch` in the probe; `.Single()`
+  contradicting a documented contract; a silently ignored parameter.
+
+The first four were found by a `/code-review` pass over the branch and by the repo owner, not by the
+author. `SourceGenerators/CLAUDE.md` records the pattern behind them.
 
 Not delivered, and why:
 
@@ -535,8 +569,21 @@ Not delivered, and why:
 | **R1.2** — `MintPlayer.GraphQL` | Re-scoped: not the cheap win it was described as. See R1.2. |
 | **R1.3** — `MintPlayer.Verz` CLI | Still blocked on R5.5 (`InitDotnetCommand` rewrites `<Version>` repo-wide). |
 | **R5.2 / S4** — packaging smoke test | **Done.** 13 tests. Found a configuration-dependent analyzer payload in three places; see [S4](#s4--pack-and-consume-for-a-generator-not-just-an-msbuild-task-gates-m5r52-3h). |
-| **R3.5, R3.6** — `ServiceRegistrations`, `Mapper`/`Cli` producers | Not started. |
-| **R5.5** — the two unfiled issues | Not filed. |
+| **R3.5** — `ServiceRegistrationsGenerator` | **Done.** 38 tests over the attribute shapes; found the two factory defects above. |
+| **R3.6** — `Mapper` / `Cli` producers | Not started. Worst ratio in the plan: deep permutation branches needing a bespoke fixture each, ~404 lines. |
+| **R5.4** — correct the Phase 1 PRD on snapshots | **Done.** `docs/PRD-TestCoverage.md` now carries the correction inline. |
+| **R5.5** — the two unfiled issues | Not filed (`Verz` `InitDotnetCommand` repo-wide `<Version>` rewrite; RFC-5988 relative `Link` resolution). |
+| **`InjectSourceGenerator` remainder** | ~382 lines still uncovered after the `[Config]`/`[Options]`/`[ConnectionString]` fixtures took it 30% → 54.8%. |
+
+### Also delivered, beyond the original plan
+
+- **`MintPlayer.SourceGenerators.Testing`** — the harness became a publishable package beside
+  `Tools`, consumed by both in-repo test projects. Replaced ~330 lines of duplicated mechanics with
+  ~140 lines of configuration.
+- **`SourceGenerators/CLAUDE.md`** — the `eng/` layout, the packaging traps, the coverage facts, and
+  the specific wrong turns taken here.
+- **The `eng/` packaging refactor** — each analyzer payload now lives in the targets file that owns
+  its concern, collected after Build and guarded.
 
 ## Milestones
 
