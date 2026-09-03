@@ -64,9 +64,23 @@ internal class FolderHasher : IFolderHasher
 
             try
             {
-                // Hash the relative path
-                var relativePath = file.Substring(folder.Length + 1);
-                var pathBytes = Encoding.UTF8.GetBytes(relativePath.ToLower());
+                // Hash the relative path, normalised so the same tree hashes the same everywhere.
+                //
+                // Two things here are deliberate and were both wrong before:
+                //
+                // The directory separator is replaced with '/'. Path.Substring hands back the OS
+                // separator, so "sub\b.txt" on Windows and "sub/b.txt" on Linux hashed to
+                // different values for an identical tree. This hash is a CACHE KEY, so that meant
+                // a Windows developer and a Linux CI runner could never share a cache entry and
+                // every lookup silently missed.
+                //
+                // ToLowerInvariant, not ToLower. The culture-sensitive overload lowercases 'I' to
+                // 'ı' under a Turkish locale, so the same tree hashed differently depending on the
+                // machine's regional settings.
+                var relativePath = file.Substring(folder.Length + 1)
+                    .Replace(Path.DirectorySeparatorChar, '/')
+                    .Replace(Path.AltDirectorySeparatorChar, '/');
+                var pathBytes = Encoding.UTF8.GetBytes(relativePath.ToLowerInvariant());
                 algorithm.TransformBlock(pathBytes, 0, pathBytes.Length, pathBytes, 0);
 
                 // Hash the file contents

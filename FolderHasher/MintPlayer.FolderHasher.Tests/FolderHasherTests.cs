@@ -315,7 +315,7 @@ public class FolderHasherTests : IDisposable
 /// </remarks>
 public sealed class FolderHasherGoldenTests : IDisposable
 {
-    private const string ExpectedSha256 = "c117ec420eb08e1d5d874b2da488ea8e34d554be7d9564bdb1e95a21c097fb31";
+    private const string ExpectedSha256 = "8703d4bed04ecb53ae1caecc17da4af9f82004900b8cce8d6f3aaeea786c5368";
 
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "FolderHasherGolden_" + Guid.NewGuid());
     private readonly IFolderHasher _hasher;
@@ -348,6 +348,7 @@ public sealed class FolderHasherGoldenTests : IDisposable
 
         var hash = await _hasher.GetFolderHashAsync(_dir);
 
+
         hash.Should().Be(
             ExpectedSha256,
             "the folder hash is a cache key — if this changed deliberately, update the constant " +
@@ -377,6 +378,55 @@ public sealed class FolderHasherGoldenTests : IDisposable
         finally
         {
             Directory.Delete(elsewhere, true);
+        }
+    }
+
+    /// <summary>
+    /// The nested file is the whole point of this fixture.
+    /// </summary>
+    /// <remarks>
+    /// The relative path used to be hashed with the OS separator, so <c>sub\b.txt</c> and
+    /// <c>sub/b.txt</c> — the same tree — produced different hashes on Windows and Linux. This test
+    /// existed for one CI run before catching it. Since the hash is a cache key, the effect was
+    /// that a Windows developer and a Linux runner could never share a cache entry, and every
+    /// lookup silently missed rather than failing visibly.
+    ///
+    /// A flat fixture would pass on both platforms and prove nothing, so the nesting stays.
+    /// </remarks>
+    [Fact]
+    public async Task TheHashIsIdenticalOnEveryPlatform()
+    {
+        WriteFixtureTree();
+
+        var hash = await _hasher.GetFolderHashAsync(_dir);
+
+        hash.Should().Be(
+            ExpectedSha256,
+            "a tree containing a subdirectory must hash the same on Windows and Linux — this is the " +
+            "case that used to diverge on the directory separator");
+    }
+
+    /// <summary>
+    /// Paired with the separator fix: the path is lowercased with the INVARIANT culture, because
+    /// the culture-sensitive overload maps 'I' to 'ı' under a Turkish locale and would hash the
+    /// same tree differently depending on the machine's regional settings.
+    /// </summary>
+    [Fact]
+    public async Task TheHashDoesNotDependOnTheCurrentCulture()
+    {
+        WriteFixtureTree();
+
+        var original = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("tr-TR");
+            var underTurkish = await _hasher.GetFolderHashAsync(_dir);
+
+            underTurkish.Should().Be(ExpectedSha256);
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = original;
         }
     }
 }
