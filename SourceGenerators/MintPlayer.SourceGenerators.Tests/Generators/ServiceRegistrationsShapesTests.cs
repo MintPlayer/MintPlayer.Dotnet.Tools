@@ -255,23 +255,16 @@ public class ServiceRegistrationsShapesTests
     }
 
     /// <summary>
-    /// DEFECT, pinned rather than fixed: a parameterless <c>[RegisterFactory]</c> generates code
-    /// that does not compile.
+    /// A parameterless factory is wrapped in a lambda so it satisfies
+    /// <c>Func&lt;IServiceProvider, T&gt;</c>.
     /// </summary>
     /// <remarks>
-    /// The generator accepts any static method whose return type matches, without checking its
-    /// signature, and emits <c>.AddScoped&lt;Greeter&gt;(Greeter.Create)</c>. But the DI overload
-    /// it lands on takes <c>Func&lt;IServiceProvider, T&gt;</c>, so a parameterless factory fails
-    /// with CS1503 — "cannot convert from 'method group'" — in the CONSUMER's build, pointing at
-    /// generated code they did not write.
-    ///
-    /// Two reasonable fixes, both behavioural decisions for the maintainer: report a diagnostic on
-    /// a factory with the wrong signature, or emit <c>sp =&gt; Greeter.Create()</c> for the
-    /// parameterless case. This test documents the current state and will fail loudly when either
-    /// is chosen.
+    /// Passing the method group directly used to produce CS1503 — "cannot convert from 'method
+    /// group'" — in the CONSUMER's build, pointing at generated code they never wrote. The
+    /// parameterless form is the shape most people write first, so it has to work.
     /// </remarks>
     [Fact]
-    public void AParameterlessFactoryEmitsUncompilableCode()
+    public void AParameterlessFactoryIsWrappedInALambda()
     {
         var run = Run($$"""
             {{Preamble}}
@@ -284,28 +277,17 @@ public class ServiceRegistrationsShapesTests
             }
             """);
 
-        run.Diagnostics.Should().BeEmpty("the generator reports nothing — that is the problem");
-        run.Errors.Should().NotBeEmpty("the emitted code does not compile");
-        run.ErrorText.Should().Contain("CS1503");
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        run.AllSources.Should().Contain("sp =>");
+        run.AllSources.Should().Contain("Greeter.Create()");
     }
 
     /// <summary>
-    /// Characterization, and arguably a limitation worth revisiting.
+    /// The lambda wrapping applies to the interface-registration path too, which reaches a
+    /// different emission branch in the producer.
     /// </summary>
-    /// <remarks>
-    /// Factory matching compares the return type for EXACT symbol equality against the type being
-    /// registered (<c>ServiceRegistrationsGenerator.cs:151</c>). So when registering against an
-    /// interface, a factory returning the concrete implementation is silently ignored — even
-    /// though <c>AddScoped&lt;IGreeter&gt;(Greeter.Create)</c> would compile perfectly well, since
-    /// <c>Greeter</c> is assignable to <c>IGreeter</c>.
-    ///
-    /// The registration still happens, just without the factory, so the symptom is a service
-    /// constructed by the container instead of by its factory — silent, and easy to miss. Pinned
-    /// as current behaviour rather than changed, because widening it to an assignability check is
-    /// a behavioural decision for the maintainer.
-    /// </remarks>
     [Fact]
-    public void AFactoryReturningTheImplementationIsIgnoredWhenRegisteringAnInterface()
+    public void AParameterlessFactoryIsWrappedWhenRegisteringAnInterface()
     {
         var run = Run($$"""
             {{Preamble}}
@@ -321,9 +303,64 @@ public class ServiceRegistrationsShapesTests
             """);
 
         run.Errors.Should().BeEmpty(run.ErrorText);
-        run.AllSources.Should().Contain("IGreeter");
-        run.AllSources.Should().NotContain("Greeter.Create");
+        run.AllSources.Should().Contain("sp =>");
+    }
+
+    /// <summary>
+    /// A factory returning the implementation is used when registering against an interface.
+    /// </summary>
+    /// <remarks>
+    /// Matching is by assignability, not identity. It used to compare the return type for exact
+    /// symbol equality against the registered type, so this factory was silently skipped — the
+    /// registration still happened, just without it, and the container constructed the service
+    /// itself. Nothing failed; the factory simply never ran.
+    /// </remarks>
+    [Fact]
+    public void AFactoryReturningTheImplementationIsUsedWhenRegisteringAnInterface()
+    {
+        var run = Run($$"""
+            {{Preamble}}
+            using System;
+
+            public interface IGreeter { }
+
+            [Register(typeof(IGreeter), ServiceLifetime.Scoped)]
+            public class Greeter : IGreeter
+            {
+                [RegisterFactory]
+                public static Greeter Create(IServiceProvider provider) => new Greeter();
+            }
+            """);
+
         run.Errors.Should().BeEmpty(run.ErrorText);
+        run.AllSources.Should().Contain("IGreeter");
+        run.AllSources.Should().Contain("Greeter.Create");
+    }
+
+    /// <summary>
+    /// A factory returning something unrelated is still rejected — assignability widened the
+    /// check, it did not remove it.
+    /// </summary>
+    [Fact]
+    public void AFactoryReturningAnUnrelatedTypeIsStillRejected()
+    {
+        var run = Run($$"""
+            {{Preamble}}
+            using System;
+
+            public interface IGreeter { }
+            public class Unrelated { }
+
+            [Register(typeof(IGreeter), ServiceLifetime.Scoped)]
+            public class Greeter : IGreeter
+            {
+                [RegisterFactory]
+                public static Unrelated Create(IServiceProvider provider) => new Unrelated();
+            }
+            """);
+
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        run.AllSources.Should().NotContain("Greeter.Create");
     }
 
     /// <summary>

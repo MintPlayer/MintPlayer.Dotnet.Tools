@@ -31,7 +31,7 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                             var factories = namedTypeSymbol.GetMembers()
                                 .OfType<IMethodSymbol>()
                                 .Where(m => m.IsStatic && m.GetAttributes().Any(a => a.AttributeClass?.Name == nameof(RegisterFactoryAttribute)))
-                                .Select(m => new { m.Name, ReturnType = m.ReturnType as INamedTypeSymbol })
+                                .Select(m => new { m.Name, ReturnType = m.ReturnType as INamedTypeSymbol, IsParameterless = m.Parameters.Length == 0 })
                                 .Where(m => m.ReturnType is not null)
                                 .ToArray();
 
@@ -73,7 +73,10 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                             Lifetime = lifetime,
                                             MethodNameHint = methodNameHint,
                                             Accessibility = accessibility,
-                                            FactoryNames = factories.Where(f => SymbolEqualityComparer.Default.Equals(f.ReturnType, namedTypeSymbol)).Select(f => f.Name).ToArray(),
+                                            FactoryExpressions = factories
+                                                .Where(f => IsUsableFactoryReturn(context2.SemanticModel.Compilation, f.ReturnType!, namedTypeSymbol))
+                                                .Select(f => BuildFactoryExpression(namedTypeSymbol, f.Name, f.IsParameterless))
+                                                .ToArray(),
                                             AppliedOn = ERegistrationAppliedOn.Class,
                                             Location = location,
                                         };
@@ -126,7 +129,7 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                                 Lifetime = lifetime,
                                                 MethodNameHint = methodNameHint,
                                                 Accessibility = accessibility,
-                                                FactoryNames = [], // Factories not supported for open generics (yet)
+                                                FactoryExpressions = [], // Factories not supported for open generics (yet)
                                                 IsGeneric = true,
                                                 GenericInfo = genericInfo,
                                                 AppliedOn = ERegistrationAppliedOn.Class,
@@ -148,7 +151,10 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                                 Lifetime = lifetime,
                                                 MethodNameHint = methodNameHint,
                                                 Accessibility = accessibility,
-                                                FactoryNames = factories.Where(f => SymbolEqualityComparer.Default.Equals(f.ReturnType, serviceTypeSymbol)).Select(f => f.Name).ToArray(),
+                                                FactoryExpressions = factories
+                                                    .Where(f => IsUsableFactoryReturn(context2.SemanticModel.Compilation, f.ReturnType!, serviceTypeSymbol))
+                                                    .Select(f => BuildFactoryExpression(namedTypeSymbol, f.Name, f.IsParameterless))
+                                                    .ToArray(),
                                                 AppliedOn = ERegistrationAppliedOn.Class,
                                                 Location = location,
                                             };
@@ -226,7 +232,7 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                             Lifetime = lifetime,
                             MethodNameHint = methodNameHint,
                             Accessibility = accessibility,
-                            FactoryNames = [], // No factories for assembly-level registrations
+                            FactoryExpressions = [], // No factories for assembly-level registrations
                             AppliedOn = ERegistrationAppliedOn.Assembly,
                             Location = location,
                         };
@@ -258,7 +264,7 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                             Lifetime = lifetime,
                             MethodNameHint = methodNameHint,
                             Accessibility = accessibility,
-                            FactoryNames = [], // No factories for assembly-level registrations
+                            FactoryExpressions = [], // No factories for assembly-level registrations
                             AppliedOn = ERegistrationAppliedOn.Assembly,
                             Location = location,
                         };
@@ -337,6 +343,37 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
     /// <summary>
     /// Checks whether <paramref name="derived"/> extends <paramref name="candidate"/> anywhere in its base type chain.
     /// </summary>
+    /// <summary>
+    /// True when a factory returning <paramref name="returnType"/> can supply
+    /// <paramref name="registeredType"/>.
+    /// </summary>
+    /// <remarks>
+    /// Assignability, not identity. Requiring an exact match meant a factory returning the
+    /// concrete implementation was silently ignored when registering against an interface, even
+    /// though <c>AddScoped&lt;IGreeter&gt;(Greeter.Create)</c> compiles perfectly well — the
+    /// registration still happened, just without the factory, so the container constructed the
+    /// service itself and the factory never ran.
+    /// </remarks>
+    private static bool IsUsableFactoryReturn(Compilation compilation, ITypeSymbol returnType, INamedTypeSymbol registeredType)
+        => SymbolEqualityComparer.Default.Equals(returnType, registeredType)
+        || compilation.HasImplicitConversion(returnType, registeredType);
+
+    /// <summary>
+    /// The argument expression for a factory, as it will appear inside <c>AddScoped&lt;T&gt;(...)</c>.
+    /// </summary>
+    /// <remarks>
+    /// The DI overload takes <c>Func&lt;IServiceProvider, T&gt;</c>. A factory that accepts the
+    /// provider can be passed as a method group; a parameterless one cannot, and passing it
+    /// directly produced CS1503 — "cannot convert from 'method group'" — in the CONSUMER's build,
+    /// pointing at generated code they never wrote. Wrapping it in a lambda keeps the
+    /// parameterless form working, which is the shape most people write first.
+    /// </remarks>
+    private static string BuildFactoryExpression(INamedTypeSymbol implementationType, string factoryName, bool isParameterless)
+    {
+        var qualified = $"{implementationType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}.{factoryName}";
+        return isParameterless ? $"sp => {qualified}()" : qualified;
+    }
+
     private static bool ExtendsType(INamedTypeSymbol derived, INamedTypeSymbol candidate)
     {
         var current = derived.BaseType;

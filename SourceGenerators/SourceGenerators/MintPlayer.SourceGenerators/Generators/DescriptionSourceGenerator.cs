@@ -36,7 +36,14 @@ public partial class DescriptionSourceGenerator : IncrementalGenerator
                         // TODO: XML documentation might also be used on methods and properties
                         Name = symbol!.Name,
                         TypeName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                        TypeKind = symbol.TypeKind.ToPlaintext(),
+                        // IsRecord, not just TypeKind: a record class reports TypeKind.Class and a
+                        // record struct reports TypeKind.Struct, so emitting the TypeKind alone
+                        // produced "partial class Widget" for a record and CS0261 — "partial
+                        // declarations must be all classes, all record classes, ..." — in the
+                        // consumer's build, pointing at generated code they never wrote.
+                        TypeKind = symbol.IsRecord
+                            ? $"record {symbol.TypeKind.ToPlaintext()}"
+                            : symbol.TypeKind.ToPlaintext(),
                         PathSpec = symbol.GetPathSpec(ct),
                         IsPartial = ctx.Node is TypeDeclarationSyntax typeDeclaration && typeDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
                         MarkupText = sanitized,
