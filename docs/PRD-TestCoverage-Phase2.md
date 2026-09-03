@@ -306,9 +306,48 @@ with the R3.4 fixtures.
 
 Two halves, answered differently.
 
-**R4.1 — The generic harness: adopt.** Per-generator test code today is repetitive — each test
-hand-builds a compilation, instantiates the generator, runs the driver, and digs the result out. A
-declarative case type collapses that:
+**R4.1 — The generic harness: adopt, and ship it.** *(Done — `MintPlayer.SourceGenerators.Testing`.)*
+
+Rather than a shared file, the harness is now a publishable package sitting beside
+`MintPlayer.SourceGenerators.Tools`, so other repos can consume it. Public surface:
+
+```csharp
+GeneratorHarness.ForAssembly("Acme.Generators").AddReferences(typeof(Marker))
+    .RunGenerator(name, sources)        // GeneratorResult
+    .RunGeneratorTwice(name, a, b)      // IncrementalGeneratorResult — R4.1b
+    .RunAnalyzerAsync(name, sources)    // filtered to the analyzer's own ids
+    .ApplyCodeFixAsync(analyzer, fix, source)
+    .DescriptorsOf(name) / .CodeFixProvidersFor(id)
+```
+
+It hides the four things that are easy to get wrong and fail *silently*: loading via
+`Assembly.Load` into the default ALC (anything else runs un-instrumented code), the
+case-insensitive `build_property.rootnamespace` lookup, tolerating a partial
+`ReflectionTypeLoadException`, and `trackIncrementalGeneratorSteps`. It also ships a
+`CopyComponentUnderTest` MSBuild target so consumers declare
+`<ComponentUnderTest Include="...dll" />` instead of hand-rolling a copy that must land in the bin
+*root* and must include the PDB — the target infers the PDB and **errors** when the DLL is missing,
+because a green run reporting 0% is indistinguishable from an untested component.
+
+Both in-repo test projects now use it; `MintPlayer.SourceGenerators.Tests` keeps its old call shape
+through a ~140-line adapter that holds only what is repo-specific (which four assemblies to probe,
+which libraries fixtures compile against), down from ~330 lines of duplicated mechanics.
+
+Two things fell out of building it, both recorded because they are the kind of detail that costs an
+afternoon:
+
+- `AddReference<T>()` cannot take a **static** class, and the natural anchor for a library is very
+  often its extension class. Hence the non-generic `AddReferences(params Type[])`.
+- The package **orders fixable diagnostics by source position** before offering the first one.
+  `GetAnalyzerDiagnosticsAsync` promises no order; the old harness happened to return first-in-file,
+  and migrating exposed a test that silently depended on it. Ordering makes "the first fixable
+  diagnostic" mean something stable.
+
+Note it adds itself to the denominator: `MintPlayer.SourceGenerators.Testing` is shipped code
+referenced by test projects, so it is instrumented like any other package. That is correct — it is
+published to NuGet — and it is well covered by construction, since every generator test exercises it.
+
+The original sketch, kept because the declarative-case idea is still worth doing on top:
 
 ```csharp
 public sealed record GeneratorCase(

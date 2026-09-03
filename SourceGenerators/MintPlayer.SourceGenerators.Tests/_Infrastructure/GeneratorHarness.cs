@@ -1,34 +1,23 @@
-using System.Collections.Immutable;
-using System.Reflection;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Diagnostics;
+using MintPlayer.SourceGenerators.Testing;
 
 namespace MintPlayer.SourceGenerators.Tests._Infrastructure;
 
 /// <summary>
-/// Runs one of this repo's source generators against an in-memory compilation and hands back
-/// what it produced.
+/// This solution folder's four generators, wired up for
+/// <see cref="MintPlayer.SourceGenerators.Testing.GeneratorHarness"/>.
 /// </summary>
 /// <remarks>
-/// Ported from MintPlayer.Spark's tests/MintPlayer.Spark.SourceGenerators.Tests harness, which
-/// is the proven shape for this. Two things about it are load-bearing:
+/// The mechanics — loading the component from the test output directory so coverage attributes,
+/// the stub analyzer-config options, tolerating a partial type load — now live in the
+/// MintPlayer.SourceGenerators.Testing package. What stays here is only what is specific to this
+/// repo: which assemblies to probe, and which libraries the fixtures compile against.
 ///
-/// 1. The generator assemblies are kept OUT of this project's compile-time graph
-///    (ReferenceOutputAssembly="false") because MintPlayer.SourceGenerators.Tools polyfills
-///    BCL types for netstandard2.0 and they collide with the real ones on net10.0 (CS0433).
-///    They are copied into the test bin root instead and loaded here by name.
-///
-/// 2. <see cref="Assembly.Load(AssemblyName)"/> loads into the DEFAULT load context, from the
-///    test output directory — which is the copy coverlet instrumented. Loading them any other
-///    way (an Analyzer reference, AssemblyLoadContext, LoadFrom of the generator's own bin)
-///    means the code runs but contributes nothing to coverage.
+/// The probing exists because tests name a generator by type name alone and the four generators
+/// live in four assemblies. Tests that already know the assembly can pass it and skip the search.
 /// </remarks>
 internal static class GeneratorHarness
 {
-    private static readonly Dictionary<string, Assembly> _assemblies = new(StringComparer.Ordinal);
-
-    /// <summary>Every assembly a generator might live in, in load order preference.</summary>
     private static readonly string[] KnownGeneratorAssemblies =
     [
         "MintPlayer.SourceGenerators",
@@ -37,6 +26,34 @@ internal static class GeneratorHarness
         "MintPlayer.ValueComparerGenerator",
     ];
 
+    /// <summary>
+    /// Everything a fixture in this project might reference. Attribute packages a generator
+    /// triggers on, plus the libraries the generated code itself compiles against —
+    /// ServiceRegistrationsGenerator returns nothing at all without
+    /// Microsoft.Extensions.DependencyInjection in the compilation.
+    /// </summary>
+    private static readonly Type[] FixtureReferences =
+    [
+        typeof(System.ComponentModel.DescriptionAttribute),
+        typeof(Microsoft.Extensions.DependencyInjection.IServiceCollection),
+        typeof(Microsoft.Extensions.DependencyInjection.ServiceCollection),
+        typeof(IServiceProvider),
+        typeof(System.CommandLine.Command),
+        typeof(Microsoft.Extensions.Hosting.IHost),
+        typeof(Microsoft.Extensions.Hosting.Host),
+        typeof(Attributes.RegisterAttribute),
+        typeof(Mapper.Attributes.GenerateMapperAttribute),
+        typeof(CliGenerator.Attributes.CliCommandAttribute),
+        typeof(Tools.ValueComparerAttribute),
+        typeof(ValueComparerGenerator.Attributes.AutoValueComparerAttribute),
+    ];
+
+    private static readonly Dictionary<string, Testing.GeneratorHarness> _harnesses =
+        KnownGeneratorAssemblies.ToDictionary(
+            name => name,
+            name => Testing.GeneratorHarness.ForAssembly(name).AddReferences(FixtureReferences),
+            StringComparer.Ordinal);
+
     public static GeneratorRun Run(
         string generatorTypeName,
         IEnumerable<string> sources,
@@ -44,286 +61,92 @@ internal static class GeneratorHarness
         IEnumerable<Type>? referenceTypes = null,
         string? generatorAssemblyName = null,
         string assemblyName = "TestInput")
-    {
-        var generator = InstantiateGenerator(generatorTypeName, generatorAssemblyName);
+        => Probe(
+            generatorAssemblyName,
+            rootNamespace,
+            referenceTypes,
+            h => h.RunGenerator(generatorTypeName, sources.ToArray()));
 
-        var sourceList = sources.ToList();
-        if (sourceList.Count == 0)
-            sourceList.Add("// intentionally empty");
-
-        var compilation = BuildCompilation(sourceList, referenceTypes ?? [], assemblyName);
-        var parseOptions = (CSharpParseOptions)compilation.SyntaxTrees.First().Options;
-
-        GeneratorDriver driver = CSharpGeneratorDriver.Create(
-            generators: [generator.AsSourceGenerator()],
-            additionalTexts: null,
-            parseOptions: parseOptions,
-            optionsProvider: new StubAnalyzerConfigOptionsProvider(rootNamespace));
-
-        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var updated, out var driverDiagnostics);
-
-        var generated = driver.GetRunResult().GeneratedTrees
-            .Select(tree => (HintName: Path.GetFileName(tree.FilePath), Source: tree.GetText().ToString()))
-            .OrderBy(x => x.HintName, StringComparer.Ordinal)
-            .ToList();
-
-        return new GeneratorRun(driverDiagnostics, generated, updated);
-    }
-
-    /// <summary>
-    /// Runs a generator TWICE over the same driver — once against <paramref name="initialSources"/>,
-    /// then against <paramref name="modifiedSources"/> — and reports what the pipeline did the
-    /// second time.
-    /// </summary>
-    /// <remarks>
-    /// <see cref="Run"/> drives the generator exactly once, which means no incremental step ever
-    /// has a previous run to compare against: the pipeline's equality comparers and caches are
-    /// never invoked. That is why MintPlayer.SourceGenerators.Tools' ValueComparers sit near 0%
-    /// while the generators using them are 30-60% covered.
-    ///
-    /// It is also the only way to verify incrementality at all. A generator whose comparers are
-    /// wrong still produces correct output — it just recomputes everything on every keystroke,
-    /// which no single-run test can detect.
-    ///
-    /// <c>trackIncrementalGeneratorSteps</c> is what populates
-    /// <see cref="GeneratorRunResult.TrackedSteps"/>; without it the reasons come back empty.
-    /// </remarks>
-    public static IncrementalRun RunIncremental(
+    public static IncrementalGeneratorResult RunIncremental(
         string generatorTypeName,
         IEnumerable<string> initialSources,
         IEnumerable<string> modifiedSources,
         string? rootNamespace = "TestRoot",
         IEnumerable<Type>? referenceTypes = null,
         string? generatorAssemblyName = null)
-    {
-        var generator = InstantiateGenerator(generatorTypeName, generatorAssemblyName);
+        => Probe(
+            generatorAssemblyName,
+            rootNamespace,
+            referenceTypes,
+            h => h.RunGeneratorTwice(generatorTypeName, initialSources.ToArray(), modifiedSources.ToArray()));
 
-        var first = BuildCompilation(initialSources, referenceTypes ?? [], "TestInput");
-        var second = BuildCompilation(modifiedSources, referenceTypes ?? [], "TestInput");
-        var parseOptions = (CSharpParseOptions)first.SyntaxTrees.First().Options;
-
-        GeneratorDriver driver = CSharpGeneratorDriver.Create(
-            generators: [generator.AsSourceGenerator()],
-            additionalTexts: null,
-            parseOptions: parseOptions,
-            optionsProvider: new StubAnalyzerConfigOptionsProvider(rootNamespace),
-            driverOptions: new GeneratorDriverOptions(
-                IncrementalGeneratorOutputKind.None,
-                trackIncrementalGeneratorSteps: true));
-
-        driver = driver.RunGeneratorsAndUpdateCompilation(first, out _, out _);
-        var firstResult = driver.GetRunResult().Results.Single();
-
-        driver = driver.RunGeneratorsAndUpdateCompilation(second, out _, out _);
-        var secondResult = driver.GetRunResult().Results.Single();
-
-        return new IncrementalRun(firstResult, secondResult);
-    }
-
-    /// <summary>
-    /// Runs a <see cref="DiagnosticAnalyzer"/> and returns only the diagnostics it declares,
-    /// so unrelated compile errors in a test fixture do not leak into the assertion.
-    /// </summary>
-    public static async Task<IReadOnlyList<Diagnostic>> RunAnalyzerAsync(
+    public static Task<IReadOnlyList<Diagnostic>> RunAnalyzerAsync(
         string analyzerTypeName,
         IEnumerable<string> sources,
         IEnumerable<Type>? referenceTypes = null,
         string? analyzerAssemblyName = null)
-    {
-        var analyzer = InstantiateAnalyzer(analyzerTypeName, analyzerAssemblyName);
-        var compilation = BuildCompilation(sources, referenceTypes ?? [], "AnalyzerInput");
-
-        var diagnostics = await compilation
-            .WithAnalyzers(ImmutableArray.Create(analyzer))
-            .GetAnalyzerDiagnosticsAsync(default);
-
-        var ownIds = analyzer.SupportedDiagnostics.Select(d => d.Id).ToHashSet(StringComparer.Ordinal);
-        return diagnostics.Where(d => ownIds.Contains(d.Id)).ToList();
-    }
-
-    #region Reflection over the copied generator assemblies
-
-    private static IIncrementalGenerator InstantiateGenerator(string typeName, string? assemblyName)
-        => (IIncrementalGenerator)Activator.CreateInstance(
-            FindType(typeName, assemblyName, typeof(IIncrementalGenerator)))!;
-
-    private static DiagnosticAnalyzer InstantiateAnalyzer(string typeName, string? assemblyName)
-        => (DiagnosticAnalyzer)Activator.CreateInstance(
-            FindType(typeName, assemblyName, typeof(DiagnosticAnalyzer)))!;
-
-    private static Type FindType(string typeName, string? assemblyName, Type assignableTo)
-    {
-        string[] candidates = assemblyName is null ? KnownGeneratorAssemblies : [assemblyName];
-
-        foreach (var candidate in candidates)
-        {
-            var type = GetLoadableTypes(Load(candidate))
-                .FirstOrDefault(t => t.Name == typeName && assignableTo.IsAssignableFrom(t));
-
-            if (type is not null) return type;
-        }
-
-        var known = string.Join(", ", candidates
-            .SelectMany(c => GetLoadableTypes(Load(c)))
-            .Where(assignableTo.IsAssignableFrom)
-            .Select(t => t.Name));
-
-        throw new InvalidOperationException(
-            $"'{typeName}' not found as a {assignableTo.Name} in [{string.Join(", ", candidates)}]. Candidates: {known}");
-    }
+        => ProbeAsync(
+            analyzerAssemblyName,
+            referenceTypes,
+            h => h.RunAnalyzerAsync(analyzerTypeName, sources.ToArray()));
 
     /// <summary>
-    /// <see cref="Assembly.GetTypes"/> throws if ANY type fails to load, and it only takes one
-    /// missing optional dependency to lose the whole assembly. Keep whatever did load.
+    /// Runs <paramref name="action"/> against each candidate assembly until one does not report an
+    /// unknown type.
     /// </summary>
-    private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
+    /// <remarks>
+    /// The package throws <see cref="InvalidOperationException"/> when a component type is not in
+    /// the assembly it was asked about, which for a probe is a "try the next one" rather than a
+    /// failure. The final assembly's exception is allowed to escape, so a genuinely missing type
+    /// still fails with the package's message listing what it did find.
+    /// </remarks>
+    private static T Probe<T>(
+        string? assemblyName,
+        string? rootNamespace,
+        IEnumerable<Type>? referenceTypes,
+        Func<Testing.GeneratorHarness, T> action)
     {
-        try
+        var candidates = Candidates(assemblyName, rootNamespace, referenceTypes);
+
+        for (var i = 0; i < candidates.Count; i++)
         {
-            return assembly.GetTypes();
+            try { return action(candidates[i]); }
+            catch (InvalidOperationException) when (i < candidates.Count - 1) { }
         }
-        catch (ReflectionTypeLoadException ex)
-        {
-            return ex.Types.Where(t => t is not null).Cast<Type>();
-        }
+
+        throw new InvalidOperationException("No candidate generator assemblies configured.");
     }
 
-    private static Assembly Load(string assemblyName)
+    private static async Task<T> ProbeAsync<T>(
+        string? assemblyName,
+        IEnumerable<Type>? referenceTypes,
+        Func<Testing.GeneratorHarness, Task<T>> action)
     {
-        lock (_assemblies)
-        {
-            if (_assemblies.TryGetValue(assemblyName, out var cached)) return cached;
+        var candidates = Candidates(assemblyName, rootNamespace: "TestRoot", referenceTypes);
 
-            var loaded = Assembly.Load(new AssemblyName(assemblyName));
-            _assemblies[assemblyName] = loaded;
-            return loaded;
+        for (var i = 0; i < candidates.Count; i++)
+        {
+            try { return await action(candidates[i]); }
+            catch (InvalidOperationException) when (i < candidates.Count - 1) { }
         }
+
+        throw new InvalidOperationException("No candidate analyzer assemblies configured.");
     }
 
-    #endregion
-
-    private static CSharpCompilation BuildCompilation(
-        IEnumerable<string> sources,
-        IEnumerable<Type> referenceTypes,
-        string assemblyName)
+    private static IReadOnlyList<Testing.GeneratorHarness> Candidates(
+        string? assemblyName,
+        string? rootNamespace,
+        IEnumerable<Type>? referenceTypes)
     {
-        var trees = sources
-            .Select((src, i) => CSharpSyntaxTree.ParseText(src, path: $"Source{i}.cs"))
+        var names = assemblyName is null ? KnownGeneratorAssemblies : [assemblyName];
+        var extra = referenceTypes?.ToArray() ?? [];
+
+        return names
+            .Select(n => _harnesses.TryGetValue(n, out var h)
+                ? h
+                : Testing.GeneratorHarness.ForAssembly(n).AddReferences(FixtureReferences))
+            .Select(h => extra.Length == 0 ? h : h.AddReferences(extra))
+            .Select(h => h.WithRootNamespace(rootNamespace))
             .ToList();
-
-        var references = new HashSet<MetadataReference>(
-            new[]
-            {
-                typeof(object).Assembly,
-                typeof(List<>).Assembly,
-                typeof(Enumerable).Assembly,
-                typeof(System.ComponentModel.DescriptionAttribute).Assembly,
-                typeof(Microsoft.Extensions.DependencyInjection.IServiceCollection).Assembly,
-                typeof(Microsoft.Extensions.DependencyInjection.ServiceCollection).Assembly,
-                typeof(IServiceProvider).Assembly,
-                typeof(System.CommandLine.Command).Assembly,
-                typeof(Microsoft.Extensions.Hosting.IHost).Assembly,
-                typeof(Microsoft.Extensions.Hosting.Host).Assembly,
-                typeof(Attributes.RegisterAttribute).Assembly,
-                typeof(Mapper.Attributes.GenerateMapperAttribute).Assembly,
-                typeof(CliGenerator.Attributes.CliCommandAttribute).Assembly,
-                typeof(Tools.ValueComparerAttribute).Assembly,
-                typeof(ValueComparerGenerator.Attributes.AutoValueComparerAttribute).Assembly,
-            }
-            .Concat(AppDomain.CurrentDomain.GetAssemblies()
-                .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
-                .Where(a => a.GetName().Name is { } n &&
-                            (n.StartsWith("System.", StringComparison.Ordinal) || n is "netstandard" or "mscorlib")))
-            .Select(a => (MetadataReference)MetadataReference.CreateFromFile(a.Location)));
-
-        foreach (var t in referenceTypes)
-            references.Add(MetadataReference.CreateFromFile(t.Assembly.Location));
-
-        return CSharpCompilation.Create(
-            assemblyName: assemblyName,
-            syntaxTrees: trees,
-            references: references,
-            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-    }
-}
-
-/// <summary>
-/// The two <see cref="GeneratorRunResult"/>s from a <see cref="GeneratorHarness.RunIncremental"/>,
-/// with helpers for asking what the second run reused.
-/// </summary>
-internal sealed record IncrementalRun(
-    GeneratorRunResult First,
-    GeneratorRunResult Second)
-{
-    /// <summary>
-    /// Every reason recorded against <paramref name="stepName"/> on the second run. A step whose
-    /// inputs compared equal reports <see cref="IncrementalStepRunReason.Cached"/> or
-    /// <see cref="IncrementalStepRunReason.Unchanged"/>; one that recomputed reports
-    /// <see cref="IncrementalStepRunReason.Modified"/> or <see cref="IncrementalStepRunReason.New"/>.
-    /// </summary>
-    public IReadOnlyList<IncrementalStepRunReason> ReasonsFor(string stepName)
-        => Second.TrackedSteps.TryGetValue(stepName, out var steps)
-            ? steps.SelectMany(s => s.Outputs).Select(o => o.Reason).ToList()
-            : [];
-
-    public IReadOnlyList<string> StepNames => Second.TrackedSteps.Keys.OrderBy(k => k, StringComparer.Ordinal).ToList();
-
-    /// <summary>True when nothing in <paramref name="stepName"/> had to be recomputed.</summary>
-    public bool WasFullyCached(string stepName)
-    {
-        var reasons = ReasonsFor(stepName);
-        return reasons.Count > 0 && reasons.All(r =>
-            r is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged);
-    }
-
-    public IReadOnlyList<string> HintNames(GeneratorRunResult result)
-        => result.GeneratedSources.Select(s => s.HintName).OrderBy(n => n, StringComparer.Ordinal).ToList();
-}
-
-internal sealed record GeneratorRun(
-    IEnumerable<Diagnostic> Diagnostics,
-    IReadOnlyList<(string HintName, string Source)> GeneratedSources,
-    Compilation UpdatedCompilation)
-{
-    /// <summary>Errors from the generator itself plus errors in the code it produced.</summary>
-    public IReadOnlyList<Diagnostic> Errors =>
-        Diagnostics.Concat(UpdatedCompilation.GetDiagnostics())
-            .Where(d => d.Severity == DiagnosticSeverity.Error)
-            .ToList();
-
-    public string ErrorText => string.Join(Environment.NewLine, Errors.Select(d => d.ToString()));
-
-    public string? SourceFor(string hintName)
-        => GeneratedSources.FirstOrDefault(s => s.HintName == hintName).Source;
-
-    /// <summary>All generated files concatenated, for a "contains this member anywhere" check.</summary>
-    public string AllSources => string.Join(Environment.NewLine, GeneratedSources.Select(s => s.Source));
-}
-
-/// <summary>
-/// Supplies <c>build_property.rootnamespace</c>. Two traps this deliberately handles: the keys
-/// are LOWERCASE, and Roslyn's real global-options dictionary is CASE-INSENSITIVE — a
-/// case-sensitive dictionary here silently yields a null RootNamespace, and several producers
-/// pass it as <c>RootNamespace!</c> and then emit a bare <c>namespace</c>, i.e. CS1001.
-/// </summary>
-internal sealed class StubAnalyzerConfigOptionsProvider(string? rootNamespace) : AnalyzerConfigOptionsProvider
-{
-    private readonly StubOptions _options = new(rootNamespace);
-
-    public override AnalyzerConfigOptions GlobalOptions => _options;
-    public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => _options;
-    public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) => _options;
-
-    private sealed class StubOptions : AnalyzerConfigOptions
-    {
-        private readonly Dictionary<string, string> _values = new(StringComparer.OrdinalIgnoreCase);
-
-        public StubOptions(string? rootNamespace)
-        {
-            if (!string.IsNullOrEmpty(rootNamespace))
-                _values["build_property.rootnamespace"] = rootNamespace!;
-        }
-
-        public override bool TryGetValue(string key, out string value) => _values.TryGetValue(key, out value!);
     }
 }

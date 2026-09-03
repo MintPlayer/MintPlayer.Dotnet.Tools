@@ -1,5 +1,3 @@
-using MintPlayer.Assertions.SourceGenerator.Tests._Infrastructure;
-
 namespace MintPlayer.Assertions.SourceGenerator.Tests.Diagnostics;
 
 /// <summary>
@@ -13,7 +11,7 @@ public class VacuousShouldAnalyzerTests
     [Fact]
     public async Task ItFlagsAShouldWithNoAssertion()
     {
-        var diagnostics = await AnalyzerHarness.RunAnalyzerAsync(Analyzer, """
+        var diagnostics = await Harness.Instance.RunAnalyzerAsync(Analyzer, """
             using MintPlayer.Assertions;
 
             public class Test
@@ -33,7 +31,7 @@ public class VacuousShouldAnalyzerTests
     [Fact]
     public async Task ItIgnoresAShouldThatIsAssertedOn()
     {
-        var diagnostics = await AnalyzerHarness.RunAnalyzerAsync(Analyzer, """
+        var diagnostics = await Harness.Instance.RunAnalyzerAsync(Analyzer, """
             using MintPlayer.Assertions;
 
             public class Test
@@ -52,7 +50,7 @@ public class VacuousShouldAnalyzerTests
     [Fact]
     public void ItAdvertisesAWellFormedDescriptor()
     {
-        var descriptors = AnalyzerHarness.DescriptorsOf(Analyzer);
+        var descriptors = Harness.Instance.DescriptorsOf(Analyzer);
 
         descriptors.Should().ContainSingle();
         descriptors[0].Id.Should().Be("MPA0002");
