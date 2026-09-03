@@ -13,9 +13,18 @@
           -->
           <!--
           Forward slashes only: coverlet normalizes separators, verified by probe — an
-          ExcludeByFile of **/Casing.cs drops StringExtensions\...\Casing.cs on Windows. No
-          git-tracked file in this repo is named *.g.cs, so the bare pattern cannot hide real
-          source and there is no need to anchor it to obj/.
+          ExcludeByFile of **/Casing.cs drops StringExtensions\...\Casing.cs on Windows.
+
+          Anchored to obj/ deliberately. It used to be a bare **/*.g.cs, justified on the grounds
+          that no git-tracked file in this repo is named *.g.cs — true today, but it is an
+          assumption about the whole repo that nothing enforces, and the failure mode is silent:
+          a tracked Foo.g.cs added later would be dropped from the denominator with no sign in the
+          report. Anchoring removes the assumption instead of documenting it. Generated output
+          still lives under obj/ and is still excluded; a tracked *.g.cs outside obj/ is now
+          measured, which is the correct outcome.
+
+          Verified by re-running the full suite after the change: identical merged totals, so this
+          narrows what the pattern is allowed to hide without hiding anything less today.
 
           Known limitation, not fixable here: a source-generated document that is never written
           to disk — Solve/obj/.../InjectSourceGenerator/Inject.g.cs, because Solve does not set
@@ -24,7 +33,15 @@
           coverage server cannot resolve it and drops it. That is the correct outcome; it only
           means the raw local report lists one file the server ignores.
           -->
-          <ExcludeByFile>**/*.g.cs,**/*.Designer.cs</ExcludeByFile>
+          <!--
+          The two dotnet-tool entry points. Both are top-level statements, so the generated Program
+          class cannot carry [ExcludeFromCodeCoverage] and this is the only place to say it. They
+          are host-builder wiring — AddXCommand(), Build(), RunAsync() — with no branch worth
+          asserting, and they are unreachable from a test without launching the tool for real.
+          39 permanently-red lines. Listed individually rather than as **/Program.cs so a future
+          Program.cs with real logic in it is not silently hidden.
+          -->
+          <ExcludeByFile>**/obj/**/*.g.cs,**/*.Designer.cs,**/Solve/Program.cs,**/MintPlayer.SlnLaunch/Program.cs</ExcludeByFile>
 
           <!--
           SourceLink is active in this repo (see obj/*.sourcelink.json). UseSourceLink=true rewrites

@@ -49,16 +49,75 @@
 		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsCommon</GetTargetPathDependsOn>
 	</PropertyGroup>
 
-	<ItemGroup>
-		<!-- Put the assets for this project in the correct package path -->
-		<!-- Rolsyn 4.0 -->
-		<None Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="false" />
-		<None Condition="'$(Configuration)' == 'Release' " Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="false" />
+	<!--
+	The analyzer payload is collected inside a TARGET, not in a static ItemGroup.
 
-		<!-- Rolsyn 4.9 -->
-		<None Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="false" />
-		<None Condition="'$(Configuration)' == 'Release' " Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="false" />
-	</ItemGroup>
+	It used to be `<None Include="...\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" />`.
+	A glob in a static ItemGroup is expanded at project EVALUATION time — before any
+	ProjectReference has been built — so on a clean tree it matched nothing and the package
+	shipped without the assembly the generator's base class lives in. The result restores
+	cleanly, reports nothing, and the generator never runs in the consumer.
+
+	It looked like it worked because a full `dotnet build` had already populated those bin
+	folders. `dotnet pack` on its own, in either configuration, produced a broken package.
+	(A Configuration == 'Release' condition on the same items made Debug fail even after a
+	build; that was a second bug on top of this one, and is also gone.)
+
+	TargetsForTfmSpecificContentInPackage is NuGet's documented hook for exactly this: it runs
+	during pack, after Build, so the referenced projects' output exists by the time the items
+	are collected. PackagingTests pins both the layout and Debug/Release parity.
+	-->
+	<PropertyGroup>
+		<TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);AddGeneratorAnalyzerAssets</TargetsForTfmSpecificContentInPackage>
+	</PropertyGroup>
+
+	<Target Name="AddGeneratorAnalyzerAssets">
+		<ItemGroup>
+			<_GeneratorAssembly Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll" />
+			<_GeneratorToolsAssets Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\*.dll" />
+
+			<!--
+			The generator's OWN attributes assembly, from this project's own output directory.
+
+			One rule, uniformly: a generator ships the attributes package it triggers on. Anything
+			else a particular generator needs in analyzers/dotnet/cs is that feature's business —
+			the [AutoValueComparer] dependency, for instance, is added by
+			eng/valuecomparergenerator.targets, which only the projects that actually use it import.
+			-->
+			<_GeneratorAttributeAssets Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).Attributes.dll" />
+		</ItemGroup>
+
+		<!--
+		Hard failures, not warnings. Each of these produces a package that installs happily and
+		does nothing, which is the worst outcome available for a source generator: the consumer
+		has no error to search for.
+
+		Note the two different tests. A LITERAL Include creates the item whether or not the file
+		exists, so '@(x)' == '' never fires for one — it has to be Exists() on the item's path.
+		A GLOB contributes nothing when it matches nothing, so there '@(x)' == '' is the correct
+		and only workable test. Getting this backwards produces a guard that silently never
+		fires, which is worse than no guard because it reads as protection.
+		-->
+		<Error Condition="!Exists('%(_GeneratorAssembly.FullPath)')"
+		       Text="The generator assembly was not found at bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll. Packing would produce a package with no analyzer in it." />
+		<Error Condition="'@(_GeneratorToolsAssets)' == ''"
+		       Text="MintPlayer.SourceGenerators.Tools was not found in bin\$(Configuration)\netstandard2.0. Packing would produce a generator that cannot resolve its base class and silently never runs." />
+		<Error Condition="!Exists('%(_GeneratorAttributeAssets.FullPath)')"
+		       Text="$(AssemblyName).Attributes.dll was not found in bin\$(Configuration)\netstandard2.0. Packing would produce a generator whose own attributes Roslyn cannot resolve." />
+
+		<ItemGroup>
+			<!-- The attributes live one level up, shared by both Roslyn versions. -->
+			<TfmSpecificPackageFile Include="@(_GeneratorAttributeAssets)" PackagePath="analyzers/dotnet/cs" />
+
+			<!-- Roslyn 4.0 -->
+			<TfmSpecificPackageFile Include="@(_GeneratorAssembly)" PackagePath="analyzers/dotnet/roslyn4.0/cs" />
+			<TfmSpecificPackageFile Include="@(_GeneratorToolsAssets)" PackagePath="analyzers/dotnet/roslyn4.0/cs" />
+
+			<!-- Roslyn 4.9 -->
+			<TfmSpecificPackageFile Include="@(_GeneratorAssembly)" PackagePath="analyzers/dotnet/roslyn4.9/cs" />
+			<TfmSpecificPackageFile Include="@(_GeneratorToolsAssets)" PackagePath="analyzers/dotnet/roslyn4.9/cs" />
+		</ItemGroup>
+	</Target>
 
 	<Target Name="GetDependencyTargetPathsCommon">
 		<!-- Include dependency DLLs and put them in the correct package path -->

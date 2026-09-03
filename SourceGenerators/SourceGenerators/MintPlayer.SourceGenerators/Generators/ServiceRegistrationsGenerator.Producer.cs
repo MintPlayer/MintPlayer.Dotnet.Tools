@@ -122,13 +122,13 @@ public class RegistrationsProducer : Producer, IDiagnosticReporter
                 cancellationToken.ThrowIfCancellationRequested();
                 if (svc.ServiceTypeName is null)
                 {
-                    if (svc.FactoryNames.Length > 0)
+                    if (svc.FactoryExpressions.Length > 0)
                     {
                         var currentFactoryIndex = 0;
-                        foreach (var factoryName in svc.FactoryNames)
+                        foreach (var factoryExpression in svc.FactoryExpressions)
                         {
-                            writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ImplementationTypeName}>({svc.ImplementationTypeName}.{factoryName})");
-                            if (++currentFactoryIndex != svc.FactoryNames.Length)
+                            writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ImplementationTypeName}>({factoryExpression})");
+                            if (++currentFactoryIndex != svc.FactoryExpressions.Length)
                                 writer.WriteLine();
                         }
                     }
@@ -139,13 +139,13 @@ public class RegistrationsProducer : Producer, IDiagnosticReporter
                 }
                 else
                 {
-                    if (svc.FactoryNames.Length > 0)
+                    if (svc.FactoryExpressions.Length > 0)
                     {
                         var currentFactoryIndex = 0;
-                        foreach (var factoryName in svc.FactoryNames)
+                        foreach (var factoryExpression in svc.FactoryExpressions)
                         {
-                            writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ServiceTypeName}>({svc.ImplementationTypeName}.{factoryName})");
-                            if (++currentFactoryIndex != svc.FactoryNames.Length)
+                            writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{svc.ServiceTypeName}>({factoryExpression})");
+                            if (++currentFactoryIndex != svc.FactoryExpressions.Length)
                                 writer.WriteLine();
                         }
                     }

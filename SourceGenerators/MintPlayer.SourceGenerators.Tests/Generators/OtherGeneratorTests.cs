@@ -277,6 +277,22 @@ public class CliCommandSourceGeneratorTests
         => GeneratorHarness.Run("CliCommandSourceGenerator", [source], rootNamespace,
             generatorAssemblyName: "MintPlayer.CliGenerator");
 
+    /// <summary>
+    /// A root command with one subcommand carrying one option, asserted all the way to the
+    /// emitted tree.
+    /// </summary>
+    /// <remarks>
+    /// This test used to declare <c>BuildCommand</c> with <c>[CliCommand("build")]</c> alone and
+    /// then assert only that <c>Errors</c> was empty and that something had been generated. Both
+    /// held — but a non-nested command without <c>[CliParentCommand]</c> is silently dropped, so
+    /// the generated tree contained the root and nothing else. The test named for building a
+    /// command tree never checked that the tree had been built, and passed for years while the
+    /// subcommand it declared was thrown away.
+    ///
+    /// It now declares the parent explicitly and asserts the subcommand and its option are
+    /// present. The dropping behaviour itself is pinned separately by
+    /// <c>CliCommandFeatureTests.AnOrphanCommand_IsSilentlyDroppedFromTheTree</c>.
+    /// </remarks>
     [Fact]
     public void ItBuildsACommandTree()
     {
@@ -294,6 +310,7 @@ public class CliCommandSourceGeneratorTests
             }
 
             [CliCommand("build")]
+            [CliParentCommand(typeof(RootCommand))]
             public partial class BuildCommand : ICliCommand
             {
                 [CliOption("--verbose")] public bool Verbose { get; set; }
@@ -303,7 +320,8 @@ public class CliCommandSourceGeneratorTests
             """);
 
         run.Errors.Should().BeEmpty(run.ErrorText);
-        run.GeneratedSources.Should().NotBeEmpty();
+        run.AllSources.Should().Contain("\"build\"", "the subcommand belongs in the emitted tree");
+        run.AllSources.Should().Contain("--verbose", "its option belongs on it");
     }
 
     [Fact]

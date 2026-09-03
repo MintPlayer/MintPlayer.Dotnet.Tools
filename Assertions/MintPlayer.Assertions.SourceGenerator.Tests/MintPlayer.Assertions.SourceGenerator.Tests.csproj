@@ -1,0 +1,79 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<LangVersion>14</LangVersion>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<IsPackable>false</IsPackable>
+		<IsTestProject>true</IsTestProject>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="coverlet.collector" Version="10.0.1">
+		  <PrivateAssets>all</PrivateAssets>
+		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
+		<PackageReference Include="xunit" Version="2.9.3" />
+		<PackageReference Include="xunit.runner.visualstudio" Version="4.0.0">
+		  <PrivateAssets>all</PrivateAssets>
+		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
+
+	<ItemGroup>
+		<!--
+		The harness. Brings Microsoft.CodeAnalysis.CSharp and .Workspaces with it - Workspaces is
+		not optional here, because locating a component reflects over the assembly and this one
+		contains four CodeFixProviders, so GetTypes would throw without it.
+
+		Referenced as a project rather than a package because it lives in this repo; consumers
+		elsewhere take the PackageReference and get the copy target automatically from build/.
+		-->
+		<ProjectReference Include="..\..\SourceGenerators\MintPlayer.SourceGenerators.Testing\MintPlayer.SourceGenerators.Testing.csproj" />
+	</ItemGroup>
+
+	<!--
+	Build ordering only. The generator is netstandard2.0 and its MintPlayer.SourceGenerators.Tools
+	dependency polyfills BCL types, so letting its compile assets into this net10.0 project makes
+	every use of e.g. ModuleInitializerAttribute ambiguous with System.Runtime's (CS0433).
+
+	This is deliberately a SECOND, separate reference to the same project. MintPlayer.Assertions
+	.Tests keeps its OutputItemType="Analyzer" reference, because its 553 tests consume the code
+	the generator produces. Converting that one would break them - and would not help anyway,
+	since Roslyn loads analyzers from the generator's own bin via AnalyzerFileReference, which
+	coverlet never instrumented. That is exactly why this project exists.
+	-->
+	<ItemGroup>
+		<ProjectReference Include="..\MintPlayer.Assertions.SourceGenerator\MintPlayer.Assertions.SourceGenerator.csproj"
+		                  ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
+
+		<!-- Referenced normally: test input sources are compiled against the assertion API. -->
+		<ProjectReference Include="..\MintPlayer.Assertions\MintPlayer.Assertions.csproj" />
+
+		<!--
+		Both generators derive from MintPlayer.SourceGenerators.Tools' IncrementalGenerator base,
+		so Tools must be resolvable when the component assembly is reflected over. Without it
+		GetTypes drops exactly those two types and the harness reports the assembly as containing
+		no IIncrementalGenerator - the analyzers, which have no Tools dependency, load fine and
+		mask the problem.
+		-->
+		<ProjectReference Include="..\..\SourceGenerators\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj" />
+
+		<!-- Copied into the bin ROOT with its PDB by CopyComponentUnderTest, so coverage attributes. -->
+		<ComponentUnderTest Include="..\MintPlayer.Assertions.SourceGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.Assertions.SourceGenerator.dll" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Using Include="Xunit" />
+		<Using Include="MintPlayer.Assertions" />
+		<Using Include="MintPlayer.SourceGenerators.Testing" />
+	</ItemGroup>
+
+	<!--
+	In-repo stand-in for the build/ targets a PackageReference would bring automatically.
+	-->
+	<Import Project="..\..\SourceGenerators\MintPlayer.SourceGenerators.Testing\Targets\sourcegenerator_testing.targets" />
+
+</Project>

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+	<!--
+	Copies the component under test into the test host's output ROOT, which is the one thing a
+	consuming test project must get right and the easiest to get wrong.
+
+	Why the root and not a subfolder: a coverage collector scans the test host's own directory and
+	does not recurse. A DLL one level down is loaded happily and measured not at all.
+
+	Why the PDB too: without sequence points the collector has no line numbers to attribute, so
+	coverage silently reports zero even though the assembly is present and running.
+
+	Usage in the test project:
+
+	  <ItemGroup>
+	    <ProjectReference Include="..\Acme.Generators\Acme.Generators.csproj"
+	                      ReferenceOutputAssembly="false"
+	                      SkipGetTargetFrameworkProperties="true" />
+
+	    <ComponentUnderTest Include="..\Acme.Generators\bin\$(Configuration)\netstandard2.0\Acme.Generators.dll" />
+	  </ItemGroup>
+
+	ReferenceOutputAssembly="false" keeps the component out of the compile graph — a source
+	generator targets netstandard2.0 and typically carries BCL polyfills that collide with the real
+	types in a modern test project (CS0433) — while still ordering the build so the DLL exists by
+	the time this target runs.
+
+	Give ComponentUnderTest the DLL path; the PDB beside it is picked up automatically.
+	-->
+
+	<PropertyGroup>
+		<!--
+		Set this to false to allow a build with nothing to copy. The default is to fail, because
+		the failure mode this guards is silent: no DLL means no coverage, and a green test run
+		reporting 0% looks exactly like a component nobody tested.
+		-->
+		<FailOnMissingComponentUnderTest Condition="'$(FailOnMissingComponentUnderTest)' == ''">true</FailOnMissingComponentUnderTest>
+	</PropertyGroup>
+
+	<Target Name="CopyComponentUnderTest"
+	        AfterTargets="Build"
+	        Condition="'@(ComponentUnderTest)' != ''">
+
+		<ItemGroup>
+			<!-- The PDB is inferred rather than declared, so a consumer cannot list one and forget the other. -->
+			<_ComponentUnderTestPdb Include="@(ComponentUnderTest->'%(RootDir)%(Directory)%(Filename).pdb')" />
+
+			<_ComponentUnderTestAssets Include="@(ComponentUnderTest)" Condition="Exists('%(FullPath)')" />
+			<_ComponentUnderTestAssets Include="@(_ComponentUnderTestPdb)" Condition="Exists('%(FullPath)')" />
+
+			<_ComponentUnderTestMissing Include="@(ComponentUnderTest)" Condition="!Exists('%(FullPath)')" />
+		</ItemGroup>
+
+		<Error Condition="'$(FailOnMissingComponentUnderTest)' == 'true' and '@(_ComponentUnderTestMissing)' != ''"
+		       Text="Component under test not found: @(_ComponentUnderTestMissing). Coverage for it would silently be zero, so this is a hard failure rather than a warning. Check the path, the Configuration and the target framework folder. Set FailOnMissingComponentUnderTest=false to allow it." />
+
+		<Warning Condition="'$(FailOnMissingComponentUnderTest)' != 'true' and '@(_ComponentUnderTestMissing)' != ''"
+		         Text="Component under test not found: @(_ComponentUnderTestMissing). Its coverage will be zero." />
+
+		<Warning Condition="'@(_ComponentUnderTestPdb)' != '' and '@(_ComponentUnderTestAssets)' == '@(ComponentUnderTest)'"
+		         Text="No PDB found beside @(ComponentUnderTest). The assembly will load and run, but with no sequence points its coverage reports as zero. Ensure the component is built with DebugType portable." />
+
+		<Copy SourceFiles="@(_ComponentUnderTestAssets)"
+		      DestinationFolder="$(OutputPath)"
+		      SkipUnchangedFiles="true" />
+	</Target>
+
+</Project>

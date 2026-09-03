@@ -11,7 +11,7 @@
 	</Target>
 
 	<PropertyGroup>
-		<Version>10.21.0</Version>
+		<Version>10.21.1</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package automatically generates mappers for you</Description>
@@ -28,10 +28,12 @@
 		<!--<AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>-->
 	</PropertyGroup>
 
-	<ItemGroup>
-		<!-- Dependency DLLs -->
-		<None Condition="'$(Configuration)' == 'Release' " Include="..\MintPlayer.Mapper.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
-	</ItemGroup>
+	<!--
+	The attributes assembly is packed by eng/sourcegenerator.targets, which every generator here
+	imports. It used to be listed again in this file, Release-only and resolved before the
+	referenced project was built — the same file arriving twice in Release and not at all from a
+	clean Debug pack.
+	-->
 
 	<ItemGroup>
 		<None Include="build\MintPlayer.Mapper.props" Pack="true" PackagePath="build\MintPlayer.Mapper.props" />

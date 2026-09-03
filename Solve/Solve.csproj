@@ -5,7 +5,7 @@
 		<LangVersion>14</LangVersion>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
-		<Version>10.0.0</Version>
+		<Version>10.0.1</Version>
 		<PackageId>MintPlayer.Solve</PackageId>
 		<IsPackable>true</IsPackable>
 	</PropertyGroup>

@@ -164,9 +164,116 @@ public class InterfaceImplementationCodeFixTests
             """);
 
         result.Applied.Should().BeTrue();
-        // The fix's job is to reconcile the interface with the class, so Extra must end up
-        // declared on IThing.
-        result.FixedSource.Should().Contain("Extra");
+
+        // "void Extra();" — with a semicolon and no body — can only be the INTERFACE declaration.
+        //
+        // This assertion used to be Contain("Extra"), which the fixture satisfies before the fix
+        // runs at all: `public void Extra() { }` is right there in the class. Combined with
+        // Applied being true whenever the action yields an ApplyChangesOperation — which it does
+        // even when the fix returns the solution untouched — the test passed while the whole body
+        // of the fix was unreachable. It was unreachable because the harness added its document
+        // without a filePath, so the fix's lookup of the interface's own document matched nothing.
+        result.FixedSource.Should().Contain("void Extra();",
+            "the fix's job is to declare the missing member on IThing, not merely to leave the class alone");
+    }
+
+    /// <summary>
+    /// A method with parameters and a non-void return exercises the parameter-list and return-type
+    /// construction in <c>CreateInterfaceMember</c>, which a parameterless <c>void</c> does not.
+    /// </summary>
+    [Fact]
+    public async Task ItAddsAMethodWithItsParametersAndReturnType()
+    {
+        var result = await CodeFixHarness.ApplyAsync(
+            "InterfaceImplementationAnalyzer",
+            "InterfaceCodeFixProvider",
+            """
+            namespace Demo;
+
+            public interface IThing
+            {
+                void DoIt();
+            }
+
+            public class Thing : IThing
+            {
+                public void DoIt() { }
+                public int Compute(string name, int count) => count;
+            }
+            """);
+
+        result.Applied.Should().BeTrue();
+        result.FixedSource.Should().Contain("Compute(");
+        result.FixedSource.Should().Contain("string name");
+        result.FixedSource.Should().Contain("int count");
+    }
+
+    /// <summary>
+    /// The <c>IPropertySymbol</c> arm, which builds a get/set accessor list rather than a
+    /// parameter list.
+    /// </summary>
+    [Fact]
+    public async Task ItAddsAPropertyWithGetAndSetAccessors()
+    {
+        var result = await CodeFixHarness.ApplyAsync(
+            "InterfaceImplementationAnalyzer",
+            "InterfaceCodeFixProvider",
+            """
+            namespace Demo;
+
+            public interface IThing
+            {
+                void DoIt();
+            }
+
+            public class Thing : IThing
+            {
+                public void DoIt() { }
+                public string Name { get; set; } = "";
+            }
+            """);
+
+        result.Applied.Should().BeTrue();
+        result.FixedSource.Should().Contain("Name");
+        result.FixedSource.Should().Contain("get;");
+        result.FixedSource.Should().Contain("set;");
+    }
+
+    /// <summary>
+    /// <c>[NoInterfaceMember]</c> is the opt-out, and it is the filter that makes the fix usable at
+    /// all — without it every public member of a partial CLI command would be dragged onto its
+    /// interface.
+    /// </summary>
+    [Fact]
+    public async Task ItSkipsMembersMarkedNoInterfaceMember()
+    {
+        var result = await CodeFixHarness.ApplyAsync(
+            "InterfaceImplementationAnalyzer",
+            "InterfaceCodeFixProvider",
+            """
+            using MintPlayer.SourceGenerators.Attributes;
+
+            namespace Demo;
+
+            public interface IThing
+            {
+                void DoIt();
+            }
+
+            public class Thing : IThing
+            {
+                public void DoIt() { }
+
+                [NoInterfaceMember]
+                public void Hidden() { }
+
+                public void Visible() { }
+            }
+            """);
+
+        result.FixedSource.Should().Contain("void Visible();");
+        result.FixedSource.Should().NotContain("void Hidden();",
+            "[NoInterfaceMember] is the opt-out and must keep the member off the interface");
     }
 
     [Fact]

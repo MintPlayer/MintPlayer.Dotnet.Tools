@@ -13,7 +13,7 @@
 	</Target>
 
 	<PropertyGroup>
-		<Version>10.21.0</Version>
+		<Version>10.21.1</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains several source generators</Description>
@@ -30,11 +30,31 @@
 		<!--<AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>-->
 	</PropertyGroup>
 
-	<ItemGroup Condition="'$(Configuration)' == 'Release' ">
-        <!-- Dependency DLLs -->
-        <None Include="..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
-        <None Include="$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
-    </ItemGroup>
+	<!--
+	Microsoft.Extensions.DependencyInjection.Abstractions, which ServiceRegistrationsGenerator
+	needs at ANALYSIS time — Roslyn loads it from the analyzer folder rather than the consumer
+	referencing it.
+
+	Only this concern lives here. The generator's own attributes come from
+	eng/sourcegenerator.targets and the [AutoValueComparer] assembly from
+	eng/valuecomparergenerator.targets, each imported by the projects that need them.
+	-->
+	<PropertyGroup>
+		<TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);AddAnalysisTimeDependencies</TargetsForTfmSpecificContentInPackage>
+	</PropertyGroup>
+
+	<Target Name="AddAnalysisTimeDependencies">
+		<ItemGroup>
+			<_DiAbstractionsAssets Include="$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\*.dll" />
+		</ItemGroup>
+
+		<Error Condition="'@(_DiAbstractionsAssets)' == ''"
+		       Text="Microsoft.Extensions.DependencyInjection.Abstractions was not found in the restored package folder. ServiceRegistrationsGenerator would ship unable to resolve ServiceLifetime." />
+
+		<ItemGroup>
+			<TfmSpecificPackageFile Include="@(_DiAbstractionsAssets)" PackagePath="analyzers/dotnet/cs" />
+		</ItemGroup>
+	</Target>
 
     <ItemGroup>
         <None Include="build\MintPlayer.SourceGenerators.props" Pack="true" PackagePath="build\MintPlayer.SourceGenerators.props" />

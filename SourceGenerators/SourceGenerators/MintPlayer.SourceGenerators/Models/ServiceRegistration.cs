@@ -33,9 +33,18 @@ public partial class ServiceRegistration
     public string? MethodNameHint { get; set; } = string.Empty;
 
     /// <summary>
-    /// Names of static factory methods marked with [RegisterFactory] that create this service.
+    /// Ready-to-emit argument expressions for the static factories marked with
+    /// <c>[RegisterFactory]</c> that create this service — for example
+    /// <c>global::Demo.Greeter.Create</c> or <c>sp =&gt; global::Demo.Greeter.Create()</c>.
     /// </summary>
-    public string[] FactoryNames { get; set; } = [];
+    /// <remarks>
+    /// Full expressions rather than bare method names, because whether a factory can be passed as
+    /// a method group depends on its signature, and only the generator has the symbol information
+    /// to decide. A parameterless factory has to be wrapped in a lambda: the
+    /// <c>AddScoped&lt;T&gt;</c> overload takes <c>Func&lt;IServiceProvider, T&gt;</c>, so passing
+    /// the method group directly produces CS1503 in the consumer's build.
+    /// </remarks>
+    public string[] FactoryExpressions { get; set; } = [];
 
     /// <summary>
     /// The accessibility level of the generated extension method (Public or Internal).

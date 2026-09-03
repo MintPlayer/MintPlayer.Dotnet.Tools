@@ -295,3 +295,150 @@ public class FolderHasherTests : IDisposable
         hashes.Should().AllSatisfy(h => h.Should().Be(hashes[0]));
     }
 }
+
+/// <summary>
+/// The known-answer test for the folder hashing scheme.
+/// </summary>
+/// <remarks>
+/// Every other test in this file is RELATIVE — same content hashes the same, different content
+/// hashes differently, the value is lowercase hex. All of them keep passing if the scheme changes
+/// wholesale, because they only ever compare the implementation against itself. That is a real
+/// gap: the hash is a cache key, so changing it silently invalidates every downstream cache and
+/// nothing in the suite notices.
+///
+/// This test pins one fixed input tree to one fixed output. It is deliberately brittle. If it
+/// fails, either the change was unintended, or it was intended and the constant below needs
+/// updating in the same commit — with the cache-invalidation consequences stated in the message.
+///
+/// The expected value is path-independent (verified by running the same tree from two different
+/// temp directories), so it is safe to pin.
+/// </remarks>
+public sealed class FolderHasherGoldenTests : IDisposable
+{
+    private const string ExpectedSha256 = "9d008f6cde31f7984453c82a0b253492580e2255853013b9d6aa550fbcaf2f98";
+
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "FolderHasherGolden_" + Guid.NewGuid());
+    private readonly IFolderHasher _hasher;
+
+    public FolderHasherGoldenTests()
+    {
+        Directory.CreateDirectory(_dir);
+        var services = new ServiceCollection();
+        services.AddFolderHasher();
+        _hasher = services.BuildServiceProvider().GetRequiredService<IFolderHasher>();
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_dir)) Directory.Delete(_dir, true);
+    }
+
+    /// <summary>
+    /// A nested file plus a sibling whose name straddles the directory separator in sort order.
+    /// </summary>
+    /// <remarks>
+    /// <c>subX.txt</c> is not decoration. The files are fed to the algorithm in sorted order, so
+    /// the sort is part of the hash — and "sub/b.txt" vs "subX.txt" is precisely where the raw
+    /// path separator changes the answer: '/' is 0x2F and sorts BEFORE 'X' (0x58), while '\' is
+    /// 0x5C and sorts AFTER it. A fixture with only "a.txt" and "sub/b.txt" hashes identically on
+    /// both platforms even when the ordering is wrong, which is how the first version of this
+    /// test passed while the bug was still there.
+    /// </remarks>
+    private void WriteFixtureTree() => WriteFixtureTree(_dir);
+
+    /// <summary>One writer, so a second copy of the tree cannot drift from the golden one.</summary>
+    private static void WriteFixtureTree(string root)
+    {
+        Directory.CreateDirectory(Path.Combine(root, "sub"));
+        File.WriteAllText(Path.Combine(root, "a.txt"), "alpha");
+        File.WriteAllText(Path.Combine(root, "sub", "b.txt"), "beta");
+        File.WriteAllText(Path.Combine(root, "subX.txt"), "gamma");
+    }
+
+    [Fact]
+    public async Task TheHashingSchemeHasNotChanged()
+    {
+        WriteFixtureTree();
+
+        var hash = await _hasher.GetFolderHashAsync(_dir);
+
+
+        hash.Should().Be(
+            ExpectedSha256,
+            "the folder hash is a cache key — if this changed deliberately, update the constant " +
+            "and expect every downstream cache to invalidate");
+    }
+
+    /// <summary>
+    /// The golden value must not depend on where the tree happens to live, or it would be a test
+    /// of the temp path rather than of the hashing scheme.
+    /// </summary>
+    [Fact]
+    public async Task TheHashDoesNotDependOnTheFolderPath()
+    {
+        WriteFixtureTree();
+        var first = await _hasher.GetFolderHashAsync(_dir);
+
+        var elsewhere = Path.Combine(Path.GetTempPath(), "FolderHasherGolden_" + Guid.NewGuid());
+        WriteFixtureTree(elsewhere);
+
+        try
+        {
+            var second = await _hasher.GetFolderHashAsync(elsewhere);
+            second.Should().Be(first);
+        }
+        finally
+        {
+            Directory.Delete(elsewhere, true);
+        }
+    }
+
+    /// <summary>
+    /// The nested file is the whole point of this fixture.
+    /// </summary>
+    /// <remarks>
+    /// The relative path used to be hashed with the OS separator, so <c>sub\b.txt</c> and
+    /// <c>sub/b.txt</c> — the same tree — produced different hashes on Windows and Linux. This test
+    /// existed for one CI run before catching it. Since the hash is a cache key, the effect was
+    /// that a Windows developer and a Linux runner could never share a cache entry, and every
+    /// lookup silently missed rather than failing visibly.
+    ///
+    /// A flat fixture would pass on both platforms and prove nothing, so the nesting stays.
+    /// </remarks>
+    [Fact]
+    public async Task TheHashIsIdenticalOnEveryPlatform()
+    {
+        WriteFixtureTree();
+
+        var hash = await _hasher.GetFolderHashAsync(_dir);
+
+        hash.Should().Be(
+            ExpectedSha256,
+            "a tree containing a subdirectory must hash the same on Windows and Linux — this is the " +
+            "case that used to diverge on the directory separator");
+    }
+
+    /// <summary>
+    /// Paired with the separator fix: the path is lowercased with the INVARIANT culture, because
+    /// the culture-sensitive overload maps 'I' to 'ı' under a Turkish locale and would hash the
+    /// same tree differently depending on the machine's regional settings.
+    /// </summary>
+    [Fact]
+    public async Task TheHashDoesNotDependOnTheCurrentCulture()
+    {
+        WriteFixtureTree();
+
+        var original = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("tr-TR");
+            var underTurkish = await _hasher.GetFolderHashAsync(_dir);
+
+            underTurkish.Should().Be(ExpectedSha256);
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = original;
+        }
+    }
+}

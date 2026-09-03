@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<!--
+		net8.0, not netstandard2.0 like the component projects this tests. Only TEST projects
+		consume this package and they run on a modern runtime, so netstandard2.0 buys no reach —
+		it only costs an IsExternalInit polyfill for the result records. Adding one by referencing
+		MintPlayer.SourceGenerators.Tools would be worse than pointless: its polyfilled BCL types
+		would flow into consumers' modern test projects and collide with the real ones (CS0433),
+		which is the exact failure this package's own documentation tells people to avoid.
+		-->
+		<TargetFramework>net8.0</TargetFramework>
+		<LangVersion>14</LangVersion>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<Version>10.0.0</Version>
+		<Authors>Pieterjan De Clippel</Authors>
+		<Company>MintPlayer</Company>
+		<Description>Test source generators, analyzers and code fixes in-process, so a coverage collector actually attributes the generator's own code. Loads the component from the test host's output directory rather than through Roslyn's analyzer path, where instrumentation never reaches it.</Description>
+		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/SourceGenerators/MintPlayer.SourceGenerators.Testing</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageId>MintPlayer.SourceGenerators.Testing</PackageId>
+		<PackageTags>SourceGenerators;Roslyn;Testing;Analyzers;CodeCoverage</PackageTags>
+		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!--
+		Workspaces is not optional. Locating a component means reflecting over the assembly, which
+		loads every type in it, and any CodeFixProvider derives from a Workspaces type - so
+		GetTypes throws ReflectionTypeLoadException without it. Consumers testing only generators
+		still pay for it; that is a much better trade than a confusing load failure the first time
+		someone adds a code fix.
+		-->
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.3.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!--
+		Ships the CopyComponentUnderTest target. build/ rather than buildTransitive/: only the
+		test project that references this package should get the target, never something that
+		happens to depend on that test project.
+		-->
+		<None Include="Targets\sourcegenerator_testing.targets" Pack="true" PackagePath="build/$(PackageId).targets" />
+		<None Include="README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+</Project>

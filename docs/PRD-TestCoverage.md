@@ -592,7 +592,14 @@ Each measured on `MintPlayer.Assertions.Tests`, baseline **3202/3426 covered**.
 | `partial:` on PR upload | `true` (+ `base-sha: $NX_BASE`) | omitted (`base-sha` kept) | Spark uploads an `nx affected` subset; this repo runs the whole suite, so declaring it partial would misreport a genuine whole-workspace total. |
 | Assertion library | `FluentAssertions` 7.2.2 | `MintPlayer.Assertions` | This repo *is* the FluentAssertions replacement — it should use its own library. Also satisfies R2.1 (forces the repo-root-relative path shape). |
 | Analyzer/code-fix testing | `WithAnalyzers` in the shared harness; no code-fix tests | same harness for analyzers, plus `AdhocWorkspace` for the 5 code-fix providers Spark doesn't have | Same pattern extended, rather than adding the `Microsoft.CodeAnalysis.*.Testing` stack. |
-| Snapshots | `Verify.Xunit` 31.12.5 + `VerifyDefaults` | same | Adopted as-is, including the `VerifyResults/{Class}/{Method}` path convention. |
+| Snapshots | `Verify.Xunit` 31.12.5 + `VerifyDefaults` | ~~same~~ **not adopted** | See the correction below. |
+
+> **Correction (Phase 2, R5.4).** This row, the R3.4 Layer 4 requirement and the version list above
+> all specify `Verify.Xunit` 31.12.5. It was never taken: the repo uses a hand-rolled
+> `_Infrastructure/Snapshot.cs` (~40 lines, `[CallerFilePath]`/`[CallerMemberName]`, accept via
+> `MINTPLAYER_ACCEPT_SNAPSHOTS=1`) and has no `Verify.Xunit` PackageReference anywhere. The
+> substitution is fine — one fewer dependency for equivalent behaviour — but this document
+> described a package that is not in the repo, which is worse than describing nothing.
 
 ## Version
 

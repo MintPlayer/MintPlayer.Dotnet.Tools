@@ -13,15 +13,44 @@
 		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPathsNewtonsoftJson</GetTargetPathDependsOn>
 	</PropertyGroup>
 
-	<ItemGroup>
-		<!-- Put the assets for this project in the correct package path -->
-		<!-- Rolsyn 4.0 -->
-		<None Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="false" />
-		<None Include="$(MSBuildThisFileDirectory)\..\ValueComparers\MintPlayer.ValueComparers.NewtonsoftJson\bin\$(Configuration)\netstandard2.0\MintPlayer.ValueComparers.NewtonsoftJson.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="false" />
-		<!-- Rolsyn 4.9 -->
-		<None Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="false" />
-		<None Include="$(MSBuildThisFileDirectory)\..\ValueComparers\MintPlayer.ValueComparers.NewtonsoftJson\bin\$(Configuration)\netstandard2.0\MintPlayer.ValueComparers.NewtonsoftJson.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="false" />
-	</ItemGroup>
+	<!--
+	Collected in a TARGET, not a static ItemGroup. The comparer assembly comes from another
+	project's output, and a static Include is resolved at evaluation time — before that project
+	has been built — so on a clean tree it matched nothing and the package shipped without it.
+	It looked fine only because a previous full build had left the file there.
+
+	The Newtonsoft.Json include is from the restored package folder, which is populated before
+	evaluation, so it has never had that problem — but it lives here too, so both halves of this
+	feature's payload stay in one place.
+	-->
+	<PropertyGroup>
+		<TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);AddNewtonsoftJsonComparers</TargetsForTfmSpecificContentInPackage>
+	</PropertyGroup>
+
+	<Target Name="AddNewtonsoftJsonComparers">
+		<ItemGroup>
+			<!--
+			Kept in two item lists because they need two different emptiness tests: a glob
+			contributes nothing when it matches nothing, while a literal Include creates the item
+			regardless of whether the file exists. Merging them would leave the glob half
+			unguarded — %(...) batching simply does not run for a batch that has no items, so an
+			unset PkgNewtonsoft_Json would sail through and ship a generator that cannot load.
+			-->
+			<_NewtonsoftJsonPackageAssets Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" />
+			<!-- From the CONSUMING project's own output: the ProjectReference above copies it there. -->
+			<_NewtonsoftJsonComparerAssets Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\MintPlayer.ValueComparers.NewtonsoftJson.dll" />
+		</ItemGroup>
+
+		<Error Condition="'@(_NewtonsoftJsonPackageAssets)' == ''"
+		       Text="Newtonsoft.Json was not found under '$(PkgNewtonsoft_Json)'. Check that the PackageReference sets GeneratePathProperty and has been restored; packing without it produces a generator that fails to load." />
+		<Error Condition="!Exists('%(_NewtonsoftJsonComparerAssets.FullPath)')"
+		       Text="MintPlayer.ValueComparers.NewtonsoftJson.dll was not found in bin\$(Configuration)\netstandard2.0. This generator registers the Newtonsoft.Json value comparers, so packing without it produces a generator that fails to load." />
+
+		<ItemGroup>
+			<TfmSpecificPackageFile Include="@(_NewtonsoftJsonPackageAssets);@(_NewtonsoftJsonComparerAssets)" PackagePath="analyzers/dotnet/roslyn4.0/cs" />
+			<TfmSpecificPackageFile Include="@(_NewtonsoftJsonPackageAssets);@(_NewtonsoftJsonComparerAssets)" PackagePath="analyzers/dotnet/roslyn4.9/cs" />
+		</ItemGroup>
+	</Target>
 
 	<Target Name="GetDependencyTargetPathsNewtonsoftJson">
 		<!-- Include dependency DLLs and put them in the correct package path -->

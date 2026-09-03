@@ -1,4 +1,4 @@
-using Microsoft.CodeAnalysis;
+﻿using Microsoft.CodeAnalysis;
 using MintPlayer.SourceGenerators.Models;
 using MintPlayer.SourceGenerators.Tools;
 using System.CodeDom.Compiler;
@@ -168,7 +168,7 @@ internal class InjectProducer : Producer, IDiagnosticReporter
                 break;
 
             case ConfigFieldTypeCategory.Boolean:
-                WriteParsedAssignment(writer, cfg, configVar, "bool", "bool.Parse", needsCulture: false);
+                WriteParsedAssignment(writer, cfg, configVar, "bool.Parse", needsCulture: false);
                 break;
 
             case ConfigFieldTypeCategory.Char:
@@ -183,24 +183,31 @@ internal class InjectProducer : Producer, IDiagnosticReporter
                 WriteEnumAssignment(writer, cfg, configVar);
                 break;
 
+            // The only category whose parse target is not a fixed type name, because it covers both
+            // DateTime and DateTimeOffset and has to keep them apart. cfg.Type is the DECLARED type
+            // though, so for a `DateTime?` field it is "global::System.DateTime?" and the emitted
+            // call was "global::System.DateTime?.Parse(...)" — CS0119 in the consumer's build.
+            // Nullable Guid, TimeSpan and the rest were unaffected only because they pass a
+            // hardcoded non-nullable name.
             case ConfigFieldTypeCategory.DateTime:
-                WriteParsedAssignment(writer, cfg, configVar, cfg.Type, $"{cfg.Type}.Parse", needsCulture: true);
+                var dateTimeType = NonNullable(cfg.Type);
+                WriteParsedAssignment(writer, cfg, configVar, $"{dateTimeType}.Parse", needsCulture: true);
                 break;
 
             case ConfigFieldTypeCategory.TimeSpan:
-                WriteParsedAssignment(writer, cfg, configVar, "global::System.TimeSpan", "global::System.TimeSpan.Parse", needsCulture: true);
+                WriteParsedAssignment(writer, cfg, configVar, "global::System.TimeSpan.Parse", needsCulture: true);
                 break;
 
             case ConfigFieldTypeCategory.DateOnly:
-                WriteParsedAssignment(writer, cfg, configVar, "global::System.DateOnly", "global::System.DateOnly.Parse", needsCulture: true);
+                WriteParsedAssignment(writer, cfg, configVar, "global::System.DateOnly.Parse", needsCulture: true);
                 break;
 
             case ConfigFieldTypeCategory.TimeOnly:
-                WriteParsedAssignment(writer, cfg, configVar, "global::System.TimeOnly", "global::System.TimeOnly.Parse", needsCulture: true);
+                WriteParsedAssignment(writer, cfg, configVar, "global::System.TimeOnly.Parse", needsCulture: true);
                 break;
 
             case ConfigFieldTypeCategory.Guid:
-                WriteParsedAssignment(writer, cfg, configVar, "global::System.Guid", "global::System.Guid.Parse", needsCulture: false);
+                WriteParsedAssignment(writer, cfg, configVar, "global::System.Guid.Parse", needsCulture: false);
                 break;
 
             case ConfigFieldTypeCategory.Uri:
@@ -261,7 +268,16 @@ internal class InjectProducer : Producer, IDiagnosticReporter
         }
     }
 
-    private static void WriteParsedAssignment(IndentedTextWriter writer, ConfigField cfg, string configVar, string typeName, string parseMethod, bool needsCulture)
+    /// <summary>
+    /// Emits the assignment for a category parsed from a single configuration string.
+    /// </summary>
+    /// <remarks>
+    /// This used to take a <c>typeName</c> alongside <c>parseMethod</c> and never read it — the
+    /// declared type reached the output only through the caller's interpolated parse expression.
+    /// That is what let the DateTime case pass a nullable type name unnoticed: the argument that
+    /// looked like it carried the type was decorative, so nothing downstream could validate it.
+    /// </remarks>
+    private static void WriteParsedAssignment(IndentedTextWriter writer, ConfigField cfg, string configVar, string parseMethod, bool needsCulture)
     {
         var tempVar = $"__{cfg.Name}Value";
         var cultureArg = needsCulture ? ", global::System.Globalization.CultureInfo.InvariantCulture" : "";
@@ -286,11 +302,22 @@ internal class InjectProducer : Producer, IDiagnosticReporter
         }
     }
 
+    /// <summary>
+    /// Strips a trailing <c>?</c> so a nullable declared type can be used as the target of a static
+    /// <c>Parse</c> call. <c>global::System.DateTime?.Parse(...)</c> is not valid C#.
+    /// </summary>
+    /// <remarks>
+    /// Safe as a string operation here because it is only applied to the fully-qualified name of a
+    /// nullable value type, which cannot contain a <c>?</c> anywhere but the end.
+    /// </remarks>
+    private static string NonNullable(string type)
+        => type.EndsWith("?") ? type.Substring(0, type.Length - 1) : type;
+
     private static void WriteNumericAssignment(IndentedTextWriter writer, ConfigField cfg, string configVar)
     {
         // Determine the correct parse method based on type
         var parseMethod = GetNumericParseMethod(cfg.Type);
-        WriteParsedAssignment(writer, cfg, configVar, cfg.Type, parseMethod, needsCulture: IsFloatingPoint(cfg.Type));
+        WriteParsedAssignment(writer, cfg, configVar, parseMethod, needsCulture: IsFloatingPoint(cfg.Type));
     }
 
     private static void WriteEnumAssignment(IndentedTextWriter writer, ConfigField cfg, string configVar)

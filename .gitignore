@@ -464,3 +464,6 @@ $RECYCLE.BIN/
 
 # Claude Code
 .claude/settings.local.json
+
+# Playwright MCP session artifacts (page/console dumps from browsing during a session)
+.playwright-mcp/

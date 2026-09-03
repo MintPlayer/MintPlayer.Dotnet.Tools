@@ -393,7 +393,12 @@ public partial class PrCommand : ICliCommand
 
         // Apply replacements
         var result = template;
-        foreach (var (placeholder, value) in replacements)
+
+        // Longest placeholder first. The table lists both {issue_number} and {{issue_number}}, and
+        // in insertion order the short one matches the inside of the long one — turning
+        // {{issue_number}} into {42} rather than 42, for every doubled-brace placeholder we
+        // advertise. Ordering by length makes the specific form win over the prefix it contains.
+        foreach (var (placeholder, value) in replacements.OrderByDescending(r => r.Key.Length))
         {
             result = result.Replace(placeholder, value, StringComparison.OrdinalIgnoreCase);
         }

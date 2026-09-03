@@ -53,6 +53,9 @@
 	AnalyzerFileReference, and coverage would be exactly zero.
 	-->
 	<ItemGroup>
+		<!-- The harness. Brings Microsoft.CodeAnalysis.CSharp and .Workspaces with it. -->
+		<ProjectReference Include="..\MintPlayer.SourceGenerators.Testing\MintPlayer.SourceGenerators.Testing.csproj" />
+
 		<ProjectReference Include="..\SourceGenerators\MintPlayer.SourceGenerators\MintPlayer.SourceGenerators.csproj"
 		                  ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\Mapper\MintPlayer.Mapper\MintPlayer.Mapper.csproj"
@@ -109,6 +112,11 @@
 	<ItemGroup>
 		<Using Include="Xunit" />
 		<Using Include="MintPlayer.Assertions" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- The packaging tests pack the real csprojs, so they need the repo root at runtime. -->
+		<AssemblyMetadata Include="RepoRoot" Value="$(MSBuildProjectDirectory)\..\..\" />
 	</ItemGroup>
 
 </Project>

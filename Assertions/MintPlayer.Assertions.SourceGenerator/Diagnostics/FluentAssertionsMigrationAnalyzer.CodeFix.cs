@@ -17,9 +17,9 @@ namespace MintPlayer.Assertions.Analyzers.Diagnostics;
 /// </para>
 /// <list type="number">
 /// <item>Replaces every plain <c>using FluentAssertions;</c> / <c>using FluentAssertions.*;</c>
-/// directive with <c>using MintPlayer.Assertions;</c> (always) and
-/// <c>using MintPlayer.Assertions.Execution;</c> (when <c>FluentAssertions.Execution</c> was
-/// imported), deduplicated against usings already present.</item>
+/// directive with a single <c>using MintPlayer.Assertions;</c>, deduplicated against usings
+/// already present. <c>FluentAssertions.Execution</c> gets no counterpart import: it carried
+/// <c>AssertionScope</c>, which here lives in the root namespace, so the one using covers it.</item>
 /// <item>Renames the known-renamed assertion methods listed in <see cref="RenameTable"/> at every
 /// member-access site. Calls with no direct equivalent (e.g. <c>NotThrowAfter</c>) and shape-
 /// compatible members (<c>Invoking</c>, <c>Awaiting</c>, ...) are left untouched.</item>
