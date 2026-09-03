@@ -71,6 +71,56 @@ internal static class GeneratorHarness
     }
 
     /// <summary>
+    /// Runs a generator TWICE over the same driver — once against <paramref name="initialSources"/>,
+    /// then against <paramref name="modifiedSources"/> — and reports what the pipeline did the
+    /// second time.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Run"/> drives the generator exactly once, which means no incremental step ever
+    /// has a previous run to compare against: the pipeline's equality comparers and caches are
+    /// never invoked. That is why MintPlayer.SourceGenerators.Tools' ValueComparers sit near 0%
+    /// while the generators using them are 30-60% covered.
+    ///
+    /// It is also the only way to verify incrementality at all. A generator whose comparers are
+    /// wrong still produces correct output — it just recomputes everything on every keystroke,
+    /// which no single-run test can detect.
+    ///
+    /// <c>trackIncrementalGeneratorSteps</c> is what populates
+    /// <see cref="GeneratorRunResult.TrackedSteps"/>; without it the reasons come back empty.
+    /// </remarks>
+    public static IncrementalRun RunIncremental(
+        string generatorTypeName,
+        IEnumerable<string> initialSources,
+        IEnumerable<string> modifiedSources,
+        string? rootNamespace = "TestRoot",
+        IEnumerable<Type>? referenceTypes = null,
+        string? generatorAssemblyName = null)
+    {
+        var generator = InstantiateGenerator(generatorTypeName, generatorAssemblyName);
+
+        var first = BuildCompilation(initialSources, referenceTypes ?? [], "TestInput");
+        var second = BuildCompilation(modifiedSources, referenceTypes ?? [], "TestInput");
+        var parseOptions = (CSharpParseOptions)first.SyntaxTrees.First().Options;
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: [generator.AsSourceGenerator()],
+            additionalTexts: null,
+            parseOptions: parseOptions,
+            optionsProvider: new StubAnalyzerConfigOptionsProvider(rootNamespace),
+            driverOptions: new GeneratorDriverOptions(
+                IncrementalGeneratorOutputKind.None,
+                trackIncrementalGeneratorSteps: true));
+
+        driver = driver.RunGeneratorsAndUpdateCompilation(first, out _, out _);
+        var firstResult = driver.GetRunResult().Results.Single();
+
+        driver = driver.RunGeneratorsAndUpdateCompilation(second, out _, out _);
+        var secondResult = driver.GetRunResult().Results.Single();
+
+        return new IncrementalRun(firstResult, secondResult);
+    }
+
+    /// <summary>
     /// Runs a <see cref="DiagnosticAnalyzer"/> and returns only the diagnostics it declares,
     /// so unrelated compile errors in a test fixture do not leak into the assertion.
     /// </summary>
@@ -195,6 +245,39 @@ internal static class GeneratorHarness
             references: references,
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
     }
+}
+
+/// <summary>
+/// The two <see cref="GeneratorRunResult"/>s from a <see cref="GeneratorHarness.RunIncremental"/>,
+/// with helpers for asking what the second run reused.
+/// </summary>
+internal sealed record IncrementalRun(
+    GeneratorRunResult First,
+    GeneratorRunResult Second)
+{
+    /// <summary>
+    /// Every reason recorded against <paramref name="stepName"/> on the second run. A step whose
+    /// inputs compared equal reports <see cref="IncrementalStepRunReason.Cached"/> or
+    /// <see cref="IncrementalStepRunReason.Unchanged"/>; one that recomputed reports
+    /// <see cref="IncrementalStepRunReason.Modified"/> or <see cref="IncrementalStepRunReason.New"/>.
+    /// </summary>
+    public IReadOnlyList<IncrementalStepRunReason> ReasonsFor(string stepName)
+        => Second.TrackedSteps.TryGetValue(stepName, out var steps)
+            ? steps.SelectMany(s => s.Outputs).Select(o => o.Reason).ToList()
+            : [];
+
+    public IReadOnlyList<string> StepNames => Second.TrackedSteps.Keys.OrderBy(k => k, StringComparer.Ordinal).ToList();
+
+    /// <summary>True when nothing in <paramref name="stepName"/> had to be recomputed.</summary>
+    public bool WasFullyCached(string stepName)
+    {
+        var reasons = ReasonsFor(stepName);
+        return reasons.Count > 0 && reasons.All(r =>
+            r is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged);
+    }
+
+    public IReadOnlyList<string> HintNames(GeneratorRunResult result)
+        => result.GeneratedSources.Select(s => s.HintName).OrderBy(n => n, StringComparer.Ordinal).ToList();
 }
 
 internal sealed record GeneratorRun(

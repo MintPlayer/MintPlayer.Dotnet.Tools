@@ -194,11 +194,29 @@ the 98 in `ConfigSourceGenerator.Rules.cs` are unreachable for one reason: **no 
 input files. R3.4 is a fixture-writing exercise, not an infrastructure one.
 
 **The one genuine lambda-shaped gap: incrementality.** `GeneratorHarness.cs:63` calls
-`RunGeneratorsAndUpdateCompilation` exactly **once**. Incremental-pipeline lambdas that only fire on
-a second run — the equality comparers and caching paths — therefore never execute. That is precisely
-why `Tools/ValueComparers/*` sits at ~4% and `ValueComparer.PerCompilationCache` at 0%. These are not
-uncoverable; they need the driver run twice against a modified compilation, which is also the only
-way to verify the generators' incrementality actually works. Folded into R4.1.
+`RunGeneratorsAndUpdateCompilation` exactly **once**, so incremental-pipeline lambdas that only fire
+on a second run — the equality comparers and caching paths — never execute. Running the driver twice
+is the only way to verify incrementality at all: a generator whose comparers are wrong still emits
+correct output, it just recomputes everything on every keystroke. Folded into R4.1b.
+
+> **Measured, and it revises the above — see [S2](#s2--what-does-a-second-driver-run-actually-cover-gates-m1r31-and-r41b-2h).**
+> The prediction that a second run would light up `Tools/ValueComparers/*` is **false**. Four
+> incrementality tests were written and measured against the full-suite baseline: they add
+> **3 lines** of coverage, all in `LangVersion.Comparer.cs`. `ValueTupleValueComparer` (45),
+> `NullableValueTupleValueComparer` (45) and `PerCompilationCache` (20) stayed at exactly 0.
+>
+> The reason is simpler than the pipeline theory: **no generator in this repo uses tuple-typed
+> pipeline values or the per-compilation cache.** Those are unexercised paths in a general-purpose
+> library, not paths hidden behind a single run.
+>
+> A second correction from the same measurement: `Tools/ValueComparers/*` is **164/339 = 48%**
+> covered, not the ~4% reported during investigation, and `ValueComparer.Helpers.cs` is 79/82, not 0.
+> The low figure came from reading one report rather than the union of all 24. R3.1's real pool is
+> ~153 uncovered lines, much of it genuinely unused library surface — a fair share of which may
+> deserve deletion or `[ExcludeFromCodeCoverage]` rather than tests.
+>
+> R4.1b was built anyway and is kept: the four tests assert real behaviour that nothing else checks.
+> It is now a **verification** item, not a coverage one.
 
 ## Requirements
 
@@ -398,12 +416,12 @@ roughly 0.55.
 |---|---|---|---|
 | **Baseline** | master `c7b13b9` | — | **6,747 / 10,544 = 64.0%** |
 | **M0 — Harness** | R4.1 generic base class, R4.1b re-run; R3.7 rename | +0 | 6,747 / 10,544 = 64.0% |
-| **M1 — Cheap lines** | R3.1 tuple comparers + cache, R3.2 analyzer, R2.3 `[ExcludeFromCodeCoverage]` (−39) | +245 / −39 | ~6,992 / 10,505 = **66.6%** |
-| **M2 — `Solve`** | R2.1 commands, R2.2 services | +756 | ~7,748 / 10,505 = **73.8%** |
-| **M3 — Honest denominator** | R1.1 Assertions generator (+~690 coverable), R1.2 GraphQL (+~26) | +445 / +716 | ~8,193 / 11,221 = **73.0%** ← *the deliberate dip* |
-| **M4 — Generator lift** | R3.3 diagnostics, R3.4 Inject (+ the 98 Config rules), R3.5 ServiceRegistrations | +900 | ~9,093 / 11,221 = **81.0%** |
-| **M5 — Verification** | R5.1 InjectPublicApiHashTask, R5.2 packaging smoke, R5.3 golden hash, R1.3 Verz CLI | +180 / +160 | ~9,273 / 11,381 = **81.5%** |
-| **M6 — Long tail** *(optional)* | R3.6 Mapper/Cli producers, SlnLaunch 128, ObservableCollection 34, TokenReplacer 38 | +400 | ~9,673 / 11,381 = **85.0%** |
+| **M1 — Cheap lines** | R3.1 comparers *(re-scoped by S2)*, R3.2 analyzer, R2.3 `[ExcludeFromCodeCoverage]` (−39) | +130 / −39 | ~6,880 / 10,505 = **65.5%** |
+| **M2 — `Solve`** | R2.1 commands, R2.2 services | +756 | ~7,636 / 10,505 = **72.7%** |
+| **M3 — Honest denominator** | R1.1 Assertions generator (+~690 coverable), R1.2 GraphQL (+~26) | +445 / +716 | ~8,081 / 11,221 = **72.0%** ← *the deliberate dip* |
+| **M4 — Generator lift** | R3.3 diagnostics, R3.4 Inject (+ the 98 Config rules), R3.5 ServiceRegistrations | +900 | ~8,981 / 11,221 = **80.0%** |
+| **M5 — Verification** | R5.1 InjectPublicApiHashTask, R5.2 packaging smoke, R5.3 golden hash, R1.3 Verz CLI | +180 / +160 | ~9,161 / 11,381 = **80.5%** |
+| **M6 — Long tail** *(optional)* | R3.6 Mapper/Cli producers, SlnLaunch 128, ObservableCollection 34, TokenReplacer 38 | +400 | ~9,561 / 11,381 = **84.0%** |
 
 **M3 is where the number goes down.** That is the point of the correctness-first decision, and it
 should be stated in the PR description rather than explained away afterwards.
@@ -454,6 +472,19 @@ diff the resulting cobertura against a single-run baseline.
 free. If they do not → they need direct unit tests instead, R4.1b's value drops to incrementality
 *verification* only (still worth building, but it stops being a coverage item), and M1's estimate
 comes down.
+
+**RESULT — run 2026-09-03. The comparers did not light up. Fallback taken.**
+
+Four tests in `Generators/IncrementalityTests.cs`, measured against the full-suite baseline:
+**+3 lines**, all in `LangVersion.Comparer.cs`. `ValueTupleValueComparer`,
+`NullableValueTupleValueComparer` and `PerCompilationCache` stayed at 0 — no generator here uses
+tuple-typed pipeline values or that cache. Also corrected: `Tools/ValueComparers/*` was already
+48% (164/339), not ~4%.
+
+Consequences, applied to this document: R3.1 becomes direct unit tests over a smaller, honestly
+sized pool; R4.1b is retained as verification; M1's estimate drops from +245 to +130. The four
+tests are kept — they assert incremental behaviour nothing else covers, and
+`AnUnrelatedEditIsServedFromCache` would fail today if a comparer regressed.
 
 ### S3 — One `Solve` command end to end, before writing seven *(gates M2, 3h)*
 
