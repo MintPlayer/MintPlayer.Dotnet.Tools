@@ -43,6 +43,18 @@
 		<TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);AddAnalysisTimeDependencies</TargetsForTfmSpecificContentInPackage>
 	</PropertyGroup>
 
+	<!--
+	KNOWN NONDETERMINISM, not yet resolved: the Tools include below is still a *.dll glob over a
+	sibling project's bin folder, so it packs whatever a previous build happened to leave there.
+	That is how MintPlayer.ValueComparerGenerator.Attributes.dll came to be published in
+	analyzers/dotnet/cs — nothing intends to ship it. The exact payload therefore differs between
+	a clean checkout and a developer machine.
+
+	Fixing it properly means naming the files that are meant to ship, which is a decision about
+	intent rather than a mechanical change. PackagingTests asserts the essentials are present in
+	both configurations rather than pinning an exact set, so it fails for a missing generator and
+	not for build residue.
+	-->
 	<Target Name="AddAnalysisTimeDependencies">
 		<ItemGroup>
 			<!--

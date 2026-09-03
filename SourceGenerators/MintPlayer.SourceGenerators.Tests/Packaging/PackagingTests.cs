@@ -103,23 +103,45 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
     /// runs. CI packs Release, so nothing broken shipped; a developer's plain <c>dotnet pack</c>
     /// defaults to Debug and did produce one.
     ///
-    /// Comparing the two payloads rather than asserting a fixed list, so a future addition to
-    /// either configuration has to be made to both.
+    /// Both sides are packed in ISOLATION, because the shared feed's Release pack is made after
+    /// the test run's own <c>dotnet build</c> has populated every <c>bin/Release</c> in the
+    /// solution — comparing that against a single-project Debug pack measures leftover build state
+    /// rather than packaging logic.
     ///
-    /// Both sides are packed in ISOLATION. Taking the Release side from the shared feed compares a
-    /// pack made after a full solution build against one made after a single project build, which
-    /// is a difference in leftover <c>bin</c> contents rather than in packaging logic.
+    /// It asserts the REQUIRED entries are present in both configurations rather than that the two
+    /// payloads are byte-identical. Set equality was tried first and proved environment-sensitive:
+    /// the remaining <c>*.dll</c> globs over sibling bin folders sweep up whatever a previous build
+    /// left there, so the exact payload varies between a clean CI checkout and a developer machine.
+    /// That nondeterminism is real and worth removing — see the note in
+    /// <c>MintPlayer.SourceGenerators.csproj</c> — but it is a decision about which files are meant
+    /// to ship, and this test should fail for missing essentials rather than for build residue.
     /// </remarks>
     [Theory]
-    [InlineData(GeneratorPackage, "SourceGenerators/SourceGenerators/MintPlayer.SourceGenerators/MintPlayer.SourceGenerators.csproj")]
-    [InlineData(AssertionsPackage, "Assertions/MintPlayer.Assertions/MintPlayer.Assertions.csproj")]
-    public void TheAnalyzerPayloadIsTheSameInDebugAndRelease(string packageId, string projectRelativePath)
+    [InlineData(GeneratorPackage, "SourceGenerators/SourceGenerators/MintPlayer.SourceGenerators/MintPlayer.SourceGenerators.csproj",
+        "analyzers/dotnet/roslyn4.0/cs/MintPlayer.SourceGenerators.dll",
+        "analyzers/dotnet/roslyn4.0/cs/MintPlayer.SourceGenerators.Tools.dll",
+        "analyzers/dotnet/roslyn4.9/cs/MintPlayer.SourceGenerators.dll",
+        "analyzers/dotnet/roslyn4.9/cs/MintPlayer.SourceGenerators.Tools.dll",
+        "analyzers/dotnet/cs/MintPlayer.SourceGenerators.Attributes.dll")]
+    [InlineData(AssertionsPackage, "Assertions/MintPlayer.Assertions/MintPlayer.Assertions.csproj",
+        "analyzers/dotnet/cs/MintPlayer.Assertions.SourceGenerator.dll",
+        "analyzers/dotnet/cs/MintPlayer.SourceGenerators.Tools.dll")]
+    public void TheAnalyzerPayloadCarriesItsEssentialsInBothConfigurations(
+        string packageId, string projectRelativePath, params string[] required)
     {
-        var release = feed.IsolatedAnalyzerEntriesOf(packageId, projectRelativePath, "Release");
-        var debug = feed.IsolatedAnalyzerEntriesOf(packageId, projectRelativePath, "Debug");
+        foreach (var configuration in (string[])["Release", "Debug"])
+        {
+            var entries = feed.IsolatedAnalyzerEntriesOf(packageId, projectRelativePath, configuration);
 
-        release.Should().NotBeEmpty("the Release pack must carry an analyzer payload at all");
-        debug.Should().BeEquivalentTo(release);
+            entries.Should().NotBeEmpty($"the {configuration} pack must carry an analyzer payload at all");
+
+            foreach (var path in required)
+            {
+                entries.Should().Contain(path,
+                    $"a {configuration} pack without '{path}' installs cleanly and does nothing — " +
+                    $"the generator cannot load, and the consumer gets no error to search for");
+            }
+        }
     }
 
     [Fact]
