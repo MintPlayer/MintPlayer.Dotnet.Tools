@@ -75,6 +75,16 @@
 		<ItemGroup>
 			<_GeneratorAssembly Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll" />
 			<_GeneratorToolsAssets Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\*.dll" />
+
+			<!--
+			The generator's OWN attributes assembly, from this project's own output directory.
+
+			One rule, uniformly: a generator ships the attributes package it triggers on. Anything
+			else a particular generator needs in analyzers/dotnet/cs is that feature's business —
+			the [AutoValueComparer] dependency, for instance, is added by
+			eng/valuecomparergenerator.targets, which only the projects that actually use it import.
+			-->
+			<_GeneratorAttributeAssets Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).Attributes.dll" />
 		</ItemGroup>
 
 		<!--
@@ -86,8 +96,13 @@
 		       Text="The generator assembly was not found at bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll. Packing would produce a package with no analyzer in it." />
 		<Error Condition="'@(_GeneratorToolsAssets)' == ''"
 		       Text="MintPlayer.SourceGenerators.Tools was not found in bin\$(Configuration)\netstandard2.0. Packing would produce a generator that cannot resolve its base class and silently never runs." />
+		<Error Condition="'@(_GeneratorAttributeAssets)' == ''"
+		       Text="$(AssemblyName).Attributes.dll was not found in bin\$(Configuration)\netstandard2.0. Packing would produce a generator whose own attributes Roslyn cannot resolve." />
 
 		<ItemGroup>
+			<!-- The attributes live one level up, shared by both Roslyn versions. -->
+			<TfmSpecificPackageFile Include="@(_GeneratorAttributeAssets)" PackagePath="analyzers/dotnet/cs" />
+
 			<!-- Roslyn 4.0 -->
 			<TfmSpecificPackageFile Include="@(_GeneratorAssembly)" PackagePath="analyzers/dotnet/roslyn4.0/cs" />
 			<TfmSpecificPackageFile Include="@(_GeneratorToolsAssets)" PackagePath="analyzers/dotnet/roslyn4.0/cs" />

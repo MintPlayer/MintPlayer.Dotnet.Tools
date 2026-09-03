@@ -9,9 +9,41 @@
 		<ProjectReference Include="$(MSBuildThisFileDirectory)\..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator\MintPlayer.ValueComparerGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 	</ItemGroup>
 
-	<ItemGroup>
-		<!-- Put the assets for this project in the correct package path -->
-		<None Include="$(MSBuildThisFileDirectory)\..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
-	</ItemGroup>
+	<!--
+	A generator that decorates its own pipeline models with [AutoValueComparer] carries that
+	attribute assembly into its own package, because Roslyn resolves it when LOADING the generator
+	— not when the consumer compiles. Leave it out and the consumer gets
+	"cannot find [AutoValueComparer]" naming an assembly they never referenced, or the generator
+	simply fails to load and produces nothing.
+
+	This belongs here rather than in sourcegenerator.targets: needing it is a property of using the
+	value comparer, not of being a generator. Only the projects that import this file get it.
+
+	Collected in a TARGET, not a static ItemGroup. The include points at another project's output,
+	and a static Include is resolved at evaluation time — before that project has been built — so
+	on a clean tree it silently matched nothing and the package shipped without the assembly. It
+	looked fine only because a previous full build had left the file there.
+	-->
+	<PropertyGroup>
+		<TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);AddValueComparerAttributes</TargetsForTfmSpecificContentInPackage>
+	</PropertyGroup>
+
+	<Target Name="AddValueComparerAttributes">
+		<ItemGroup>
+			<!--
+			Taken from the CONSUMING project's own output directory. The ProjectReference above
+			copies it there, so it is present by the time this target runs and cannot be stale
+			output from something else.
+			-->
+			<_ValueComparerAttributes Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\MintPlayer.ValueComparerGenerator.Attributes.dll" />
+		</ItemGroup>
+
+		<Error Condition="!Exists('%(_ValueComparerAttributes.FullPath)')"
+		       Text="MintPlayer.ValueComparerGenerator.Attributes.dll was not found in bin\$(Configuration)\netstandard2.0. This generator uses [AutoValueComparer], so packing without it produces a generator Roslyn cannot load." />
+
+		<ItemGroup>
+			<TfmSpecificPackageFile Include="@(_ValueComparerAttributes)" PackagePath="analyzers/dotnet/cs" />
+		</ItemGroup>
+	</Target>
 
 </Project>

@@ -31,13 +31,13 @@
 	</PropertyGroup>
 
 	<!--
-	Dependency DLLs the generator needs at ANALYSIS time, loaded by Roslyn from the analyzer
-	folder rather than referenced by the consumer.
+	Microsoft.Extensions.DependencyInjection.Abstractions, which ServiceRegistrationsGenerator
+	needs at ANALYSIS time — Roslyn loads it from the analyzer folder rather than the consumer
+	referencing it.
 
-	Collected in a target for the same reason as the assets in eng/sourcegenerator.targets: a
-	glob over a sibling project's bin folder in a static ItemGroup is expanded before that
-	project has been built, so on a clean tree it silently matched nothing. See the comment
-	there for the full story.
+	Only this concern lives here. The generator's own attributes come from
+	eng/sourcegenerator.targets and the [AutoValueComparer] assembly from
+	eng/valuecomparergenerator.targets, each imported by the projects that need them.
 	-->
 	<PropertyGroup>
 		<TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);AddAnalysisTimeDependencies</TargetsForTfmSpecificContentInPackage>
@@ -45,30 +45,13 @@
 
 	<Target Name="AddAnalysisTimeDependencies">
 		<ItemGroup>
-			<!--
-			Named explicitly and taken from THIS project's own output directory, which by
-			construction holds the generator's runtime closure.
-
-			Both are load-bearing. MintPlayer.SourceGenerators.Attributes carries the attributes
-			the generator triggers on; MintPlayer.ValueComparerGenerator.Attributes carries
-			[AutoValueComparer], which decorates this generator's OWN model types (see
-			Models/ClassDeclaration.cs). Roslyn cannot load the generator at all without it — so
-			leaving it out does not degrade the package, it disables it.
-
-			An earlier revision globbed the sibling Attributes project's bin instead, on the
-			mistaken reading that the ValueComparerGenerator assembly appearing there was stale
-			build residue. It is not; it is required, and dropping it broke the package.
-			-->
-			<_AttributeAssets Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Attributes.dll" />
-			<_AttributeAssets Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\MintPlayer.ValueComparerGenerator.Attributes.dll" />
 			<_DiAbstractionsAssets Include="$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\*.dll" />
 		</ItemGroup>
 
-		<Error Condition="!Exists('%(_AttributeAssets.FullPath)')"
-		       Text="%(_AttributeAssets.Filename)%(_AttributeAssets.Extension) was not found in bin\$(Configuration)\netstandard2.0. The generator would ship unable to load, with no error for the consumer to search for." />
+		<Error Condition="'@(_DiAbstractionsAssets)' == ''"
+		       Text="Microsoft.Extensions.DependencyInjection.Abstractions was not found in the restored package folder. ServiceRegistrationsGenerator would ship unable to resolve ServiceLifetime." />
 
 		<ItemGroup>
-			<TfmSpecificPackageFile Include="@(_AttributeAssets)" PackagePath="analyzers/dotnet/cs" />
 			<TfmSpecificPackageFile Include="@(_DiAbstractionsAssets)" PackagePath="analyzers/dotnet/cs" />
 		</ItemGroup>
 	</Target>
