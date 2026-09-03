@@ -261,8 +261,16 @@ public sealed class GeneratorHarness
             return new CodeFixResult(diagnostics, source, Applied: false);
 
         var operations = await actions[0].GetOperationsAsync(default);
-        var changed = operations.OfType<ApplyChangesOperation>().Single().ChangedSolution;
-        var fixedText = (await changed.GetDocument(documentId)!.GetTextAsync()).ToString();
+
+        // FirstOrDefault, not Single. A CodeAction is not obliged to produce exactly one
+        // ApplyChangesOperation — it may produce none (it only opens a document, say) or several.
+        // Single() would throw "Sequence contains no matching element" from a method whose
+        // documented contract is that "offers nothing here" is a normal, assertable outcome.
+        var changed = operations.OfType<ApplyChangesOperation>().FirstOrDefault();
+        if (changed is null)
+            return new CodeFixResult(diagnostics, source, Applied: false, actions[0].Title);
+
+        var fixedText = (await changed.ChangedSolution.GetDocument(documentId)!.GetTextAsync()).ToString();
 
         return new CodeFixResult(diagnostics, fixedText, Applied: true, actions[0].Title);
     }
@@ -284,7 +292,10 @@ public sealed class GeneratorHarness
 
     private T Instantiate<T>(string typeName) where T : class
     {
-        var type = LoadableTypes().FirstOrDefault(t => t.Name == typeName && typeof(T).IsAssignableFrom(t));
+        // !IsAbstract matters: naming an abstract base otherwise gets past this lookup and dies in
+        // Activator.CreateInstance with a bare MissingMethodException, skipping the message below.
+        var type = LoadableTypes()
+            .FirstOrDefault(t => t.Name == typeName && typeof(T).IsAssignableFrom(t) && !t.IsAbstract);
 
         if (type is null)
         {
@@ -295,8 +306,8 @@ public sealed class GeneratorHarness
             // outright. It usually means GetTypes partially failed: a type whose BASE class lives
             // in an assembly the test project does not reference is silently dropped, while its
             // siblings that have no such dependency load fine and hide the problem.
-            throw new InvalidOperationException(
-                $"'{typeName}' was not found as a {typeof(T).Name} in '{_assemblyName}'. " +
+            throw new ComponentTypeNotFoundException(
+                $"'{typeName}' was not found as a concrete {typeof(T).Name} in '{_assemblyName}'. " +
                 (candidates.Count == 0
                     ? $"No {typeof(T).Name} loaded from that assembly at all. If it definitely contains one, " +
                       $"a dependency is missing: types whose base class or interface cannot be resolved are " +

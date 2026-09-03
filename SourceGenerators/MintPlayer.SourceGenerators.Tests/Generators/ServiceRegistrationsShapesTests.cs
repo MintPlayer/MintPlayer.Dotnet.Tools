@@ -338,6 +338,72 @@ public class ServiceRegistrationsShapesTests
     }
 
     /// <summary>
+    /// A factory whose signature the DI overload cannot accept is skipped, not emitted.
+    /// </summary>
+    /// <remarks>
+    /// Only two shapes work against <c>Func&lt;IServiceProvider, T&gt;</c>: parameterless (wrapped
+    /// in a lambda) and exactly one <c>IServiceProvider</c> (method group). Anything else used to
+    /// be emitted as a bare method group and failed with CS1503 in the consumer's build. The
+    /// registration still happens — just without the factory.
+    /// </remarks>
+    [Theory]
+    [InlineData("public static Greeter Create(string name) => new Greeter();")]
+    [InlineData("public static Greeter Create(IServiceProvider provider, string name) => new Greeter();")]
+    [InlineData("public static Greeter Create(string name, IServiceProvider provider) => new Greeter();")]
+    public void AFactoryWithAnUnusableSignatureIsSkipped(string factory)
+    {
+        var run = Run($$"""
+            {{Preamble}}
+            using System;
+
+            [Register(ServiceLifetime.Scoped)]
+            public class Greeter
+            {
+                [RegisterFactory]
+                {{factory}}
+            }
+            """);
+
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        run.AllSources.Should().Contain("Greeter");
+        run.AllSources.Should().NotContain("Greeter.Create");
+    }
+
+    /// <summary>
+    /// A factory returning a type that only converts via a user-defined operator is skipped.
+    /// </summary>
+    /// <remarks>
+    /// A method group conversion permits identity and reference covariance only. The check used
+    /// <c>HasImplicitConversion</c>, which also admits user-defined operators and boxing — so this
+    /// shape passed the filter and emitted a method group the consumer's compiler rejects.
+    /// </remarks>
+    [Fact]
+    public void AFactoryReturningAUserDefinedConversionIsSkipped()
+    {
+        var run = Run($$"""
+            {{Preamble}}
+            using System;
+
+            public interface IGreeter { }
+
+            public class Wrapper
+            {
+                public static implicit operator Greeter(Wrapper w) => new Greeter();
+            }
+
+            [Register(typeof(IGreeter), ServiceLifetime.Scoped)]
+            public class Greeter : IGreeter
+            {
+                [RegisterFactory]
+                public static Wrapper Create(IServiceProvider provider) => new Wrapper();
+            }
+            """);
+
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        run.AllSources.Should().NotContain("Greeter.Create");
+    }
+
+    /// <summary>
     /// A factory returning something unrelated is still rejected — assignability widened the
     /// check, it did not remove it.
     /// </summary>

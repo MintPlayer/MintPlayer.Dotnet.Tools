@@ -315,7 +315,7 @@ public class FolderHasherTests : IDisposable
 /// </remarks>
 public sealed class FolderHasherGoldenTests : IDisposable
 {
-    private const string ExpectedSha256 = "8703d4bed04ecb53ae1caecc17da4af9f82004900b8cce8d6f3aaeea786c5368";
+    private const string ExpectedSha256 = "9d008f6cde31f7984453c82a0b253492580e2255853013b9d6aa550fbcaf2f98";
 
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "FolderHasherGolden_" + Guid.NewGuid());
     private readonly IFolderHasher _hasher;
@@ -333,12 +333,26 @@ public sealed class FolderHasherGoldenTests : IDisposable
         if (Directory.Exists(_dir)) Directory.Delete(_dir, true);
     }
 
-    /// <summary>Two files, one nested, with fixed contents.</summary>
-    private void WriteFixtureTree()
+    /// <summary>
+    /// A nested file plus a sibling whose name straddles the directory separator in sort order.
+    /// </summary>
+    /// <remarks>
+    /// <c>subX.txt</c> is not decoration. The files are fed to the algorithm in sorted order, so
+    /// the sort is part of the hash — and "sub/b.txt" vs "subX.txt" is precisely where the raw
+    /// path separator changes the answer: '/' is 0x2F and sorts BEFORE 'X' (0x58), while '\' is
+    /// 0x5C and sorts AFTER it. A fixture with only "a.txt" and "sub/b.txt" hashes identically on
+    /// both platforms even when the ordering is wrong, which is how the first version of this
+    /// test passed while the bug was still there.
+    /// </remarks>
+    private void WriteFixtureTree() => WriteFixtureTree(_dir);
+
+    /// <summary>One writer, so a second copy of the tree cannot drift from the golden one.</summary>
+    private static void WriteFixtureTree(string root)
     {
-        Directory.CreateDirectory(Path.Combine(_dir, "sub"));
-        File.WriteAllText(Path.Combine(_dir, "a.txt"), "alpha");
-        File.WriteAllText(Path.Combine(_dir, "sub", "b.txt"), "beta");
+        Directory.CreateDirectory(Path.Combine(root, "sub"));
+        File.WriteAllText(Path.Combine(root, "a.txt"), "alpha");
+        File.WriteAllText(Path.Combine(root, "sub", "b.txt"), "beta");
+        File.WriteAllText(Path.Combine(root, "subX.txt"), "gamma");
     }
 
     [Fact]
@@ -366,9 +380,7 @@ public sealed class FolderHasherGoldenTests : IDisposable
         var first = await _hasher.GetFolderHashAsync(_dir);
 
         var elsewhere = Path.Combine(Path.GetTempPath(), "FolderHasherGolden_" + Guid.NewGuid());
-        Directory.CreateDirectory(Path.Combine(elsewhere, "sub"));
-        File.WriteAllText(Path.Combine(elsewhere, "a.txt"), "alpha");
-        File.WriteAllText(Path.Combine(elsewhere, "sub", "b.txt"), "beta");
+        WriteFixtureTree(elsewhere);
 
         try
         {

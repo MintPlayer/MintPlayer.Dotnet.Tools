@@ -4,6 +4,16 @@ using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace MintPlayer.SourceGenerators.Testing;
 
+/// <summary>
+/// The named component is not in the assembly the harness loaded.
+/// </summary>
+/// <remarks>
+/// A distinct type so callers that probe several assemblies can catch "not here, try the next one"
+/// without also swallowing an <see cref="InvalidOperationException"/> thrown from inside a
+/// generator run — which would hide the real failure behind a misleading "type not found".
+/// </remarks>
+public sealed class ComponentTypeNotFoundException(string message) : InvalidOperationException(message);
+
 /// <summary>One file a generator emitted.</summary>
 public sealed record GeneratedSource(string HintName, string Source);
 

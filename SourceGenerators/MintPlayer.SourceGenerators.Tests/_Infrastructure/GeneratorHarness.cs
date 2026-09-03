@@ -59,8 +59,7 @@ internal static class GeneratorHarness
         IEnumerable<string> sources,
         string? rootNamespace = "TestRoot",
         IEnumerable<Type>? referenceTypes = null,
-        string? generatorAssemblyName = null,
-        string assemblyName = "TestInput")
+        string? generatorAssemblyName = null)
         => Probe(
             generatorAssemblyName,
             rootNamespace,
@@ -95,10 +94,14 @@ internal static class GeneratorHarness
     /// unknown type.
     /// </summary>
     /// <remarks>
-    /// The package throws <see cref="InvalidOperationException"/> when a component type is not in
-    /// the assembly it was asked about, which for a probe is a "try the next one" rather than a
-    /// failure. The final assembly's exception is allowed to escape, so a genuinely missing type
-    /// still fails with the package's message listing what it did find.
+    /// Catches <see cref="ComponentTypeNotFoundException"/> specifically, not
+    /// <see cref="InvalidOperationException"/>. The broader catch also swallowed exceptions thrown
+    /// from INSIDE a generator run on the correct assembly, silently retried it against the other
+    /// three, and reported "not found in MintPlayer.ValueComparerGenerator" — hiding the real
+    /// stack behind a misleading message.
+    ///
+    /// The final assembly's exception is allowed to escape, so a genuinely missing type still
+    /// fails with the package's message listing what it did find.
     /// </remarks>
     private static T Probe<T>(
         string? assemblyName,
@@ -111,7 +114,7 @@ internal static class GeneratorHarness
         for (var i = 0; i < candidates.Count; i++)
         {
             try { return action(candidates[i]); }
-            catch (InvalidOperationException) when (i < candidates.Count - 1) { }
+            catch (ComponentTypeNotFoundException) when (i < candidates.Count - 1) { }
         }
 
         throw new InvalidOperationException("No candidate generator assemblies configured.");
@@ -127,7 +130,7 @@ internal static class GeneratorHarness
         for (var i = 0; i < candidates.Count; i++)
         {
             try { return await action(candidates[i]); }
-            catch (InvalidOperationException) when (i < candidates.Count - 1) { }
+            catch (ComponentTypeNotFoundException) when (i < candidates.Count - 1) { }
         }
 
         throw new InvalidOperationException("No candidate analyzer assemblies configured.");

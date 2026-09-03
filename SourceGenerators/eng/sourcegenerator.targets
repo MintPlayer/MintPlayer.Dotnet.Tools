@@ -88,15 +88,21 @@
 		</ItemGroup>
 
 		<!--
-		Hard failures, not warnings. Both of these produce a package that installs happily and
-		does nothing, which is the single worst outcome for a source generator: the consumer has
-		no error to search for.
+		Hard failures, not warnings. Each of these produces a package that installs happily and
+		does nothing, which is the worst outcome available for a source generator: the consumer
+		has no error to search for.
+
+		Note the two different tests. A LITERAL Include creates the item whether or not the file
+		exists, so '@(x)' == '' never fires for one — it has to be Exists() on the item's path.
+		A GLOB contributes nothing when it matches nothing, so there '@(x)' == '' is the correct
+		and only workable test. Getting this backwards produces a guard that silently never
+		fires, which is worse than no guard because it reads as protection.
 		-->
-		<Error Condition="'@(_GeneratorAssembly)' == ''"
+		<Error Condition="!Exists('%(_GeneratorAssembly.FullPath)')"
 		       Text="The generator assembly was not found at bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll. Packing would produce a package with no analyzer in it." />
 		<Error Condition="'@(_GeneratorToolsAssets)' == ''"
 		       Text="MintPlayer.SourceGenerators.Tools was not found in bin\$(Configuration)\netstandard2.0. Packing would produce a generator that cannot resolve its base class and silently never runs." />
-		<Error Condition="'@(_GeneratorAttributeAssets)' == ''"
+		<Error Condition="!Exists('%(_GeneratorAttributeAssets.FullPath)')"
 		       Text="$(AssemblyName).Attributes.dll was not found in bin\$(Configuration)\netstandard2.0. Packing would produce a generator whose own attributes Roslyn cannot resolve." />
 
 		<ItemGroup>

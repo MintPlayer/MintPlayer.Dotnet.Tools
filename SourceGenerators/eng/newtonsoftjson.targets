@@ -29,17 +29,26 @@
 
 	<Target Name="AddNewtonsoftJsonComparers">
 		<ItemGroup>
-			<_NewtonsoftJsonAssets Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" />
+			<!--
+			Kept in two item lists because they need two different emptiness tests: a glob
+			contributes nothing when it matches nothing, while a literal Include creates the item
+			regardless of whether the file exists. Merging them would leave the glob half
+			unguarded — %(...) batching simply does not run for a batch that has no items, so an
+			unset PkgNewtonsoft_Json would sail through and ship a generator that cannot load.
+			-->
+			<_NewtonsoftJsonPackageAssets Include="$(PkgNewtonsoft_Json)\lib\netstandard2.0\*.dll" />
 			<!-- From the CONSUMING project's own output: the ProjectReference above copies it there. -->
-			<_NewtonsoftJsonAssets Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\MintPlayer.ValueComparers.NewtonsoftJson.dll" />
+			<_NewtonsoftJsonComparerAssets Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\MintPlayer.ValueComparers.NewtonsoftJson.dll" />
 		</ItemGroup>
 
-		<Error Condition="!Exists('%(_NewtonsoftJsonAssets.FullPath)')"
-		       Text="%(_NewtonsoftJsonAssets.Filename)%(_NewtonsoftJsonAssets.Extension) was not found. This generator registers the Newtonsoft.Json value comparers, so packing without it produces a generator that fails to load." />
+		<Error Condition="'@(_NewtonsoftJsonPackageAssets)' == ''"
+		       Text="Newtonsoft.Json was not found under '$(PkgNewtonsoft_Json)'. Check that the PackageReference sets GeneratePathProperty and has been restored; packing without it produces a generator that fails to load." />
+		<Error Condition="!Exists('%(_NewtonsoftJsonComparerAssets.FullPath)')"
+		       Text="MintPlayer.ValueComparers.NewtonsoftJson.dll was not found in bin\$(Configuration)\netstandard2.0. This generator registers the Newtonsoft.Json value comparers, so packing without it produces a generator that fails to load." />
 
 		<ItemGroup>
-			<TfmSpecificPackageFile Include="@(_NewtonsoftJsonAssets)" PackagePath="analyzers/dotnet/roslyn4.0/cs" />
-			<TfmSpecificPackageFile Include="@(_NewtonsoftJsonAssets)" PackagePath="analyzers/dotnet/roslyn4.9/cs" />
+			<TfmSpecificPackageFile Include="@(_NewtonsoftJsonPackageAssets);@(_NewtonsoftJsonComparerAssets)" PackagePath="analyzers/dotnet/roslyn4.0/cs" />
+			<TfmSpecificPackageFile Include="@(_NewtonsoftJsonPackageAssets);@(_NewtonsoftJsonComparerAssets)" PackagePath="analyzers/dotnet/roslyn4.9/cs" />
 		</ItemGroup>
 	</Target>
 

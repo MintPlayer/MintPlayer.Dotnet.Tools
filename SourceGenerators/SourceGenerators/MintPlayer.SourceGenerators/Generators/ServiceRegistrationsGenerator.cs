@@ -31,8 +31,13 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                             var factories = namedTypeSymbol.GetMembers()
                                 .OfType<IMethodSymbol>()
                                 .Where(m => m.IsStatic && m.GetAttributes().Any(a => a.AttributeClass?.Name == nameof(RegisterFactoryAttribute)))
-                                .Select(m => new { m.Name, ReturnType = m.ReturnType as INamedTypeSymbol, IsParameterless = m.Parameters.Length == 0 })
-                                .Where(m => m.ReturnType is not null)
+                                .Select(m => new
+                                {
+                                    m.Name,
+                                    ReturnType = m.ReturnType as INamedTypeSymbol,
+                                    Shape = ClassifyFactory(context2.SemanticModel.Compilation, m),
+                                })
+                                .Where(m => m.ReturnType is not null && m.Shape != EFactoryShape.Unsupported)
                                 .ToArray();
 
                             return attrs.Select(attr =>
@@ -75,7 +80,7 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                             Accessibility = accessibility,
                                             FactoryExpressions = factories
                                                 .Where(f => IsUsableFactoryReturn(context2.SemanticModel.Compilation, f.ReturnType!, namedTypeSymbol))
-                                                .Select(f => BuildFactoryExpression(namedTypeSymbol, f.Name, f.IsParameterless))
+                                                .Select(f => BuildFactoryExpression(namedTypeSymbol, f.Name, f.Shape))
                                                 .ToArray(),
                                             AppliedOn = ERegistrationAppliedOn.Class,
                                             Location = location,
@@ -153,7 +158,7 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                                 Accessibility = accessibility,
                                                 FactoryExpressions = factories
                                                     .Where(f => IsUsableFactoryReturn(context2.SemanticModel.Compilation, f.ReturnType!, serviceTypeSymbol))
-                                                    .Select(f => BuildFactoryExpression(namedTypeSymbol, f.Name, f.IsParameterless))
+                                                    .Select(f => BuildFactoryExpression(namedTypeSymbol, f.Name, f.Shape))
                                                     .ToArray(),
                                                 AppliedOn = ERegistrationAppliedOn.Class,
                                                 Location = location,
@@ -355,8 +360,56 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
     /// service itself and the factory never ran.
     /// </remarks>
     private static bool IsUsableFactoryReturn(Compilation compilation, ITypeSymbol returnType, INamedTypeSymbol registeredType)
-        => SymbolEqualityComparer.Default.Equals(returnType, registeredType)
-        || compilation.HasImplicitConversion(returnType, registeredType);
+    {
+        if (SymbolEqualityComparer.Default.Equals(returnType, registeredType))
+            return true;
+
+        // Reference conversion only — NOT HasImplicitConversion. The factory is emitted as a
+        // method group bound to Func<IServiceProvider, TRegistered>, and a method group conversion
+        // permits identity and reference covariance and nothing else. HasImplicitConversion also
+        // admits user-defined operators and boxing, so a factory returning some Wrapper with an
+        // `implicit operator Greeter` passed the old check and emitted a method group the
+        // consumer's compiler rejects with CS1503.
+        var conversion = compilation.ClassifyCommonConversion(returnType, registeredType);
+        return conversion is { Exists: true, IsImplicit: true, IsReference: true };
+    }
+
+    /// <summary>How a <c>[RegisterFactory]</c> method can be handed to the DI container.</summary>
+    private enum EFactoryShape
+    {
+        /// <summary>Wrong signature entirely — skipped rather than emitted as broken code.</summary>
+        Unsupported,
+        /// <summary>No parameters; has to be wrapped in a lambda.</summary>
+        Parameterless,
+        /// <summary>Takes the provider; can be passed as a method group.</summary>
+        AcceptsServiceProvider,
+    }
+
+    /// <summary>
+    /// Whether a factory can be used at all, and if so how it has to be emitted.
+    /// </summary>
+    /// <remarks>
+    /// The DI overload takes <c>Func&lt;IServiceProvider, T&gt;</c>, so only two signatures work:
+    /// no parameters (wrap in a lambda) or exactly one <see cref="IServiceProvider"/> (method
+    /// group). Anything else — <c>Create(string name)</c>, <c>Create(IServiceProvider, ILogger)</c>
+    /// — used to be emitted as a bare method group and failed with CS1503 in the CONSUMER's build,
+    /// which is the failure this whole area exists to prevent. Such a factory is now skipped:
+    /// the registration still happens, just without it.
+    /// </remarks>
+    private static EFactoryShape ClassifyFactory(Compilation compilation, IMethodSymbol method)
+    {
+        if (method.Parameters.Length == 0)
+            return EFactoryShape.Parameterless;
+
+        if (method.Parameters.Length == 1)
+        {
+            var providerType = compilation.GetTypeByMetadataName("System.IServiceProvider");
+            if (providerType is not null && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, providerType))
+                return EFactoryShape.AcceptsServiceProvider;
+        }
+
+        return EFactoryShape.Unsupported;
+    }
 
     /// <summary>
     /// The argument expression for a factory, as it will appear inside <c>AddScoped&lt;T&gt;(...)</c>.
@@ -368,10 +421,10 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
     /// pointing at generated code they never wrote. Wrapping it in a lambda keeps the
     /// parameterless form working, which is the shape most people write first.
     /// </remarks>
-    private static string BuildFactoryExpression(INamedTypeSymbol implementationType, string factoryName, bool isParameterless)
+    private static string BuildFactoryExpression(INamedTypeSymbol implementationType, string factoryName, EFactoryShape shape)
     {
         var qualified = $"{implementationType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}.{factoryName}";
-        return isParameterless ? $"sp => {qualified}()" : qualified;
+        return shape == EFactoryShape.Parameterless ? $"sp => {qualified}()" : qualified;
     }
 
     private static bool ExtendsType(INamedTypeSymbol derived, INamedTypeSymbol candidate)

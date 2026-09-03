@@ -39,12 +39,19 @@ internal class FolderHasher : IFolderHasher
             }
         }
 
-        // Filter files: exclude ignored files, .hasherignore files, and regex-matched folders
+        // Filter files: exclude ignored files, .hasherignore files, and regex-matched folders.
+        //
+        // Ordered by the NORMALISED relative path with an ordinal comparer, because the order
+        // files are fed in is part of the hash. Sorting the raw path reintroduces exactly the
+        // cross-platform divergence that normalising the separator removes: given "sub/b.txt" and
+        // a sibling "subX.txt", '/' (0x2F) sorts before 'X' while '\' (0x5C) sorts after, so the
+        // same tree feeds in a different order on Windows than on Linux. The default comparer is
+        // culture-sensitive too, which makes the ordering depend on the machine's locale.
         var filesToHash = allFiles
             .Where(f => !Path.GetFileName(f).Equals(HasherIgnoreFileName, StringComparison.OrdinalIgnoreCase))
             .Where(f => !ignoreRegex.Any(rgx => rgx.IsMatch(f)))
             .Where(f => !ignoreParser.IsIgnored(f))
-            .OrderBy(p => p)
+            .OrderBy(f => NormalizeRelativePath(f, folder), StringComparer.Ordinal)
             .ToList();
 
         if (filesToHash.Count == 0)
@@ -65,22 +72,8 @@ internal class FolderHasher : IFolderHasher
             try
             {
                 // Hash the relative path, normalised so the same tree hashes the same everywhere.
-                //
-                // Two things here are deliberate and were both wrong before:
-                //
-                // The directory separator is replaced with '/'. Path.Substring hands back the OS
-                // separator, so "sub\b.txt" on Windows and "sub/b.txt" on Linux hashed to
-                // different values for an identical tree. This hash is a CACHE KEY, so that meant
-                // a Windows developer and a Linux CI runner could never share a cache entry and
-                // every lookup silently missed.
-                //
-                // ToLowerInvariant, not ToLower. The culture-sensitive overload lowercases 'I' to
-                // 'ı' under a Turkish locale, so the same tree hashed differently depending on the
-                // machine's regional settings.
-                var relativePath = file.Substring(folder.Length + 1)
-                    .Replace(Path.DirectorySeparatorChar, '/')
-                    .Replace(Path.AltDirectorySeparatorChar, '/');
-                var pathBytes = Encoding.UTF8.GetBytes(relativePath.ToLowerInvariant());
+                // See NormalizeRelativePath for why both halves of that normalisation matter.
+                var pathBytes = Encoding.UTF8.GetBytes(NormalizeRelativePath(file, folder));
                 algorithm.TransformBlock(pathBytes, 0, pathBytes.Length, pathBytes, 0);
 
                 // Hash the file contents
@@ -102,6 +95,29 @@ internal class FolderHasher : IFolderHasher
 
         return Convert.ToHexStringLower(algorithm.Hash);
     }
+
+    /// <summary>
+    /// A file's path relative to <paramref name="folder"/>, in the one form the hash is defined
+    /// over: forward slashes, invariant lowercase.
+    /// </summary>
+    /// <remarks>
+    /// Used for BOTH the hashed bytes and the sort order, because the order files are fed into the
+    /// algorithm is part of the result. Normalising one and not the other leaves the hash
+    /// platform-dependent through the back door.
+    ///
+    /// Forward slashes: <see cref="string.Substring(int)"/> hands back the OS separator, so
+    /// "sub\b.txt" and "sub/b.txt" — the same file — hashed differently on Windows and Linux.
+    /// This value is a CACHE KEY, so the effect was silent: a Windows developer and a Linux CI
+    /// runner could never share an entry and every lookup missed.
+    ///
+    /// Invariant lowercase: the culture-sensitive overload maps 'I' to 'ı' under a Turkish locale,
+    /// making the hash depend on the machine's regional settings.
+    /// </remarks>
+    private static string NormalizeRelativePath(string file, string folder)
+        => file.Substring(folder.Length + 1)
+            .Replace(Path.DirectorySeparatorChar, '/')
+            .Replace(Path.AltDirectorySeparatorChar, '/')
+            .ToLowerInvariant();
 
     public async Task<string> GetFolderHashAsync(string folder)
     {
