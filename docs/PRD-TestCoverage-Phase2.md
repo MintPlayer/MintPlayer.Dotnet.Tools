@@ -486,21 +486,62 @@ number in opposite directions and a gate would fire on the honest dip.
 
 ## Outcome
 
-**Measured locally over the full CI sequence, 25 test runs, 0 failures.** Independently confirmed by
-the coverage service at the branch head (`5596e2b`): `coverage/project` reports **78.6% (+14.6% vs
-base 64.0%)** and `coverage/patch` **87.1% of added lines covered** (210 of 241, 11 measured files).
-The 0.1-point gap to the local figure is rounding on a slightly different file set — close enough
-that the local merge method in Appendix A can be trusted. Both check runs are `neutral`
+**Measured locally over the full CI sequence, 25 test runs, 0 failures.** The local merge method in
+Appendix A was independently confirmed at `5596e2b`, where it read 78.6% against the coverage
+service's own `coverage/project` of **78.6% (+14.6% vs base 64.0%)** — an exact match, with
+`coverage/patch` at **87.1% of added lines** (210 of 241). Both check runs are `neutral`
 (informational; the repository's coverage gate has Blocking off), which `gh pr checks` renders as
 `skipping` — that is not a failure to upload.
 
-Earlier readings in this document that lag the head — 75.3% at `c9007ed` — predate the last tranche
-of generator tests.
+Earlier readings in this document that lag the head — 75.3% at `c9007ed`, 78.6% at `5596e2b` —
+predate later tranches of generator tests.
+
+<a id="r36-outcome"></a>
+### R3.6 outcome: the estimate was wrong, and the tests found a shipped bug
+
+R3.6 was ranked last in this plan and described as "the worst ratio on the list — deep permutation
+branches needing a bespoke fixture each". **That was wrong, and the error was in not looking before
+estimating.** Reading the merged report line-by-line rather than by file total showed the uncovered
+regions were not permutations at all but *whole features with no fixture*, several in single
+contiguous blocks: the assembly-level `[GenerateMapper]` overload is 46 unbroken lines reached by one
+fixture. 14 tests moved 307 lines — about 22 lines per test, an order better than the estimate implied.
+
+| | Before | After |
+|---|---|---|
+| `SourceGenerators/Mapper` | 56.9% | **88.1%** |
+| `SourceGenerators/Cli` | 56.6% | **78.1%** |
+| Repo lines | 78.6% | **81.2%** |
+| Repo branches | 58.9% | **61.6%** |
+
+Two findings came out of it, and they are the argument for having done it at all:
+
+**A shipped defect in `MintPlayer.CliGenerator`.** The producer emitted `option.IsRequired = true`
+and `option.IsHidden = true`. Neither exists on `System.CommandLine`'s `Option<T>` — they are
+2.0.0-beta names dropped before GA, where the properties became `Required` and `Hidden`. Any consumer
+writing `[CliOption(Required = true)]` or `Hidden = true` got **CS1061 in generated code they cannot
+edit**. The rest of the producer already targeted post-beta API (`DefaultValueFactory`,
+`parseResult.GetRequiredValue`), so these two lines were simply missed in that migration. Nothing
+caught it because nothing in the repository sets either facet — not `Verz`, not the
+`CliCommandDebugging` playground, and no test — so the emitted code had never been compiled with a
+required or hidden option in it. Fixed, and pinned by
+`CliCommandFeatureTests.OptionMetadata_IsEmittedForEveryFacet`.
+
+**A test that was not testing anything.** `ItBuildsACommandTree` declared a subcommand with
+`[CliCommand("build")]` and no parent, then asserted only that `Errors` was empty and that something
+had been generated. Both held — but a non-nested command without `[CliParentCommand]` is silently
+dropped from the tree, so the generated output was the root and nothing else. The test named for
+building a command tree never checked that the tree was built, and discarded its own subcommand on
+every run since it was written. It now declares the parent and asserts the subcommand and its option
+are present.
+
+The silent dropping is pinned by `AnOrphanCommand_IsSilentlyDroppedFromTheTree` rather than changed.
+Discarding a decorated command with no diagnostic is a poor failure mode — the consumer gets a CLI
+missing a subcommand and nothing to search for — but that is a design decision, not a test fix.
 
 | | Before (`c7b13b9`) | After (branch head) | |
 |---|---|---|---|
-| Lines | 6,747 / 10,544 = **64.0%** | 8,997 / 11,456 = **78.5%** | **+14.5pp** |
-| Branches | 2,847 / 6,001 = 47.4% | 3,901 / 6,634 = 58.8% | +11.4pp |
+| Lines | 6,747 / 10,544 = **64.0%** | 9,321 / 11,475 = **81.2%** | **+17.2pp** |
+| Branches | 2,847 / 6,001 = 47.4% | 4,099 / 6,652 = 61.6% | +14.2pp |
 | Files measured | 261 | 286 | |
 
 The denominator **grew by 893 lines** while the percentage rose, which was the point of the
@@ -511,9 +552,9 @@ was hidden from it entirely.
 |---|---|---|
 | Assertions *(now includes the generator)* | 2332/2437 = 95.7% | 2926/3193 = **91.6%** |
 | Solve | 302/1410 = 21.4% | 1008/1392 = **72.4%** |
-| SourceGenerators | 2255/4537 = 49.7% | 3200/4727 = **67.7%** |
-| SlnLaunch | 372/498 = 74.7% | 372/477 = 78.0% |
-| FolderHasher | 170/214 = 79.4% | 172/216 = 79.6% |
+| SourceGenerators | 2255/4537 = 49.7% | 3523/4745 = **74.2%** |
+| SlnLaunch | 372/498 = 74.7% | 370/477 = 77.6% |
+| FolderHasher | 170/214 = 79.4% | 173/217 = 79.7% |
 | Verz | 78/126 = 61.9% | 81/129 = 62.8% |
 
 Defects found and fixed while writing the tests — note that **three of the four were found by the
@@ -578,7 +619,7 @@ Not delivered, and why:
 | **R1.3** — `MintPlayer.Verz` CLI | Blocked on [#173](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/173), now filed. `InitDotnetCommand.Execute` cannot be called from a test in this repository until its default root is safe — a test with the wrong working directory would rewrite every `.csproj` as a side effect of `dotnet test`. Also see [#175](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/175): nothing in the repo consumes Verz, and whether it is finished or archived is undecided. Testing it is premature until that is settled. |
 | **R5.2 / S4** — packaging smoke test | **Done.** 13 tests. Found a configuration-dependent analyzer payload in three places; see [S4](#s4--pack-and-consume-for-a-generator-not-just-an-msbuild-task-gates-m5r52-3h). |
 | **R3.5** — `ServiceRegistrationsGenerator` | **Done.** 38 tests over the attribute shapes; found the two factory defects above. |
-| **R3.6** — `Mapper` / `Cli` producers | Not started. Worst ratio in the plan: deep permutation branches needing a bespoke fixture each, ~404 lines. |
+| **R3.6** — `Mapper` / `Cli` producers | **Done, and the estimate was wrong.** Mapper 56.9% → **88.1%**, Cli 56.6% → **78.1%**; 14 tests, +307 lines overall. See [R3.6 outcome](#r36-outcome). |
 | **R5.4** — correct the Phase 1 PRD on snapshots | **Done.** `docs/PRD-TestCoverage.md` now carries the correction inline. |
 | **R5.5** — the two unfiled issues | **Done.** [#173](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/173) (`verz init-dotnet` rewrites `<Version>` repo-wide by default) and [#174](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/174) (`GetPaginationLinks` drops relative `Link` targets). Both verified against the code before filing. |
 | **`InjectSourceGenerator` remainder** | ~382 lines still uncovered after the `[Config]`/`[Options]`/`[ConnectionString]` fixtures took it 30% → 54.8%. |
