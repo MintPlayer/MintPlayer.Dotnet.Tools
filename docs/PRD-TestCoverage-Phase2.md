@@ -575,7 +575,7 @@ Not delivered, and why:
 |---|---|
 | **R2.2** — `Solve`'s four concrete I/O services (367 lines) | Need a process-runner seam that does not exist. Left measured and red rather than excluded. |
 | **R1.2** — `MintPlayer.GraphQL` | Re-scoped: not the cheap win it was described as. See R1.2. |
-| **R1.3** — `MintPlayer.Verz` CLI | Blocked on [#173](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/173), now filed. `InitDotnetCommand.Execute` cannot be called from a test in this repository until its default root is safe — a test with the wrong working directory would rewrite every `.csproj` as a side effect of `dotnet test`. |
+| **R1.3** — `MintPlayer.Verz` CLI | Blocked on [#173](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/173), now filed. `InitDotnetCommand.Execute` cannot be called from a test in this repository until its default root is safe — a test with the wrong working directory would rewrite every `.csproj` as a side effect of `dotnet test`. Also see [#175](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/175): nothing in the repo consumes Verz, and whether it is finished or archived is undecided. Testing it is premature until that is settled. |
 | **R5.2 / S4** — packaging smoke test | **Done.** 13 tests. Found a configuration-dependent analyzer payload in three places; see [S4](#s4--pack-and-consume-for-a-generator-not-just-an-msbuild-task-gates-m5r52-3h). |
 | **R3.5** — `ServiceRegistrationsGenerator` | **Done.** 38 tests over the attribute shapes; found the two factory defects above. |
 | **R3.6** — `Mapper` / `Cli` producers | Not started. Worst ratio in the plan: deep permutation branches needing a bespoke fixture each, ~404 lines. |
