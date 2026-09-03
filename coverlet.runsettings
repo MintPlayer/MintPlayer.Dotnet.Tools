@@ -24,7 +24,15 @@
           coverage server cannot resolve it and drops it. That is the correct outcome; it only
           means the raw local report lists one file the server ignores.
           -->
-          <ExcludeByFile>**/*.g.cs,**/*.Designer.cs</ExcludeByFile>
+          <!--
+          The two dotnet-tool entry points. Both are top-level statements, so the generated Program
+          class cannot carry [ExcludeFromCodeCoverage] and this is the only place to say it. They
+          are host-builder wiring — AddXCommand(), Build(), RunAsync() — with no branch worth
+          asserting, and they are unreachable from a test without launching the tool for real.
+          39 permanently-red lines. Listed individually rather than as **/Program.cs so a future
+          Program.cs with real logic in it is not silently hidden.
+          -->
+          <ExcludeByFile>**/*.g.cs,**/*.Designer.cs,**/Solve/Program.cs,**/MintPlayer.SlnLaunch/Program.cs</ExcludeByFile>
 
           <!--
           SourceLink is active in this repo (see obj/*.sourcelink.json). UseSourceLink=true rewrites
