@@ -486,8 +486,16 @@ number in opposite directions and a gate would fire on the honest dip.
 
 ## Outcome
 
-**Measured locally over the full CI sequence, 25 test runs, 0 failures.** The server figure lags the
-branch head; it read 75.3% at `c9007ed`, before the last tranche of generator tests landed.
+**Measured locally over the full CI sequence, 25 test runs, 0 failures.** Independently confirmed by
+the coverage service at the branch head (`5596e2b`): `coverage/project` reports **78.6% (+14.6% vs
+base 64.0%)** and `coverage/patch` **87.1% of added lines covered** (210 of 241, 11 measured files).
+The 0.1-point gap to the local figure is rounding on a slightly different file set — close enough
+that the local merge method in Appendix A can be trusted. Both check runs are `neutral`
+(informational; the repository's coverage gate has Blocking off), which `gh pr checks` renders as
+`skipping` — that is not a failure to upload.
+
+Earlier readings in this document that lag the head — 75.3% at `c9007ed` — predate the last tranche
+of generator tests.
 
 | | Before (`c7b13b9`) | After (branch head) | |
 |---|---|---|---|
@@ -567,12 +575,12 @@ Not delivered, and why:
 |---|---|
 | **R2.2** — `Solve`'s four concrete I/O services (367 lines) | Need a process-runner seam that does not exist. Left measured and red rather than excluded. |
 | **R1.2** — `MintPlayer.GraphQL` | Re-scoped: not the cheap win it was described as. See R1.2. |
-| **R1.3** — `MintPlayer.Verz` CLI | Still blocked on R5.5 (`InitDotnetCommand` rewrites `<Version>` repo-wide). |
+| **R1.3** — `MintPlayer.Verz` CLI | Blocked on [#173](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/173), now filed. `InitDotnetCommand.Execute` cannot be called from a test in this repository until its default root is safe — a test with the wrong working directory would rewrite every `.csproj` as a side effect of `dotnet test`. |
 | **R5.2 / S4** — packaging smoke test | **Done.** 13 tests. Found a configuration-dependent analyzer payload in three places; see [S4](#s4--pack-and-consume-for-a-generator-not-just-an-msbuild-task-gates-m5r52-3h). |
 | **R3.5** — `ServiceRegistrationsGenerator` | **Done.** 38 tests over the attribute shapes; found the two factory defects above. |
 | **R3.6** — `Mapper` / `Cli` producers | Not started. Worst ratio in the plan: deep permutation branches needing a bespoke fixture each, ~404 lines. |
 | **R5.4** — correct the Phase 1 PRD on snapshots | **Done.** `docs/PRD-TestCoverage.md` now carries the correction inline. |
-| **R5.5** — the two unfiled issues | Not filed (`Verz` `InitDotnetCommand` repo-wide `<Version>` rewrite; RFC-5988 relative `Link` resolution). |
+| **R5.5** — the two unfiled issues | **Done.** [#173](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/173) (`verz init-dotnet` rewrites `<Version>` repo-wide by default) and [#174](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/174) (`GetPaginationLinks` drops relative `Link` targets). Both verified against the code before filing. |
 | **`InjectSourceGenerator` remainder** | ~382 lines still uncovered after the `[Config]`/`[Options]`/`[ConnectionString]` fixtures took it 30% → 54.8%. |
 
 ### Also delivered, beyond the original plan
