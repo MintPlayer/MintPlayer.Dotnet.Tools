@@ -534,7 +534,7 @@ Not delivered, and why:
 | **R2.2** — `Solve`'s four concrete I/O services (367 lines) | Need a process-runner seam that does not exist. Left measured and red rather than excluded. |
 | **R1.2** — `MintPlayer.GraphQL` | Re-scoped: not the cheap win it was described as. See R1.2. |
 | **R1.3** — `MintPlayer.Verz` CLI | Still blocked on R5.5 (`InitDotnetCommand` rewrites `<Version>` repo-wide). |
-| **R5.2 / S4** — packaging smoke test | Not started. The largest remaining verification gap. |
+| **R5.2 / S4** — packaging smoke test | **Done.** 13 tests. Found a configuration-dependent analyzer payload in three places; see [S4](#s4--pack-and-consume-for-a-generator-not-just-an-msbuild-task-gates-m5r52-3h). |
 | **R3.5, R3.6** — `ServiceRegistrations`, `Mapper`/`Cli` producers | Not started. |
 | **R5.5** — the two unfiled issues | Not filed. |
 
@@ -666,6 +666,29 @@ fixture from a temp feed, built, and asserted on.
 reconsider, and `MSBuildWorkspace` re-enters the conversation as the cheaper way to get *some*
 packaging signal. **This spike is the one that could overturn an R4.2 recommendation**, which is why
 it is scheduled before M5 rather than during it.
+
+**RESULT — run 2026-09-03. Works, ~18s in-suite. R4.2 stands; `MSBuildWorkspace` not needed.**
+
+13 tests in `SourceGenerators/MintPlayer.SourceGenerators.Tests/Packaging/`. A shared
+`IClassFixture` packs six real projects into a temp feed once; a consumer restores from it and
+builds code that cannot compile without the generated constructor, so build success is the
+assertion.
+
+**It found the defect it was built to look for, then a second one during the fix.** The analyzer
+payload was conditioned on `Configuration == 'Release'` in three places — `sourcegenerator.targets`
+(Tools.dll, twice), an entire `ItemGroup` in `MintPlayer.SourceGenerators.csproj` (the Attributes
+DLLs and `DependencyInjection.Abstractions`), and `MintPlayer.Assertions.csproj` (Tools.dll again).
+A plain `dotnet pack` defaults to Debug and therefore produced a package whose generator cannot
+resolve its own base class: restores cleanly, reports nothing, never runs. CI packs Release, so
+nothing broken shipped.
+
+The second condition was caught only because the guard test **compares the Debug and Release
+payloads to each other** instead of asserting a fixed list — a `Should().Contain(...)` would have
+gone green after the first fix.
+
+Also learned: `MintPlayer.SourceGenerators.Tools` is a *transitive* package dependency via
+`MintPlayer.ValueComparers.NewtonsoftJson`, despite the generator referencing it privately. Omitting
+it from the feed fails with NU1102 pointing at nothing useful. No in-process test can see that.
 
 ## Acceptance criteria
 
