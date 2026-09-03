@@ -40,11 +40,17 @@
 	</ItemGroup>
 
 	<!--
-	The analyzer payload is collected in a TARGET, not a static ItemGroup. An Include pointing at
-	a sibling project's bin folder is resolved at evaluation time, before that project has been
-	built, so on a clean tree it matched nothing and this package shipped with no analyzers at
-	all — silently. A Configuration == 'Release' condition on the Tools DLL made it fail in Debug
-	even after a build. Both are fixed; PackagingTests pins the layout and Debug/Release parity.
+	This package ships its analyzers itself rather than importing eng/sourcegenerator.targets, and
+	deliberately so: that file sets TargetFramework=netstandard2.0, IncludeBuildOutput=false and
+	DevelopmentDependency=true, which is right for a standalone generator package and would strip
+	this library's lib/ and mark it a dev dependency. The generator PROJECT imports it; this
+	library cannot.
+
+	Collected in a TARGET, not a static ItemGroup. An Include pointing at another project's bin is
+	resolved at evaluation time, before that project has been built, so on a clean tree it matched
+	nothing and this package shipped with no analyzers at all — silently. A
+	Configuration == 'Release' condition on the Tools DLL made it fail in Debug even after a
+	build. Both are fixed; PackagingTests pins the layout and Debug/Release parity.
 	-->
 	<PropertyGroup>
 		<TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);AddAssertionsAnalyzers</TargetsForTfmSpecificContentInPackage>
@@ -52,18 +58,21 @@
 
 	<Target Name="AddAssertionsAnalyzers">
 		<ItemGroup>
-			<_AssertionsAnalyzer Include="..\MintPlayer.Assertions.SourceGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.Assertions.SourceGenerator.dll" />
-			<_AssertionsAnalyzerTools Include="..\..\SourceGenerators\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Tools.dll" />
+			<!--
+			Both from the generator's own output directory, which holds exactly its runtime
+			closure: the analyzer plus the assembly its base class lives in. One location rather
+			than reaching across the tree to the Tools project, so the payload cannot be assembled
+			from two builds that disagree.
+			-->
+			<_AssertionsAnalyzerAssets Include="..\MintPlayer.Assertions.SourceGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.Assertions.SourceGenerator.dll" />
+			<_AssertionsAnalyzerAssets Include="..\MintPlayer.Assertions.SourceGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Tools.dll" />
 		</ItemGroup>
 
-		<Error Condition="!Exists('%(_AssertionsAnalyzer.FullPath)')"
-		       Text="MintPlayer.Assertions.SourceGenerator was not found in bin\$(Configuration)\netstandard2.0. Packing would ship the assertion library with no analyzers, and no error to tell anyone." />
-		<Error Condition="!Exists('%(_AssertionsAnalyzerTools.FullPath)')"
-		       Text="MintPlayer.SourceGenerators.Tools was not found in bin\$(Configuration)\netstandard2.0. The analyzers would ship unable to resolve their base class." />
+		<Error Condition="!Exists('%(_AssertionsAnalyzerAssets.FullPath)')"
+		       Text="%(_AssertionsAnalyzerAssets.Filename)%(_AssertionsAnalyzerAssets.Extension) was not found in MintPlayer.Assertions.SourceGenerator\bin\$(Configuration)\netstandard2.0. Packing would ship the assertion library with analyzers that cannot load, and no error to tell anyone." />
 
 		<ItemGroup>
-			<TfmSpecificPackageFile Include="@(_AssertionsAnalyzer)" PackagePath="analyzers/dotnet/cs" />
-			<TfmSpecificPackageFile Include="@(_AssertionsAnalyzerTools)" PackagePath="analyzers/dotnet/cs" />
+			<TfmSpecificPackageFile Include="@(_AssertionsAnalyzerAssets)" PackagePath="analyzers/dotnet/cs" />
 		</ItemGroup>
 	</Target>
 
