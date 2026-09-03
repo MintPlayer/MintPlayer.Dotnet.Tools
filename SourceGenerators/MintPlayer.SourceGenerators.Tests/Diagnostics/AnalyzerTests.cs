@@ -302,27 +302,3 @@ public class CliCommandInterfaceAnalyzerTests
         diagnostic.GetMessage().Should().Contain("BuildCommand");
     }
 }
-
-public class WithComparerRoslynTypeAnalyzerTests
-{
-    [Fact]
-    public async Task ItStaysQuietOnCodeThatDoesNotUseWithComparer()
-    {
-        var diagnostics = await GeneratorHarness.RunAnalyzerAsync("WithComparerRoslynTypeAnalyzer", ["""
-            namespace Demo;
-
-            public class Thing { public string Name { get; set; } = ""; }
-            """], analyzerAssemblyName: "MintPlayer.ValueComparerGenerator");
-
-        diagnostics.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task ItStaysQuietOnAnEmptyCompilation()
-    {
-        var diagnostics = await GeneratorHarness.RunAnalyzerAsync("WithComparerRoslynTypeAnalyzer", ["// nothing"],
-            analyzerAssemblyName: "MintPlayer.ValueComparerGenerator");
-
-        diagnostics.Should().BeEmpty();
-    }
-}

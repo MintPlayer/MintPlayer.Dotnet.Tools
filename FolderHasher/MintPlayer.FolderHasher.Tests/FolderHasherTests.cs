@@ -295,3 +295,88 @@ public class FolderHasherTests : IDisposable
         hashes.Should().AllSatisfy(h => h.Should().Be(hashes[0]));
     }
 }
+
+/// <summary>
+/// The known-answer test for the folder hashing scheme.
+/// </summary>
+/// <remarks>
+/// Every other test in this file is RELATIVE — same content hashes the same, different content
+/// hashes differently, the value is lowercase hex. All of them keep passing if the scheme changes
+/// wholesale, because they only ever compare the implementation against itself. That is a real
+/// gap: the hash is a cache key, so changing it silently invalidates every downstream cache and
+/// nothing in the suite notices.
+///
+/// This test pins one fixed input tree to one fixed output. It is deliberately brittle. If it
+/// fails, either the change was unintended, or it was intended and the constant below needs
+/// updating in the same commit — with the cache-invalidation consequences stated in the message.
+///
+/// The expected value is path-independent (verified by running the same tree from two different
+/// temp directories), so it is safe to pin.
+/// </remarks>
+public sealed class FolderHasherGoldenTests : IDisposable
+{
+    private const string ExpectedSha256 = "c117ec420eb08e1d5d874b2da488ea8e34d554be7d9564bdb1e95a21c097fb31";
+
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "FolderHasherGolden_" + Guid.NewGuid());
+    private readonly IFolderHasher _hasher;
+
+    public FolderHasherGoldenTests()
+    {
+        Directory.CreateDirectory(_dir);
+        var services = new ServiceCollection();
+        services.AddFolderHasher();
+        _hasher = services.BuildServiceProvider().GetRequiredService<IFolderHasher>();
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_dir)) Directory.Delete(_dir, true);
+    }
+
+    /// <summary>Two files, one nested, with fixed contents.</summary>
+    private void WriteFixtureTree()
+    {
+        Directory.CreateDirectory(Path.Combine(_dir, "sub"));
+        File.WriteAllText(Path.Combine(_dir, "a.txt"), "alpha");
+        File.WriteAllText(Path.Combine(_dir, "sub", "b.txt"), "beta");
+    }
+
+    [Fact]
+    public async Task TheHashingSchemeHasNotChanged()
+    {
+        WriteFixtureTree();
+
+        var hash = await _hasher.GetFolderHashAsync(_dir);
+
+        hash.Should().Be(
+            ExpectedSha256,
+            "the folder hash is a cache key — if this changed deliberately, update the constant " +
+            "and expect every downstream cache to invalidate");
+    }
+
+    /// <summary>
+    /// The golden value must not depend on where the tree happens to live, or it would be a test
+    /// of the temp path rather than of the hashing scheme.
+    /// </summary>
+    [Fact]
+    public async Task TheHashDoesNotDependOnTheFolderPath()
+    {
+        WriteFixtureTree();
+        var first = await _hasher.GetFolderHashAsync(_dir);
+
+        var elsewhere = Path.Combine(Path.GetTempPath(), "FolderHasherGolden_" + Guid.NewGuid());
+        Directory.CreateDirectory(Path.Combine(elsewhere, "sub"));
+        File.WriteAllText(Path.Combine(elsewhere, "a.txt"), "alpha");
+        File.WriteAllText(Path.Combine(elsewhere, "sub", "b.txt"), "beta");
+
+        try
+        {
+            var second = await _hasher.GetFolderHashAsync(elsewhere);
+            second.Should().Be(first);
+        }
+        finally
+        {
+            Directory.Delete(elsewhere, true);
+        }
+    }
+}

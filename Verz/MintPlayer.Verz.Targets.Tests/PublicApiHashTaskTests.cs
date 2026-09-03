@@ -208,13 +208,86 @@ public sealed class InjectPublicApiHashTaskTests : IDisposable
         doc.Root.Element(ns + "metadata")!.Element(ns + "version")!.Value.Should().Be("1.0.0");
     }
 
-    #region Deliberately non-fatal paths
+
+    #region Failure paths
 
     /// <summary>
-    /// The task returns true from every failure path, on purpose: its own comment says "do
-    /// not break pack". These tests pin that so nobody "fixes" it into a build breaker
-    /// without deciding to — but they also assert something is LOGGED each time, so a failure
-    /// is at least visible.
+    /// The task used to return true from every path, so a pack that failed to record its API hash
+    /// reported success — the one outcome the task exists to prevent. It now fails the build, and
+    /// these tests pin each path so the swallow does not come back.
+    /// </summary>
+    [Fact]
+    public void ANuspecWithoutMetadata_FailsTheBuild()
+    {
+        var path = WriteNuspec("""
+            <?xml version="1.0" encoding="utf-8"?>
+            <package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+            </package>
+            """);
+
+        var engine = new FakeBuildEngine();
+        var task = new InjectPublicApiHashTask
+        {
+            BuildEngine = engine,
+            NuspecPath = path,
+            PublicApiHash = "ABC",
+        };
+
+        task.Execute().Should().BeFalse();
+
+        engine.Errors.Should().ContainSingle();
+        engine.ErrorText.Should().Contain("no <metadata>");
+    }
+
+    [Fact]
+    public void AnUnparseableNuspec_FailsTheBuild()
+    {
+        var path = WriteNuspec("this is not xml <<<");
+
+        var engine = new FakeBuildEngine();
+        var task = new InjectPublicApiHashTask
+        {
+            BuildEngine = engine,
+            NuspecPath = path,
+            PublicApiHash = "ABC",
+        };
+
+        task.Execute().Should().BeFalse();
+
+        engine.Errors.Should().ContainSingle();
+        engine.ErrorText.Should().Contain("Failed to inject PublicApiHash");
+    }
+
+    /// <summary>
+    /// A blank hash would produce a nuspec claiming an API surface of nothing, which is worse than
+    /// having no element at all — a consumer diffing hashes would see a spurious change.
+    /// </summary>
+    [Fact]
+    public void AnEmptyHash_FailsRatherThanWritingABlank()
+    {
+        var path = WriteNuspec(WithMetadata);
+
+        var engine = new FakeBuildEngine();
+        var task = new InjectPublicApiHashTask
+        {
+            BuildEngine = engine,
+            NuspecPath = path,
+            PublicApiHash = "   ",
+        };
+
+        task.Execute().Should().BeFalse();
+
+        engine.ErrorText.Should().Contain("refusing to write a blank hash");
+        HashIn(path).Should().BeNull();
+    }
+
+    #endregion
+
+    #region Genuinely non-fatal
+
+    /// <summary>
+    /// No nuspec means this build is not producing a package, so there is nothing to inject and
+    /// nothing wrong. This is the one path that legitimately stays non-fatal.
     /// </summary>
     [Fact]
     public void AMissingNuspec_IsANoOpNotAFailure()
@@ -236,57 +309,16 @@ public sealed class InjectPublicApiHashTaskTests : IDisposable
     [Fact]
     public void AnEmptyNuspecPath_IsANoOpNotAFailure()
     {
+        var engine = new FakeBuildEngine();
         var task = new InjectPublicApiHashTask
         {
-            BuildEngine = new FakeBuildEngine(),
+            BuildEngine = engine,
             NuspecPath = string.Empty,
             PublicApiHash = "ABC",
         };
 
         task.Execute().Should().BeTrue();
-    }
-
-    [Fact]
-    public void ANuspecWithoutMetadata_WarnsButSucceeds()
-    {
-        var path = WriteNuspec("""
-            <?xml version="1.0" encoding="utf-8"?>
-            <package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
-            </package>
-            """);
-
-        var engine = new FakeBuildEngine();
-        var task = new InjectPublicApiHashTask
-        {
-            BuildEngine = engine,
-            NuspecPath = path,
-            PublicApiHash = "ABC",
-        };
-
-        task.Execute().Should().BeTrue();
-
-        engine.Warnings.Should().ContainSingle();
-        engine.WarningText.Should().Contain("missing <metadata>");
-    }
-
-    [Fact]
-    public void MalformedXml_WarnsButSucceeds()
-    {
-        var path = WriteNuspec("this is not xml <<<");
-
-        var engine = new FakeBuildEngine();
-        var task = new InjectPublicApiHashTask
-        {
-            BuildEngine = engine,
-            NuspecPath = path,
-            PublicApiHash = "ABC",
-        };
-
-        task.Execute().Should().BeTrue();
-
         engine.Errors.Should().BeEmpty();
-        engine.Warnings.Should().ContainSingle();
-        engine.WarningText.Should().Contain("Failed to inject PublicApiHash");
     }
 
     #endregion
