@@ -114,4 +114,9 @@
 		<Using Include="MintPlayer.Assertions" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<!-- The packaging tests pack the real csprojs, so they need the repo root at runtime. -->
+		<AssemblyMetadata Include="RepoRoot" Value="$(MSBuildProjectDirectory)\..\..\" />
+	</ItemGroup>
+
 </Project>

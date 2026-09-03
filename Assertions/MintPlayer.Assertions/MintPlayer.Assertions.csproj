@@ -39,7 +39,12 @@
 		<ProjectReference Include="..\MintPlayer.Assertions.SourceGenerator\MintPlayer.Assertions.SourceGenerator.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
 
 		<None Include="..\MintPlayer.Assertions.SourceGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.Assertions.SourceGenerator.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-		<None Condition="'$(Configuration)' == 'Release'" Include="..\..\SourceGenerators\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Tools.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<!--
+		Not conditioned on Configuration. It used to be, which meant a Debug pack shipped the
+		analyzer without the assembly its base class lives in — a package that restores cleanly
+		and whose generator never runs. PackagingTests pins both configurations.
+		-->
+		<None Include="..\..\SourceGenerators\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Tools.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 	</ItemGroup>
 
 	<!-- StringDifference builds the "they differ at index N" hint and is internal; the

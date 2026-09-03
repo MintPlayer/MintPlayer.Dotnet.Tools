@@ -30,8 +30,17 @@
 		<!--<AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>-->
 	</PropertyGroup>
 
-	<ItemGroup Condition="'$(Configuration)' == 'Release' ">
-        <!-- Dependency DLLs -->
+	<!--
+	Dependency DLLs the generator needs at ANALYSIS time, loaded by Roslyn from the analyzer
+	folder rather than referenced by the consumer.
+
+	Not conditioned on Configuration. It used to be, which made the package's analyzer payload
+	depend on how it was built: a Release pack carried these, a Debug pack did not, and a Debug
+	pack is what a plain `dotnet pack` produces. The resulting package restores cleanly and its
+	generator silently fails to load. PackagingTests compares the two payloads so this cannot
+	drift again.
+	-->
+	<ItemGroup>
         <None Include="..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
         <None Include="$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
     </ItemGroup>
