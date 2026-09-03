@@ -210,14 +210,23 @@ internal sealed class CliCommandProducer : Producer
                 var descriptionLiteral = option.Description!.ToStringLiteral();
                 writer.WriteLine($"{variableName}.Description = {descriptionLiteral};");
             }
+            // Required and Hidden, NOT IsRequired and IsHidden. The Is-prefixed names are from
+            // System.CommandLine 2.0.0-beta and were dropped before GA; against the 2.0.5 the rest
+            // of this producer targets (it emits DefaultValueFactory and ParseResult.GetValue,
+            // both post-beta API) they produce CS1061 in the consumer's build.
+            //
+            // This shipped broken: no fixture set either facet, and neither Verz nor the
+            // CliCommandDebugging playground uses Required or Hidden, so nothing in the repo
+            // compiled the emitted code. CliCommandFeatureTests.OptionMetadata_IsEmittedForEveryFacet
+            // now sets both and asserts Errors is empty, which is what catches this class of break.
             if (option.Required)
             {
-                writer.WriteLine($"{variableName}.IsRequired = true;");
+                writer.WriteLine($"{variableName}.Required = true;");
             }
 
             if (option.Hidden)
             {
-                writer.WriteLine($"{variableName}.IsHidden = true;");
+                writer.WriteLine($"{variableName}.Hidden = true;");
             }
 
             if (option.HasDefaultValue && option.DefaultValueExpression is not null)
