@@ -36,11 +36,9 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
     /// The generator's own runtime dependency has to sit beside it in each analyzer folder.
     /// </summary>
     /// <remarks>
-    /// This is the assertion with real teeth. <c>sourcegenerator.targets</c> includes
-    /// MintPlayer.SourceGenerators.Tools.dll under a <c>Configuration == 'Release'</c> condition,
-    /// so a Debug pack silently produces a package whose generator cannot resolve its base class.
-    /// The consumer sees CS8032 — "An instance of analyzer cannot be created" — or, worse,
-    /// nothing at all.
+    /// Without MintPlayer.SourceGenerators.Tools.dll beside it the generator cannot resolve its own
+    /// base class, and the consumer sees CS8032 — "An instance of analyzer cannot be created" — or,
+    /// more often, nothing at all.
     /// </remarks>
     [Theory]
     [InlineData("analyzers/dotnet/roslyn4.0/cs/MintPlayer.SourceGenerators.Tools.dll")]
@@ -82,9 +80,9 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
 
     /// <summary>
     /// MintPlayer.Assertions hand-rolls its analyzer packaging with <c>None Include</c> items
-    /// rather than the shared sourcegenerator.targets, and one of them is conditioned on
-    /// Configuration. That makes it the most likely package here to ship a payload that differs
-    /// between a Debug and a Release pack, which nothing else would notice.
+    /// rather than using the shared sourcegenerator.targets, so it can drift from the other
+    /// packages independently — and it is the one whose analyzers reach every consumer of the
+    /// assertion library.
     /// </summary>
     [Fact]
     public void TheAssertionsPackageShipsItsAnalyzers()
@@ -109,8 +107,8 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
     /// either configuration has to be made to both.
     /// </remarks>
     [Theory]
-    [InlineData(GeneratorPackage, @"SourceGenerators\SourceGenerators\MintPlayer.SourceGenerators\MintPlayer.SourceGenerators.csproj")]
-    [InlineData(AssertionsPackage, @"Assertions\MintPlayer.Assertions\MintPlayer.Assertions.csproj")]
+    [InlineData(GeneratorPackage, "SourceGenerators/SourceGenerators/MintPlayer.SourceGenerators/MintPlayer.SourceGenerators.csproj")]
+    [InlineData(AssertionsPackage, "Assertions/MintPlayer.Assertions/MintPlayer.Assertions.csproj")]
     public void TheAnalyzerPayloadIsTheSameInDebugAndRelease(string packageId, string projectRelativePath)
     {
         var release = feed.EntriesOf(packageId)

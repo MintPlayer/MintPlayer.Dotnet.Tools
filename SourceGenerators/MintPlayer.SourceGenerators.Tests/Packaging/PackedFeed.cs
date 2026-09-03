@@ -102,7 +102,10 @@ public sealed class PackedFeed : IDisposable
         var debugFeed = Path.Combine(Root, "feed-debug");
         Directory.CreateDirectory(debugFeed);
 
-        var project = Path.Combine(RepoRoot, projectRelativePath);
+        // Forward slashes in, native separators out. Path.Combine does NOT translate separators,
+        // so a backslash-separated literal resolves on Windows and silently does not on Linux —
+        // the same trap as the FolderHasher hash, reached from the opposite direction.
+        var project = Path.Combine(RepoRoot, projectRelativePath.Replace('/', Path.DirectorySeparatorChar));
         var (exitCode, output) = Run(RepoRoot, $"pack \"{project}\" -c Debug -o \"{debugFeed}\" -p:Version={Version} -tl:off");
 
         if (exitCode != 0)
