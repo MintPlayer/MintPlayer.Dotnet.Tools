@@ -9,7 +9,7 @@
 		<IsAotCompatible>true</IsAotCompatible>
 
 		<IsPackable>true</IsPackable>
-		<Version>1.0.0</Version>
+		<Version>1.0.1</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>Fluent assertion library for .NET. Free forever (Apache-2.0), AOT/trimming-safe, with source-generated object-graph equivalency and first-class analyzers.</Description>
