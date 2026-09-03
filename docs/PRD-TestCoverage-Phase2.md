@@ -1,0 +1,558 @@
+# PRD: Test Coverage, Phase 2 — Honest Denominator, Real Verification
+
+## Overview
+
+[`docs/PRD-TestCoverage.md`](PRD-TestCoverage.md) (PR #170, merged as `827a945`) fixed the coverage
+plumbing and took the repo from a meaningless 46.9% to a measured, reproducible **64.0%**. That work
+is essentially complete: 19 of its 21 defects are fixed, all 22 test projects exist, and the Roslyn
+generator harness it specified is built and working.
+
+This document is Phase 2. It is a smaller, sharper problem than Phase 1, because the plumbing is no
+longer in question — a local run of the exact CI sequence reproduces the published figure to within
+one line (see [Appendix A](#appendix-a-measurement-method)).
+
+**Baseline, verified 2026-09-03 against master `c7b13b9`:**
+
+| | value |
+|---|---|
+| Lines | **6,747 / 10,544 = 64.0%** |
+| Branches | 2,847 / 6,001 = 47.4% |
+| Files | 261 |
+| Test projects | 22, all green |
+
+Phase 2 has three goals, in priority order:
+
+1. **Make the denominator honest.** ~2,360 LOC of shipped code is invisible to the metric — not
+   counted as uncovered, simply absent. The 64.0% is flattering for exactly that reason.
+2. **Close the two blocks that hold 89% of the uncovered lines** — `SourceGenerators` (2,282) and
+   `Solve` (1,108).
+3. **Fix what the suite fails to *verify*, not just what it fails to cover.** Three specific gaps
+   are documented in [P3](#p3--the-suite-verifies-less-than-its-number-suggests); they are the
+   reason this PRD is not purely a numbers exercise.
+
+## Decisions taken
+
+These were put to the repo owner before this document was written, and are settled:
+
+| Decision | Choice | Consequence |
+|---|---|---|
+| **`Solve` scope** | **Test it.** Not excluded. | `Solve` stays in the denominator. Its 1,108 uncovered lines are work to be done, not lines to be hidden. Rejected: the one-line `Exclude` that would have moved 64.0% → 70.6% with no tests written. |
+| **Denominator** | **Correctness first — accept the dip.** | Currently-invisible shipped code gets wired in even though the headline drops before it rises. Same reasoning Phase 1 applied to the old 46.9%. |
+| **Phase 1 leftovers** | **All four in scope.** | `InjectPublicApiHashTask`, Layer 5 packaging smoke, diagnostic-path tests, FolderHasher golden hash. See [R5](#r5--phase-1-leftovers). |
+
+One further question was raised — end-to-end tests via `MSBuildWorkspace`, with a generic base class
+to reduce per-generator boilerplate. It is answered in [R4](#r4--generator-test-ergonomics-and-the-msbuildworkspace-question),
+where the boilerplate half is adopted and the `MSBuildWorkspace` half is recommended against, with
+reasons.
+
+## Problem statement
+
+### P1 — ~2,360 LOC of shipped code is not in the denominator at all
+
+The metric describes a smaller repository than the one that ships. These projects have C# on disk and
+produce **no coverage rows in any report**, because no test host loads them:
+
+| Project | LOC | Ships? | Note |
+|---|---:|---|---|
+| `Assertions/MintPlayer.Assertions.SourceGenerator` | **1,256** | **yes — inside `MintPlayer.Assertions`** | see below |
+| `Beid/MintPlayer.EidReader` | 358 | yes | live PC/SC card session |
+| `Verz/MintPlayer.Verz` | 290 | no (`IsPackable=false`) | the `verz` CLI |
+| `Beid/MintPlayer.EidReader.Native` | 174 | yes | raw `DllImport` to `winscard.dll` |
+| `AdminHelper/MintPlayer.AdminHelper` | 64 | yes | UAC elevation relaunch |
+| `GraphQL/MintPlayer.GraphQL.Tools` | 48 | yes (`MintPlayer.GraphQL`) | **pure string cleaning, no deps** |
+| `Verz/Registries/...NugetOrg` | 39 | yes | live network |
+| others (interfaces, markers, stubs) | ~130 | mixed | mostly not worth testing |
+
+**`MintPlayer.Assertions.SourceGenerator` is the headline.** It is `IsPackable=false`, which reads as
+"internal" — but `MintPlayer.Assertions.csproj:39-42` packs its DLL into `analyzers/dotnet/cs`, so it
+ships to **every consumer of `MintPlayer.Assertions`**:
+
+```xml
+<None Include="..\MintPlayer.Assertions.SourceGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.Assertions.SourceGenerator.dll"
+      Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+```
+
+That payload is 4 analyzers and 4 code-fix providers — `AssertionScopeNotDisposedAnalyzer`,
+`UnawaitedAssertionAnalyzer`, `VacuousShouldAnalyzer`, `FluentAssertionsMigrationAnalyzer` and their
+fixes — with **zero tests**. A code-fix provider that corrupts a consumer's source has no test
+standing between it and a release. `Assertions` reads 95.7% precisely because the generator producing
+those assertions is not in the denominator: the generated *output* is exercised by 553 tests, the
+generator itself not at all.
+
+This is the largest untested shipped asset in the repository, and unlike the rest of P1 it is a
+correctness risk rather than a metrics artifact.
+
+### P2 — Two folders hold 89% of the uncovered lines
+
+| Folder | Coverable | Covered | **Uncovered** | % |
+|---|---:|---:|---:|---:|
+| SourceGenerators | 4,537 | 2,255 | **2,282** | 49.7% |
+| Solve | 1,410 | 302 | **1,108** | 21.4% |
+| SlnLaunch | 498 | 370 | 128 | 74.3% |
+| Assertions | 2,437 | 2,332 | 105 | 95.7% |
+| Verz | 126 | 78 | 48 | 61.9% |
+| FolderHasher | 214 | 170 | 44 | 79.4% |
+| TokenReplacer | 216 | 178 | 38 | 82.4% |
+| ObservableCollection | 297 | 263 | 34 | 88.6% |
+| AsyncPipeline | 48 | 40 | 8 | 83.3% |
+| Http / StringExtensions | 252 | 250 | 2 | ~99% |
+| Beid, EnumerableExtensions, Math, MSBuildTasks, Pagination, SeasonChecker, StringBuilder | 509 | 509 | 0 | 100% |
+
+Everything below `SlnLaunch` is rounding error. Chasing it cannot move the headline.
+
+**Inside `SourceGenerators`**, the mass is concentrated far more tightly than the folder total
+suggests — the Inject generator alone is 49% of the problem:
+
+| Artifact | Coverable | Uncovered | % |
+|---|---:|---:|---:|
+| `InjectSourceGenerator.cs` + `.Producer.cs` + `.Rules.cs` | 833 | **602** | 28% |
+| `ServiceRegistrationsGenerator.cs` + `.Producer.cs` | 501 | 263 | 47% |
+| `MapperGenerator.cs` + `.Producer.cs` | 490 | 200 | 59% |
+| `CliCommandSourceGenerator.cs` + `.Producer.cs` | 484 | 204 | 58% |
+| `WithComparerRoslynTypeAnalyzer.cs` | 108 | 103 | **4.6%** |
+| `ConfigSourceGenerator.Rules.cs` | 98 | 98 | **0% — misnamed, not dead. See note.** |
+| `Tools/ValueComparers/*` (tuple comparers, cache) | ~110 | ~110 | **~0%** |
+
+> **Note on `ConfigSourceGenerator.Rules.cs`.** There is no `ConfigSourceGenerator` class, which
+> makes the file look like dead code. It is not. It declares `public static partial class
+> DiagnosticRules` and its 14 descriptors are live — `InjectSourceGenerator.cs:455, 494, 522, 572,
+> 611, 639, 723, 803` emit them. The `[Config]`/`[ConnectionString]`/`[Options]` feature was folded
+> into the Inject generator and only the filename still refers to the old split. **Do not delete
+> it**; rename it to `InjectSourceGenerator.Config.Rules.cs` so the next reader is not misled. It
+> sits at 0% for the same reason `ExtractConfigField` and `ClassifyType` do — see
+> [P4](#p4--the-uncovered-generator-mass-is-fixtures-not-harness).
+
+**Inside `Solve`**, every command class is at literally zero:
+
+| Group | Coverable | Covered | % |
+|---|---:|---:|---:|
+| `Solve/Commands` (all 7 classes) | 717 | **0** | **0.0%** |
+| `Solve/Services` | 586 | 213 | 36.3% |
+| `Solve/Program.cs` | 18 | 0 | 0.0% |
+| `Solve/Models` | 89 | 89 | 100% |
+
+`Solve.Tests` today exercises DTOs and `PrdGenerator`, nothing else. The four services the commands
+depend on — `GitService` (94), `GitHubService` (154), `ClaudeService` (60), `ConsoleService` (59) —
+are all at 0%, but **they are already interface-backed** (`IGitService`, `IGitHubService`,
+`IClaudeService`, `IConsoleService`). The seams exist; nothing is using them.
+
+### P3 — The suite verifies less than its number suggests
+
+Three gaps that no percentage would reveal:
+
+1. **Every `*.Rules.cs` file sits at exactly 0% while its generator is 30–60% covered.**
+   `ConfigSourceGenerator.Rules` (98), `InjectSourceGenerator.Rules` (28), `MapperGenerator.Rules`
+   (14), `ServiceRegistrationsGenerator.Rules` (14). Those files are the diagnostic descriptors and
+   the code that emits them. All four at zero means **no test in the repository drives any generator
+   down a diagnostic-reporting path.** The generator suite is happy-path only. A generator that
+   reports the wrong diagnostic, or crashes instead of reporting one, would pass CI today.
+
+2. **No packaging smoke test for the generators.** Phase 1's R3.4 Layer 5 was specified and not
+   built. The generators' `build/*.props`/`.targets`, the `analyzers/dotnet/roslyn4.x/cs` pack
+   layout and `GetDependencyTargetPaths*` are untested. This is the failure mode that ships a
+   broken NuGet package with every unit test green — and it is not hypothetical, since
+   `MintPlayer.Assertions` hand-rolls its analyzer packaging in `None Include` items (P1 above)
+   with a `Configuration`-conditional second entry.
+
+3. **`FolderHasher` has no known-answer test.** All 13 tests in
+   `FolderHasher/MintPlayer.FolderHasher.Tests/FolderHasherTests.cs` are relative
+   (`SameContent_ReturnsSameHash`, `DeterministicAcrossRuns`, `HashIsLowercaseHex`). No hex literal
+   ≥20 chars exists anywhere under `FolderHasher/`. A silent change of hashing scheme passes every
+   test — while every downstream cache keyed on that hash quietly invalidates.
+
+### P4 — The uncovered generator mass is fixtures, not harness
+
+A question worth settling before any work starts: *can lines inside a generator's lambdas ever be
+covered?* **Yes.** Measured against the current report:
+
+```
+[REGULAR] COVERED 129/143  InjectSourceGenerator.Initialize   ← almost entirely lambda bodies
+[REGULAR] zero      0/ 57  ExtractConfigField
+[REGULAR] zero      0/ 58  ClassifyType
+[REGULAR] zero      0/ 42  ExtractOptionsField
+[REGULAR] zero      0/ 28  ExtractConnectionStringField
+[REGULAR] zero      0/ 11  GetConstructorParameters
+```
+
+`Initialize` is 143 lines of which **129 are covered**, and the bulk of those lines *are* the
+pipeline lambdas — the `static (node, ct) =>` predicate and the multi-line `static (context2, ct) =>`
+transform. Elsewhere the report lists lambdas as their own methods at `line-rate="1"`
+(`<RegisterCodeFixesAsync>b__0`, `<RemoveAllUnusedUsings>b__0`) and instruments `<>c__DisplayClass`
+closures normally. Lambdas compile to ordinary methods in the same assembly; coverlet rewrites IL and
+instruments them like anything else. The only thing that matters is that the executing assembly is
+the instrumented copy, which the `Assembly.Load`-from-bin-root harness already guarantees.
+
+`coverlet.runsettings` is actively protecting this: its comment records that excluding
+`CompilerGeneratedAttribute` would drop 194 lines, and closures carry that attribute, so the usual
+"exclude generated code" snippet would blind the report to exactly this code.
+
+**Consequence for planning.** The 428 uncovered lines in `InjectSourceGenerator` are not a harness
+limitation — they are ordinary private helpers that no fixture reaches. 185 of them
+(`ExtractConfigField`, `ExtractOptionsField`, `ExtractConnectionStringField`, `ClassifyType`) plus
+the 98 in `ConfigSourceGenerator.Rules.cs` are unreachable for one reason: **no test declares a
+`[Config]`, `[Options]` or `[ConnectionString]` field.** That is roughly 283 lines behind three
+input files. R3.4 is a fixture-writing exercise, not an infrastructure one.
+
+**The one genuine lambda-shaped gap: incrementality.** `GeneratorHarness.cs:63` calls
+`RunGeneratorsAndUpdateCompilation` exactly **once**. Incremental-pipeline lambdas that only fire on
+a second run — the equality comparers and caching paths — therefore never execute. That is precisely
+why `Tools/ValueComparers/*` sits at ~4% and `ValueComparer.PerCompilationCache` at 0%. These are not
+uncoverable; they need the driver run twice against a modified compilation, which is also the only
+way to verify the generators' incrementality actually works. Folded into R4.1.
+
+## Requirements
+
+### R1 — Bring shipped code into the denominator
+
+**R1.1 — `MintPlayer.Assertions.SourceGenerator` test project.** *(highest value in this PRD)*
+
+Create `Assertions/MintPlayer.Assertions.SourceGenerator.Tests`, wired with the harness that already
+works in `SourceGenerators/MintPlayer.SourceGenerators.Tests`:
+
+- `ProjectReference` with `ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true"`
+- a `CopyGeneratorRuntimeAssets` target copying the generator DLL **and PDB** into `$(OutputPath)`
+  (the bin **root** — coverlet's collector scans the test-host directory and does not recurse)
+- `Assembly.Load` by name into the **default** ALC, then `CSharpGeneratorDriver`
+
+**Hard constraint:** `MintPlayer.Assertions.Tests` must keep its existing
+`OutputItemType="Analyzer"` reference — its 553 tests consume the generated code and would break.
+This is a *second, separate* reference from a *new* project. Do not convert the existing one.
+
+Cover, at minimum: each of the 4 analyzers producing its diagnostic on a triggering input and
+staying silent on a clean one; each of the 4 code-fix providers producing compilable output;
+`GenerateAssertionGenerator` and `EquivalencyRegistrationGenerator` happy path plus one diagnostic
+path each.
+
+**R1.2 — `MintPlayer.GraphQL` test project.** 48 LOC of pure string cleaning with zero dependencies,
+currently 0% and shipped. The cheapest 0→~100% in the repo. New project
+`GraphQL/MintPlayer.GraphQL.Tools.Tests`.
+
+**R1.3 — `MintPlayer.Verz` CLI test project.** 290 LOC, currently referenced by no test project.
+`VerzCommand`, `ToolCatalog`, `VersionPackagePathResolver`, `VerzConfig`. Note it is
+`IsPackable=false` today, so this is verification value rather than consumer-facing risk — ranked
+accordingly. **Blocked on R5.5** (see below): `InitDotnetCommand.Execute` will rewrite `<Version>`
+across the entire repository if run with the default root, so it must not be executed by a test
+until that is fixed.
+
+**R1.4 — Do not chase the hardware-bound projects.** `EidReader` (358) and `EidReader.Native` (174)
+need a live PC/SC session and `winscard.dll`; `AdminHelper` (64) relaunches the process elevated
+through UAC; `Verz.Registry.NugetOrg` (39) hits nuget.org. Extracting seams for these is real work
+with little coverage return and is explicitly [out of scope](#out-of-scope). `EidReader.Core` (292
+LOC, the pure parsing layer) is already tested at 100% and is the correct model should anyone
+revisit this.
+
+### R2 — `Solve`
+
+The decision is to test it, and the seams already exist.
+
+**R2.1 — Command tests against fakes.** All seven `*Command` types, driven through their
+`System.CommandLine` handlers with in-memory fakes for `IGitService`, `IGitHubService`,
+`IClaudeService`, `IConsoleService`. `PrCommand` (246 coverable) first — it alone is 22% of the
+`Solve` problem. Then `WorkCommand` (100), `StatusCommand` (83), `PrdCommand` (80), `SolveCommand`
+(80), `FeedbackCommand` (68), `InitCommand` (60).
+
+Assert on observable behaviour — what was written to `IConsoleService`, which service calls were
+made in what order, the process exit code — not on internal structure.
+
+**R2.2 — Service tests where a seam exists or is cheap.** `GitService` and `GitHubService` shell out
+to `git` and `gh`; the argument-construction and output-parsing halves are pure and worth testing
+directly, even where the `Process.Start` call itself is not. Extract a minimal process-runner seam
+only where it pays for itself.
+
+**R2.3 — `[ExcludeFromCodeCoverage]` on `Program.cs` entry points.** `Solve/Program.cs` (18) and
+`SlnLaunch/Program.cs` (21) are host-builder wiring, untestable in practice, permanently red. This
+is the one place this PRD removes lines from the denominator, and it is the conventional case.
+~39 lines.
+
+### R3 — Generators: lift what is already measured
+
+Ranked by lines-at-stake per unit of effort.
+
+| # | Target | At stake | Approach |
+|---|---|---:|---|
+| R3.1 | `Tools/ValueComparers/*` — `ValueTupleValueComparer` (45), `NullableValueTupleValueComparer` (45), `PerCompilationCache` (20), `TypeTreeDeclaration.Comparer` (32) | ~142 | **Plain unit tests. No harness at all** — `SourceGenerators.Tools.Tests` uses a normal `ProjectReference`. Lowest-effort lines in the repo. Pair with the R4.1 re-run capability, which exercises these comparers the way the pipeline actually uses them (see [P4](#p4--the-uncovered-generator-mass-is-fixtures-not-harness)). |
+| R3.2 | `WithComparerRoslynTypeAnalyzer` (5/108, 4.6%) | ~103 | One triggering + one clean compilation via the harness's existing `RunAnalyzerAsync`, already proven against this exact type. Best ratio in the instrumented set. |
+| R3.3 | Diagnostic paths across all four generators (`*.Rules.cs`) | ~154 + branches inside the generators | Malformed-input fixtures. **This is [P3.1](#p3--the-suite-verifies-less-than-its-number-suggests), not a numbers item** — the coverage is a by-product of fixing a real verification gap. |
+| R3.4 | `InjectSourceGenerator` (28% of 833) | ~602 | Largest single pool. Fixtures per feature branch: base-constructor params, `[Options]`, `[ConnectionString]`, post-construct. |
+| R3.5 | `ServiceRegistrationsGenerator` (46% of 501) | ~263 | Lifetime / scanning / assembly-attribute permutations. |
+| R3.6 | `Mapper` + `CliGenerator` producers (both ~58%) | ~404 | **Do last.** Remaining regions are deep permutation branches needing bespoke fixtures each — the worst ratio on the list. |
+
+**R3.7 — Rename `ConfigSourceGenerator.Rules.cs`, do not delete it.** An earlier draft of this PRD
+called it a dead orphan and proposed deleting it for a free 98-line denominator reduction. That was
+wrong, and the check that caught it is worth repeating before any similar deletion: the file declares
+`public static partial class DiagnosticRules`, and `grep` for its descriptors finds live emitters in
+`InjectSourceGenerator.cs`. Rename to `InjectSourceGenerator.Config.Rules.cs`; its coverage arrives
+with the R3.4 fixtures.
+
+### R4 — Generator test ergonomics, and the `MSBuildWorkspace` question
+
+Two halves, answered differently.
+
+**R4.1 — The generic harness: adopt.** Per-generator test code today is repetitive — each test
+hand-builds a compilation, instantiates the generator, runs the driver, and digs the result out. A
+declarative case type collapses that:
+
+```csharp
+public sealed record GeneratorCase(
+    string Name,
+    string Source,
+    string[]? ExpectedDiagnostics = null,
+    string[]? ExpectedGeneratedHints = null,
+    Type[]? References = null);
+
+public abstract class GeneratorTestBase<TGenerator> where TGenerator : IIncrementalGenerator
+{
+    protected static GeneratorRunResult Run(GeneratorCase c) => /* existing GeneratorHarness */;
+    [Theory, MemberData(nameof(Cases))] public void Snapshot(GeneratorCase c) { … }
+    [Theory, MemberData(nameof(Cases))] public void Diagnostics(GeneratorCase c) { … }
+}
+```
+
+Each generator then declares fixtures as data rather than as methods, which is what makes R3.3–R3.6
+affordable at all. Build this **first**, before R3.4 — it is the difference between six bespoke test
+files and six fixture lists. It also directly serves R1.1, since the Assertions generator gets the
+same base class for free.
+
+**R4.1b — Add a re-run capability to the harness.** Per [P4](#p4--the-uncovered-generator-mass-is-fixtures-not-harness),
+`GeneratorHarness.Run` drives the generator exactly once, so no incremental-pipeline comparer or
+cache path ever executes. Add a `RunIncremental(initialSource, modifiedSource)` that reuses the same
+`GeneratorDriver` across two `RunGeneratorsAndUpdateCompilation` calls and exposes each step's
+`GeneratorRunResult.TrackedSteps`, so a test can assert which outputs were `Cached` versus
+`Modified`. This is the only way to cover `Tools/ValueComparers/*` and `PerCompilationCache` **and**
+the only way to verify incrementality — a generator that silently regenerates everything on every
+keystroke currently passes CI. Requires `CSharpGeneratorDriver.Create` with
+`driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true)`.
+
+**R4.2 — `MSBuildWorkspace`: recommended against.** Raised as a possibility; here is the case
+against, so the decision is on the record rather than silently dropped.
+
+The decisive fact was measured in Phase 1 and holds: **anything that runs a generator through the
+real compiler contributes exactly zero coverage.** Roslyn loads analyzers via `AnalyzerFileReference`
+from the generator's *own* `bin/`, which coverlet never instrumented. `MSBuildWorkspace` is that
+path. It would add a heavy dependency (`Microsoft.Build.Locator`, SDK resolution, real project
+loading — slow and environment-sensitive in CI) and return **no coverage whatsoever**.
+
+Its genuine value is verifying the MSBuild/packaging contract that the in-process harness cannot see.
+But **R5.2 covers that risk more directly and more cheaply**: `dotnet pack` → local feed →
+`dotnet build` a fixture project → assert the generated output compiles and behaves. That exercises
+the real `.props`/`.targets`, the real pack layout, and the real NuGet resolution — the actual
+consumer path — rather than an in-process approximation of a build. The pattern is already proven in
+this repo by `TokenReplacer/MintPlayer.TokenReplacer.Tests/Integration/PackAndConsumeTests.cs`.
+
+Recommendation: **build R4.1, build R5.2, skip `MSBuildWorkspace`.** Phase 1 reached the same
+conclusion and listed it out of scope. If it is adopted anyway, it should be scoped explicitly as a
+*verification* item with a stated expectation of zero coverage contribution, so the next person
+reading the number is not misled.
+
+### R5 — Phase 1 leftovers
+
+**R5.1 — Fix `InjectPublicApiHashTask` swallowing every failure.**
+`Verz/MintPlayer.Verz.Targets/InjectPublicApiHashTask.cs:19,28,46` — every failure path is
+`catch { LogWarning; return true; } // do not break pack`. A pack that fails to inject the API hash
+reports success. This is the unfixed half of Phase 1's defect D4, and unlike D13/D21 it was **not**
+listed as out of scope, so it slipped rather than being decided. Return `false` on genuine failure;
+keep the warning-and-continue behaviour only for the cases that are legitimately non-fatal, and say
+in a comment which those are and why. Add a test per branch.
+
+**R5.2 — Layer 5 packaging smoke test for the generators.** See R4.2. Pack each generator package,
+restore it from a local feed into a fixture project, build, and assert the generated code is present
+and compiles. Covers `build/*.props`/`.targets`, the `analyzers/dotnet/roslyn4.x/cs` layout, and
+`GetDependencyTargetPaths*`. Model: `TokenReplacer.Tests/Integration/PackAndConsumeTests.cs`.
+Include `MintPlayer.Assertions`' hand-rolled analyzer packaging (P1) — its `Configuration`-conditional
+`None Include` for `MintPlayer.SourceGenerators.Tools.dll` means a Debug pack silently ships a
+different payload than a Release pack.
+
+**R5.3 — Golden known-answer hash in `FolderHasher.Tests`.** Pin a fixed input tree to a literal
+expected hash, so a change of scheme fails loudly. Second half of Phase 1's R4.3. See P3.3.
+
+**R5.4 — Correct the Phase 1 PRD text on snapshots.** R3.4 Layer 4 specifies `Verify.Xunit` 31.12.5;
+the repo uses a hand-rolled `_Infrastructure/Snapshot.cs` instead (fewer dependencies, functionally
+equivalent). The substitution is fine; the document describing something that does not exist is not.
+Amend `PRD-TestCoverage.md` in place with a note.
+
+**R5.5 — File the two issues Phase 1 identified and never filed.** Both are named in its Out of Scope
+section as deserving their own issue:
+- `Verz`'s `InitDotnetCommand.Execute` **rewrites `<Version>` across the whole repository** when run
+  with the default root. Blocks R1.3.
+- RFC-5988 relative `Link` target resolution against the request URI (`MintPlayer.Http`).
+
+### R6 — Guardrails
+
+**R6.1 — Narrow `ExcludeByFile`.** `coverlet.runsettings:26` is `**/*.g.cs,**/*.Designer.cs`; Phase 1
+specified `**/obj/**/*.g.cs`. The widening is deliberate and documented, but it silently hides any
+tracked `*.g.cs` added in future. Either narrow it to `obj/`, or add a CI check that no tracked file
+matches `*.g.cs`.
+
+**R6.2 — Do not add a coverage threshold gate yet.** Phase 1 deferred this pending stable figures.
+It should stay deferred until Phase 2's milestones land, because M1 and M2 deliberately move the
+number in opposite directions and a gate would fire on the honest dip.
+
+## Milestones
+
+Projections are estimates from measured coverable-line counts and the coverage rates the existing
+harness achieves on comparable code (50–70%). They are directional, not commitments — the coverable
+count for code not yet in the denominator is derived from the repo's observed LOC→coverable ratio of
+roughly 0.55.
+
+| Milestone | Content | Δ lines | Projected total |
+|---|---|---|---|
+| **Baseline** | master `c7b13b9` | — | **6,747 / 10,544 = 64.0%** |
+| **M0 — Harness** | R4.1 generic base class, R4.1b re-run; R3.7 rename | +0 | 6,747 / 10,544 = 64.0% |
+| **M1 — Cheap lines** | R3.1 tuple comparers + cache, R3.2 analyzer, R2.3 `[ExcludeFromCodeCoverage]` (−39) | +245 / −39 | ~6,992 / 10,505 = **66.6%** |
+| **M2 — `Solve`** | R2.1 commands, R2.2 services | +756 | ~7,748 / 10,505 = **73.8%** |
+| **M3 — Honest denominator** | R1.1 Assertions generator (+~690 coverable), R1.2 GraphQL (+~26) | +445 / +716 | ~8,193 / 11,221 = **73.0%** ← *the deliberate dip* |
+| **M4 — Generator lift** | R3.3 diagnostics, R3.4 Inject (+ the 98 Config rules), R3.5 ServiceRegistrations | +900 | ~9,093 / 11,221 = **81.0%** |
+| **M5 — Verification** | R5.1 InjectPublicApiHashTask, R5.2 packaging smoke, R5.3 golden hash, R1.3 Verz CLI | +180 / +160 | ~9,273 / 11,381 = **81.5%** |
+| **M6 — Long tail** *(optional)* | R3.6 Mapper/Cli producers, SlnLaunch 128, ObservableCollection 34, TokenReplacer 38 | +400 | ~9,673 / 11,381 = **85.0%** |
+
+**M3 is where the number goes down.** That is the point of the correctness-first decision, and it
+should be stated in the PR description rather than explained away afterwards.
+
+Ordering rationale: M0 first because it makes M4 affordable. M1 before M2 because it is nearly free
+and builds confidence in the harness. M2 before M3 because it banks a large, unambiguous rise
+immediately before the deliberate dip. M5 carries the items that are about correctness rather than
+percentage, and must not be dropped if the number is judged good enough at M4 — R5.1 in particular
+is a live bug.
+
+## Spikes
+
+Timeboxed investigations to run **before** committing to the milestone they gate. Each has a stated
+question, a box, and a decision rule — if the box expires without a clear answer, take the fallback
+and move on rather than extending it.
+
+### S1 — Does the Assertions generator load cleanly under the harness? *(gates M3/R1.1, 2h)*
+
+**Question.** `MintPlayer.Assertions.SourceGenerator` is `netstandard2.0` and depends on
+`MintPlayer.SourceGenerators.Tools`, which polyfills BCL types. The existing harness already handles
+that collision for four generators via `ReferenceOutputAssembly="false"` + bin-root copy — but the
+Assertions generator also carries `EquatableArray` and an `EquivalencyScanner` that walk referenced
+assemblies, which may need reference-set seeding the current `BuildCompilation` does not do.
+
+**Do.** Add the project reference and copy target to a throwaway test project; `Assembly.Load` it;
+run one analyzer and one generator against a two-line fixture. Confirm the package appears in a
+cobertura report.
+
+**Decision rule.** If it loads and attributes coverage → proceed with R1.1 as written. If the
+reference set needs seeding → note which assemblies and proceed (cost: a few lines). If it cannot
+load in-process at all → fall back to a dedicated test project targeting `netstandard2.0`-compatible
+surface only, and re-scope R1.1's estimate down.
+
+**Why it is a spike, not a task.** R1.1 is the single largest item in this PRD and M3's projected
++690 coverable lines rests entirely on the harness transplanting cleanly. Finding out on day four is
+much worse than finding out in two hours.
+
+### S2 — What does a second driver run actually cover? *(gates M1/R3.1 and R4.1b, 2h)*
+
+**Question.** [P4](#p4--the-uncovered-generator-mass-is-fixtures-not-harness) predicts that running
+the driver twice will execute the comparer and cache paths in `Tools/ValueComparers/*`. That is
+inference from the 0% figures, not a measurement.
+
+**Do.** Take one generator, run it twice through a shared driver with a modified compilation, and
+diff the resulting cobertura against a single-run baseline.
+
+**Decision rule.** If the comparers light up → R4.1b is confirmed and R3.1's ~142 lines are largely
+free. If they do not → they need direct unit tests instead, R4.1b's value drops to incrementality
+*verification* only (still worth building, but it stops being a coverage item), and M1's estimate
+comes down.
+
+### S3 — One `Solve` command end to end, before writing seven *(gates M2, 3h)*
+
+**Question.** `Solve`'s commands are `System.CommandLine` handlers. How much ceremony does it take to
+invoke one in-process with fakes, and does the DI wiring in `Program.cs` need to be reachable from a
+test?
+
+**Do.** Write the full test file for `InitCommand` (60 coverable, the smallest) against fakes for all
+four service interfaces. Measure the resulting coverage of that one file.
+
+**Decision rule.** If `InitCommand` reaches >70% for a reasonable test file → extrapolate to the
+remaining six and M2's +756 stands. If invocation needs significant production-code change → stop and
+re-scope: the middle path from the original decision (test commands, `[ExcludeFromCodeCoverage]` on
+the I/O shells) becomes the recommendation, and that is a decision to bring back rather than take
+unilaterally.
+
+### S4 — Pack-and-consume for a generator, not just an MSBuild task *(gates M5/R5.2, 3h)*
+
+**Question.** `TokenReplacer.Tests/Integration/PackAndConsumeTests.cs` proves the pattern for an
+MSBuild targets package. A *generator* package is harder: the fixture build must resolve
+`analyzers/dotnet/roslyn4.x/cs`, and the test must assert that generated code appeared — inside a
+child `dotnet build`, offline, from a local feed.
+
+**Do.** Get exactly one generator package (`MintPlayer.SourceGenerators`) packed, restored into a
+fixture from a temp feed, built, and asserted on.
+
+**Decision rule.** If it works → replicate for the rest, and R4.2's argument against
+`MSBuildWorkspace` is settled by demonstration. If the child build is too slow or too flaky for CI →
+reconsider, and `MSBuildWorkspace` re-enters the conversation as the cheaper way to get *some*
+packaging signal. **This spike is the one that could overturn an R4.2 recommendation**, which is why
+it is scheduled before M5 rather than during it.
+
+## Acceptance criteria
+
+1. All 22+ test projects green; no test skipped to make a number.
+2. Merged local figure reproduces the published figure to within 2 lines
+   ([Appendix A](#appendix-a-measurement-method)).
+3. `MintPlayer.Assertions.SourceGenerator` appears in the coverage report at all — currently it does
+   not — with every analyzer and code-fix provider covered by at least one triggering and one clean
+   case.
+4. No `*.Rules.cs` file remains at 0%.
+4b. At least one test asserts incremental behaviour (a second driver run producing `Cached` steps),
+   per R4.1b.
+5. `dotnet pack` of every generator package is exercised by a pack-and-consume test.
+6. `InjectPublicApiHashTask` returns `false` on genuine failure, with a test per branch.
+7. `FolderHasher` has at least one literal expected hash.
+8. Every `[ExcludeFromCodeCoverage]` added carries a comment saying why the code cannot be tested.
+
+## Out of scope
+
+Genuinely not being done — not a parking lot:
+
+- **`MSBuildWorkspace` end-to-end tests** — see R4.2. Zero coverage contribution; R5.2 covers the
+  same risk better. Revisit only if R5.2 proves insufficient.
+- **Hardware- and environment-bound projects**: `EidReader` (358), `EidReader.Native` (174, P/Invoke
+  to `winscard.dll`), `AdminHelper` (64, UAC), `Verz.Registry.NugetOrg` (39, live network). Seam
+  extraction for these is a separate piece of work.
+- **`CodeMigrations.Runner` / `CodeMigrations.Tools`** — a 3-line `Program.cs` shipping as the
+  `migrate-workspace` tool and a 5-line `MigrationConfig`. Effectively empty packages on nuget.org.
+  Worth a decision about whether they should ship at all; not a coverage question.
+- **A coverage threshold / merge gate** — R6.2, deferred again deliberately.
+- **Multi-TFM test projects beyond `Assertions.Tests`** — carried over from Phase 1.
+- **Phase 1 defects D13 and D21** — remain deliberately deferred and characterized by test.
+
+## Appendix A — Measurement method
+
+Reproduces the published figure to within one line.
+
+```
+dotnet restore
+dotnet build -c Release --no-restore
+dotnet test --no-restore --no-build -c Release \
+  --settings coverlet.runsettings \
+  --collect:"XPlat Code Coverage" --results-directory coverage
+```
+
+Then merge the 24 per-project `coverage/**/coverage.cobertura.xml` reports: resolve each `filename`
+against every `<source>` prefix **in its own report**, suffix-match against `git ls-files`
+(case-insensitively, on Windows), drop unresolvable paths, and max-merge hit counts per file per
+line.
+
+**The trap:** the `<sources>` root differs per report. Most emit repo-root-relative filenames
+(`Assertions/MintPlayer.Assertions/Formatter.cs`), but the Assertions test host emits
+project-relative ones (`Formatting/Formatter.cs`) with a matching `<source>` element. Naive dedupe on
+the `filename` attribute treats those as different files, silently discards the real Assertions
+coverage, and lands at **48.1%** instead of 64.0%.
+
+Verified 2026-09-03 against master `c7b13b9`: merged **6,747/10,544 = 64.0%**, 2,847/6,001 branches,
+261 files, versus the server's 6,748/10,544. The 1-line delta is
+`Solve/obj/Release/net10.0/.../Inject.g.cs`, a generated file under `obj/` that the `git ls-files`
+rule drops and the server counts — so the published number is very slightly inflated.
+
+Instrumentation is otherwise clean: that one file is the *only* thing the git-tracking filter
+removes. No `.Sample`, `.Demo`, `DemoWebApp`, `AvaloniaTest` or `TestProjects/*Debugging` file
+appears in any report.
+
+## Appendix B — Evidence
+
+Baseline from [coverage.mintplayer.com, commit `c7b13b9`](https://coverage.mintplayer.com/po/commit/Commits%2F216014918%2Fc7b13b9e5a6fe5c69b619d21f66718146920f9d1),
+cross-checked against a local run of the sequence above. Per-folder, per-file and top-40-uncovered
+tables were produced by a merge script following Appendix A; LOC figures for code absent from the
+reports are non-blank, non-comment-only C# lines excluding `bin`/`obj`/`sandbox`/fixtures.
