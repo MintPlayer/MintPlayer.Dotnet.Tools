@@ -485,13 +485,13 @@ number in opposite directions and a gate would fire on the honest dip.
 
 ## Outcome
 
-**Measured 2026-09-03 on `feature/test-coverage-phase2`, full CI sequence, 25 test runs, 0 failures.**
+**Reported by coverage.mintplayer.com for `d241e77` (PR #172), CI green.**
 
-| | Before (`c7b13b9`) | After | |
+| | Before (`c7b13b9`) | After (`d241e77`) | |
 |---|---|---|---|
-| Lines | 6,747 / 10,544 = **64.0%** | 8,260 / 11,437 = **72.2%** | **+8.2pp** |
-| Branches | 2,847 / 6,001 = 47.4% | 3,622 / 6,624 = 54.7% | +7.3pp |
-| Files measured | 261 | 286 | |
+| Lines | 6,747 / 10,544 = **64.0%** | 8,624 / 11,451 = **75.3%** | **+11.3pp** |
+| Branches | 2,847 / 6,001 = 47.4% | 3,723 / 6,624 = 56.2% | +8.8pp |
+| Files measured | 261 | 287 | |
 
 The denominator **grew by 893 lines** while the percentage rose, which was the point of the
 correctness-first decision: the old 64.0% was flattering because `MintPlayer.Assertions.SourceGenerator`
@@ -501,11 +501,14 @@ was hidden from it entirely.
 |---|---|---|
 | Assertions *(now includes the generator)* | 2332/2437 = 95.7% | 2926/3193 = **91.6%** |
 | Solve | 302/1410 = 21.4% | 1008/1392 = **72.4%** |
-| SourceGenerators | 2255/4537 = 49.7% | 2465/4710 = **52.3%** |
-| SlnLaunch | 372/498 = 74.7% | 370/477 = 77.6% |
+| SourceGenerators | 2255/4537 = 49.7% | 2814/4710 = **59.7%** |
+| SlnLaunch | 372/498 = 74.7% | 372/477 = 78.0% |
+| FolderHasher | 170/214 = 79.4% | 172/216 = 79.6% |
 | Verz | 78/126 = 61.9% | 81/129 = 62.8% |
 
-Defects found and fixed while writing the tests:
+Defects found and fixed while writing the tests — note that **three of the four were found by the
+tests rather than by reading the code**, and the last one was found by CI on the golden test's first
+run:
 
 1. **`PrCommand` template placeholders** — every doubled-brace form (`{{issue_number}}`,
    `{{issue_title}}`, `{{pr_type}}`, `{{changes}}`, `{{labels}}`, `{{author}}`) rendered as
@@ -515,6 +518,14 @@ Defects found and fixed while writing the tests:
    record its API hash reported success (R5.1).
 3. **`FluentAssertionsMigrationCodeFixProvider`'s class doc** contradicted its own implementation
    about `using MintPlayer.Assertions.Execution;`. The code was right; the doc was what misled.
+4. **`FolderHasher` produced a different hash on Windows and Linux** for an identical tree, because
+   the relative path was hashed with the OS directory separator (`sub\b.txt` vs `sub/b.txt`); the
+   adjacent `.ToLower()` was culture-sensitive as well. Since the hash is a cache key, the failure
+   was silent — a Windows developer and a Linux runner could never share an entry, and every lookup
+   missed. Normalised to `/` and `ToLowerInvariant`; Windows now converges on the value Linux was
+   already producing, so Linux-side caches survive and only Windows-computed ones invalidate once.
+   **Caught by R5.3's golden test on its first CI run** — the thing all 13 pre-existing relative
+   tests were structurally incapable of seeing.
 
 Not delivered, and why:
 
