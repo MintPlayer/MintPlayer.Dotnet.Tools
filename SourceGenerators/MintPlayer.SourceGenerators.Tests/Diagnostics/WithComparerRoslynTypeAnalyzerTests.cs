@@ -269,4 +269,119 @@ public class WithComparerRoslynTypeAnalyzerTests
     }
 
     #endregion
+
+    #region Composite types — FindFirstRoslynLeaf
+
+    /// <summary>
+    /// A Roslyn symbol buried inside a composite type still pins the compilation, so the analyzer
+    /// walks arrays, nullables and generic arguments to find one.
+    /// </summary>
+    /// <remarks>
+    /// This walker — <c>FindFirstRoslynLeaf</c> and the type-graph traversal feeding it — was the
+    /// single largest uncovered region in the analyzer. The existing fixtures all held a symbol
+    /// directly as a property, which reaches the top-level check and returns before any of the
+    /// recursion runs.
+    /// </remarks>
+    [Theory]
+    [InlineData("SyntaxNode[] Nodes", "an array element")]
+    [InlineData("SyntaxNode[][] Jagged", "a jagged array element")]
+    [InlineData("System.Collections.Generic.List<ISymbol> Symbols", "a generic type argument")]
+    [InlineData("System.Collections.Generic.Dictionary<string, SyntaxNode> ByName", "the second type argument")]
+    [InlineData("System.Collections.Generic.List<SyntaxNode[]> Nested", "an array inside a generic")]
+    [InlineData("(string Name, ISymbol Symbol) Pair", "a tuple element")]
+    public async Task ItFlagsARoslynTypeReachedThroughAComposite(string member, string why)
+    {
+        var diagnostics = await Run($$"""
+            {{Preamble}}
+
+            public class Model { public {{member}} { get; set; } = default!; }
+
+            public class Test
+            {
+                public void Run(IncrementalValuesProvider<Model> provider) => provider.WithComparer();
+            }
+            """);
+
+        diagnostics.Should().ContainSingle(d => d.Id == "MINT001", $"the model reaches a Roslyn type via {why}");
+    }
+
+    /// <summary>
+    /// A nullable value type wrapping a Roslyn struct. <c>Nullable&lt;T&gt;</c> is unwrapped
+    /// explicitly by the walker rather than being treated as an ordinary generic.
+    /// </summary>
+    [Fact]
+    public async Task ItFlagsANullableRoslynStruct()
+    {
+        var diagnostics = await Run($$"""
+            {{Preamble}}
+
+            public class Model { public SyntaxToken? Token { get; set; } }
+
+            public class Test
+            {
+                public void Run(IncrementalValuesProvider<Model> provider) => provider.WithComparer();
+            }
+            """);
+
+        diagnostics.Should().ContainSingle(d => d.Id == "MINT001");
+    }
+
+    /// <summary>
+    /// A model reached only through another model's property — the traversal has to follow member
+    /// types, not just the top-level one, and must not loop on a self-referencing graph.
+    /// </summary>
+    [Fact]
+    public async Task ItFollowsNestedModelsWithoutLoopingOnCycles()
+    {
+        var diagnostics = await Run($$"""
+            {{Preamble}}
+
+            public class Inner
+            {
+                public ISymbol? Symbol { get; set; }
+                public Outer? Back { get; set; }
+            }
+
+            public class Outer
+            {
+                public Inner? Inner { get; set; }
+                public Outer? Self { get; set; }
+            }
+
+            public class Test
+            {
+                public void Run(IncrementalValuesProvider<Outer> provider) => provider.WithComparer();
+            }
+            """);
+
+        diagnostics.Should().ContainSingle(d => d.Id == "MINT001",
+            "the symbol is two hops away, and the cycle between Outer and Inner must not hang the walk");
+    }
+
+    /// <summary>
+    /// The negative case for the walker: a composite of ordinary types must not be flagged. Without
+    /// this the theory above would pass for an analyzer that flagged every composite.
+    /// </summary>
+    [Theory]
+    [InlineData("string[] Names")]
+    [InlineData("System.Collections.Generic.List<int> Counts")]
+    [InlineData("System.Collections.Generic.Dictionary<string, int> Totals")]
+    [InlineData("(string Name, int Count) Pair")]
+    public async Task ItLeavesCompositesOfOrdinaryTypesAlone(string member)
+    {
+        var diagnostics = await Run($$"""
+            {{Preamble}}
+
+            public class Model { public {{member}} { get; set; } = default!; }
+
+            public class Test
+            {
+                public void Run(IncrementalValuesProvider<Model> provider) => provider.WithComparer();
+            }
+            """);
+
+        diagnostics.Should().NotContain(d => d.Id == "MINT001");
+    }
+
+    #endregion
 }

@@ -226,11 +226,18 @@ public sealed class GeneratorHarness
         var projectId = ProjectId.CreateNewId("FixInput");
         var documentId = DocumentId.CreateNewId(projectId, "Input.cs");
 
+        // filePath matters, and its absence is not neutral. Without it Document.FilePath is null
+        // while the syntax tree's is empty, so a fix that locates a sibling document by
+        // `d.FilePath == someLocation.SourceTree?.FilePath` — the normal way to reach the file a
+        // symbol is declared in — matches nothing and returns the solution unchanged. It looks
+        // exactly like a fix that declined to offer anything, which is a legal outcome, so the
+        // test passes and the entire body of the fix stays unreachable. A real workspace always
+        // has paths; a harness without them cannot exercise that whole class of code fix.
         var solution = workspace.CurrentSolution
             .AddProject(projectId, "FixInput", "FixInput", LanguageNames.CSharp)
             .WithProjectCompilationOptions(projectId, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary))
             .AddMetadataReferences(projectId, MetadataReferences())
-            .AddDocument(documentId, "Input.cs", SourceText.From(source));
+            .AddDocument(documentId, "Input.cs", SourceText.From(source), filePath: "Input.cs");
 
         var compilation = (await solution.GetProject(projectId)!.GetCompilationAsync())!;
 

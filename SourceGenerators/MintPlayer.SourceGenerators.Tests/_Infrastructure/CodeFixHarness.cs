@@ -43,7 +43,11 @@ internal static class CodeFixHarness
             .ForAssembly(assemblyName ?? "MintPlayer.SourceGenerators")
             .AddReferences(
                 typeof(System.ComponentModel.DescriptionAttribute),
-                typeof(System.Text.StringBuilder));
+                typeof(System.Text.StringBuilder),
+                // The attributes the analyzers and fixes actually look for. Without this an
+                // attribute in a fixture is an unresolved error symbol, and any code that matches
+                // on AttributeClass.Name behaves differently than it would in a real project.
+                typeof(MintPlayer.SourceGenerators.Attributes.NoInterfaceMemberAttribute));
 
         var extra = referenceTypes?.ToArray() ?? [];
         return extra.Length == 0 ? harness : harness.AddReferences(extra);
