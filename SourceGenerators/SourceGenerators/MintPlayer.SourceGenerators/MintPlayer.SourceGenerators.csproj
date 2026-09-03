@@ -45,7 +45,13 @@
 
 	<Target Name="AddAnalysisTimeDependencies">
 		<ItemGroup>
-			<_AttributeAssets Include="..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\*.dll" />
+			<!--
+			Named explicitly, not globbed. The project produces exactly one assembly, so a *.dll
+			glob here can only ever ADD something — and it did: a stale
+			MintPlayer.ValueComparerGenerator.Attributes.dll left in that bin folder by an earlier
+			build was being swept into the published package, which never intended to ship it.
+			-->
+			<_AttributeAssets Include="..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Attributes.dll" />
 			<_DiAbstractionsAssets Include="$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\*.dll" />
 		</ItemGroup>
 

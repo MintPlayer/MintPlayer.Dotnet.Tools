@@ -105,17 +105,18 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
     ///
     /// Comparing the two payloads rather than asserting a fixed list, so a future addition to
     /// either configuration has to be made to both.
+    ///
+    /// Both sides are packed in ISOLATION. Taking the Release side from the shared feed compares a
+    /// pack made after a full solution build against one made after a single project build, which
+    /// is a difference in leftover <c>bin</c> contents rather than in packaging logic.
     /// </remarks>
     [Theory]
     [InlineData(GeneratorPackage, "SourceGenerators/SourceGenerators/MintPlayer.SourceGenerators/MintPlayer.SourceGenerators.csproj")]
     [InlineData(AssertionsPackage, "Assertions/MintPlayer.Assertions/MintPlayer.Assertions.csproj")]
     public void TheAnalyzerPayloadIsTheSameInDebugAndRelease(string packageId, string projectRelativePath)
     {
-        var release = feed.EntriesOf(packageId)
-            .Where(e => e.StartsWith("analyzers/", StringComparison.Ordinal))
-            .ToList();
-
-        var debug = feed.DebugAnalyzerEntriesOf(packageId, projectRelativePath);
+        var release = feed.IsolatedAnalyzerEntriesOf(packageId, projectRelativePath, "Release");
+        var debug = feed.IsolatedAnalyzerEntriesOf(packageId, projectRelativePath, "Debug");
 
         release.Should().NotBeEmpty("the Release pack must carry an analyzer payload at all");
         debug.Should().BeEquivalentTo(release);

@@ -84,41 +84,47 @@ public sealed class PackedFeed : IDisposable
         Path.Combine(RepoRoot, "Assertions", "MintPlayer.Assertions", "MintPlayer.Assertions.csproj"),
     ];
 
+
     /// <summary>
-    /// Packs one project in Debug into a separate feed and returns its analyzer entries.
+    /// Packs one project on its own, in the given configuration, and returns its analyzer entries.
     /// </summary>
     /// <remarks>
-    /// Configuration-conditional pack items are the trap this exists for: a
-    /// <c>Condition="'$(Configuration)' == 'Release'"</c> on a <c>None Include</c> produces a
-    /// package that is correct in CI and quietly broken from a developer's plain
-    /// <c>dotnet pack</c>, which defaults to Debug. Nothing else in the suite would notice.
-    ///
-    /// Lazy and cached — most tests do not need it, and a second pack is not free.
+    /// <para>
+    /// BOTH sides of the Debug-vs-Release comparison go through here rather than one side reusing
+    /// the shared feed. The shared feed is packed after the test run's own <c>dotnet build</c> has
+    /// populated every <c>bin/Release</c> in the solution, while an isolated pack builds only what
+    /// that one project references. Comparing those two measures leftover build state, not the
+    /// packaging logic, and reports a difference that is not a defect — which is exactly what it
+    /// did on the first attempt.
+    /// </para>
+    /// <para>
+    /// Cached per package and configuration; each pack costs roughly ten seconds.
+    /// </para>
     /// </remarks>
-    public IReadOnlyList<string> DebugAnalyzerEntriesOf(string packageId, string projectRelativePath)
+    public IReadOnlyList<string> IsolatedAnalyzerEntriesOf(string packageId, string projectRelativePath, string configuration)
     {
-        if (_debugEntries.TryGetValue(packageId, out var cached)) return cached;
+        var key = $"{packageId}|{configuration}";
+        if (_isolatedEntries.TryGetValue(key, out var cached)) return cached;
 
-        var debugFeed = Path.Combine(Root, "feed-debug");
-        Directory.CreateDirectory(debugFeed);
+        var feedDir = Path.Combine(Root, $"feed-{configuration.ToLowerInvariant()}");
+        Directory.CreateDirectory(feedDir);
 
         // Forward slashes in, native separators out. Path.Combine does NOT translate separators,
-        // so a backslash-separated literal resolves on Windows and silently does not on Linux —
-        // the same trap as the FolderHasher hash, reached from the opposite direction.
+        // so a backslash-separated literal resolves on Windows and silently does not on Linux.
         var project = Path.Combine(RepoRoot, projectRelativePath.Replace('/', Path.DirectorySeparatorChar));
-        var (exitCode, output) = Run(RepoRoot, $"pack \"{project}\" -c Debug -o \"{debugFeed}\" -p:Version={Version} -tl:off");
+        var (exitCode, output) = Run(RepoRoot, $"pack \"{project}\" -c {configuration} -o \"{feedDir}\" -p:Version={Version} -tl:off");
 
         if (exitCode != 0)
-            throw new InvalidOperationException($"Debug pack of '{project}' failed.{Environment.NewLine}{output}");
+            throw new InvalidOperationException($"{configuration} pack of '{project}' failed.{Environment.NewLine}{output}");
 
-        var entries = ReadEntries(Path.Combine(debugFeed, $"{packageId}.{Version}.nupkg"))
+        var entries = ReadEntries(Path.Combine(feedDir, $"{packageId}.{Version}.nupkg"))
             .Where(e => e.StartsWith("analyzers/", StringComparison.Ordinal))
             .ToList();
 
-        return _debugEntries[packageId] = entries;
+        return _isolatedEntries[key] = entries;
     }
 
-    private readonly Dictionary<string, IReadOnlyList<string>> _debugEntries = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, IReadOnlyList<string>> _isolatedEntries = new(StringComparer.Ordinal);
 
     public string NupkgPath(string packageId) => Path.Combine(Feed, $"{packageId}.{Version}.nupkg");
 
