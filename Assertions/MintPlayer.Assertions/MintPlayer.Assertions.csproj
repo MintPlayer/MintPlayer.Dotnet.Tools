@@ -37,15 +37,35 @@
 	     PackageReference gives consumers the full experience. -->
 	<ItemGroup>
 		<ProjectReference Include="..\MintPlayer.Assertions.SourceGenerator\MintPlayer.Assertions.SourceGenerator.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
-
-		<None Include="..\MintPlayer.Assertions.SourceGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.Assertions.SourceGenerator.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-		<!--
-		Not conditioned on Configuration. It used to be, which meant a Debug pack shipped the
-		analyzer without the assembly its base class lives in — a package that restores cleanly
-		and whose generator never runs. PackagingTests pins both configurations.
-		-->
-		<None Include="..\..\SourceGenerators\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Tools.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 	</ItemGroup>
+
+	<!--
+	The analyzer payload is collected in a TARGET, not a static ItemGroup. An Include pointing at
+	a sibling project's bin folder is resolved at evaluation time, before that project has been
+	built, so on a clean tree it matched nothing and this package shipped with no analyzers at
+	all — silently. A Configuration == 'Release' condition on the Tools DLL made it fail in Debug
+	even after a build. Both are fixed; PackagingTests pins the layout and Debug/Release parity.
+	-->
+	<PropertyGroup>
+		<TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);AddAssertionsAnalyzers</TargetsForTfmSpecificContentInPackage>
+	</PropertyGroup>
+
+	<Target Name="AddAssertionsAnalyzers">
+		<ItemGroup>
+			<_AssertionsAnalyzer Include="..\MintPlayer.Assertions.SourceGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.Assertions.SourceGenerator.dll" />
+			<_AssertionsAnalyzerTools Include="..\..\SourceGenerators\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Tools.dll" />
+		</ItemGroup>
+
+		<Error Condition="!Exists('%(_AssertionsAnalyzer.FullPath)')"
+		       Text="MintPlayer.Assertions.SourceGenerator was not found in bin\$(Configuration)\netstandard2.0. Packing would ship the assertion library with no analyzers, and no error to tell anyone." />
+		<Error Condition="!Exists('%(_AssertionsAnalyzerTools.FullPath)')"
+		       Text="MintPlayer.SourceGenerators.Tools was not found in bin\$(Configuration)\netstandard2.0. The analyzers would ship unable to resolve their base class." />
+
+		<ItemGroup>
+			<TfmSpecificPackageFile Include="@(_AssertionsAnalyzer)" PackagePath="analyzers/dotnet/cs" />
+			<TfmSpecificPackageFile Include="@(_AssertionsAnalyzerTools)" PackagePath="analyzers/dotnet/cs" />
+		</ItemGroup>
+	</Target>
 
 	<!-- StringDifference builds the "they differ at index N" hint and is internal; the
 	     tests exercise it directly rather than only through a failure message. -->
