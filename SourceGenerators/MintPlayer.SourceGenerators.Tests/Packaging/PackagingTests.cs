@@ -108,13 +108,9 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
     /// solution — comparing that against a single-project Debug pack measures leftover build state
     /// rather than packaging logic.
     ///
-    /// It asserts the REQUIRED entries are present in both configurations rather than that the two
-    /// payloads are byte-identical. Set equality was tried first and proved environment-sensitive:
-    /// the remaining <c>*.dll</c> globs over sibling bin folders sweep up whatever a previous build
-    /// left there, so the exact payload varies between a clean CI checkout and a developer machine.
-    /// That nondeterminism is real and worth removing — see the note in
-    /// <c>MintPlayer.SourceGenerators.csproj</c> — but it is a decision about which files are meant
-    /// to ship, and this test should fail for missing essentials rather than for build residue.
+    /// This one names the load-bearing entries explicitly, so a failure says which assembly is
+    /// missing and why that matters. <see cref="TheAnalyzerPayloadIsIdenticalInDebugAndRelease"/>
+    /// covers drift in the rest of the payload.
     /// </remarks>
     [Theory]
     [InlineData(GeneratorPackage, "SourceGenerators/SourceGenerators/MintPlayer.SourceGenerators/MintPlayer.SourceGenerators.csproj",
@@ -122,7 +118,11 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
         "analyzers/dotnet/roslyn4.0/cs/MintPlayer.SourceGenerators.Tools.dll",
         "analyzers/dotnet/roslyn4.9/cs/MintPlayer.SourceGenerators.dll",
         "analyzers/dotnet/roslyn4.9/cs/MintPlayer.SourceGenerators.Tools.dll",
-        "analyzers/dotnet/cs/MintPlayer.SourceGenerators.Attributes.dll")]
+        "analyzers/dotnet/cs/MintPlayer.SourceGenerators.Attributes.dll",
+        // [AutoValueComparer] decorates this generator's own model types, so Roslyn cannot load
+        // the generator without it. Dropping this entry does not degrade the package, it disables
+        // it — which an earlier revision of this file did.
+        "analyzers/dotnet/cs/MintPlayer.ValueComparerGenerator.Attributes.dll")]
     [InlineData(AssertionsPackage, "Assertions/MintPlayer.Assertions/MintPlayer.Assertions.csproj",
         "analyzers/dotnet/cs/MintPlayer.Assertions.SourceGenerator.dll",
         "analyzers/dotnet/cs/MintPlayer.SourceGenerators.Tools.dll")]
@@ -142,6 +142,31 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
                     $"the generator cannot load, and the consumer gets no error to search for");
             }
         }
+    }
+
+    /// <summary>
+    /// The two configurations must produce byte-identical analyzer payloads.
+    /// </summary>
+    /// <remarks>
+    /// Set equality, not a subset check. It catches the case the named-essentials test cannot:
+    /// something being ADDED to one configuration and not the other, which is how a package ends
+    /// up carrying an assembly nobody decided to ship.
+    ///
+    /// This is only a meaningful assertion because the payload is now deterministic — every entry
+    /// is named explicitly and sourced from the producing project's own output directory. While
+    /// the items were <c>*.dll</c> globs over sibling bin folders they picked up whatever an
+    /// earlier build had left behind, and this test failed on residue rather than on defects.
+    /// </remarks>
+    [Theory]
+    [InlineData(GeneratorPackage, "SourceGenerators/SourceGenerators/MintPlayer.SourceGenerators/MintPlayer.SourceGenerators.csproj")]
+    [InlineData(AssertionsPackage, "Assertions/MintPlayer.Assertions/MintPlayer.Assertions.csproj")]
+    public void TheAnalyzerPayloadIsIdenticalInDebugAndRelease(string packageId, string projectRelativePath)
+    {
+        var release = feed.IsolatedAnalyzerEntriesOf(packageId, projectRelativePath, "Release");
+        var debug = feed.IsolatedAnalyzerEntriesOf(packageId, projectRelativePath, "Debug");
+
+        release.Should().NotBeEmpty("the Release pack must carry an analyzer payload at all");
+        debug.Should().BeEquivalentTo(release);
     }
 
     [Fact]

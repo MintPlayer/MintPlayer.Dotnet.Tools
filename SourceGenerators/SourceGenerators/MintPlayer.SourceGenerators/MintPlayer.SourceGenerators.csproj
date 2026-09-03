@@ -43,32 +43,29 @@
 		<TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);AddAnalysisTimeDependencies</TargetsForTfmSpecificContentInPackage>
 	</PropertyGroup>
 
-	<!--
-	KNOWN NONDETERMINISM, not yet resolved: the Tools include below is still a *.dll glob over a
-	sibling project's bin folder, so it packs whatever a previous build happened to leave there.
-	That is how MintPlayer.ValueComparerGenerator.Attributes.dll came to be published in
-	analyzers/dotnet/cs — nothing intends to ship it. The exact payload therefore differs between
-	a clean checkout and a developer machine.
-
-	Fixing it properly means naming the files that are meant to ship, which is a decision about
-	intent rather than a mechanical change. PackagingTests asserts the essentials are present in
-	both configurations rather than pinning an exact set, so it fails for a missing generator and
-	not for build residue.
-	-->
 	<Target Name="AddAnalysisTimeDependencies">
 		<ItemGroup>
 			<!--
-			Named explicitly, not globbed. The project produces exactly one assembly, so a *.dll
-			glob here can only ever ADD something — and it did: a stale
-			MintPlayer.ValueComparerGenerator.Attributes.dll left in that bin folder by an earlier
-			build was being swept into the published package, which never intended to ship it.
+			Named explicitly and taken from THIS project's own output directory, which by
+			construction holds the generator's runtime closure.
+
+			Both are load-bearing. MintPlayer.SourceGenerators.Attributes carries the attributes
+			the generator triggers on; MintPlayer.ValueComparerGenerator.Attributes carries
+			[AutoValueComparer], which decorates this generator's OWN model types (see
+			Models/ClassDeclaration.cs). Roslyn cannot load the generator at all without it — so
+			leaving it out does not degrade the package, it disables it.
+
+			An earlier revision globbed the sibling Attributes project's bin instead, on the
+			mistaken reading that the ValueComparerGenerator assembly appearing there was stale
+			build residue. It is not; it is required, and dropping it broke the package.
 			-->
-			<_AttributeAssets Include="..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Attributes.dll" />
+			<_AttributeAssets Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Attributes.dll" />
+			<_AttributeAssets Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\MintPlayer.ValueComparerGenerator.Attributes.dll" />
 			<_DiAbstractionsAssets Include="$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\*.dll" />
 		</ItemGroup>
 
-		<Error Condition="'@(_AttributeAssets)' == ''"
-		       Text="MintPlayer.SourceGenerators.Attributes was not found in bin\$(Configuration)\netstandard2.0. The generator would ship unable to resolve the attributes it triggers on." />
+		<Error Condition="!Exists('%(_AttributeAssets.FullPath)')"
+		       Text="%(_AttributeAssets.Filename)%(_AttributeAssets.Extension) was not found in bin\$(Configuration)\netstandard2.0. The generator would ship unable to load, with no error for the consumer to search for." />
 
 		<ItemGroup>
 			<TfmSpecificPackageFile Include="@(_AttributeAssets)" PackagePath="analyzers/dotnet/cs" />
