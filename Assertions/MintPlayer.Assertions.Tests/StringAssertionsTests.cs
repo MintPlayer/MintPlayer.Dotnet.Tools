@@ -343,6 +343,169 @@ public class StringAssertionsTests
     }
 
     [Fact]
+    public void NotHaveLength_Passes_And_Fails()
+    {
+        "hello".Should().NotHaveLength(4);
+        var value = "hello";
+        var ex = Fails(() => value.Should().NotHaveLength(5));
+        Assert.Equal("Did not expect value to have length 5.", ex.Message);
+    }
+
+    [Fact]
+    public void NotHaveLength_Passes_On_Null()
+    {
+        string? value = null;
+        value.Should().NotHaveLength(0);
+    }
+
+    [Fact]
+    public void NotStartWithEquivalentOf_Passes_And_Fails()
+    {
+        "hello world".Should().NotStartWithEquivalentOf("world");
+        // The positive form ignores casing, so the negative must too: "hello" still matches "Hello".
+        var value = "Hello world";
+        var ex = Fails(() => value.Should().NotStartWithEquivalentOf("hello"));
+        Assert.Equal("Did not expect value to start with the equivalent of \"hello\".", ex.Message);
+    }
+
+    [Fact]
+    public void NotStartWithEquivalentOf_Passes_On_Null_And_Rejects_A_Null_Argument()
+    {
+        string? value = null;
+        value.Should().NotStartWithEquivalentOf("hello");
+        var other = "hello";
+        Assert.Throws<ArgumentNullException>(() => other.Should().NotStartWithEquivalentOf(null!));
+    }
+
+    [Fact]
+    public void NotEndWithEquivalentOf_Passes_And_Fails()
+    {
+        "hello world".Should().NotEndWithEquivalentOf("hello");
+        var value = "hello World";
+        var ex = Fails(() => value.Should().NotEndWithEquivalentOf("world"));
+        Assert.Equal("Did not expect value to end with the equivalent of \"world\".", ex.Message);
+    }
+
+    [Fact]
+    public void NotEndWithEquivalentOf_Passes_On_Null_And_Rejects_A_Null_Argument()
+    {
+        string? value = null;
+        value.Should().NotEndWithEquivalentOf("world");
+        var other = "hello";
+        Assert.Throws<ArgumentNullException>(() => other.Should().NotEndWithEquivalentOf(null!));
+    }
+
+    [Fact]
+    public void NotMatchEquivalentOf_Passes_And_Fails()
+    {
+        "hello world".Should().NotMatchEquivalentOf("goodbye*");
+        // Casing is ignored by MatchEquivalentOf, so "hello*" still matches "Hello World".
+        var value = "Hello World";
+        var ex = Fails(() => value.Should().NotMatchEquivalentOf("hello*"));
+        Assert.Equal("Did not expect value to match the equivalent of \"hello*\", but found \"Hello World\".", ex.Message);
+    }
+
+    [Fact]
+    public void NotMatchEquivalentOf_Passes_On_Null()
+    {
+        string? value = null;
+        value.Should().NotMatchEquivalentOf("*");
+    }
+
+    [Fact]
+    public void NotContainAll_Passes_When_One_Is_Missing()
+        => "hello world".Should().NotContainAll("hello", "moon");
+
+    [Fact]
+    public void NotContainAll_Fails_When_Every_Value_Is_Present()
+    {
+        var value = "hello world";
+        var ex = Fails(() => value.Should().NotContainAll("hello", "world"));
+        Assert.Equal(
+            "Did not expect value to contain all of {\"hello\", \"world\"}, but found every one of them in \"hello world\".",
+            ex.Message);
+    }
+
+    [Fact]
+    public void NotContainAll_Passes_On_Null_Subject()
+    {
+        string? value = null;
+        value.Should().NotContainAll("hello");
+    }
+
+    [Fact]
+    public void NotContainAny_Passes_When_None_Are_Present()
+        => "hello world".Should().NotContainAny("moon", "sun");
+
+    [Fact]
+    public void NotContainAny_Fails_And_Lists_Only_The_Offenders()
+    {
+        var value = "hello world";
+        var ex = Fails(() => value.Should().NotContainAny("moon", "world"));
+        Assert.Equal(
+            "Did not expect value to contain any of {\"moon\", \"world\"}, but found {\"world\"} in \"hello world\".",
+            ex.Message);
+    }
+
+    [Fact]
+    public void NotContainAny_Passes_On_Null_Subject_And_On_An_Empty_Set()
+    {
+        string? value = null;
+        value.Should().NotContainAny("hello");
+        "hello".Should().NotContainAny();
+    }
+
+    [Fact]
+    public void NotBeUpperCased_Passes_And_Fails()
+    {
+        "Hello".Should().NotBeUpperCased();
+        var value = "HELLO";
+        var ex = Fails(() => value.Should().NotBeUpperCased());
+        Assert.Equal("Did not expect value to be upper-cased, but found \"HELLO\".", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeUpperCased_Fails_For_A_String_Without_Letters()
+    {
+        // BeUpperCased calls "42" upper-cased, so its negation must reject "42" rather than
+        // quietly pass on "there are no upper-case letters here".
+        var value = "42";
+        var ex = Fails(() => value.Should().NotBeUpperCased());
+        Assert.Equal("Did not expect value to be upper-cased, but found \"42\".", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeUpperCased_Passes_On_Null()
+    {
+        string? value = null;
+        value.Should().NotBeUpperCased();
+    }
+
+    [Fact]
+    public void NotBeLowerCased_Passes_And_Fails()
+    {
+        "hellO".Should().NotBeLowerCased();
+        var value = "hello";
+        var ex = Fails(() => value.Should().NotBeLowerCased());
+        Assert.Equal("Did not expect value to be lower-cased, but found \"hello\".", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeLowerCased_Fails_For_A_String_Without_Letters()
+    {
+        var value = "42";
+        var ex = Fails(() => value.Should().NotBeLowerCased());
+        Assert.Equal("Did not expect value to be lower-cased, but found \"42\".", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeLowerCased_Passes_On_Null()
+    {
+        string? value = null;
+        value.Should().NotBeLowerCased();
+    }
+
+    [Fact]
     public void Chaining_With_And_Works()
     {
         "hello world".Should().StartWith("hello").And.EndWith("world").And.HaveLength(11);

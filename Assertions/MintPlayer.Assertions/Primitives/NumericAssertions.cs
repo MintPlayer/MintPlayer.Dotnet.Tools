@@ -58,6 +58,29 @@ public class NumericAssertions<T>
         return new(this);
     }
 
+    /// <summary>
+    /// Asserts the value is not greater than zero. Zero, negatives and null all pass. The condition is
+    /// the exact negation of <see cref="BePositive"/> rather than <c>value &lt;= T.Zero</c>, so NaN — which
+    /// compares false against everything — passes here instead of failing both forms.
+    /// </summary>
+    public AndConstraint<NumericAssertions<T>> NotBePositive(string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(Subject is not { } value || !(value > T.Zero)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be positive{reason}, but found {0}.", Subject);
+        return new(this);
+    }
+
+    /// <summary>
+    /// Asserts the value is not less than zero. Zero, positives and null all pass; as with
+    /// <see cref="NotBePositive"/> the condition is the exact negation of <see cref="BeNegative"/>, so NaN passes.
+    /// </summary>
+    public AndConstraint<NumericAssertions<T>> NotBeNegative(string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(Subject is not { } value || !(value < T.Zero)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be negative{reason}, but found {0}.", Subject);
+        return new(this);
+    }
+
     /// <summary>Asserts the value is greater than the expected value.</summary>
     public AndConstraint<NumericAssertions<T>> BeGreaterThan(T expected, string? because = null, params object?[] becauseArgs)
     {
@@ -116,6 +139,22 @@ public class NumericAssertions<T>
         ArgumentNullException.ThrowIfNull(validValues);
         Assert().ForCondition(Subject is { } value && validValues.Contains(value, EqualityComparer<T>.Default)).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to be one of {0}{reason}, but found {1}.", validValues, Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the value is none of the given values (a null value passes).</summary>
+    public AndConstraint<NumericAssertions<T>> NotBeOneOf(params T[] unexpectedValues)
+        => NotBeOneOf(unexpectedValues, because: null);
+
+    /// <summary>
+    /// Asserts the value is none of the given values (a null value passes). An empty set passes too:
+    /// there is nothing for the value to be one of.
+    /// </summary>
+    public AndConstraint<NumericAssertions<T>> NotBeOneOf(IEnumerable<T> unexpectedValues, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(unexpectedValues);
+        Assert().ForCondition(Subject is not { } value || !unexpectedValues.Contains(value, EqualityComparer<T>.Default)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be one of {0}{reason}, but found {1}.", unexpectedValues, Subject);
         return new(this);
     }
 

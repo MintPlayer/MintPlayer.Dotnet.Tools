@@ -199,5 +199,131 @@ public class TypeAssertionsTests
     }
 
     [Fact]
+    public void NotBeDerivedFrom_Passes_WhenUnrelated() => typeof(Animal).Should().NotBeDerivedFrom<Dog>();
+
+    [Fact]
+    public void NotBeDerivedFrom_Passes_ForTheTypeItself() => typeof(Dog).Should().NotBeDerivedFrom<Dog>();
+
+    [Fact]
+    public void NotBeDerivedFrom_Fails_WhenDerived()
+    {
+        var type = typeof(Dog);
+        var ex = Record.Exception(() => type.Should().NotBeDerivedFrom<Animal>());
+        Assert.IsType<AssertionFailedException>(ex);
+        Assert.Equal($"Did not expect type to be derived from {typeof(Animal).FullName}.", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeDerivedFrom_Passes_ForNullSubject()
+    {
+        Type? type = null;
+        type.Should().NotBeDerivedFrom<Animal>();
+    }
+
+    [Fact]
+    public void NotImplement_Passes_WhenTheInterfaceIsAbsent() => typeof(string).Should().NotImplement<IAnimal>();
+
+    [Fact]
+    public void NotImplement_Passes_ForTheInterfaceItself() => typeof(IAnimal).Should().NotImplement<IAnimal>();
+
+    [Fact]
+    public void NotImplement_Fails_WhenImplemented()
+    {
+        var type = typeof(Dog);
+        var ex = Record.Exception(() => type.Should().NotImplement<IAnimal>());
+        Assert.IsType<AssertionFailedException>(ex);
+        Assert.Equal($"Did not expect type to implement {typeof(IAnimal).FullName}.", ex.Message);
+    }
+
+    [Fact]
+    public void NotImplement_Throws_WhenTypeArgumentIsNotAnInterface()
+        => Assert.Throws<ArgumentException>(() => typeof(Dog).Should().NotImplement<Animal>());
+
+    [Fact]
+    public void NotImplement_Passes_ForNullSubject()
+    {
+        Type? type = null;
+        type.Should().NotImplement<IAnimal>();
+    }
+
+    [Fact]
+    public void NotBeAbstract_Passes_ForASealedClass() => typeof(Dog).Should().NotBeAbstract();
+
+    [Fact]
+    public void NotBeAbstract_Passes_ForAStaticClass() => typeof(Helpers).Should().NotBeAbstract();
+
+    [Fact]
+    public void NotBeAbstract_Fails_ForAnAbstractClass()
+    {
+        var type = typeof(Animal);
+        var ex = Record.Exception(() => type.Should().NotBeAbstract());
+        Assert.IsType<AssertionFailedException>(ex);
+        Assert.Equal("Did not expect type to be abstract.", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeSealed_Passes_ForAnAbstractClass() => typeof(Animal).Should().NotBeSealed();
+
+    [Fact]
+    public void NotBeSealed_Passes_ForAStaticClass() => typeof(Helpers).Should().NotBeSealed();
+
+    [Fact]
+    public void NotBeSealed_Fails_ForASealedClass()
+    {
+        var type = typeof(Dog);
+        var ex = Record.Exception(() => type.Should().NotBeSealed());
+        Assert.IsType<AssertionFailedException>(ex);
+        Assert.Equal("Did not expect type to be sealed.", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeStatic_Passes_ForANonStaticClass() => typeof(Dog).Should().NotBeStatic();
+
+    [Fact]
+    public void NotBeStatic_Fails_ForAStaticClass()
+    {
+        var type = typeof(Helpers);
+        var ex = Record.Exception(() => type.Should().NotBeStatic());
+        Assert.IsType<AssertionFailedException>(ex);
+        Assert.Equal("Did not expect type to be static.", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeAnInterface_Passes_ForAClass() => typeof(Dog).Should().NotBeAnInterface();
+
+    [Fact]
+    public void NotBeAnInterface_Fails_ForAnInterface()
+    {
+        var type = typeof(IAnimal);
+        var ex = Record.Exception(() => type.Should().NotBeAnInterface());
+        Assert.IsType<AssertionFailedException>(ex);
+        Assert.Equal("Did not expect type to be an interface.", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeAClass_Passes_ForAnInterfaceAndAStruct()
+    {
+        typeof(IAnimal).Should().NotBeAClass();
+        typeof(int).Should().NotBeAClass();
+    }
+
+    [Fact]
+    public void NotBeAClass_Fails_ForAClass()
+    {
+        var type = typeof(Dog);
+        var ex = Record.Exception(() => type.Should().NotBeAClass());
+        Assert.IsType<AssertionFailedException>(ex);
+        Assert.Equal("Did not expect type to be a class.", ex.Message);
+    }
+
+    [Fact]
+    public void TheKindNegatives_All_Pass_ForANullSubject()
+    {
+        Type? type = null;
+        type.Should().NotBeAbstract().And.NotBeSealed().And.NotBeStatic()
+            .And.NotBeAnInterface().And.NotBeAClass();
+    }
+
+    [Fact]
     public void Chaining_Works() => typeof(Dog).Should().BeAClass().And.BeSealed().And.BeAssignableTo<IAnimal>();
 }

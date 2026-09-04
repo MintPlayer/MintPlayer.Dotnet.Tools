@@ -43,4 +43,10 @@ public interface IEquivalencyOptions
 
     /// <summary>True to resolve expectation members from runtime types instead of declared types.</summary>
     bool UseRuntimeTypes { get; }
+
+    /// <summary>
+    /// True to permit a comparison in which some node compares no members at all — an assertion
+    /// that cannot fail. Rejected by default, because it is nearly always a mistake.
+    /// </summary>
+    bool AllowVacuousComparison { get; }
 }

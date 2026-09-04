@@ -206,4 +206,126 @@ public class DateTimeOffsetAssertionsTests
         var ex = Fails(() => value.Should().BeOneOf(Sample.AddDays(1), Sample.AddDays(2)));
         Assert.Contains("to be one of", ex.Message);
     }
+
+    [Fact]
+    public void NotBeOneOf_Passes_And_Fails()
+    {
+        Sample.Should().NotBeOneOf(Sample.AddDays(1), Sample.AddDays(2));
+        var value = Sample;
+        var ex = Fails(() => value.Should().NotBeOneOf(Sample.AddDays(-1), Sample));
+        Assert.Equal(
+            "Did not expect value to be one of {2024-03-14T10:30:45.0000000+02:00, 2024-03-15T10:30:45.0000000+02:00}, "
+            + "but found 2024-03-15T10:30:45.0000000+02:00.", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeOneOf_Passes_On_Null_Subject()
+    {
+        DateTimeOffset? value = null;
+        value.Should().NotBeOneOf(Sample);
+    }
+
+    [Fact]
+    public void NotBeOneOf_Throws_On_Null_Values()
+    {
+        var value = Sample;
+        Assert.Throws<ArgumentNullException>(() => value.Should().NotBeOneOf((DateTimeOffset[])null!, because: null));
+    }
+
+    [Fact]
+    public void NotHaveYear_Passes_And_Fails()
+    {
+        Sample.Should().NotHaveYear(2023);
+        var value = Sample;
+        var ex = Fails(() => value.Should().NotHaveYear(2024));
+        Assert.Equal("Did not expect value to have year 2024.", ex.Message);
+    }
+
+    [Fact]
+    public void NotHaveMonth_Passes_And_Fails()
+    {
+        Sample.Should().NotHaveMonth(4);
+        var value = Sample;
+        var ex = Fails(() => value.Should().NotHaveMonth(3));
+        Assert.Equal("Did not expect value to have month 3.", ex.Message);
+    }
+
+    [Fact]
+    public void NotHaveDay_Passes_And_Fails()
+    {
+        Sample.Should().NotHaveDay(16);
+        var value = Sample;
+        var ex = Fails(() => value.Should().NotHaveDay(15));
+        Assert.Equal("Did not expect value to have day 15.", ex.Message);
+    }
+
+    [Fact]
+    public void NotHaveHour_Passes_And_Fails()
+    {
+        Sample.Should().NotHaveHour(11);
+        var value = Sample;
+        var ex = Fails(() => value.Should().NotHaveHour(10));
+        Assert.Equal("Did not expect value to have hour 10.", ex.Message);
+    }
+
+    [Fact]
+    public void NotHaveMinute_Passes_And_Fails()
+    {
+        Sample.Should().NotHaveMinute(31);
+        var value = Sample;
+        var ex = Fails(() => value.Should().NotHaveMinute(30));
+        Assert.Equal("Did not expect value to have minute 30.", ex.Message);
+    }
+
+    [Fact]
+    public void NotHaveSecond_Passes_And_Fails()
+    {
+        Sample.Should().NotHaveSecond(46);
+        var value = Sample;
+        var ex = Fails(() => value.Should().NotHaveSecond(45));
+        Assert.Equal("Did not expect value to have second 45.", ex.Message);
+    }
+
+    [Fact]
+    public void NotHave_Component_Family_Passes_On_Null_Subject()
+    {
+        DateTimeOffset? value = null;
+        value.Should().NotHaveYear(2024).And.NotHaveMonth(3).And.NotHaveDay(15)
+            .And.NotHaveHour(10).And.NotHaveMinute(30).And.NotHaveSecond(45);
+    }
+
+    [Fact]
+    public void NotHaveOffset_Passes_And_Fails()
+    {
+        Sample.Should().NotHaveOffset(TimeSpan.FromHours(3));
+        var value = Sample;
+        var ex = Fails(() => value.Should().NotHaveOffset(TimeSpan.FromHours(2)));
+        Assert.Equal("Did not expect value to have offset 02:00:00.", ex.Message);
+    }
+
+    [Fact]
+    public void NotHaveOffset_Passes_On_Null_Subject()
+    {
+        DateTimeOffset? value = null;
+        value.Should().NotHaveOffset(TimeSpan.FromHours(2));
+    }
+
+    [Fact]
+    public void NotBeSameDateAs_Passes_And_Fails()
+    {
+        Sample.Should().NotBeSameDateAs(Sample.AddDays(1));
+        // Same calendar day, different clock time: the time of day is ignored, so this must fail.
+        var value = Sample;
+        var ex = Fails(() => value.Should().NotBeSameDateAs(Sample.AddHours(2)));
+        Assert.Equal(
+            "Did not expect value to be on 2024-03-15T00:00:00.0000000, but found 2024-03-15T10:30:45.0000000+02:00.",
+            ex.Message);
+    }
+
+    [Fact]
+    public void NotBeSameDateAs_Passes_On_Null_Subject()
+    {
+        DateTimeOffset? value = null;
+        value.Should().NotBeSameDateAs(Sample);
+    }
 }

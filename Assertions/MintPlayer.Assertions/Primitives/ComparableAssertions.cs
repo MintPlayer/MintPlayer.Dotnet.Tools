@@ -88,6 +88,14 @@ public class ComparableAssertions<T>
         return new(this);
     }
 
+    /// <summary>Asserts the value lies outside the inclusive range [<paramref name="minimumValue"/>, <paramref name="maximumValue"/>] (a null value passes).</summary>
+    public AndConstraint<ComparableAssertions<T>> NotBeInRange(T minimumValue, T maximumValue, string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(!hasValue || Subject!.CompareTo(minimumValue) < 0 || Subject!.CompareTo(maximumValue) > 0).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be between {0} and {1}{reason}, but found {2}.", minimumValue, maximumValue, SubjectForMessage);
+        return new(this);
+    }
+
     // Renders default(T) of a null reference subject as <null> instead of a misleading default value.
     private object? SubjectForMessage => hasValue ? Subject : null;
 }

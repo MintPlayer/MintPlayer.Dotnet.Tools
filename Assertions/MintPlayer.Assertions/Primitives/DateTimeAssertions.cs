@@ -114,11 +114,47 @@ public class DateTimeAssertions
     public AndConstraint<DateTimeAssertions> HaveSecond(int expected, string? because = null, params object?[] becauseArgs)
         => HaveComponent("second", expected, Subject?.Second, because, becauseArgs);
 
+    /// <summary>Asserts the subject's year differs from <paramref name="unexpected"/> (a null subject passes).</summary>
+    public AndConstraint<DateTimeAssertions> NotHaveYear(int unexpected, string? because = null, params object?[] becauseArgs)
+        => NotHaveComponent("year", unexpected, Subject?.Year, because, becauseArgs);
+
+    /// <summary>Asserts the subject's month differs from <paramref name="unexpected"/> (a null subject passes).</summary>
+    public AndConstraint<DateTimeAssertions> NotHaveMonth(int unexpected, string? because = null, params object?[] becauseArgs)
+        => NotHaveComponent("month", unexpected, Subject?.Month, because, becauseArgs);
+
+    /// <summary>Asserts the subject's day differs from <paramref name="unexpected"/> (a null subject passes).</summary>
+    public AndConstraint<DateTimeAssertions> NotHaveDay(int unexpected, string? because = null, params object?[] becauseArgs)
+        => NotHaveComponent("day", unexpected, Subject?.Day, because, becauseArgs);
+
+    /// <summary>Asserts the subject's hour differs from <paramref name="unexpected"/> (a null subject passes).</summary>
+    public AndConstraint<DateTimeAssertions> NotHaveHour(int unexpected, string? because = null, params object?[] becauseArgs)
+        => NotHaveComponent("hour", unexpected, Subject?.Hour, because, becauseArgs);
+
+    /// <summary>Asserts the subject's minute differs from <paramref name="unexpected"/> (a null subject passes).</summary>
+    public AndConstraint<DateTimeAssertions> NotHaveMinute(int unexpected, string? because = null, params object?[] becauseArgs)
+        => NotHaveComponent("minute", unexpected, Subject?.Minute, because, becauseArgs);
+
+    /// <summary>Asserts the subject's second differs from <paramref name="unexpected"/> (a null subject passes).</summary>
+    public AndConstraint<DateTimeAssertions> NotHaveSecond(int unexpected, string? because = null, params object?[] becauseArgs)
+        => NotHaveComponent("second", unexpected, Subject?.Second, because, becauseArgs);
+
     /// <summary>Asserts the subject's date component equals that of <paramref name="expected"/> (time of day is ignored).</summary>
     public AndConstraint<DateTimeAssertions> BeSameDateAs(DateTime expected, string? because = null, params object?[] becauseArgs)
     {
         Assert().ForCondition(Subject.HasValue && Subject.Value.Date == expected.Date).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to be on {0}{reason}, but found {1}.", expected.Date, Subject);
+        return new(this);
+    }
+
+    /// <summary>
+    /// Asserts the subject falls on a different calendar day than <paramref name="unexpected"/>
+    /// (time of day is ignored on both sides, so a different clock time on the same day still fails).
+    /// A null subject passes.
+    /// </summary>
+    public AndConstraint<DateTimeAssertions> NotBeSameDateAs(DateTime unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(!Subject.HasValue || Subject.Value.Date != unexpected.Date).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be on {0}{reason}, but found {1}.", unexpected.Date, Subject);
         return new(this);
     }
 
@@ -129,6 +165,19 @@ public class DateTimeAssertions
             .FailWith("Expected {subject} to be in {0}{reason}, but found <null>.", expectedKind)
             .ForCondition(!Subject.HasValue || Subject.Value.Kind == expectedKind).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to be in {0}{reason}, but found {1}.", expectedKind, Subject?.Kind);
+        return new(this);
+    }
+
+    /// <summary>
+    /// Asserts the subject's <see cref="DateTime.Kind"/> differs from <paramref name="unexpectedKind"/>.
+    /// A null subject passes — it carries no kind to object to. Note that
+    /// <see cref="DateTimeKind.Unspecified"/> is a kind like any other here, so an unspecified subject
+    /// fails <c>NotBeIn(DateTimeKind.Unspecified)</c>.
+    /// </summary>
+    public AndConstraint<DateTimeAssertions> NotBeIn(DateTimeKind unexpectedKind, string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(!Subject.HasValue || Subject.Value.Kind != unexpectedKind).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be in {0}{reason}.", unexpectedKind);
         return new(this);
     }
 
@@ -161,6 +210,22 @@ public class DateTimeAssertions
         return new(this);
     }
 
+    /// <summary>Asserts the subject is none of <paramref name="unexpectedValues"/> (a null subject passes).</summary>
+    public AndConstraint<DateTimeAssertions> NotBeOneOf(params DateTime[] unexpectedValues)
+        => NotBeOneOf(unexpectedValues, because: null);
+
+    /// <summary>
+    /// Asserts the subject is none of <paramref name="unexpectedValues"/> (a null subject passes).
+    /// An empty set passes too: there is nothing for the subject to be one of.
+    /// </summary>
+    public AndConstraint<DateTimeAssertions> NotBeOneOf(DateTime[] unexpectedValues, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(unexpectedValues);
+        Assert().ForCondition(!Subject.HasValue || Array.IndexOf(unexpectedValues, Subject.Value) < 0).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be one of {0}{reason}, but found {1}.", unexpectedValues, Subject);
+        return new(this);
+    }
+
     private static TimeSpan Distance(DateTime left, DateTime right)
         => TimeSpan.FromTicks(Math.Abs(left.Ticks - right.Ticks));
 
@@ -170,6 +235,14 @@ public class DateTimeAssertions
             .FailWith("Expected {subject} to have " + name + " {0}{reason}, but found <null>.", expected)
             .ForCondition(!Subject.HasValue || actual == expected).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to have " + name + " {0}{reason}, but found {1}.", expected, actual);
+        return new(this);
+    }
+
+    // The negative needs no null stage: without a value there is no component to object to, so null passes.
+    private AndConstraint<DateTimeAssertions> NotHaveComponent(string name, int unexpected, int? actual, string? because, object?[] becauseArgs)
+    {
+        Assert().ForCondition(!Subject.HasValue || actual != unexpected).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to have " + name + " {0}{reason}.", unexpected);
         return new(this);
     }
 }
