@@ -64,6 +64,17 @@ public class EnumAssertions<TEnum>
         return new(this);
     }
 
+    /// <summary>
+    /// Asserts the value is not one of the declared members of <typeparamref name="TEnum"/> — the check
+    /// for the out-of-range values a cast from an integer can produce (a null value passes).
+    /// </summary>
+    public AndConstraint<EnumAssertions<TEnum>> NotBeDefined(string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(Subject is not { } value || !Enum.IsDefined(value)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be defined in {0}{reason}, but found {1}.", typeof(TEnum), Subject);
+        return new(this);
+    }
+
     /// <summary>Asserts the value is one of the given values.</summary>
     public AndConstraint<EnumAssertions<TEnum>> BeOneOf(params TEnum[] validValues)
         => BeOneOf(validValues, because: null);
@@ -74,6 +85,22 @@ public class EnumAssertions<TEnum>
         ArgumentNullException.ThrowIfNull(validValues);
         Assert().ForCondition(Subject is { } value && validValues.Contains(value, EqualityComparer<TEnum>.Default)).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to be one of {0}{reason}, but found {1}.", validValues, Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the value is none of the given values (a null value passes).</summary>
+    public AndConstraint<EnumAssertions<TEnum>> NotBeOneOf(params TEnum[] unexpectedValues)
+        => NotBeOneOf(unexpectedValues, because: null);
+
+    /// <summary>
+    /// Asserts the value is none of the given values (a null value passes). An empty set passes too:
+    /// there is nothing for the value to be one of.
+    /// </summary>
+    public AndConstraint<EnumAssertions<TEnum>> NotBeOneOf(IEnumerable<TEnum> unexpectedValues, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(unexpectedValues);
+        Assert().ForCondition(Subject is not { } value || !unexpectedValues.Contains(value, EqualityComparer<TEnum>.Default)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be one of {0}{reason}, but found {1}.", unexpectedValues, Subject);
         return new(this);
     }
 

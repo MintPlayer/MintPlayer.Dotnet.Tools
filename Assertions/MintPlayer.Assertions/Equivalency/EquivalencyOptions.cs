@@ -20,6 +20,7 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     private bool useStrictOrdering;
     private int maxDepth = 10;
     private bool useRuntimeTypes;
+    private bool allowVacuousComparison;
 
     IReadOnlyCollection<string> IEquivalencyOptions.ExcludedPaths => excludedPaths;
     IReadOnlyDictionary<Type, IReadOnlyCollection<string>> IEquivalencyOptions.NestedExclusions => nestedExclusions;
@@ -31,6 +32,7 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     bool IEquivalencyOptions.UseStrictOrdering => useStrictOrdering;
     int IEquivalencyOptions.MaxDepth => maxDepth;
     bool IEquivalencyOptions.UseRuntimeTypes => useRuntimeTypes;
+    bool IEquivalencyOptions.AllowVacuousComparison => allowVacuousComparison;
 
     /// <summary>
     /// Excludes the member selected by <paramref name="selector"/> from the comparison. Chained
@@ -154,6 +156,21 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     public EquivalencyOptions<TExpectation> RespectingRuntimeTypes()
     {
         useRuntimeTypes = true;
+        return this;
+    }
+
+    /// <summary>
+    /// Permits a comparison in which some node compares no members at all. Such an assertion
+    /// cannot fail — the positive form passes for any pair of values and the negative form fails
+    /// for any pair — so it is rejected with an <see cref="InvalidOperationException"/> by
+    /// default. Call this when comparing nothing is genuinely intended, as in a generic or
+    /// table-driven harness where some instantiations of the expectation type legitimately expose
+    /// no members. Comparing two empty collections and comparing two memberless values are both
+    /// already allowed and need no opt-in.
+    /// </summary>
+    public EquivalencyOptions<TExpectation> AllowingVacuousComparison()
+    {
+        allowVacuousComparison = true;
         return this;
     }
 

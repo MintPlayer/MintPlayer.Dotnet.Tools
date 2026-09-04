@@ -212,6 +212,42 @@ public class ReferenceTypeAssertionsTests
         value.Should().Match(v => v is null);
     }
 
+    [Fact]
+    public void NotMatch_PassesWhenThePredicateDoesNotHold()
+        => ((object)"hello").Should().NotMatch(v => v is string { Length: 3 });
+
+    [Fact]
+    public void NotMatch_FailsWhenThePredicateHolds()
+    {
+        var value = (object)"hello";
+
+        var ex = Record.Exception(() => value.Should().NotMatch(v => v is string { Length: 5 }));
+
+        Assert.IsType<AssertionFailedException>(ex);
+        Assert.Equal("Did not expect value to match the given predicate, but \"hello\" did.", ex.Message);
+    }
+
+    [Fact]
+    public void NotMatch_ReceivesNull_AndDoesNotPassItAutomatically()
+    {
+        object? value = null;
+
+        // Unlike the other negatives, a null subject is handed to the predicate rather than
+        // short-circuited to a pass — so a predicate that accepts null makes this fail.
+        var ex = Record.Exception(() => value.Should().NotMatch(v => v is null));
+
+        Assert.IsType<AssertionFailedException>(ex);
+        Assert.Equal("Did not expect value to match the given predicate, but <null> did.", ex.Message);
+    }
+
+    [Fact]
+    public void NotMatch_ThrowsWhenThePredicateIsNull()
+    {
+        var value = new object();
+
+        Assert.Throws<ArgumentNullException>(() => value.Should().NotMatch(null!));
+    }
+
     #endregion
 
     #region Chaining

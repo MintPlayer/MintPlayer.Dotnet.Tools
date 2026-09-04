@@ -52,6 +52,19 @@ public class TimeOnlyAssertions
         return new(this);
     }
 
+    /// <summary>
+    /// Asserts the subject is not within <paramref name="precision"/> of <paramref name="distantTime"/>,
+    /// measuring the same shortest distance around the clock as <see cref="BeCloseTo"/> (so 00:01 is not
+    /// far from 23:59). A null subject passes.
+    /// </summary>
+    public AndConstraint<TimeOnlyAssertions> NotBeCloseTo(TimeOnly distantTime, TimeSpan precision, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(precision, TimeSpan.Zero);
+        Assert().ForCondition(!Subject.HasValue || Distance(Subject.Value, distantTime) > precision).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be within {0} of {1}{reason}, but found {2}.", precision, distantTime, Subject);
+        return new(this);
+    }
+
     /// <summary>Asserts the subject is strictly before <paramref name="expected"/>.</summary>
     public AndConstraint<TimeOnlyAssertions> BeBefore(TimeOnly expected, string? because = null, params object?[] becauseArgs)
     {

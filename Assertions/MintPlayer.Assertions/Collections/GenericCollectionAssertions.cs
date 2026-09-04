@@ -90,6 +90,22 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         return new(this);
     }
 
+    /// <summary>
+    /// Asserts the collection does not contain exactly <paramref name="unexpected"/> items. Says
+    /// nothing about whether the real count is higher or lower — reach for
+    /// <see cref="HaveCountGreaterThan"/> or <see cref="HaveCountLessThan"/> when the direction is
+    /// what actually matters, since those produce a far more useful failure message.
+    /// </summary>
+    public AndConstraint<GenericCollectionAssertions<T>> NotHaveCount(int unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        var items = Items;
+        if (items is null) return FailNull($"not to contain {unexpected} item(s)", because, becauseArgs);
+
+        Assert().ForCondition(items.Count != unexpected).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to contain {0} item(s){reason}, but found {1}.", unexpected, items);
+        return new(this);
+    }
+
     /// <summary>Asserts the collection's count matches the given predicate.</summary>
     public AndConstraint<GenericCollectionAssertions<T>> HaveCount(Func<int, bool> predicate, string? because = null, params object?[] becauseArgs)
     {
@@ -219,6 +235,47 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         return new(this, matches.Count >= 1 ? matches[0] : default!);
     }
 
+    /// <summary>
+    /// Asserts the collection does not contain exactly one item — it is either empty or holds two
+    /// or more.
+    /// </summary>
+    /// <remarks>
+    /// Unlike <see cref="ContainSingle(string?, object?[])"/> this returns a plain
+    /// <see cref="AndConstraint{T}"/> rather than an <c>AndWhichConstraint</c>: when the assertion
+    /// succeeds there is by definition no single item to hand back through <c>Which</c>.
+    /// </remarks>
+    public AndConstraint<GenericCollectionAssertions<T>> NotContainSingle(string? because = null, params object?[] becauseArgs)
+    {
+        var items = Items;
+        if (items is null) return FailNull("not to contain a single item", because, becauseArgs);
+
+        Assert().ForCondition(items.Count != 1).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to contain a single item{reason}, but found {0}.", items);
+        return new(this);
+    }
+
+    /// <summary>
+    /// Asserts the number of items matching the predicate is anything but exactly one — zero
+    /// matches satisfies this just as well as three do. To assert that <em>no</em> item matches,
+    /// use <see cref="NotContain(Func{T, bool}, string?, object?[])"/> instead.
+    /// </summary>
+    public AndConstraint<GenericCollectionAssertions<T>> NotContainSingle(Func<T, bool> predicate, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(predicate);
+        var items = Items;
+        if (items is null) return FailNull("not to contain a single item matching the given predicate", because, becauseArgs);
+
+        var matches = new List<T>();
+        foreach (var item in items)
+        {
+            if (predicate(item)) matches.Add(item);
+        }
+
+        Assert().ForCondition(matches.Count != 1).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to contain a single item matching the given predicate{reason}, but found {0}.", matches);
+        return new(this);
+    }
+
     /// <summary>Asserts the collection contains the given item.</summary>
     public AndConstraint<GenericCollectionAssertions<T>> Contain(T expected, string? because = null, params object?[] becauseArgs)
     {
@@ -331,6 +388,43 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         return new(this);
     }
 
+    /// <summary>
+    /// Asserts the given items do <em>not</em> appear in the collection in the given relative
+    /// order. They may all be present — as long as at least one of them is missing or comes out of
+    /// sequence, this succeeds.
+    /// </summary>
+    public AndConstraint<GenericCollectionAssertions<T>> NotContainInOrder(params T[] unexpected)
+        => NotContainInOrder((IEnumerable<T>)unexpected, null);
+
+    /// <summary>
+    /// Asserts the given items do <em>not</em> appear in the collection in the given relative
+    /// order (a subsequence match), allowing other items in between.
+    /// </summary>
+    /// <remarks>
+    /// An empty <paramref name="unexpected"/> sequence is vacuously contained in order by every
+    /// collection, so this assertion always fails for one — the mirror image of
+    /// <see cref="ContainInOrder(IEnumerable{T}, string?, object?[])"/> always succeeding.
+    /// </remarks>
+    public AndConstraint<GenericCollectionAssertions<T>> NotContainInOrder(IEnumerable<T> unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(unexpected);
+        var items = Items;
+        var unexpectedItems = unexpected as IReadOnlyList<T> ?? [.. unexpected];
+        if (items is null) return FailNull($"not to contain {Formatting.Formatter.Format(unexpectedItems)} in order", because, becauseArgs);
+
+        var comparer = EqualityComparer<T>.Default;
+        var position = 0;
+        foreach (var item in items)
+        {
+            if (position < unexpectedItems.Count && comparer.Equals(item, unexpectedItems[position]))
+                position++;
+        }
+
+        Assert().ForCondition(position < unexpectedItems.Count).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to contain {0} in order{reason}, but found {1}.", unexpectedItems, items);
+        return new(this);
+    }
+
     /// <summary>Asserts every item matches the predicate.</summary>
     public AndConstraint<GenericCollectionAssertions<T>> OnlyContain(Func<T, bool> predicate, string? because = null, params object?[] becauseArgs)
     {
@@ -346,6 +440,40 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
 
         Assert().ForCondition(mismatches.Count == 0).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to only contain items matching the given predicate{reason}, but {0} did not.", mismatches);
+        return new(this);
+    }
+
+    /// <summary>
+    /// Asserts at least one item does <em>not</em> match the predicate — the exact logical negation
+    /// of <see cref="OnlyContain"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is deliberately <em>not</em> "contains none of the matching items"; that assertion is
+    /// <see cref="NotContain(Func{T, bool}, string?, object?[])"/>. A collection holding a mix of
+    /// matching and non-matching items satisfies this one, because it is not true that it contains
+    /// <em>only</em> matching items.
+    /// </para>
+    /// <para>
+    /// Because <see cref="OnlyContain"/> is a universally quantified claim, it holds vacuously for
+    /// an empty collection — so this negation fails for an empty collection. If the intent is
+    /// really "no item matches", say that with <c>NotContain(predicate)</c>, which passes on empty.
+    /// </para>
+    /// </remarks>
+    public AndConstraint<GenericCollectionAssertions<T>> NotOnlyContain(Func<T, bool> predicate, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(predicate);
+        var items = Items;
+        if (items is null) return FailNull("not to only contain items matching the given predicate", because, becauseArgs);
+
+        var allMatch = true;
+        foreach (var item in items)
+        {
+            if (!predicate(item)) { allMatch = false; break; }
+        }
+
+        Assert().ForCondition(!allMatch).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to only contain items matching the given predicate{reason}, but all {0} item(s) did.", items.Count);
         return new(this);
     }
 
@@ -366,6 +494,59 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
 
         Assert().ForCondition(duplicatesInOrder.Count == 0).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to only have unique items{reason}, but found duplicate(s) {0}.", duplicatesInOrder);
+        return new(this);
+    }
+
+    /// <summary>
+    /// Asserts the collection holds at least one duplicate item, using
+    /// <see cref="EqualityComparer{T}.Default"/> — the negation of
+    /// <see cref="OnlyHaveUniqueItems"/>.
+    /// </summary>
+    /// <remarks>
+    /// Uniqueness holds vacuously for an empty or single-item collection, so this assertion fails
+    /// for both. It is a genuine assertion about duplication, not a weaker "may contain
+    /// duplicates".
+    /// </remarks>
+    public AndConstraint<GenericCollectionAssertions<T>> NotOnlyHaveUniqueItems(string? because = null, params object?[] becauseArgs)
+    {
+        var items = Items;
+        if (items is null) return FailNull("not to only have unique items", because, becauseArgs);
+
+        var seen = new HashSet<T>();
+        var hasDuplicate = false;
+        foreach (var item in items)
+        {
+            if (!seen.Add(item)) { hasDuplicate = true; break; }
+        }
+
+        Assert().ForCondition(hasDuplicate).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to only have unique items{reason}, but found {0}.", items);
+        return new(this);
+    }
+
+    /// <summary>
+    /// Asserts the collection holds at least one <see langword="null"/> item — the positive mirror
+    /// of <see cref="NotContainNulls"/>.
+    /// </summary>
+    /// <remarks>
+    /// Like its negative counterpart there is no nullability constraint on <typeparamref name="T"/>,
+    /// so this compiles for a non-nullable value type too — where it can never succeed, because no
+    /// such item is ever <see langword="null"/>. The failure message reports the collection so that
+    /// case is obvious rather than mysterious.
+    /// </remarks>
+    public AndConstraint<GenericCollectionAssertions<T>> ContainNulls(string? because = null, params object?[] becauseArgs)
+    {
+        var items = Items;
+        if (items is null) return FailNull("to contain <null> items", because, becauseArgs);
+
+        var containsNull = false;
+        for (var i = 0; i < items.Count; i++)
+        {
+            if (items[i] is null) { containsNull = true; break; }
+        }
+
+        Assert().ForCondition(containsNull).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to contain <null> items{reason}, but found {0}.", items);
         return new(this);
     }
 
@@ -470,6 +651,54 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         return new(this);
     }
 
+    /// <summary>
+    /// Asserts the collection's first item is not <paramref name="unexpected"/>, mirroring
+    /// <c>string.Should().NotStartWith(...)</c>.
+    /// </summary>
+    /// <remarks>
+    /// An empty collection starts with nothing at all, so it satisfies this. That is why the
+    /// positive <see cref="StartWith(T, string?, object?[])"/> needs a separate "the collection is
+    /// empty" failure and this one does not.
+    /// </remarks>
+    public AndConstraint<GenericCollectionAssertions<T>> NotStartWith(T unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        var items = Items;
+        if (items is null) return FailNull($"not to start with {Formatting.Formatter.Format(unexpected)}", because, becauseArgs);
+
+        var startsWith = items.Count > 0 && EqualityComparer<T>.Default.Equals(items[0], unexpected);
+
+        Assert().ForCondition(!startsWith).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to start with {0}{reason}.", unexpected);
+        return new(this);
+    }
+
+    /// <summary>
+    /// Asserts the collection does not begin with the given sequence of items. A collection shorter
+    /// than <paramref name="unexpected"/> cannot begin with it, so it satisfies this.
+    /// </summary>
+    /// <remarks>
+    /// An empty <paramref name="unexpected"/> sequence prefixes every collection, so this assertion
+    /// always fails for one.
+    /// </remarks>
+    public AndConstraint<GenericCollectionAssertions<T>> NotStartWith(IEnumerable<T> unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(unexpected);
+        var items = Items;
+        var unexpectedItems = unexpected as IReadOnlyList<T> ?? [.. unexpected];
+        if (items is null) return FailNull($"not to start with {Formatting.Formatter.Format(unexpectedItems)}", because, becauseArgs);
+
+        var comparer = EqualityComparer<T>.Default;
+        var startsWith = items.Count >= unexpectedItems.Count;
+        for (var i = 0; startsWith && i < unexpectedItems.Count; i++)
+        {
+            startsWith = comparer.Equals(items[i], unexpectedItems[i]);
+        }
+
+        Assert().ForCondition(!startsWith).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to start with {0}{reason}.", unexpectedItems);
+        return new(this);
+    }
+
     /// <summary>Asserts the collection ends with the given item.</summary>
     public AndConstraint<GenericCollectionAssertions<T>> EndWith(T expected, string? because = null, params object?[] becauseArgs)
     {
@@ -501,6 +730,48 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
 
         Assert().ForCondition(matches).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to end with {0}{reason}, but found {1}.", expectedItems, items);
+        return new(this);
+    }
+
+    /// <summary>
+    /// Asserts the collection's last item is not <paramref name="unexpected"/>, mirroring
+    /// <c>string.Should().NotEndWith(...)</c>. An empty collection ends with nothing at all, so it
+    /// satisfies this.
+    /// </summary>
+    public AndConstraint<GenericCollectionAssertions<T>> NotEndWith(T unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        var items = Items;
+        if (items is null) return FailNull($"not to end with {Formatting.Formatter.Format(unexpected)}", because, becauseArgs);
+
+        var endsWith = items.Count > 0 && EqualityComparer<T>.Default.Equals(items[^1], unexpected);
+
+        Assert().ForCondition(!endsWith).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to end with {0}{reason}.", unexpected);
+        return new(this);
+    }
+
+    /// <summary>
+    /// Asserts the collection does not finish with the given sequence of items. A collection shorter
+    /// than <paramref name="unexpected"/> cannot finish with it, so it satisfies this; an empty
+    /// <paramref name="unexpected"/> sequence suffixes every collection, so this always fails for one.
+    /// </summary>
+    public AndConstraint<GenericCollectionAssertions<T>> NotEndWith(IEnumerable<T> unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(unexpected);
+        var items = Items;
+        var unexpectedItems = unexpected as IReadOnlyList<T> ?? [.. unexpected];
+        if (items is null) return FailNull($"not to end with {Formatting.Formatter.Format(unexpectedItems)}", because, becauseArgs);
+
+        var comparer = EqualityComparer<T>.Default;
+        var endsWith = items.Count >= unexpectedItems.Count;
+        var offset = items.Count - unexpectedItems.Count;
+        for (var i = 0; endsWith && i < unexpectedItems.Count; i++)
+        {
+            endsWith = comparer.Equals(items[offset + i], unexpectedItems[i]);
+        }
+
+        Assert().ForCondition(!endsWith).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to end with {0}{reason}.", unexpectedItems);
         return new(this);
     }
 
@@ -540,6 +811,75 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     {
         ArgumentNullException.ThrowIfNull(selector);
         return AssertOrder(new KeyComparer<TKey>(selector), descending: true, because, becauseArgs);
+    }
+
+    /// <summary>
+    /// Asserts the items are <em>not</em> in ascending order using <see cref="Comparer{T}.Default"/>
+    /// — that is, some item is followed by a strictly smaller one.
+    /// </summary>
+    /// <remarks>
+    /// Being ordered is a claim about every adjacent pair, so it holds vacuously for an empty or
+    /// single-item collection and this negation fails for both. Note also that a collection of all
+    /// equal items is <em>both</em> ascending and descending, so it fails this and
+    /// <see cref="NotBeInDescendingOrder(string?, object?[])"/> alike.
+    /// </remarks>
+    public AndConstraint<GenericCollectionAssertions<T>> NotBeInAscendingOrder(string? because = null, params object?[] becauseArgs)
+        => NotBeInAscendingOrder(Comparer<T>.Default, because, becauseArgs);
+
+    /// <summary>Asserts the items are not in ascending order according to the given comparer.</summary>
+    public AndConstraint<GenericCollectionAssertions<T>> NotBeInAscendingOrder(IComparer<T> comparer, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(comparer);
+        return AssertNotOrder(comparer, descending: false, because, becauseArgs);
+    }
+
+    /// <summary>Asserts the items are not in ascending order by the given key.</summary>
+    public AndConstraint<GenericCollectionAssertions<T>> NotBeInAscendingOrder<TKey>(Func<T, TKey> selector, string? because = null, params object?[] becauseArgs)
+        where TKey : IComparable<TKey>
+    {
+        ArgumentNullException.ThrowIfNull(selector);
+        return AssertNotOrder(new KeyComparer<TKey>(selector), descending: false, because, becauseArgs);
+    }
+
+    /// <summary>
+    /// Asserts the items are <em>not</em> in descending order using
+    /// <see cref="Comparer{T}.Default"/> — that is, some item is followed by a strictly larger one.
+    /// Fails for an empty or single-item collection, which is vacuously ordered.
+    /// </summary>
+    public AndConstraint<GenericCollectionAssertions<T>> NotBeInDescendingOrder(string? because = null, params object?[] becauseArgs)
+        => NotBeInDescendingOrder(Comparer<T>.Default, because, becauseArgs);
+
+    /// <summary>Asserts the items are not in descending order according to the given comparer.</summary>
+    public AndConstraint<GenericCollectionAssertions<T>> NotBeInDescendingOrder(IComparer<T> comparer, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(comparer);
+        return AssertNotOrder(comparer, descending: true, because, becauseArgs);
+    }
+
+    /// <summary>Asserts the items are not in descending order by the given key.</summary>
+    public AndConstraint<GenericCollectionAssertions<T>> NotBeInDescendingOrder<TKey>(Func<T, TKey> selector, string? because = null, params object?[] becauseArgs)
+        where TKey : IComparable<TKey>
+    {
+        ArgumentNullException.ThrowIfNull(selector);
+        return AssertNotOrder(new KeyComparer<TKey>(selector), descending: true, because, becauseArgs);
+    }
+
+    private AndConstraint<GenericCollectionAssertions<T>> AssertNotOrder(IComparer<T> comparer, bool descending, string? because, object?[] becauseArgs)
+    {
+        var direction = descending ? "descending" : "ascending";
+        var items = Items;
+        if (items is null) return FailNull($"not to be in {direction} order", because, becauseArgs);
+
+        var ordered = true;
+        for (var i = 1; ordered && i < items.Count; i++)
+        {
+            var comparison = comparer.Compare(items[i - 1], items[i]);
+            if (descending ? comparison < 0 : comparison > 0) ordered = false;
+        }
+
+        Assert().ForCondition(!ordered).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be in " + direction + " order{reason}, but found {0}.", items);
+        return new(this);
     }
 
     private AndConstraint<GenericCollectionAssertions<T>> AssertOrder(IComparer<T> comparer, bool descending, string? because, object?[] becauseArgs)
@@ -769,6 +1109,52 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
                 return new(this);
             }
         }
+        return new(this);
+    }
+
+    /// <summary>
+    /// Asserts at least one item is <em>not</em> exactly of type <typeparamref name="TExpected"/> —
+    /// a derived type or a <see langword="null"/> item counts as "not", exactly as it does for
+    /// <see cref="AllBeOfType{TExpected}"/>.
+    /// </summary>
+    /// <remarks>
+    /// This is the logical negation of a universally quantified claim, so it fails for an empty
+    /// collection, which vacuously has all its items of any type you like. It does not mean "no item
+    /// is of this type"; a mixed collection satisfies it.
+    /// </remarks>
+    public AndConstraint<GenericCollectionAssertions<T>> NotAllBeOfType<TExpected>(string? because = null, params object?[] becauseArgs)
+    {
+        var items = Items;
+        if (items is null) return FailNull($"not to all be of type {typeof(TExpected).FullName}", because, becauseArgs);
+
+        var allMatch = true;
+        for (var i = 0; allMatch && i < items.Count; i++)
+        {
+            if (items[i]?.GetType() != typeof(TExpected)) allMatch = false;
+        }
+
+        Assert().ForCondition(!allMatch).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to all be of type {0}{reason}, but all {1} item(s) are.", typeof(TExpected), items.Count);
+        return new(this);
+    }
+
+    /// <summary>
+    /// Asserts at least one item is <em>not</em> assignable to <typeparamref name="TExpected"/>.
+    /// Fails for an empty collection, which is vacuously all-assignable to anything.
+    /// </summary>
+    public AndConstraint<GenericCollectionAssertions<T>> NotAllBeAssignableTo<TExpected>(string? because = null, params object?[] becauseArgs)
+    {
+        var items = Items;
+        if (items is null) return FailNull($"not to all be assignable to {typeof(TExpected).FullName}", because, becauseArgs);
+
+        var allMatch = true;
+        for (var i = 0; allMatch && i < items.Count; i++)
+        {
+            if (items[i] is not TExpected) allMatch = false;
+        }
+
+        Assert().ForCondition(!allMatch).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to all be assignable to {0}{reason}, but all {1} item(s) are.", typeof(TExpected), items.Count);
         return new(this);
     }
 

@@ -117,5 +117,50 @@ public class EnumAssertionsTests
     }
 
     [Fact]
+    public void NotBeDefined_Passes_ForUndeclaredValue() => ((Color)42).Should().NotBeDefined();
+
+    [Fact]
+    public void NotBeDefined_Passes_WhenNull()
+    {
+        Color? value = null;
+        value.Should().NotBeDefined();
+    }
+
+    [Fact]
+    public void NotBeDefined_Fails_ForDeclaredMember()
+    {
+        var value = Color.Blue;
+        var ex = Record.Exception(() => value.Should().NotBeDefined());
+        Assert.IsType<AssertionFailedException>(ex);
+        Assert.Equal($"Did not expect value to be defined in {typeof(Color).FullName}, but found Color.Blue.", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeOneOf_Passes_WhenNotContained() => Color.Blue.Should().NotBeOneOf(Color.Red, Color.Green);
+
+    [Fact]
+    public void NotBeOneOf_Passes_WhenNull()
+    {
+        Color? value = null;
+        value.Should().NotBeOneOf(Color.Red, Color.Green);
+    }
+
+    [Fact]
+    public void NotBeOneOf_Fails_WhenContained()
+    {
+        var value = Color.Green;
+        var ex = Record.Exception(() => value.Should().NotBeOneOf(Color.Red, Color.Green));
+        Assert.IsType<AssertionFailedException>(ex);
+        Assert.Equal("Did not expect value to be one of {Color.Red, Color.Green}, but found Color.Green.", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeOneOf_Throws_WhenValuesAreNull()
+    {
+        var value = Color.Green;
+        Assert.Throws<ArgumentNullException>(() => value.Should().NotBeOneOf((IEnumerable<Color>)null!));
+    }
+
+    [Fact]
     public void Chaining_Works() => Access.ReadWrite.Should().HaveFlag(Access.Read).And.HaveFlag(Access.Write).And.BeDefined();
 }

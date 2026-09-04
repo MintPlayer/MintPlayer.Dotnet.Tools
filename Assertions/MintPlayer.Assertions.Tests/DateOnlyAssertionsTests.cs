@@ -136,4 +136,27 @@ public class DateOnlyAssertionsTests
         var ex = Fails(() => value.Should().BeOneOf(new DateOnly(2024, 3, 16), new DateOnly(2024, 3, 17)));
         Assert.Contains("to be one of", ex.Message);
     }
+
+    [Fact]
+    public void NotBeOneOf_Passes_And_Fails()
+    {
+        Sample.Should().NotBeOneOf(new DateOnly(2024, 3, 16), new DateOnly(2024, 3, 17));
+        var value = Sample;
+        var ex = Fails(() => value.Should().NotBeOneOf(new DateOnly(2024, 3, 14), Sample));
+        Assert.Equal("Did not expect value to be one of {2024-03-14, 2024-03-15}, but found 2024-03-15.", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeOneOf_Passes_On_Null_Subject()
+    {
+        DateOnly? value = null;
+        value.Should().NotBeOneOf(Sample);
+    }
+
+    [Fact]
+    public void NotBeOneOf_Throws_On_Null_Values()
+    {
+        var value = Sample;
+        Assert.Throws<ArgumentNullException>(() => value.Should().NotBeOneOf((DateOnly[])null!, because: null));
+    }
 }

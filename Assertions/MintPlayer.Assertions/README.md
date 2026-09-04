@@ -182,6 +182,43 @@ Options (`NotBeEquivalentTo` takes the same):
 | `ComparingByValue<T>()` / `ComparingByMembers<T>()` | Force `Equals` or member-wise comparison for a type |
 | `WithMaxDepth(n)` / `AllowingInfiniteRecursion()` | Bound or unbound recursion (default depth 10) |
 | `RespectingRuntimeTypes()` | Resolve members from runtime types instead of declared ones |
+| `AllowingVacuousComparison()` | Permit a comparison that compares no members at all (see below) |
+
+`Excluding` and `Including` take a path relative to the **comparison root**. On a collection
+subject the root is the collection, so an element's member lives at `[0].Name` — reach it with
+`ExcludingNested<T>` or a wildcard path, not `Excluding(x => x.Name)`.
+
+#### Assertions that cannot fail are refused
+
+The comparison is driven by the *expectation's* members, and extra subject members are ignored —
+that is what makes comparing a DTO against an anonymous object work. The degenerate consequence is
+that an expectation contributing **no** members yields no differences, so `BeEquivalentTo` would
+pass for any two values and `NotBeEquivalentTo` would fail for any two values. Silently.
+
+That is refused with an `InvalidOperationException` naming both types and the cause:
+
+```
+No members were compared, so this assertion can never fail: the expectation type 'Object'
+exposes no public properties or fields, while the subject 'Invoice' has 2. Compare against a
+concrete type, or against an anonymous object listing the members you care about — or call
+AllowingVacuousComparison() if comparing nothing is intended.
+```
+
+It is thrown rather than reported as a failure because a failure is exactly what would make
+`NotBeEquivalentTo` *succeed* — hiding the mistake where it is easiest to make.
+
+An expectation type with **no comparable members** is refused wherever it appears, including on a
+collection element or a nested member, since it is never a way to express intent. Options that
+**removed every member** are refused only at the root, where nothing is left to assert — deeper
+down, excluding every member of a subtree is the normal way to skip it, exactly as
+`ExcludingNested<AuditInfo>(a => a.ModifiedOn)` does above. Two values that both expose no members
+are genuinely equivalent and still compare equal; so do two empty collections. Use
+`AllowingVacuousComparison()` for a generic harness where some instantiations legitimately have
+nothing to compare.
+
+Casting to `object` does **not** disable the comparison — members are resolved from the runtime
+type. It does cost the generated accessors and make the options lambda untypeable, which is what
+[MPA0004](#analyzers) points out.
 
 ```csharp
 actual.Should().BeEquivalentTo(expected, opt => opt
@@ -260,7 +297,7 @@ ratio.Should().BeInRange(0, 1);
 `NotContain` `ContainInOrder` `OnlyContain` `OnlyHaveUniqueItems` `NotContainNulls` `Equal`
 `NotEqual` `StartWith` `EndWith` `BeInAscendingOrder` `BeInDescendingOrder` `BeSubsetOf`
 `NotBeSubsetOf` `IntersectWith` `NotIntersectWith` `AllSatisfy` `SatisfyRespectively`
-`AllBeOfType<T>` `AllBeAssignableTo<T>`
+`AllBeOfType<T>` `AllBeAssignableTo<T>` `BeEquivalentTo` `NotBeEquivalentTo`
 
 ```csharp
 orders.Should().BeInAscendingOrder(o => o.PlacedOn);
@@ -280,10 +317,21 @@ are safe.
 ### Dictionaries
 
 `BeEmpty` `NotBeEmpty` `HaveCount` `ContainKey` `ContainKeys` `NotContainKey` `ContainValue`
-`ContainValues` `NotContainValue` `Contain` `NotContain`
+`ContainValues` `NotContainValue` `Contain` `NotContain` `BeEquivalentTo` `NotBeEquivalentTo`
 
 ```csharp
 versions.Should().ContainKey("Newtonsoft.Json").Which.Should().Be("13.0.3");
+```
+
+`BeEquivalentTo` compares dictionaries structurally: every expected key present with an
+equivalent value, and no unexpected keys. Values go through the full object-graph comparison, so
+the values can be anonymous objects listing only the members you care about.
+
+```csharp
+lanes.Should().BeEquivalentTo(new Dictionary<string, object>
+{
+    ["left"] = new { Width = 3 },
+});
 ```
 
 Key lookups honour the dictionary's **own** comparer, so a
@@ -439,6 +487,7 @@ Shipped in the package; no extra reference, no configuration.
 | **MPA0001** | **Error** | An async assertion whose `Task` is discarded. The test would pass no matter what the assertion found. Code fix adds `await` (and makes the method `async`). |
 | **MPA0002** | Warning | `Should()` with no assertion called on it — it does nothing. |
 | **MPA0003** | Warning | An `AssertionScope` that is never disposed, which silently swallows every failure it collected. Code fix converts it to a `using` declaration. |
+| **MPA0004** | Info | An equivalency expectation cast to `object`. The comparison is still correct, but it falls back to reflection instead of the generated accessors and cannot be configured with `Excluding`/`Including`. |
 | **MPA0100** | Info | A file still using FluentAssertions, with a code fix that migrates it. |
 | **MPAG001** | Warning | A `[GenerateAssertion]` method whose shape is unsupported, so no assertion was generated. |
 

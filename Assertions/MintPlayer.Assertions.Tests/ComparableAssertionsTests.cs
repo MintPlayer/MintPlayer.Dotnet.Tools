@@ -115,5 +115,48 @@ public class ComparableAssertionsTests
     }
 
     [Fact]
+    public void NotBeInRange_Passes_WhenOutsideTheRange()
+    {
+        new Version(3, 0).Should().NotBeInRange(new Version(1, 0), new Version(2, 0));
+        new Version(0, 9).Should().NotBeInRange(new Version(1, 0), new Version(2, 0));
+    }
+
+    [Fact]
+    public void NotBeInRange_Fails_WhenInsideTheRange()
+    {
+        var version = new Version(1, 5);
+        var ex = Record.Exception(() => version.Should().NotBeInRange(new Version(1, 0), new Version(2, 0)));
+        Assert.IsType<AssertionFailedException>(ex);
+        Assert.Equal("Did not expect version to be between 1.0 and 2.0, but found 1.5.", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeInRange_Fails_OnTheInclusiveBounds()
+    {
+        // BeInRange treats both ends as included, so the negative must reject them too.
+        var version = new Version(2, 0);
+        var ex = Record.Exception(() => version.Should().NotBeInRange(new Version(1, 0), new Version(2, 0)));
+        Assert.IsType<AssertionFailedException>(ex);
+        Assert.Equal("Did not expect version to be between 1.0 and 2.0, but found 2.0.", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeInRange_Passes_WhenSubjectIsNull()
+    {
+        Version? version = null;
+        version.Should().NotBeInRange(new Version(1, 0), new Version(2, 0));
+    }
+
+    [Fact]
+    public void NotBeInRange_Works_ForAValueTypeSubject()
+    {
+        new Money(9m).Should().NotBeInRange(new Money(1m), new Money(5m));
+        var money = new Money(3m);
+        var ex = Record.Exception(() => money.Should().NotBeInRange(new Money(1m), new Money(5m)));
+        Assert.IsType<AssertionFailedException>(ex);
+        Assert.Equal("Did not expect money to be between 1 and 5, but found 3.", ex.Message);
+    }
+
+    [Fact]
     public void Chaining_Works() => new Version(1, 5).Should().BeGreaterThan(new Version(1, 0)).And.BeLessThan(new Version(2, 0));
 }

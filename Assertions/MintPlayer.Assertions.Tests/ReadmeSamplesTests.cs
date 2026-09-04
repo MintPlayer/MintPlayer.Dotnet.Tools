@@ -176,4 +176,63 @@ public class DocSamples
     {
         typeof(Order).Should().BeAClass().And.NotBeDecoratedWith<ObsoleteAttribute>();
     }
+
+    [Fact]
+    public void DictionaryEquivalency()
+    {
+        var lanes = new Dictionary<string, Lane> { ["left"] = new() { Width = 3 } };
+
+        lanes.Should().BeEquivalentTo(new Dictionary<string, object>
+        {
+            ["left"] = new { Width = 3 },
+        });
+    }
+
+    /// <summary>
+    /// The README states that a comparison which compares nothing is refused, and quotes the
+    /// message. This keeps that promise honest.
+    /// </summary>
+    [Fact]
+    public void VacuousComparisonIsRefused()
+    {
+        var invoice = new Invoice { Name = "ACME", Amount = 2 };
+
+        var ex = Record.Exception(() => invoice.Should().BeEquivalentTo(new object()));
+
+        Assert.IsType<InvalidOperationException>(ex);
+        Assert.Contains("No members were compared", ex!.Message);
+        Assert.Contains("AllowingVacuousComparison()", ex.Message);
+
+        // And the documented opt-out works.
+        invoice.Should().BeEquivalentTo(new object(), o => o.AllowingVacuousComparison());
+    }
+
+    /// <summary>
+    /// The README warns that Excluding is root-relative and so does not reach a collection
+    /// element's member. Pin both halves of that claim.
+    /// </summary>
+    [Fact]
+    public void ExcludingIsRootRelativeOnCollections()
+    {
+        Lane[] subject = [new() { Width = 3 }];
+        Lane[] expectation = [new() { Width = 99 }];
+
+        subject.Should().BeEquivalentTo(expectation, o => o.ExcludingNested<Lane>(x => x.Width));
+        subject.Should().BeEquivalentTo(expectation, o => o.ExcludingPath("*.Width"));
+
+        var ex = Record.Exception(() => subject.Should().BeEquivalentTo(expectation, o => o.Excluding(x => x.Width)));
+        Assert.IsType<AssertionFailedException>(ex);
+    }
+}
+
+public class Lane
+{
+    public string Name { get; set; } = "";
+    public int Width { get; set; }
+}
+
+public class Invoice
+{
+    public string Name { get; set; } = "";
+    public int Amount { get; set; }
 }

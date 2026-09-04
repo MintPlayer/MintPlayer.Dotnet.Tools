@@ -218,5 +218,95 @@ public class NumericAssertionsTests
     }
 
     [Fact]
+    public void NotBePositive_Passes_WhenZeroOrNegative()
+    {
+        0.Should().NotBePositive();
+        (-1).Should().NotBePositive();
+    }
+
+    [Fact]
+    public void NotBePositive_Passes_WhenNull()
+    {
+        int? value = null;
+        value.Should().NotBePositive();
+    }
+
+    [Fact]
+    public void NotBePositive_Passes_ForNaN() => double.NaN.Should().NotBePositive();
+
+    [Fact]
+    public void NotBePositive_Fails_WhenPositive()
+    {
+        var value = 1;
+        var ex = Record.Exception(() => value.Should().NotBePositive());
+        Assert.IsType<AssertionFailedException>(ex);
+        Assert.Equal("Did not expect value to be positive, but found 1.", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeNegative_Passes_WhenZeroOrPositive()
+    {
+        0.Should().NotBeNegative();
+        1.Should().NotBeNegative();
+    }
+
+    [Fact]
+    public void NotBeNegative_Passes_WhenNull()
+    {
+        int? value = null;
+        value.Should().NotBeNegative();
+    }
+
+    [Fact]
+    public void NotBeNegative_Passes_ForNaN() => double.NaN.Should().NotBeNegative();
+
+    [Fact]
+    public void NotBeNegative_Fails_WhenNegative()
+    {
+        var value = -1;
+        var ex = Record.Exception(() => value.Should().NotBeNegative());
+        Assert.IsType<AssertionFailedException>(ex);
+        Assert.Equal("Did not expect value to be negative, but found -1.", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeOneOf_Passes_WhenNotContained() => 42.Should().NotBeOneOf(1, 2, 3);
+
+    [Fact]
+    public void NotBeOneOf_Passes_WhenNull()
+    {
+        int? value = null;
+        value.Should().NotBeOneOf(1, 2, 3);
+    }
+
+    [Fact]
+    public void NotBeOneOf_Passes_ForAnEmptySet() => 42.Should().NotBeOneOf();
+
+    [Fact]
+    public void NotBeOneOf_Fails_WhenContained()
+    {
+        var value = 2;
+        var ex = Record.Exception(() => value.Should().NotBeOneOf(1, 2, 3));
+        Assert.IsType<AssertionFailedException>(ex);
+        Assert.Equal("Did not expect value to be one of {1, 2, 3}, but found 2.", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeOneOf_Fails_WithReason_OnTheEnumerableOverload()
+    {
+        var value = 2;
+        var ex = Record.Exception(() => value.Should().NotBeOneOf(new[] { 1, 2 }, "{0} is reserved", 2));
+        Assert.IsType<AssertionFailedException>(ex);
+        Assert.Equal("Did not expect value to be one of {1, 2} because 2 is reserved, but found 2.", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeOneOf_Throws_WhenValuesAreNull()
+    {
+        var value = 2;
+        Assert.Throws<ArgumentNullException>(() => value.Should().NotBeOneOf((IEnumerable<int>)null!));
+    }
+
+    [Fact]
     public void Chaining_Works() => 7.Should().BePositive().And.BeLessThan(10).And.BeOneOf(6, 7, 8);
 }

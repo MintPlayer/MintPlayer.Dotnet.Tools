@@ -133,4 +133,61 @@ public class TimeSpanAssertionsTests
         var ex = Fails(() => some.Should().NotHaveValue());
         Assert.Contains("Did not expect some to have a value", ex.Message);
     }
+
+    [Fact]
+    public void NotBePositive_Passes_And_Fails()
+    {
+        TimeSpan.Zero.Should().NotBePositive();
+        (-Sample).Should().NotBePositive();
+        var value = Sample;
+        var ex = Fails(() => value.Should().NotBePositive());
+        Assert.Equal("Did not expect value to be positive, but found 01:30:00.", ex.Message);
+    }
+
+    [Fact]
+    public void NotBePositive_Passes_On_Null_Subject()
+    {
+        TimeSpan? value = null;
+        value.Should().NotBePositive();
+    }
+
+    [Fact]
+    public void NotBeNegative_Passes_And_Fails()
+    {
+        TimeSpan.Zero.Should().NotBeNegative();
+        Sample.Should().NotBeNegative();
+        var value = -Sample;
+        var ex = Fails(() => value.Should().NotBeNegative());
+        Assert.Equal("Did not expect value to be negative, but found -01:30:00.", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeNegative_Passes_On_Null_Subject()
+    {
+        TimeSpan? value = null;
+        value.Should().NotBeNegative();
+    }
+
+    [Fact]
+    public void NotBeCloseTo_Passes_And_Fails()
+    {
+        Sample.Should().NotBeCloseTo(Sample + TimeSpan.FromMinutes(10), TimeSpan.FromMinutes(1));
+        var value = Sample;
+        var ex = Fails(() => value.Should().NotBeCloseTo(Sample + TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(1)));
+        Assert.Equal("Did not expect value to be within 00:01:00 of 01:30:30, but found 01:30:00.", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeCloseTo_Passes_On_Null_Subject()
+    {
+        TimeSpan? value = null;
+        value.Should().NotBeCloseTo(Sample, TimeSpan.FromMinutes(1));
+    }
+
+    [Fact]
+    public void NotBeCloseTo_Rejects_Negative_Precision()
+    {
+        var value = Sample;
+        Assert.Throws<ArgumentOutOfRangeException>(() => value.Should().NotBeCloseTo(Sample, TimeSpan.FromMinutes(-1)));
+    }
 }

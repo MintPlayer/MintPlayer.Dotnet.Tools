@@ -28,23 +28,32 @@ internal static class EquivalencyValidator
 {
     /// <summary>
     /// Compares <paramref name="subject"/> against <paramref name="expectation"/> and returns all
-    /// differences found (empty when equivalent). <paramref name="rootDeclaredType"/> is the
-    /// static type of the expectation at the call site, used for member resolution and custom
-    /// comparer lookup at the root.
+    /// differences found (empty when equivalent), together with the first vacuous node detected.
+    /// <paramref name="rootDeclaredType"/> is the static type of the expectation at the call site,
+    /// used for member resolution and custom comparer lookup at the root.
     /// </summary>
-    public static List<Difference> Validate(object? subject, object? expectation, IEquivalencyOptions options, Type? rootDeclaredType = null)
+    public static ValidationResult Validate(object? subject, object? expectation, IEquivalencyOptions options, Type? rootDeclaredType = null)
     {
         var differences = new List<Difference>();
         var context = new Context(options);
         CompareNode(context, differences, string.Empty, subject, expectation, rootDeclaredType, 0);
-        return differences;
+        return new(differences, context.Vacuity);
     }
 
-    /// <summary>Per-validation state: the options and the cycle-detection descent stack.</summary>
+    /// <summary>Per-validation state: the options, the cycle-detection descent stack and the first vacuous node.</summary>
     private sealed class Context(IEquivalencyOptions options)
     {
         public IEquivalencyOptions Options { get; } = options;
         public IMemberProvider MemberProvider { get; } = RegistryMemberProvider.Instance;
+
+        /// <summary>
+        /// The first structural node at which nothing was compared, or null when every structural
+        /// node asserted something. Only the first is kept: it is enough to explain the mistake,
+        /// and reporting every node would bury the cause under its consequences.
+        /// </summary>
+        public VacuousNode? Vacuity { get; private set; }
+
+        public void ReportVacuous(VacuousNode node) => Vacuity ??= node;
 
         private readonly HashSet<(object Subject, object Expectation)> descentStack = new(ReferencePairComparer.Instance);
 
@@ -144,6 +153,10 @@ internal static class EquivalencyValidator
         var subjectMembers = context.MemberProvider.GetMembers(subject.GetType());
         var excludedNames = GetNestedExclusions(context.Options, expectationType, subject.GetType());
 
+        // Counts the members that actually took part in the comparison. Zero of them means this
+        // node asserted nothing and therefore cannot fail — see the ValidationResult docs.
+        var comparedMembers = 0;
+
         foreach (var expectationMember in expectationMembers)
         {
             if (excludedNames is not null && excludedNames.Contains(expectationMember.Name)) continue;
@@ -156,13 +169,41 @@ internal static class EquivalencyValidator
             if (subjectMember is null)
             {
                 if (!IsExcluded(context.Options, childPath))
+                {
                     differences.Add(new(childPath, $"expectation has member {expectationMember.Name} but subject does not"));
+                    comparedMembers++;
+                }
                 continue;
             }
+
+            if (IsExcluded(context.Options, childPath)) continue;
+            comparedMembers++;
 
             CompareNode(context, differences, childPath,
                 subjectMember.Getter(subject), expectationMember.Getter(expectation),
                 expectationMember.Type, depth + 1);
+        }
+
+        // A structural node that compared nothing can never fail. Two memberless values really
+        // are equivalent, so the subject must have members for this to count as vacuous at all.
+        if (comparedMembers > 0 || subjectMembers.Count == 0) return;
+
+        // Which of the two causes it is decides where it counts as a mistake.
+        //
+        // An expectation type with no comparable members is never a way to express intent: an
+        // expectation erased to `object`, or a type whose members are all non-public, is a
+        // mistake wherever it appears — including on a collection element or a nested member,
+        // where it would otherwise hide inside an assertion that looks meaningful overall.
+        //
+        // Options that removed every member are different. At the root the whole assertion is
+        // left asserting nothing, so it is still a mistake. Deeper down, excluding every member
+        // of a subtree is the normal way to say "do not compare this subtree" —
+        // ExcludingNested<AuditInfo>(a => a.ModifiedOn) on a type whose only member is
+        // ModifiedOn means exactly that, and refusing it would reject correct, idiomatic use.
+        if (expectationMembers.Count == 0 || path.Length == 0)
+        {
+            context.ReportVacuous(new(path, expectationType, subject.GetType(),
+                ExpectationHasNoMembers: expectationMembers.Count == 0));
         }
     }
 

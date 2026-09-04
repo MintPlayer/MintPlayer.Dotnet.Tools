@@ -104,6 +104,21 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
         return new(this);
     }
 
+    /// <summary>
+    /// Asserts the dictionary does not contain exactly <paramref name="unexpected"/> items. Says
+    /// nothing about the direction of the difference, so prefer an explicit count assertion when
+    /// that is what the test really means.
+    /// </summary>
+    public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> NotHaveCount(int unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        var pairs = Pairs;
+        if (pairs is null) return FailNull($"not to contain {unexpected} item(s)", because, becauseArgs);
+
+        Assert().ForCondition(pairs.Count != unexpected).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to contain {0} item(s){reason}, but found {1}.", unexpected, pairs);
+        return new(this);
+    }
+
     /// <summary>Asserts the dictionary contains the given key, and exposes its value via Which.</summary>
     public AndWhichConstraint<GenericDictionaryAssertions<TKey, TValue>, TValue> ContainKey(TKey expected, string? because = null, params object?[] becauseArgs)
     {
@@ -155,6 +170,42 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
 
         Assert().ForCondition(!found).BecauseOf(because, becauseArgs)
             .FailWith("Did not expect {subject} to contain key {0}{reason}.", unexpected);
+        return new(this);
+    }
+
+    /// <summary>Asserts the dictionary contains none of the given keys.</summary>
+    public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> NotContainKeys(params TKey[] unexpected)
+        => NotContainKeys((IEnumerable<TKey>)unexpected, null);
+
+    /// <summary>Asserts the dictionary contains none of the given keys.</summary>
+    /// <remarks>
+    /// <para>
+    /// This is <see cref="NotContainKey"/> applied to every key, not the strict logical negation of
+    /// <see cref="ContainKeys(IEnumerable{TKey}, string?, object?[])"/> — which would be satisfied by
+    /// merely <em>one</em> key being absent while the rest are present, an assertion nobody wants to
+    /// write. So a dictionary holding some but not all of the given keys fails here.
+    /// </para>
+    /// <para>
+    /// Lookups go through the subject's own equality comparer, so a dictionary built with
+    /// <c>StringComparer.OrdinalIgnoreCase</c> correctly reports <c>"ALICE"</c> as present when it
+    /// holds <c>"alice"</c>.
+    /// </para>
+    /// </remarks>
+    public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> NotContainKeys(IEnumerable<TKey> unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(unexpected);
+        var pairs = Pairs;
+        var unexpectedKeys = unexpected as IReadOnlyList<TKey> ?? [.. unexpected];
+        if (pairs is null) return FailNull($"not to contain keys {Formatting.Formatter.Format(unexpectedKeys)}", because, becauseArgs);
+
+        var presentKeys = new List<TKey>();
+        foreach (var key in unexpectedKeys)
+        {
+            if (TryGetValueForKey(key, out _)) presentKeys.Add(key);
+        }
+
+        Assert().ForCondition(presentKeys.Count == 0).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to contain keys {0}{reason}, but found key(s) {1}.", unexpectedKeys, presentKeys);
         return new(this);
     }
 
@@ -223,6 +274,41 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
         return new(this);
     }
 
+    /// <summary>Asserts the dictionary contains none of the given values.</summary>
+    public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> NotContainValues(params TValue[] unexpected)
+        => NotContainValues((IEnumerable<TValue>)unexpected, null);
+
+    /// <summary>Asserts the dictionary contains none of the given values.</summary>
+    /// <remarks>
+    /// As with <see cref="NotContainKeys(IEnumerable{TKey}, string?, object?[])"/> this is
+    /// <see cref="NotContainValue"/> applied to every value rather than the strict negation of
+    /// <see cref="ContainValues(IEnumerable{TValue}, string?, object?[])"/>: a dictionary holding
+    /// even one of them fails. Values, unlike keys, are always compared with
+    /// <see cref="EqualityComparer{T}.Default"/> — a dictionary's own comparer applies to its keys
+    /// only.
+    /// </remarks>
+    public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> NotContainValues(IEnumerable<TValue> unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(unexpected);
+        var pairs = Pairs;
+        var unexpectedValues = unexpected as IReadOnlyList<TValue> ?? [.. unexpected];
+        if (pairs is null) return FailNull($"not to contain values {Formatting.Formatter.Format(unexpectedValues)}", because, becauseArgs);
+
+        var comparer = EqualityComparer<TValue>.Default;
+        var presentValues = new List<TValue>();
+        foreach (var value in unexpectedValues)
+        {
+            foreach (var pair in pairs)
+            {
+                if (comparer.Equals(pair.Value, value)) { presentValues.Add(value); break; }
+            }
+        }
+
+        Assert().ForCondition(presentValues.Count == 0).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to contain values {0}{reason}, but found value(s) {1}.", unexpectedValues, presentValues);
+        return new(this);
+    }
+
     /// <summary>Asserts the dictionary contains the given value at the given key.</summary>
     public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> Contain(TKey key, TValue value, string? because = null, params object?[] becauseArgs)
     {
@@ -258,6 +344,14 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
             .FailWith("Did not expect {subject} to contain {0} at key {1}{reason}.", value, key);
         return new(this);
     }
+
+    /// <summary>
+    /// Asserts the dictionary does not hold the given key/value pair. Mirrors
+    /// <see cref="Contain(KeyValuePair{TKey, TValue}, string?, object?[])"/> by forwarding to the
+    /// two-argument form, so an absent key satisfies it just as a different value at that key does.
+    /// </summary>
+    public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> NotContain(KeyValuePair<TKey, TValue> unexpected, string? because = null, params object?[] becauseArgs)
+        => NotContain(unexpected.Key, unexpected.Value, because, becauseArgs);
 
     private static TValue FirstValueFor(IReadOnlyList<KeyValuePair<TKey, TValue>> pairs, TKey key)
     {

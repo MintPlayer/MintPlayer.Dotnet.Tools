@@ -142,6 +142,120 @@ public class DictionaryAssertionsTests
     }
 
     [Fact]
+    public void NotHaveCount()
+    {
+        Ages.Should().NotHaveCount(3);
+
+        var ex = Fails(() => Ages.Should().NotHaveCount(2));
+        Assert.Contains("Did not expect", ex.Message);
+        Assert.Contains("to contain 2 item(s)", ex.Message);
+    }
+
+    [Fact]
+    public void NotHaveCount_NullSubject()
+    {
+        Dictionary<string, int>? subject = null;
+        var ex = Fails(() => subject.Should().NotHaveCount(2));
+        Assert.Contains("not to contain 2 item(s)", ex.Message);
+        Assert.Contains("but found <null>", ex.Message);
+    }
+
+    [Fact]
+    public void NotContainKeys()
+    {
+        Ages.Should().NotContainKeys("carol", "dave");
+
+        // Holding even one of the keys is a failure — this is NotContainKey for each, not the
+        // strict logical negation of ContainKeys.
+        var ex = Fails(() => Ages.Should().NotContainKeys("carol", "alice"));
+        Assert.Contains("Did not expect", ex.Message);
+        Assert.Contains("to contain keys", ex.Message);
+        Assert.Contains("but found key(s) {\"alice\"}", ex.Message);
+    }
+
+    [Fact]
+    public void NotContainKeys_RespectsTheDictionarysOwnComparer()
+    {
+        var caseInsensitive = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["alice"] = 30,
+        };
+
+        // "ALICE" really is present under OrdinalIgnoreCase; using EqualityComparer<string>.Default
+        // instead would let this assertion pass and the test would fail here.
+        var ex = Fails(() => caseInsensitive.Should().NotContainKeys("ALICE"));
+        Assert.Contains("but found key(s) {\"ALICE\"}", ex.Message);
+
+        caseInsensitive.Should().NotContainKeys("carol");
+    }
+
+    [Fact]
+    public void NotContainKeys_NullSubject()
+    {
+        Dictionary<string, int>? subject = null;
+        var ex = Fails(() => subject.Should().NotContainKeys("alice"));
+        Assert.Contains("not to contain keys {\"alice\"}", ex.Message);
+        Assert.Contains("but found <null>", ex.Message);
+    }
+
+    [Fact]
+    public void NotContainValues()
+    {
+        Ages.Should().NotContainValues(99, 100);
+
+        var ex = Fails(() => Ages.Should().NotContainValues(99, 30));
+        Assert.Contains("Did not expect", ex.Message);
+        Assert.Contains("to contain values", ex.Message);
+        Assert.Contains("but found value(s) {30}", ex.Message);
+    }
+
+    [Fact]
+    public void NotContainValues_NullSubject()
+    {
+        Dictionary<string, int>? subject = null;
+        var ex = Fails(() => subject.Should().NotContainValues(30));
+        Assert.Contains("not to contain values {30}", ex.Message);
+        Assert.Contains("but found <null>", ex.Message);
+    }
+
+    [Fact]
+    public void NotContain_Pair()
+    {
+        Ages.Should().NotContain(new KeyValuePair<string, int>("alice", 31));  // wrong value
+        Ages.Should().NotContain(new KeyValuePair<string, int>("carol", 30));  // absent key
+
+        var ex = Fails(() => Ages.Should().NotContain(new KeyValuePair<string, int>("alice", 30)));
+        Assert.Contains("Did not expect", ex.Message);
+        Assert.Contains("30 at key \"alice\"", ex.Message);
+    }
+
+    [Fact]
+    public void NotContain_Pair_NullSubject()
+    {
+        Dictionary<string, int>? subject = null;
+        var ex = Fails(() => subject.Should().NotContain(new KeyValuePair<string, int>("alice", 30)));
+        Assert.Contains("not to contain 30 at key \"alice\"", ex.Message);
+        Assert.Contains("but found <null>", ex.Message);
+    }
+
+    [Fact]
+    public void NegativeAssertions_EnumerateThePairSequenceOnlyOnce()
+    {
+        var enumerations = 0;
+        IEnumerable<KeyValuePair<string, int>> Sequence()
+        {
+            enumerations++;
+            yield return new("x", 1);
+        }
+
+        Sequence().Should().NotHaveCount(2)
+            .And.NotContainKeys("y")
+            .And.NotContainValues(2)
+            .And.NotContain(new KeyValuePair<string, int>("x", 2));
+        Assert.Equal(1, enumerations);
+    }
+
+    [Fact]
     public void Should_PicksDictionaryAssertions_ForPairSequences()
     {
         // A plain sequence of pairs (not a dictionary) also binds to the dictionary assertions.

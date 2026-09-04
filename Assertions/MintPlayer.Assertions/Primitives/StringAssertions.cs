@@ -118,6 +118,14 @@ public class StringAssertions : ReferenceTypeAssertions<string, StringAssertions
         return new(this);
     }
 
+    /// <summary>Asserts the subject does not have exactly <paramref name="unexpected"/> characters (a null subject passes — it has no length to object to).</summary>
+    public AndConstraint<StringAssertions> NotHaveLength(int unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(Subject is null || Subject.Length != unexpected).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to have length {0}{reason}.", unexpected);
+        return new(this);
+    }
+
     /// <summary>Asserts the subject starts with <paramref name="expected"/> (ordinal).</summary>
     public AndConstraint<StringAssertions> StartWith(string expected, string? because = null, params object?[] becauseArgs)
     {
@@ -145,6 +153,15 @@ public class StringAssertions : ReferenceTypeAssertions<string, StringAssertions
         return new(this);
     }
 
+    /// <summary>Asserts the subject does not start with <paramref name="unexpected"/>, ignoring casing (a null subject passes).</summary>
+    public AndConstraint<StringAssertions> NotStartWithEquivalentOf(string unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(unexpected);
+        Assert().ForCondition(Subject is null || !Subject.StartsWith(unexpected, StringComparison.OrdinalIgnoreCase)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to start with the equivalent of {0}{reason}.", unexpected);
+        return new(this);
+    }
+
     /// <summary>Asserts the subject ends with <paramref name="expected"/> (ordinal).</summary>
     public AndConstraint<StringAssertions> EndWith(string expected, string? because = null, params object?[] becauseArgs)
     {
@@ -169,6 +186,15 @@ public class StringAssertions : ReferenceTypeAssertions<string, StringAssertions
         ArgumentNullException.ThrowIfNull(expected);
         Assert().ForCondition(Subject is not null && Subject.EndsWith(expected, StringComparison.OrdinalIgnoreCase)).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to end with the equivalent of {0}{reason}, but found {1}.", expected, Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject does not end with <paramref name="unexpected"/>, ignoring casing (a null subject passes).</summary>
+    public AndConstraint<StringAssertions> NotEndWithEquivalentOf(string unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(unexpected);
+        Assert().ForCondition(Subject is null || !Subject.EndsWith(unexpected, StringComparison.OrdinalIgnoreCase)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to end with the equivalent of {0}{reason}.", unexpected);
         return new(this);
     }
 
@@ -222,6 +248,26 @@ public class StringAssertions : ReferenceTypeAssertions<string, StringAssertions
         return new(this);
     }
 
+    /// <summary>Asserts at least one of <paramref name="values"/> is missing from the subject (ordinal).</summary>
+    public AndConstraint<StringAssertions> NotContainAll(params string[] values)
+        => NotContainAll(values, because: null);
+
+    /// <summary>
+    /// Asserts at least one of <paramref name="values"/> is missing from the subject (ordinal) — this is
+    /// the negation of <see cref="ContainAll(string[], string?, object?[])"/>, not "contains none of them";
+    /// use <see cref="NotContainAny(string[], string?, object?[])"/> for that. A null subject passes, since
+    /// it contains nothing. An empty <paramref name="values"/> fails, mirroring the positive passing
+    /// vacuously on one.
+    /// </summary>
+    public AndConstraint<StringAssertions> NotContainAll(string[] values, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        var missing = Array.FindAll(values, v => Subject is null || !Subject.Contains(v, StringComparison.Ordinal));
+        Assert().ForCondition(missing.Length > 0).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to contain all of {0}{reason}, but found every one of them in {1}.", values, Subject);
+        return new(this);
+    }
+
     /// <summary>Asserts the subject contains at least one of <paramref name="values"/> (ordinal).</summary>
     public AndConstraint<StringAssertions> ContainAny(params string[] values)
         => ContainAny(values, because: null);
@@ -233,6 +279,23 @@ public class StringAssertions : ReferenceTypeAssertions<string, StringAssertions
         var any = Subject is not null && Array.Exists(values, v => Subject.Contains(v, StringComparison.Ordinal));
         Assert().ForCondition(any).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to contain at least one of {0}{reason}, but found {1}.", values, Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject contains none of <paramref name="values"/> (ordinal); the ones it does contain are listed.</summary>
+    public AndConstraint<StringAssertions> NotContainAny(params string[] values)
+        => NotContainAny(values, because: null);
+
+    /// <summary>
+    /// Asserts the subject contains none of <paramref name="values"/> (ordinal); the ones it does contain
+    /// are listed in the failure. A null subject passes, and so does an empty <paramref name="values"/>.
+    /// </summary>
+    public AndConstraint<StringAssertions> NotContainAny(string[] values, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        var found = Array.FindAll(values, v => Subject is not null && Subject.Contains(v, StringComparison.Ordinal));
+        Assert().ForCondition(found.Length == 0).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to contain any of {0}{reason}, but found {1} in {2}.", values, found, Subject);
         return new(this);
     }
 
@@ -260,6 +323,15 @@ public class StringAssertions : ReferenceTypeAssertions<string, StringAssertions
         ArgumentNullException.ThrowIfNull(wildcardPattern);
         Assert().ForCondition(WildcardPattern.IsMatch(Subject, wildcardPattern, ignoreCase: true)).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to match the equivalent of {0}{reason}, but found {1}.", wildcardPattern, Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject does not match the wildcard pattern, ignoring casing (a null subject matches nothing, so it passes).</summary>
+    public AndConstraint<StringAssertions> NotMatchEquivalentOf(string wildcardPattern, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(wildcardPattern);
+        Assert().ForCondition(!WildcardPattern.IsMatch(Subject, wildcardPattern, ignoreCase: true)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to match the equivalent of {0}{reason}, but found {1}.", wildcardPattern, Subject);
         return new(this);
     }
 
@@ -293,6 +365,18 @@ public class StringAssertions : ReferenceTypeAssertions<string, StringAssertions
         return new(this);
     }
 
+    /// <summary>
+    /// Asserts the subject is not upper-cased, i.e. it holds at least one lower-case letter. A string with
+    /// no letters at all — "42" — is upper-cased by <see cref="BeUpperCased"/>'s reckoning and therefore
+    /// fails here. A null subject passes, as with the other negatives on this class.
+    /// </summary>
+    public AndConstraint<StringAssertions> NotBeUpperCased(string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(Subject is null || ContainsLetterWhere(Subject, char.IsLower)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be upper-cased{reason}, but found {0}.", Subject);
+        return new(this);
+    }
+
     /// <summary>Asserts every letter in the subject is lower-cased (non-letters are ignored).</summary>
     public AndConstraint<StringAssertions> BeLowerCased(string? because = null, params object?[] becauseArgs)
     {
@@ -300,6 +384,18 @@ public class StringAssertions : ReferenceTypeAssertions<string, StringAssertions
             .FailWith("Expected {subject} to be lower-cased{reason}, but found <null>.")
             .ForCondition(Subject is null || !ContainsLetterWhere(Subject, char.IsUpper)).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to be lower-cased{reason}, but found {0}.", Subject);
+        return new(this);
+    }
+
+    /// <summary>
+    /// Asserts the subject is not lower-cased, i.e. it holds at least one upper-case letter. As with
+    /// <see cref="NotBeUpperCased"/>, a string with no letters at all counts as lower-cased and fails here.
+    /// A null subject passes.
+    /// </summary>
+    public AndConstraint<StringAssertions> NotBeLowerCased(string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(Subject is null || ContainsLetterWhere(Subject, char.IsUpper)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be lower-cased{reason}, but found {0}.", Subject);
         return new(this);
     }
 

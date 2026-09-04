@@ -95,4 +95,17 @@ public abstract class ReferenceTypeAssertions<TSubject, TSelf>
             .FailWith("Expected {subject} to match the given predicate{reason}, but {0} did not.", Subject);
         return new((TSelf)this);
     }
+
+    /// <summary>
+    /// Asserts the subject does not match an arbitrary predicate; the predicate text appears in the failure.
+    /// Unlike the other negatives here, a null subject is not automatically a pass: the predicate is
+    /// handed the null and decides, so it must tolerate one.
+    /// </summary>
+    public AndConstraint<TSelf> NotMatch(Func<TSubject?, bool> predicate, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(predicate);
+        Assert().ForCondition(!predicate(Subject)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to match the given predicate{reason}, but {0} did.", Subject);
+        return new((TSelf)this);
+    }
 }

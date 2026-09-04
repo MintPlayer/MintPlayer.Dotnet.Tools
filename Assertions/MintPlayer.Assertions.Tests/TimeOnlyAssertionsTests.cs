@@ -152,4 +152,37 @@ public class TimeOnlyAssertionsTests
         var ex = Fails(() => some.Should().NotHaveValue());
         Assert.Contains("Did not expect some to have a value", ex.Message);
     }
+
+    [Fact]
+    public void NotBeCloseTo_Passes_And_Fails()
+    {
+        Sample.Should().NotBeCloseTo(Sample.AddHours(3), TimeSpan.FromMinutes(1));
+        var value = Sample;
+        var ex = Fails(() => value.Should().NotBeCloseTo(Sample.AddMinutes(1), TimeSpan.FromMinutes(2)));
+        Assert.Equal("Did not expect value to be within 00:02:00 of 10:31:45.5000000, but found 10:30:45.5000000.", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeCloseTo_Measures_Around_Midnight_Like_BeCloseTo()
+    {
+        // 00:01 is two minutes from 23:59 the short way round. A negative that naively subtracted
+        // would see 23h58m and wrongly pass, so this must fail.
+        var value = new TimeOnly(23, 59);
+        var ex = Fails(() => value.Should().NotBeCloseTo(new TimeOnly(0, 1), TimeSpan.FromMinutes(5)));
+        Assert.Equal("Did not expect value to be within 00:05:00 of 00:01:00.0000000, but found 23:59:00.0000000.", ex.Message);
+    }
+
+    [Fact]
+    public void NotBeCloseTo_Passes_On_Null_Subject()
+    {
+        TimeOnly? value = null;
+        value.Should().NotBeCloseTo(Sample, TimeSpan.FromMinutes(1));
+    }
+
+    [Fact]
+    public void NotBeCloseTo_Rejects_Negative_Precision()
+    {
+        var value = Sample;
+        Assert.Throws<ArgumentOutOfRangeException>(() => value.Should().NotBeCloseTo(Sample, TimeSpan.FromMinutes(-1)));
+    }
 }

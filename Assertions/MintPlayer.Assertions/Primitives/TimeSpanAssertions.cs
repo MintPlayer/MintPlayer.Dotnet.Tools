@@ -48,11 +48,27 @@ public class TimeSpanAssertions
         return new(this);
     }
 
+    /// <summary>Asserts the subject is not greater than <see cref="TimeSpan.Zero"/> — zero and negative spans pass, and so does null.</summary>
+    public AndConstraint<TimeSpanAssertions> NotBePositive(string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(Subject is not { } value || value <= TimeSpan.Zero).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be positive{reason}, but found {0}.", Subject);
+        return new(this);
+    }
+
     /// <summary>Asserts the subject is less than <see cref="TimeSpan.Zero"/>.</summary>
     public AndConstraint<TimeSpanAssertions> BeNegative(string? because = null, params object?[] becauseArgs)
     {
         Assert().ForCondition(Subject < TimeSpan.Zero).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to be negative{reason}, but found {0}.", Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject is not less than <see cref="TimeSpan.Zero"/> — zero and positive spans pass, and so does null.</summary>
+    public AndConstraint<TimeSpanAssertions> NotBeNegative(string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(Subject is not { } value || value >= TimeSpan.Zero).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be negative{reason}, but found {0}.", Subject);
         return new(this);
     }
 
@@ -62,6 +78,15 @@ public class TimeSpanAssertions
         ArgumentOutOfRangeException.ThrowIfLessThan(precision, TimeSpan.Zero);
         Assert().ForCondition(Subject.HasValue && Distance(Subject.Value, nearbyTime) <= precision).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to be within {0} of {1}{reason}, but found {2}.", precision, nearbyTime, Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject is not within <paramref name="precision"/> of <paramref name="distantTime"/> (a null subject passes).</summary>
+    public AndConstraint<TimeSpanAssertions> NotBeCloseTo(TimeSpan distantTime, TimeSpan precision, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(precision, TimeSpan.Zero);
+        Assert().ForCondition(!Subject.HasValue || Distance(Subject.Value, distantTime) > precision).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be within {0} of {1}{reason}, but found {2}.", precision, distantTime, Subject);
         return new(this);
     }
 

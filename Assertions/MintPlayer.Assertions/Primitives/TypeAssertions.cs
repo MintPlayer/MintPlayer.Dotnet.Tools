@@ -54,6 +54,19 @@ public class TypeAssertions : ReferenceTypeAssertions<Type, TypeAssertions>
         return new(this);
     }
 
+    /// <summary>
+    /// Asserts the type does not derive from <typeparamref name="TBase"/>. Mirrors
+    /// <see cref="BeDerivedFrom{TBase}"/>, so the type itself is not "derived from" itself and passes;
+    /// a null subject passes as well.
+    /// </summary>
+    public AndConstraint<TypeAssertions> NotBeDerivedFrom<TBase>(string? because = null, params object?[] becauseArgs)
+        where TBase : class
+    {
+        Assert().ForCondition(Subject is null || !Subject.IsSubclassOf(typeof(TBase))).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be derived from {0}{reason}.", typeof(TBase));
+        return new(this);
+    }
+
     /// <summary>Asserts the type implements the interface <typeparamref name="TInterface"/>.</summary>
     public AndConstraint<TypeAssertions> Implement<TInterface>(string? because = null, params object?[] becauseArgs)
     {
@@ -62,6 +75,22 @@ public class TypeAssertions : ReferenceTypeAssertions<Type, TypeAssertions>
 
         Assert().ForCondition(Subject is not null && Subject != typeof(TInterface) && typeof(TInterface).IsAssignableFrom(Subject)).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to implement {0}{reason}, but found {1}.", typeof(TInterface), Subject);
+        return new(this);
+    }
+
+    /// <summary>
+    /// Asserts the type does not implement the interface <typeparamref name="TInterface"/>. Mirrors
+    /// <see cref="Implement{TInterface}"/>: the interface itself does not "implement" itself and passes,
+    /// as does a null subject. A non-interface <typeparamref name="TInterface"/> is a caller mistake and
+    /// still throws rather than quietly passing.
+    /// </summary>
+    public AndConstraint<TypeAssertions> NotImplement<TInterface>(string? because = null, params object?[] becauseArgs)
+    {
+        if (!typeof(TInterface).IsInterface)
+            throw new ArgumentException($"{typeof(TInterface)} must be an interface.", nameof(TInterface));
+
+        Assert().ForCondition(Subject is null || Subject == typeof(TInterface) || !typeof(TInterface).IsAssignableFrom(Subject)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to implement {0}{reason}.", typeof(TInterface));
         return new(this);
     }
 
@@ -112,11 +141,34 @@ public class TypeAssertions : ReferenceTypeAssertions<Type, TypeAssertions>
         return new(this);
     }
 
+    /// <summary>
+    /// Asserts the type is not abstract in the sense <see cref="BeAbstract"/> means it: a static class is
+    /// abstract-and-sealed at the IL level but is reported as static, not abstract, so it passes here.
+    /// A null subject passes.
+    /// </summary>
+    public AndConstraint<TypeAssertions> NotBeAbstract(string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(Subject is not { IsAbstract: true, IsSealed: false }).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be abstract{reason}.");
+        return new(this);
+    }
+
     /// <summary>Asserts the type is sealed (and not static, i.e. not also abstract).</summary>
     public AndConstraint<TypeAssertions> BeSealed(string? because = null, params object?[] becauseArgs)
     {
         Assert().ForCondition(Subject is { IsSealed: true, IsAbstract: false }).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to be sealed{reason}, but found {0}.", Subject);
+        return new(this);
+    }
+
+    /// <summary>
+    /// Asserts the type is not sealed in the sense <see cref="BeSealed"/> means it, so a static class
+    /// passes here for the same reason it passes <see cref="NotBeAbstract"/>. A null subject passes.
+    /// </summary>
+    public AndConstraint<TypeAssertions> NotBeSealed(string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(Subject is not { IsSealed: true, IsAbstract: false }).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be sealed{reason}.");
         return new(this);
     }
 
@@ -128,6 +180,14 @@ public class TypeAssertions : ReferenceTypeAssertions<Type, TypeAssertions>
         return new(this);
     }
 
+    /// <summary>Asserts the type is not static, i.e. not both abstract and sealed (a null subject passes).</summary>
+    public AndConstraint<TypeAssertions> NotBeStatic(string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(Subject is not { IsAbstract: true, IsSealed: true }).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be static{reason}.");
+        return new(this);
+    }
+
     /// <summary>Asserts the type is an interface.</summary>
     public AndConstraint<TypeAssertions> BeAnInterface(string? because = null, params object?[] becauseArgs)
     {
@@ -136,11 +196,31 @@ public class TypeAssertions : ReferenceTypeAssertions<Type, TypeAssertions>
         return new(this);
     }
 
+    /// <summary>Asserts the type is not an interface — a struct, enum or class all pass, and so does a null subject.</summary>
+    public AndConstraint<TypeAssertions> NotBeAnInterface(string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(Subject is not { IsInterface: true }).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be an interface{reason}.");
+        return new(this);
+    }
+
     /// <summary>Asserts the type is a class.</summary>
     public AndConstraint<TypeAssertions> BeAClass(string? because = null, params object?[] becauseArgs)
     {
         Assert().ForCondition(Subject is { IsClass: true }).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to be a class{reason}, but found {0}.", Subject);
+        return new(this);
+    }
+
+    /// <summary>
+    /// Asserts the type is not a class. <see cref="Type.IsClass"/> counts delegates as classes and
+    /// interfaces as not classes, so an interface passes here while a delegate type fails.
+    /// A null subject passes.
+    /// </summary>
+    public AndConstraint<TypeAssertions> NotBeAClass(string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(Subject is not { IsClass: true }).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be a class{reason}.");
         return new(this);
     }
 

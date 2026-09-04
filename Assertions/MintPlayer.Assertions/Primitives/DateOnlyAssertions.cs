@@ -113,6 +113,22 @@ public class DateOnlyAssertions
         return new(this);
     }
 
+    /// <summary>Asserts the subject is none of <paramref name="unexpectedValues"/> (a null subject passes).</summary>
+    public AndConstraint<DateOnlyAssertions> NotBeOneOf(params DateOnly[] unexpectedValues)
+        => NotBeOneOf(unexpectedValues, because: null);
+
+    /// <summary>
+    /// Asserts the subject is none of <paramref name="unexpectedValues"/> (a null subject passes).
+    /// An empty set passes too: there is nothing for the subject to be one of.
+    /// </summary>
+    public AndConstraint<DateOnlyAssertions> NotBeOneOf(DateOnly[] unexpectedValues, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(unexpectedValues);
+        Assert().ForCondition(!Subject.HasValue || Array.IndexOf(unexpectedValues, Subject.Value) < 0).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be one of {0}{reason}, but found {1}.", unexpectedValues, Subject);
+        return new(this);
+    }
+
     private AndConstraint<DateOnlyAssertions> HaveComponent(string name, int expected, int? actual, string? because, object?[] becauseArgs)
     {
         Assert().ForCondition(Subject.HasValue).BecauseOf(because, becauseArgs)
