@@ -3,7 +3,7 @@
 	<PropertyGroup>
 		<!-- Ships inside the MintPlayer.Assertions package (analyzers/dotnet/cs); not packed standalone -->
 		<IsPackable>false</IsPackable>
-		<Version>1.0.1</Version>
+		<Version>1.1.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>Compiler extensions for MintPlayer.Assertions: source generators (reflection-free equivalency member accessors, [GenerateAssertion] custom assertions) and analyzers with code fixes (un-awaited assertions, vacuous Should(), undisposed AssertionScope, FluentAssertions migration)</Description>
