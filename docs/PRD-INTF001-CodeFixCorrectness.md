@@ -659,7 +659,7 @@ across 25 test projects; `MintPlayer.SourceGenerators.Tests` went from 242 to 25
 | N2 | Get-only property emitted as `{ get; set; }` → CS0535 | Fixed — accessors mirror the class |
 | N3 | Member required on every interface → false positives | Fixed — union membership, single report |
 | N4 | `ParseTypeName("void")` → invalid return type, CS1547 | Fixed — `PredefinedType` |
-| N5 | Parameter modifiers and generic arity dropped from the signature | Fixed — `RefKind` modifiers, type parameters, constraints |
+| N5 | Parameter modifiers, generic arity and `ref` returns dropped from the signature | Fixed — `RefKind` modifiers, type parameters, constraints, `RefType` returns |
 
 ### Also found during implementation, beyond the eight
 
@@ -690,6 +690,12 @@ Exactly the family of N2 and N4: a signature that reads plausibly and does not c
 requires (primary constraint, then base types and interfaces, then `new()` — symbol order compiles only by
 luck). `params` and default values are deliberately not carried: neither participates in implementation
 matching, so omitting them costs convenience at an interface call site but cannot break a build.
+
+A second review pass caught the **sibling case in the return position**, which the first fix missed:
+`ReturnType` still branched only on `ReturnsVoid`, so `public ref int Get()` produced `int Get();` —
+`CS8152: does not have matching return by reference`. Fixed with `RefType`, honouring
+`ReturnsByRef`/`ReturnsByRefReadonly`. Recorded because it is the same oversight twice: ref-ness was carried
+on parameters and forgotten on returns in the very commit that added it.
 
 ### What changed shape from the plan
 
@@ -726,6 +732,17 @@ Genuinely not being done — not a parking lot:
 
 - **`params` and default parameter values on generated methods.** Neither participates in implementation
   matching, so omitting them cannot break a build ([N5](#outcome)).
+
+- **Nullable reference annotations on generated members.** `SymbolDisplayFormat.FullyQualifiedFormat` omits
+  them, so a class property typed `string?` yields `string` on the interface — a nullability mismatch
+  (CS8766/CS8767), warning-level, not an error. Raised in review. It stays out because the correct output is
+  not a property of the class symbol at all: an annotation is only valid where the *target file's* nullable
+  context enables it, and that file routinely belongs to another project with its own setting — emitting
+  `string?` into a disabled context is itself a warning (CS8632), so a naive fix trades one warning for
+  another. Doing it properly means consulting `SemanticModel.GetNullableContext` at the insertion point in
+  the interface's document, which is real surface for a warning. Revisit if the mismatch shows up in
+  practice; the machinery to catch it exists, since `CodeFixResult.Errors` would only need widening to
+  warnings.
 
 ## Version
 

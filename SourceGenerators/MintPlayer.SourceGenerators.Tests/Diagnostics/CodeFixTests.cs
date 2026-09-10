@@ -579,6 +579,9 @@ public class InterfaceImplementationCodeFixTests
     [InlineData("public T Find<T>(string key) => default!;")]
     [InlineData("public T Pick<T>(string key) where T : class, new() => new T();")]
     [InlineData("public void Many<TKey, TValue>(TKey key, TValue value) { }")]
+    // Ref-ness of the RETURN participates in signature matching exactly as a parameter's does.
+    [InlineData("public ref int Get() => ref _field;")]
+    [InlineData("public ref readonly int Peek() => ref _field;")]
     public async Task ItKeepsTheSignatureTheClassActuallyImplements(string declaration)
     {
         var result = await CodeFixHarness.ApplyAsync(Analyzer, Provider, $$"""
@@ -591,6 +594,7 @@ public class InterfaceImplementationCodeFixTests
 
             public class Thing : IThing
             {
+                private int _field;
                 public void DoIt() { }
                 {{declaration}}
             }

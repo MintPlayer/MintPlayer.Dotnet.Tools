@@ -296,9 +296,24 @@ public class InterfaceCodeFixProvider : CodeFixProvider
     /// survived because no test compiled the code the fix produced; the harness now does.
     /// </remarks>
     private static TypeSyntax ReturnType(IMethodSymbol method)
-        => method.ReturnsVoid
-            ? SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.VoidKeyword))
-            : SyntaxFactory.ParseTypeName(method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+    {
+        if (method.ReturnsVoid)
+            return SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.VoidKeyword));
+
+        var type = SyntaxFactory.ParseTypeName(method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+
+        // Ref-ness of the return is part of the signature the compiler matches on, exactly as a
+        // parameter's `ref` is. Dropping it gives CS8152 — "does not have matching return by
+        // reference" — against the class the fix was invoked from.
+        if (!method.ReturnsByRef && !method.ReturnsByRefReadonly)
+            return type;
+
+        return SyntaxFactory.RefType(type)
+            .WithRefKeyword(SyntaxFactory.Token(SyntaxKind.RefKeyword))
+            .WithReadOnlyKeyword(method.ReturnsByRefReadonly
+                ? SyntaxFactory.Token(SyntaxKind.ReadOnlyKeyword)
+                : default);
+    }
 
     /// <summary>
     /// The accessors the class property actually has.
