@@ -213,33 +213,124 @@ public sealed class GeneratorHarness
     /// unchanged, so "offers nothing here" is something a test can assert directly.
     /// </para>
     /// </remarks>
+    public Task<CodeFixResult> ApplyCodeFixAsync(
+        string analyzerTypeName,
+        string codeFixTypeName,
+        string source,
+        bool requireCompilableFixture = true)
+        => ApplyCodeFixAsync(
+            analyzerTypeName, codeFixTypeName, [FixtureProject.Of("FixInput", source)],
+            requireCompilableFixture: requireCompilableFixture);
+
+    /// <summary>
+    /// Applies a code fix to a fixture of several projects, each referencing the ones before it.
+    /// </summary>
+    /// <param name="analyzerTypeName">Simple name of the <see cref="DiagnosticAnalyzer"/> to run.</param>
+    /// <param name="codeFixTypeName">Simple name of the <see cref="CodeFixProvider"/> to invoke.</param>
+    /// <param name="projects">
+    /// The fixture, in dependency order. Diagnostics are collected from the <em>last</em> project;
+    /// the fix may edit a document in any of them.
+    /// </param>
+    /// <param name="actionIndex">
+    /// Which registered action to invoke. A provider may offer several for one diagnostic — one per
+    /// interface a member could be added to, say — and the choice is part of what a test asserts.
+    /// </param>
+    /// <param name="requireCompilableFixture">
+    /// Whether a fixture that does not compile is an error. Leave it on unless the analyzer under
+    /// test is <em>purely syntactic</em> and the fixture deliberately names types the harness does
+    /// not reference — a migration analyzer that matches <c>using SomeOtherLibrary;</c> as syntax,
+    /// say. Turning it off is a claim that the semantic model cannot affect the outcome; make that
+    /// claim explicitly at the call site, because the default protects every other test from a
+    /// fixture that silently produces no diagnostics.
+    /// </param>
+    /// <remarks>
+    /// <para>
+    /// This is the overload that can express what a cross-project code fix exists for. The
+    /// single-source overload builds one project holding one document, so a fix whose entire job is
+    /// to edit a file in a referenced project has nothing to reach; every such test passes
+    /// vacuously.
+    /// </para>
+    /// <para>
+    /// Two failures are raised as <see cref="FixtureNotUsableException"/> rather than reported on
+    /// the result, because both are otherwise silent and both have produced green-but-meaningless
+    /// tests in this repo: a fixture that does not compile, and a fix that reports success while
+    /// changing no document. See that type's remarks.
+    /// </para>
+    /// </remarks>
     public async Task<CodeFixResult> ApplyCodeFixAsync(
         string analyzerTypeName,
         string codeFixTypeName,
-        string source)
+        IEnumerable<FixtureProject> projects,
+        int actionIndex = 0,
+        bool requireCompilableFixture = true)
     {
         var analyzer = Instantiate<DiagnosticAnalyzer>(analyzerTypeName);
         var codeFix = Instantiate<CodeFixProvider>(codeFixTypeName);
 
+        var fixture = projects.ToArray();
+        if (fixture.Length == 0)
+            throw new ArgumentException("A code-fix fixture needs at least one project.", nameof(projects));
+
         using var workspace = new AdhocWorkspace();
+        var solution = workspace.CurrentSolution;
+        var documentIds = new Dictionary<string, DocumentId>(StringComparer.Ordinal);
+        var previous = new List<ProjectId>();
+        ProjectId? lastProjectId = null;
 
-        var projectId = ProjectId.CreateNewId("FixInput");
-        var documentId = DocumentId.CreateNewId(projectId, "Input.cs");
+        foreach (var project in fixture)
+        {
+            var projectId = ProjectId.CreateNewId(project.Name);
 
-        // filePath matters, and its absence is not neutral. Without it Document.FilePath is null
-        // while the syntax tree's is empty, so a fix that locates a sibling document by
-        // `d.FilePath == someLocation.SourceTree?.FilePath` — the normal way to reach the file a
-        // symbol is declared in — matches nothing and returns the solution unchanged. It looks
-        // exactly like a fix that declined to offer anything, which is a legal outcome, so the
-        // test passes and the entire body of the fix stays unreachable. A real workspace always
-        // has paths; a harness without them cannot exercise that whole class of code fix.
-        var solution = workspace.CurrentSolution
-            .AddProject(projectId, "FixInput", "FixInput", LanguageNames.CSharp)
-            .WithProjectCompilationOptions(projectId, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary))
-            .AddMetadataReferences(projectId, MetadataReferences())
-            .AddDocument(documentId, "Input.cs", SourceText.From(source), filePath: "Input.cs");
+            solution = solution.AddProject(ProjectInfo.Create(
+                projectId,
+                VersionStamp.Create(),
+                project.Name,
+                project.Name,
+                LanguageNames.CSharp,
+                compilationOptions: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary),
+                metadataReferences: MetadataReferences(),
+                projectReferences: previous.Select(p => new ProjectReference(p))));
 
-        var compilation = (await solution.GetProject(projectId)!.GetCompilationAsync())!;
+            foreach (var (fileName, source) in project.Files)
+            {
+                var documentId = DocumentId.CreateNewId(projectId, fileName);
+
+                // filePath matters, and its absence is not neutral. Without it Document.FilePath is
+                // null while the syntax tree's is empty, so a fix that locates a sibling document by
+                // `d.FilePath == someLocation.SourceTree?.FilePath` — the normal way to reach the
+                // file a symbol is declared in — matches nothing and returns the solution
+                // unchanged. It looks exactly like a fix that declined to offer anything, which is
+                // a legal outcome, so the test passes and the entire body of the fix stays
+                // unreachable. A real workspace always has paths; a harness without them cannot
+                // exercise that whole class of code fix.
+                solution = solution.AddDocument(
+                    documentId, fileName, SourceText.From(source), filePath: $"/{project.Name}/{fileName}");
+
+                documentIds[$"{project.Name}/{fileName}"] = documentId;
+            }
+
+            previous.Add(projectId);
+            lastProjectId = projectId;
+        }
+
+        var reportingProject = solution.GetProject(lastProjectId!)!;
+        var compilation = (await reportingProject.GetCompilationAsync())!;
+
+        // Guard 1. A fixture that does not compile yields no analyzer diagnostics, which the
+        // harness would otherwise report as "the fix declined" — so a mis-wired ProjectReference or
+        // a typo in a fixture reads as a passing test.
+        var compileErrors = requireCompilableFixture
+            ? compilation.GetDiagnostics()
+                .Where(d => d.Severity == DiagnosticSeverity.Error)
+                .ToImmutableArray()
+            : [];
+
+        if (compileErrors.Length > 0)
+            throw new FixtureNotUsableException(
+                $"The fixture does not compile, so no analyzer diagnostic can be trusted. " +
+                $"{compileErrors.Length} error(s) in project '{reportingProject.Name}':" +
+                Environment.NewLine +
+                string.Join(Environment.NewLine, compileErrors.Select(d => "  " + d)));
 
         var diagnostics = await compilation
             .WithAnalyzers([analyzer])
@@ -257,17 +348,36 @@ public sealed class GeneratorHarness
             .ThenBy(d => d.Id, StringComparer.Ordinal)
             .ToImmutableArray();
 
+        var originalSource = fixture[^1].Files[0].Source;
+
         if (fixable.Length == 0)
-            return new CodeFixResult(diagnostics, source, Applied: false);
+            return new CodeFixResult(diagnostics, originalSource, Applied: false);
+
+        // The document the diagnostic was actually reported in — not necessarily the last project's
+        // first file, once a fixture has several.
+        var reportedTree = fixable[0].Location.SourceTree;
+        var reportedDocumentId = reportedTree is null ? null : solution.GetDocumentId(reportedTree);
+        var reportedDocument = reportedDocumentId is null
+            ? solution.GetDocument(documentIds[$"{fixture[^1].Name}/{fixture[^1].Files[0].FileName}"])!
+            : solution.GetDocument(reportedDocumentId)!;
+
+        var reportedText = (await reportedDocument.GetTextAsync()).ToString();
 
         var actions = new List<CodeAction>();
         await codeFix.RegisterCodeFixesAsync(new CodeFixContext(
-            solution.GetDocument(documentId)!, fixable[0], (action, _) => actions.Add(action), default));
+            reportedDocument, fixable[0], (action, _) => actions.Add(action), default));
 
         if (actions.Count == 0)
-            return new CodeFixResult(diagnostics, source, Applied: false);
+            return new CodeFixResult(diagnostics, reportedText, Applied: false);
 
-        var operations = await actions[0].GetOperationsAsync(default);
+        if (actionIndex >= actions.Count)
+            throw new ArgumentOutOfRangeException(
+                nameof(actionIndex),
+                $"The provider registered {actions.Count} action(s), so index {actionIndex} is out of range. " +
+                $"Offered: {string.Join(", ", actions.Select(a => $"'{a.Title}'"))}.");
+
+        var titles = actions.Select(a => a.Title).ToList();
+        var operations = await actions[actionIndex].GetOperationsAsync(default);
 
         // FirstOrDefault, not Single. A CodeAction is not obliged to produce exactly one
         // ApplyChangesOperation — it may produce none (it only opens a document, say) or several.
@@ -275,11 +385,49 @@ public sealed class GeneratorHarness
         // documented contract is that "offers nothing here" is a normal, assertable outcome.
         var changed = operations.OfType<ApplyChangesOperation>().FirstOrDefault();
         if (changed is null)
-            return new CodeFixResult(diagnostics, source, Applied: false, actions[0].Title);
+            return new CodeFixResult(
+                diagnostics, reportedText, Applied: false, actions[actionIndex].Title, ActionTitles: titles);
 
-        var fixedText = (await changed.ChangedSolution.GetDocument(documentId)!.GetTextAsync()).ToString();
+        // Guard 2. Roslyn wraps an unmodified solution in a perfectly valid ApplyChangesOperation,
+        // so a fix that silently gave up is indistinguishable from one that worked. This is the
+        // trap d73d877 documented; asserting on changed documents closes it permanently.
+        var changedDocuments = changed.ChangedSolution
+            .GetChanges(solution)
+            .GetProjectChanges()
+            .SelectMany(p => p.GetChangedDocuments())
+            .ToImmutableArray();
 
-        return new CodeFixResult(diagnostics, fixedText, Applied: true, actions[0].Title);
+        if (changedDocuments.Length == 0)
+            throw new FixtureNotUsableException(
+                $"The fix registered '{actions[actionIndex].Title}' and reported success, but changed no " +
+                $"document. That is a silent no-op: Roslyn wraps an unmodified solution in a valid " +
+                $"ApplyChangesOperation, so it is indistinguishable from a fix that worked. Either the fix " +
+                $"gave up on a path that returns its solution unchanged, or the fixture does not reach it.");
+
+        var documents = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (key, id) in documentIds)
+            documents[key] = (await changed.ChangedSolution.GetDocument(id)!.GetTextAsync()).ToString();
+
+        var fixedText = (await changed.ChangedSolution.GetDocument(reportedDocument.Id)!.GetTextAsync()).ToString();
+
+        // Whether the code the fix produced actually compiles. Collected across every project,
+        // because a fix that edits an interface in one project breaks the class in another — which
+        // is precisely the failure mode a single-project harness cannot see. Reported rather than
+        // thrown: "the fix produces a compile error" is a legitimate thing for a test to assert on
+        // while the defect is still open.
+        var fixedErrors = ImmutableArray.CreateBuilder<Diagnostic>();
+        foreach (var project in changed.ChangedSolution.Projects)
+        {
+            var fixedCompilation = await project.GetCompilationAsync();
+            if (fixedCompilation is null) continue;
+
+            fixedErrors.AddRange(fixedCompilation.GetDiagnostics()
+                .Where(d => d.Severity == DiagnosticSeverity.Error));
+        }
+
+        return new CodeFixResult(
+            diagnostics, fixedText, Applied: true, actions[actionIndex].Title, documents, titles,
+            fixedErrors.ToImmutable());
     }
 
     /// <summary>Every code-fix provider in the component that offers a fix for <paramref name="diagnosticId"/>.</summary>

@@ -5,3 +5,4 @@
 global using GeneratorRun = MintPlayer.SourceGenerators.Testing.GeneratorResult;
 global using IncrementalRun = MintPlayer.SourceGenerators.Testing.IncrementalGeneratorResult;
 global using CodeFixResult = MintPlayer.SourceGenerators.Testing.CodeFixResult;
+global using FixtureProject = MintPlayer.SourceGenerators.Testing.FixtureProject;

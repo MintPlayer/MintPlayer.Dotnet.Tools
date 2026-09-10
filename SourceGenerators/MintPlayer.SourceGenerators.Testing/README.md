@@ -93,6 +93,46 @@ result.FixedSource.Should().Contain("await");
 A fix that declines to offer an action is a normal outcome, not an exception: `Applied` is `false`
 and the source comes back unchanged, so "offers nothing here" is directly assertable.
 
+Two things ARE exceptions, because both are otherwise silent and both produce tests that pass while
+proving nothing:
+
+- **A fixture that does not compile.** It yields no analyzer diagnostics, which is indistinguishable
+  from a fix that correctly declined. Pass `requireCompilableFixture: false` only when the analyzer
+  is purely syntactic and the fixture deliberately names types you do not reference.
+- **A fix that reports success while changing no document.** Roslyn wraps an unmodified solution in
+  a valid `ApplyChangesOperation`, so it reads as success.
+
+`result.Errors` carries the compile errors of the code the fix produced, across every project — a
+fix that emits uncompilable source reports no diagnostic of its own, so asserting on the text alone
+is not enough:
+
+```csharp
+result.Errors.Should().BeEmpty(result.ErrorText);
+```
+
+#### Fixes that reach across projects
+
+A code fix using `createChangedSolution` often edits a document in a *referenced* project — adding a
+member to an interface the class implements, say. One project holding one document cannot express
+that, and every such test passes vacuously:
+
+```csharp
+var result = await Harness.ApplyCodeFixAsync("MyAnalyzer", "MyCodeFixProvider",
+[
+    FixtureProject.Of("Contracts", ("IThing.cs", "public interface IThing { }")),
+    FixtureProject.Of("Impl",      ("Thing.cs", "public class Thing : IThing { public void Extra() { } }")),
+]);
+
+result.Document("Contracts/IThing.cs").Should().Contain("void Extra();");
+```
+
+Projects come in dependency order, each referencing the ones before it; diagnostics are collected
+from the last. Use `Document("{project}/{file}")` rather than `FixedSource`, which carries only the
+document the diagnostic was reported in — for a cross-project fix, the one it must *not* touch.
+
+When a provider offers several actions for one diagnostic, `result.Titles` lists them and
+`actionIndex:` picks which to apply.
+
 ### Incrementality
 
 ```csharp

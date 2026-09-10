@@ -1,4 +1,3 @@
-using Microsoft.CodeAnalysis;
 using MintPlayer.SourceGenerators.Testing;
 
 namespace MintPlayer.SourceGenerators.Tests._Infrastructure;
@@ -23,14 +22,24 @@ internal static class CodeFixHarness
         => Harness(analyzerAssemblyName, referenceTypes)
             .ApplyCodeFixAsync(analyzerTypeName, codeFixTypeName, source);
 
-    /// <summary>Diagnostics only, without applying any fix.</summary>
-    public static async Task<IReadOnlyList<Diagnostic>> DiagnoseAsync(
+    /// <summary>
+    /// A fixture of several projects, each referencing the ones before it.
+    /// </summary>
+    /// <remarks>
+    /// The shape a cross-project code fix needs: the diagnostic is reported in the last project and
+    /// the fix edits a document in an earlier one. Read the result with
+    /// <see cref="CodeFixResult.Document"/> — <see cref="CodeFixResult.FixedSource"/> carries the
+    /// document the diagnostic was reported in, which is the one the fix is expected NOT to touch.
+    /// </remarks>
+    public static Task<CodeFixResult> ApplyAsync(
         string analyzerTypeName,
-        string source,
+        string codeFixTypeName,
+        FixtureProject[] projects,
+        int actionIndex = 0,
         string? analyzerAssemblyName = null,
         IEnumerable<Type>? referenceTypes = null)
-        => (await ApplyAsync(analyzerTypeName, analyzerTypeName, source, analyzerAssemblyName, referenceTypes))
-            .Diagnostics;
+        => Harness(analyzerAssemblyName, referenceTypes)
+            .ApplyCodeFixAsync(analyzerTypeName, codeFixTypeName, projects, actionIndex);
 
     /// <remarks>
     /// Unlike the generator side there is no probing: every analyzer and code fix reachable from

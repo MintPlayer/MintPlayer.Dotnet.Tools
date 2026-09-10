@@ -28,41 +28,39 @@ public class InterfaceImplementationAnalyzer : DiagnosticAnalyzer
                 if (namedTypeSymbol.TypeKind != TypeKind.Class || !namedTypeSymbol.Interfaces.Any())
                     return;
 
-                foreach (var iface in namedTypeSymbol.Interfaces)
+                // Interfaces a fix could edit. If every implemented interface lives in metadata
+                // there is nothing to report against — otherwise every IDisposable implementation
+                // with an extra public member would light up.
+                var editableInterfaces = InterfaceMemberCandidates.EditableInterfaces(namedTypeSymbol);
+                if (editableInterfaces.Count == 0)
+                    return;
+
+                // Membership is tested against the union of ALL declared interfaces, including
+                // metadata-only ones. A member carried by one interface is not missing merely
+                // because another lacks it.
+                var satisfied = InterfaceMemberCandidates.SatisfiedNames(namedTypeSymbol);
+
+                var interfaceNames = string.Join(", ", editableInterfaces.Select(i => i.Name));
+
+                foreach (var member in InterfaceMemberCandidates.In(namedTypeSymbol, ignoreAttributeSymbol))
                 {
-                    // Skip interfaces that are not defined in source (metadata-only)
-                    if (iface.Locations.All(l => !l.IsInSource))
+                    if (satisfied.Contains(member.Name))
                         continue;
 
-                    // Get all members of the interface and sub-interfaces
-                    var interfaceMembers = iface.GetMembers()
-                        .Concat(iface.AllInterfaces.SelectMany(i => i.GetMembers()))
-                        .ToArray();
+                    // Reported once per member, not once per interface. Which of several candidate
+                    // interfaces the member should be added to is a genuine choice, and the code
+                    // fix offers it as one action each; raising a diagnostic per interface would
+                    // instead let "fix all occurrences" add the member to every one of them.
+                    var syntaxNode = member.DeclaringSyntaxReferences.First().GetSyntax(context.CancellationToken);
+                    var diagnostic = Diagnostic.Create(
+                        DiagnosticRules.MissingInterfaceMemberRule,
+                        syntaxNode.GetLocation(),
+                        ImmutableDictionary<string, string?>.Empty
+                            .Add(InterfaceMemberCandidates.MemberNameProperty, member.Name),
+                        member.Name,
+                        interfaceNames);
 
-                    // Only consider public instance methods and properties; ignore nested types, events, fields, etc.
-                    var classMembers = namedTypeSymbol.GetMembers()
-                        .Where(m => m.DeclaredAccessibility == Accessibility.Public
-                                    && !m.IsStatic
-                                    && m.CanBeReferencedByName
-                                    && !m.IsImplicitlyDeclared
-                                    && (m is IMethodSymbol || m is IPropertySymbol))
-                        .Where(m => !m.GetAttributes().Any(attr => SymbolEqualityComparer.Default.Equals(attr.AttributeClass, ignoreAttributeSymbol)));
-
-                    foreach (var member in classMembers)
-                    {
-                        // Ignore constructors and static constructors
-                        if (member is IMethodSymbol method && (method.MethodKind == MethodKind.Constructor || method.MethodKind == MethodKind.StaticConstructor))
-                            continue;
-
-                        // Member already exists in any of the interface hierarchies
-                        if (interfaceMembers.Any(im => im.Name == member.Name))
-                            continue;
-
-                        // Report diagnostic for missing member
-                        var syntaxNode = member.DeclaringSyntaxReferences.First().GetSyntax(context.CancellationToken);
-                        var diagnostic = Diagnostic.Create(DiagnosticRules.MissingInterfaceMemberRule, syntaxNode.GetLocation(), member.Name, iface.Name);
-                        context.ReportDiagnostic(diagnostic);
-                    }
+                    context.ReportDiagnostic(diagnostic);
                 }
                 break;
         }

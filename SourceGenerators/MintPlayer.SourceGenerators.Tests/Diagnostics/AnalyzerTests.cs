@@ -217,6 +217,113 @@ public class InterfaceImplementationAnalyzerTests
 
         diagnostics.Should().BeEmpty();
     }
+
+    /// <summary>
+    /// A member carried by one implemented interface is not missing merely because another
+    /// implemented interface lacks it.
+    /// </summary>
+    /// <remarks>
+    /// The analyzer used to evaluate membership once per interface, against that interface alone.
+    /// Every public member therefore had to appear on EVERY implemented interface or be reported,
+    /// so this fixture — where each member sits on exactly the interface that declares it, and
+    /// nothing is missing at all — produced two diagnostics, both false. Neither was suppressible
+    /// without suppressing the rule, which made INTF001 unusable on any class implementing more
+    /// than one interface.
+    /// </remarks>
+    [Fact]
+    public async Task ItDoesNotReportAMemberCarriedByAnotherImplementedInterface()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync("InterfaceImplementationAnalyzer", ["""
+            namespace Demo;
+
+            public interface IPerson
+            {
+                string Name { get; }
+            }
+
+            public interface IAuditable
+            {
+                int Version { get; }
+            }
+
+            public class Person : IPerson, IAuditable
+            {
+                public string Name => "x";
+                public int Version => 1;
+            }
+            """]);
+
+        diagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A member on none of the implemented interfaces is reported once, not once per interface.
+    /// </summary>
+    /// <remarks>
+    /// Cardinality is the point. Per-interface reporting would raise two diagnostics for the one
+    /// member, and "fix all occurrences" would then add it to BOTH interfaces — the same
+    /// wrong-target damage the fix's own defect caused, arrived at from the other direction. One
+    /// diagnostic keeps the ambiguity where it belongs: a choice between code actions.
+    /// </remarks>
+    [Fact]
+    public async Task ItReportsAMemberMissingFromEveryInterfaceExactlyOnce()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync("InterfaceImplementationAnalyzer", ["""
+            namespace Demo;
+
+            public interface IPerson
+            {
+                string Name { get; }
+            }
+
+            public interface IAuditable
+            {
+                int Version { get; }
+            }
+
+            public class Person : IPerson, IAuditable
+            {
+                public string Name => "x";
+                public int Version => 1;
+                public string LastName => "y";
+            }
+            """]);
+
+        var diagnostic = diagnostics.Should().ContainSingle().Which;
+        diagnostic.Id.Should().Be(Id);
+        diagnostic.GetMessage().Should().Contain("LastName");
+    }
+
+    /// <summary>
+    /// A metadata-only interface still satisfies a member, even though it can never be a fix target.
+    /// </summary>
+    /// <remarks>
+    /// The two roles are separate and conflating them reintroduces false positives: interfaces the
+    /// fix cannot edit are excluded from the candidate list, but excluding them from the membership
+    /// test too would report every member that IDisposable happens to carry.
+    /// </remarks>
+    [Fact]
+    public async Task ItTreatsAMetadataInterfaceAsSatisfyingAMember()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync("InterfaceImplementationAnalyzer", ["""
+            using System;
+
+            namespace Demo;
+
+            public interface IThing
+            {
+                void DoIt();
+            }
+
+            public class Thing : IThing, IDisposable
+            {
+                public void DoIt() { }
+                public void Dispose() { }
+            }
+            """]);
+
+        diagnostics.Should().BeEmpty();
+    }
 }
 
 public class CliCommandInterfaceAnalyzerTests

@@ -1,4 +1,4 @@
-namespace MintPlayer.Assertions.SourceGenerator.Tests.Diagnostics;
+﻿namespace MintPlayer.Assertions.SourceGenerator.Tests.Diagnostics;
 
 /// <summary>
 /// The four code-fix providers that ship inside MintPlayer.Assertions.
@@ -130,7 +130,11 @@ public class CodeFixTests
             {
                 public void Run() { }
             }
-            """);
+            """,
+            // The migration analyzer is purely syntactic (RegisterSyntaxNodeAction on
+            // UsingDirective), and this fixture names a package the harness does not reference, so
+            // the compile error cannot change the outcome. Every other fixture keeps the guard.
+            requireCompilableFixture: false);
 
         result.Applied.Should().BeTrue();
         result.ActionTitle.Should().Be("Migrate file to MintPlayer.Assertions");
@@ -157,7 +161,11 @@ public class CodeFixTests
             {
                 public void Run() { }
             }
-            """);
+            """,
+            // The migration analyzer is purely syntactic (RegisterSyntaxNodeAction on
+            // UsingDirective), and this fixture names a package the harness does not reference, so
+            // the compile error cannot change the outcome. Every other fixture keeps the guard.
+            requireCompilableFixture: false);
 
         result.Applied.Should().BeTrue();
         result.FixedSource.Should().Contain("using MintPlayer.Assertions;");
@@ -186,7 +194,11 @@ public class CodeFixTests
             {
                 public void Run(dynamic subject) => subject.Should().{{before}}(1);
             }
-            """);
+            """,
+            // The migration analyzer is purely syntactic (RegisterSyntaxNodeAction on
+            // UsingDirective), and this fixture names a package the harness does not reference, so
+            // the compile error cannot change the outcome. Every other fixture keeps the guard.
+            requireCompilableFixture: false);
 
         result.Applied.Should().BeTrue();
         result.FixedSource.Should().Contain(after);
@@ -209,7 +221,11 @@ public class CodeFixTests
             {
                 public void Run() { }
             }
-            """);
+            """,
+            // The migration analyzer is purely syntactic (RegisterSyntaxNodeAction on
+            // UsingDirective), and this fixture names a package the harness does not reference, so
+            // the compile error cannot change the outcome. Every other fixture keeps the guard.
+            requireCompilableFixture: false);
 
         result.Applied.Should().BeTrue();
 
@@ -232,7 +248,11 @@ public class CodeFixTests
             {
                 public void Run(dynamic subject) => subject.Should().NotThrowAfter(1, 1);
             }
-            """);
+            """,
+            // The migration analyzer is purely syntactic (RegisterSyntaxNodeAction on
+            // UsingDirective), and this fixture names a package the harness does not reference, so
+            // the compile error cannot change the outcome. Every other fixture keeps the guard.
+            requireCompilableFixture: false);
 
         result.Applied.Should().BeTrue();
         result.FixedSource.Should().Contain("NotThrowAfter");

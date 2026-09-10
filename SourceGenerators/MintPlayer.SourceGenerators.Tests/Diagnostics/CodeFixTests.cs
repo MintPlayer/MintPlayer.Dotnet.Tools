@@ -298,4 +298,366 @@ public class InterfaceImplementationCodeFixTests
 
         result.Applied.Should().BeFalse();
     }
+
+    private const string Analyzer = "InterfaceImplementationAnalyzer";
+    private const string Provider = "InterfaceCodeFixProvider";
+
+    /// <summary>
+    /// The scenario the fix exists for: the interface lives in a project the class references.
+    /// </summary>
+    /// <remarks>
+    /// This is the acceptance gate for the whole rule. <c>InterfaceCodeFixProvider</c> uses
+    /// <c>createChangedSolution</c> and reaches across projects precisely so it can do this, and
+    /// until the harness could express two projects there was no test that executed that path —
+    /// the five tests that existed all put the interface and the class in one source string, where
+    /// the cross-project code is never exercised and cannot fail.
+    /// </remarks>
+    [Fact]
+    public async Task ItAddsTheMemberToAnInterfaceInAReferencedProject()
+    {
+        var result = await CodeFixHarness.ApplyAsync(Analyzer, Provider,
+        [
+            FixtureProject.Of("Contracts", ("IThing.cs", """
+                namespace Demo;
+
+                public interface IThing
+                {
+                    void DoIt();
+                }
+                """)),
+            FixtureProject.Of("Impl", ("Thing.cs", """
+                namespace Demo;
+
+                public class Thing : IThing
+                {
+                    public void DoIt() { }
+                    public void Extra() { }
+                }
+                """)),
+        ]);
+
+        result.Applied.Should().BeTrue();
+
+        result.Document("Contracts/IThing.cs").Should().Contain("void Extra();",
+            "the member belongs on the interface, in the project the interface lives in");
+
+        result.Document("Impl/Thing.cs").Should().NotContain("void Extra();",
+            "the class is not the document the fix is meant to edit");
+
+        result.Errors.Should().BeEmpty(result.ErrorText);
+    }
+
+    /// <summary>
+    /// With several interfaces to choose from, the fix offers the choice rather than guessing.
+    /// </summary>
+    /// <remarks>
+    /// The provider used to take <c>classSymbol.Interfaces.FirstOrDefault()</c>, so the target was
+    /// whichever interface appeared first in the base list — correct only by coincidence, and only
+    /// while every fixture implemented exactly one interface.
+    /// </remarks>
+    [Fact]
+    public async Task ItOffersOneActionPerImplementedInterface()
+    {
+        var result = await CodeFixHarness.ApplyAsync(Analyzer, Provider, [FixtureProject.Of("P", TwoInterfaces)]);
+
+        result.Titles.Should().HaveCount(2);
+        result.Titles.Should().Contain(t => t.Contains("IPerson"));
+        result.Titles.Should().Contain(t => t.Contains("IAuditable"));
+    }
+
+    [Fact]
+    public async Task ItAddsTheMemberToTheChosenInterface()
+    {
+        var first = await CodeFixHarness.ApplyAsync(Analyzer, Provider, [FixtureProject.Of("P", TwoInterfaces)], actionIndex: 0);
+        var second = await CodeFixHarness.ApplyAsync(Analyzer, Provider, [FixtureProject.Of("P", TwoInterfaces)], actionIndex: 1);
+
+        Declaration(first, "IPerson").Should().Contain("LastName");
+        Declaration(first, "IAuditable").Should().NotContain("LastName");
+
+        Declaration(second, "IAuditable").Should().Contain("LastName");
+        Declaration(second, "IPerson").Should().NotContain("LastName");
+
+        first.Errors.Should().BeEmpty(first.ErrorText);
+        second.Errors.Should().BeEmpty(second.ErrorText);
+    }
+
+    /// <summary>
+    /// A record implementing an interface must not throw before the light bulb is even offered.
+    /// </summary>
+    /// <remarks>
+    /// The analyzer gates on <c>TypeKind.Class</c>, which includes records, but the fix located the
+    /// declaration with <c>.First()</c> over <c>OfType&lt;ClassDeclarationSyntax&gt;()</c> — and a
+    /// <c>RecordDeclarationSyntax</c> is a sibling of that type, not a subtype. Registration threw
+    /// <c>InvalidOperationException: Sequence contains no elements</c> on perfectly ordinary C#.
+    /// </remarks>
+    [Fact]
+    public async Task ItFixesARecordWithoutThrowing()
+    {
+        var result = await CodeFixHarness.ApplyAsync(Analyzer, Provider, """
+            namespace Demo;
+
+            public interface IThing
+            {
+                void DoIt();
+            }
+
+            public record Thing : IThing
+            {
+                public void DoIt() { }
+                public void Extra() { }
+            }
+            """);
+
+        result.Applied.Should().BeTrue();
+        result.FixedSource.Should().Contain("void Extra();");
+        result.Errors.Should().BeEmpty(result.ErrorText);
+    }
+
+    /// <summary>
+    /// Member kinds the analyzer never reports must not reach the fix's member factory.
+    /// </summary>
+    /// <remarks>
+    /// The analyzer restricts candidates to methods and properties; the fix's filter dropped that
+    /// clause, so a field, an event or a nested type flowed into <c>CreateInterfaceMember</c> and
+    /// hit <c>throw new NotImplementedException</c>. A code fix must never throw at the user, so
+    /// the factory now declines unsupported kinds instead. Each fixture also carries one genuinely
+    /// missing method, because without a reported diagnostic the fix is never invoked at all.
+    /// </remarks>
+    [Theory]
+    [InlineData("public string Note;")]
+    [InlineData("public event System.EventHandler Changed;")]
+    [InlineData("public class Nested { }")]
+    public async Task ItIgnoresMemberKindsItCannotDeclare(string extraMember)
+    {
+        var result = await CodeFixHarness.ApplyAsync(Analyzer, Provider, $$"""
+            namespace Demo;
+
+            public interface IThing
+            {
+                void DoIt();
+            }
+
+            public class Thing : IThing
+            {
+                public void DoIt() { }
+                public void Extra() { }
+                {{extraMember}}
+            }
+            """);
+
+        result.Applied.Should().BeTrue();
+        result.Errors.Should().BeEmpty(result.ErrorText);
+
+        // Asserted against the interface body alone. The class legitimately still declares the
+        // field, event or nested type, so a NotContain over the whole document would fail on the
+        // fixture's own source rather than on anything the fix did.
+        var declaration = Declaration(result, "IThing");
+        declaration.Should().Contain("void Extra();");
+        declaration.Should().NotContain("Note");
+        declaration.Should().NotContain("Changed");
+        declaration.Should().NotContain("Nested");
+    }
+
+    /// <summary>
+    /// The generated interface property mirrors the class property's accessors.
+    /// </summary>
+    /// <remarks>
+    /// The fix emitted <c>{ get; set; }</c> unconditionally. For a get-only class property that
+    /// declares an interface member the class does not implement — CS0535, a hard compile error
+    /// introduced into code that compiled a moment earlier. This is the only defect in the rule
+    /// that turns working code into broken code, which is why the assertion is on
+    /// <see cref="CodeFixResult.Errors"/> and not merely on the text.
+    /// </remarks>
+    [Theory]
+    [InlineData("public string Extra => \"x\";", "get;", "set;")]
+    [InlineData("public string Extra { get; init; }", "init;", "set;")]
+    [InlineData("public string Extra { get; set; }", "set;", null)]
+    public async Task ItPreservesThePropertyAccessorShape(string declaration, string expected, string? notExpected)
+    {
+        var result = await CodeFixHarness.ApplyAsync(Analyzer, Provider, $$"""
+            namespace Demo;
+
+            public interface IThing
+            {
+                void DoIt();
+            }
+
+            public class Thing : IThing
+            {
+                public void DoIt() { }
+                {{declaration}}
+            }
+            """);
+
+        result.Applied.Should().BeTrue();
+        result.Errors.Should().BeEmpty(result.ErrorText);
+
+        var member = Declaration(result, "IThing");
+        member.Should().Contain(expected);
+        if (notExpected is not null) member.Should().NotContain(notExpected);
+    }
+
+    /// <summary>
+    /// A member inherited from a base interface is already satisfied and must not be re-declared.
+    /// </summary>
+    /// <remarks>
+    /// The analyzer checks the whole hierarchy; the fix checked only the interface's own members,
+    /// so it re-declared an inherited member on the derived interface — CS0108 member hiding, in
+    /// code the analyzer had deliberately accepted.
+    /// </remarks>
+    [Fact]
+    public async Task ItDoesNotRedeclareAMemberFromABaseInterface()
+    {
+        var result = await CodeFixHarness.ApplyAsync(Analyzer, Provider, """
+            namespace Demo;
+
+            public interface IBase
+            {
+                string Name { get; }
+            }
+
+            public interface IThing : IBase
+            {
+            }
+
+            public class Thing : IThing
+            {
+                public string Name => "x";
+                public void Extra() { }
+            }
+            """);
+
+        result.Applied.Should().BeTrue();
+        result.FixedSource.Should().Contain("void Extra();");
+
+        Declaration(result, "IThing").Should().NotContain("Name",
+            "Name is already declared on IBase, which is why the analyzer never reported it");
+    }
+
+    /// <summary>Applying the fix, then running the analyzer again, leaves nothing to report.</summary>
+    [Fact]
+    public async Task TheFixedCodeHasNoDiagnosticsLeft()
+    {
+        var result = await CodeFixHarness.ApplyAsync(Analyzer, Provider, """
+            namespace Demo;
+
+            public interface IThing
+            {
+                void DoIt();
+            }
+
+            public class Thing : IThing
+            {
+                public void DoIt() { }
+                public void Extra() { }
+            }
+            """);
+
+        result.Applied.Should().BeTrue();
+
+        var again = await GeneratorHarness.RunAnalyzerAsync(Analyzer, [result.FixedSource]);
+        again.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A generated method signature must match the class's well enough to still implement it.
+    /// </summary>
+    /// <remarks>
+    /// The same failure mode as the get-only property and the <c>void</c> return type: a signature
+    /// that reads plausibly and does not compile. Parameter modifiers and generic arity are part of
+    /// the signature the compiler matches on, so dropping either leaves the class no longer
+    /// implementing the interface the fix just wrote — <c>CS0535</c> — or, for a type parameter
+    /// used but never declared, source that does not parse as a member at all.
+    ///
+    /// Asserted on <see cref="CodeFixResult.Errors"/> rather than on the text, because in every one
+    /// of these cases the text looks reasonable.
+    /// </remarks>
+    [Theory]
+    [InlineData("public void Write(out int x) { x = 1; }")]
+    [InlineData("public void Read(ref int x) { }")]
+    [InlineData("public void Peek(in int x) { }")]
+    [InlineData("public T Find<T>(string key) => default!;")]
+    [InlineData("public T Pick<T>(string key) where T : class, new() => new T();")]
+    [InlineData("public void Many<TKey, TValue>(TKey key, TValue value) { }")]
+    // Ref-ness of the RETURN participates in signature matching exactly as a parameter's does.
+    [InlineData("public ref int Get() => ref _field;")]
+    [InlineData("public ref readonly int Peek() => ref _field;")]
+    public async Task ItKeepsTheSignatureTheClassActuallyImplements(string declaration)
+    {
+        var result = await CodeFixHarness.ApplyAsync(Analyzer, Provider, $$"""
+            namespace Demo;
+
+            public interface IThing
+            {
+                void DoIt();
+            }
+
+            public class Thing : IThing
+            {
+                private int _field;
+                public void DoIt() { }
+                {{declaration}}
+            }
+            """);
+
+        result.Errors.Should().BeEmpty(result.ErrorText);
+
+        // Whether the member was declared or declined, nothing may be left to report: an unfixed
+        // diagnostic is a legitimate outcome, a miscompiled one is not.
+        var again = await GeneratorHarness.RunAnalyzerAsync(Analyzer, [result.FixedSource]);
+        again.Should().BeEmpty();
+    }
+
+    private const string TwoInterfaces = """
+        namespace Demo;
+
+        public interface IPerson
+        {
+            string Name { get; }
+        }
+
+        public interface IAuditable
+        {
+            int Version { get; }
+        }
+
+        public class Person : IPerson, IAuditable
+        {
+            public string Name => "x";
+            public int Version => 1;
+            public string LastName => "y";
+        }
+        """;
+
+    /// <summary>The body of one interface declaration in the fixed source.</summary>
+    /// <remarks>
+    /// Asserting on the whole document cannot tell an interface declaration from the class member
+    /// it was generated from — <c>Contain("LastName")</c> is satisfied by the class before the fix
+    /// runs at all, which is how an earlier test in this file passed while the fix was unreachable.
+    /// </remarks>
+    private static string Declaration(CodeFixResult result, string interfaceName)
+        => Declaration(result.FixedSource, interfaceName);
+
+    private static string Declaration(string source, string interfaceName)
+    {
+        var start = source.IndexOf($"interface {interfaceName}", StringComparison.Ordinal);
+        start.Should().BeGreaterThanOrEqualTo(0, $"the fixed source should still declare {interfaceName}");
+
+        var open = source.IndexOf('{', start);
+        open.Should().BeGreaterThanOrEqualTo(0, $"{interfaceName} should have a body");
+
+        // Brace counting, not IndexOf('}'). A property accessor list is itself a brace pair, so
+        // taking the first closing brace truncates the declaration at `{ get; }` and everything
+        // after it — including the member the fix just added — silently vanishes from the
+        // assertion.
+        var depth = 0;
+        for (var i = open; i < source.Length; i++)
+        {
+            if (source[i] == '{') depth++;
+            else if (source[i] == '}' && --depth == 0)
+                return source[open..(i + 1)];
+        }
+
+        throw new InvalidOperationException($"Unbalanced braces in the declaration of {interfaceName}.");
+    }
 }
