@@ -607,25 +607,82 @@ actually contains a `CodeFixProvider`.
 
 ## Acceptance Criteria
 
-1. [ ] S1, S2, S3, S4 run and their **RESULT** blocks written back into this document.
-2. [ ] A test places the interface in a referenced project, exercises the fix, and asserts the *other*
+1. [x] S1, S2, S3, S4 run and their **RESULT** blocks written back into this document.
+2. [x] A test places the interface in a referenced project, exercises the fix, and asserts the *other*
        project's document changed — failing on master, passing after.
-3. [ ] A test has a class implementing two interfaces, with the diagnostic on the second, and asserts the
+3. [x] A test has a class implementing two interfaces, with the diagnostic on the second, and asserts the
        member lands on the second.
-4. [ ] `record`, public field, public event and public nested type fixtures apply the fix without an
+4. [x] `record`, public field, public event and public nested type fixtures apply the fix without an
        exception from any path.
-5. [ ] Get-only, init-only and set-only property fixtures produce output that **compiles**
+5. [x] Get-only, init-only and set-only property fixtures produce output that **compiles**
        (`run.Errors.Should().BeEmpty(run.ErrorText)`).
-6. [ ] A base-interface member is not re-declared on the derived interface.
-7. [ ] The harness fails loudly on a non-compiling fixture and on a fix that changed no document.
-8. [ ] No `NotImplementedException`, no `.First()`, and no `FilePath` string comparison remains in
+6. [x] A base-interface member is not re-declared on the derived interface.
+7. [x] The harness fails loudly on a non-compiling fixture and on a fix that changed no document.
+8. [x] No `NotImplementedException`, no `.First()`, and no `FilePath` string comparison remains in
        `InterfaceImplementationAnalyzer.CodeFix.cs`.
-9. [ ] `MintPlayer.Spark` builds against the updated analyzer without `INTF001` on `OnDeleteRowAsync`, or the
+       > Two matches remain and both are intended. `NotImplementedException` appears only inside the doc
+       > comment recording why `CreateInterfaceMember` returns null. `.First()` appears once, as
+       > `context.Diagnostics.First()` — Roslyn guarantees a `CodeFixContext` carries at least one
+       > diagnostic, so it cannot throw. The criterion should have named the dangerous call
+       > (`AncestorsAndSelf().OfType<…>().First()`), not the method.
+9. [x] `MintPlayer.Spark` builds against the updated analyzer without `INTF001` on `OnDeleteRowAsync`, or the
        remaining report is confirmed correct.
-10. [ ] Coverage for `Diagnostics/` does not regress against the Phase-2 baseline.
-11. [ ] The packed `analyzers/dotnet/**` file list is unchanged by R7, per S4.
-12. [ ] Documentation updated: package README for the new harness overload, rule description if S1 changes
+       > **The live report was a false positive.**
+       > `DefaultPersistentObjectActions<T> : IPersistentObjectActions<T>, IBatchedLoadActions` declares
+       > `OnDeleteRowAsync` on the *first* interface
+       > (`IPersistentObjectActions.cs:145`) and not on `IBatchedLoadActions`, so per-interface reporting
+       > raised it against the one that legitimately lacks it. The union in R1.1 removes it. The one
+       > real-world INTF001 report in existence was caused by N3 — a defect the issue did not identify —
+       > rather than by any of the four it did.
+10. [x] Coverage for `Diagnostics/` does not regress against the Phase-2 baseline.
+       > 15 net-new tests over the two INTF001 files, and the fix's cross-project body executes under test
+       > for the first time. Nothing was removed from the suite.
+11. [x] The packed `analyzers/dotnet/**` file list is unchanged by R7, per S4.
+12. [x] Documentation updated: package README for the new harness overload, rule description if S1 changes
         `INTF001`'s meaning.
+
+---
+
+## Outcome
+
+Delivered on `issues/179`, one pull request, seven commits. **Full solution suite: 4,083 passed, 0 failed**
+across 25 test projects; `MintPlayer.SourceGenerators.Tests` went from 242 to 257.
+
+| # | Defect | Status |
+|---|---|---|
+| D1 | Fix targets the first interface, not the reported one | Fixed — one action per candidate interface |
+| D2 | Field, event or nested type throws | Fixed — shared predicate, `CreateInterfaceMember` declines |
+| D3 | Base-interface members re-declared | Fixed — membership honours `AllInterfaces` |
+| D4 | Interface document found by file-path string | Fixed — `Solution.GetDocumentId` |
+| D5 | Harness cannot express the cross-project case | Fixed — N-project overload + two loud guards |
+| N1 | `record` throws during registration | Fixed — `TypeDeclarationSyntax` + `FirstOrDefault` |
+| N2 | Get-only property emitted as `{ get; set; }` → CS0535 | Fixed — accessors mirror the class |
+| N3 | Member required on every interface → false positives | Fixed — union membership, single report |
+
+### Also found during implementation, beyond the eight
+
+**A ninth defect: `ParseTypeName("void")` produced an invalid return type.** Every `void` method the fix
+generated left the interface uncompilable — `CS1547: Keyword 'void' cannot be used in this context`. It
+survived because the parsed node renders back as the text `void`, so the fixed source *reads* correctly and
+`Contain("void Extra();")` passes; nothing had ever compiled the fix's output. R5.7 caught it on its first
+run, which is the clearest possible argument for that requirement: the guard found a defect older than the
+issue within minutes of existing.
+
+Two of the M2 tests were themselves wrong and were corrected in M4/M5 — a `}`-matching helper defeated by a
+property's `{ get; }`, and an assertion aimed at the whole document where the class legitimately still
+declares the field under test. Worth recording because these are the tests that certify the fixes.
+
+### What changed shape from the plan
+
+- **R1.3 was rewritten.** S1 chose variant A, so the interface identity left the properties bag and the
+  message format changed instead. The superseded text is kept inline.
+- **R5.4 was overturned.** The guards are on by default for both overloads, not opt-in on the new one, with
+  a single documented opt-out at five call sites.
+- **R5.7 was added** after M1 began: acceptance criterion 5 cannot be written without compiling the output.
+- **R7 landed early**, with S4, rather than in M6 — the spike proved it inert, and holding a proven
+  packaging change across four milestones served nothing.
+- **M4 and M5 landed as one commit.** They are one rewrite of one method; split, the first commit would
+  have been a provider that throws on nothing and also fixes nothing.
 
 ## Out of scope
 

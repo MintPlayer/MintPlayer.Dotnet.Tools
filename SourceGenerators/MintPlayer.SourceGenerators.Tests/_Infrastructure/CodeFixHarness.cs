@@ -1,4 +1,3 @@
-using Microsoft.CodeAnalysis;
 using MintPlayer.SourceGenerators.Testing;
 
 namespace MintPlayer.SourceGenerators.Tests._Infrastructure;
@@ -41,15 +40,6 @@ internal static class CodeFixHarness
         IEnumerable<Type>? referenceTypes = null)
         => Harness(analyzerAssemblyName, referenceTypes)
             .ApplyCodeFixAsync(analyzerTypeName, codeFixTypeName, projects, actionIndex);
-
-    /// <summary>Diagnostics only, without applying any fix.</summary>
-    public static async Task<IReadOnlyList<Diagnostic>> DiagnoseAsync(
-        string analyzerTypeName,
-        string source,
-        string? analyzerAssemblyName = null,
-        IEnumerable<Type>? referenceTypes = null)
-        => (await ApplyAsync(analyzerTypeName, analyzerTypeName, source, analyzerAssemblyName, referenceTypes))
-            .Diagnostics;
 
     /// <remarks>
     /// Unlike the generator side there is no probing: every analyzer and code fix reachable from
