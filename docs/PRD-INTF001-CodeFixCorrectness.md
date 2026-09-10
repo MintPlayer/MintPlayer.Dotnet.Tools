@@ -290,9 +290,17 @@ tests.
 `applied.GetChanges(solution).GetProjectChanges().SelectMany(p => p.GetChangedDocuments()).Any()`.
 This is the permanent close on the d73d877 trap.
 
-**R5.4** — R5.2 and R5.3 are behavioural changes to a published method. They apply to the **new overload
-only**, or behind an opt-in flag, so the 9 Assertions call sites cannot regress. Confirmed or overturned by
-[S2](#s2--can-the-loud-guards-be-turned-on-for-the-existing-overload-gates-r54-2h).
+**R5.4** — R5.2 and R5.3 apply to **both** overloads, on by default
+([S2](#s2--can-the-loud-guards-be-turned-on-for-the-existing-overload-gates-r54-2h) overturned the original
+opt-in plan: all 242 SourceGenerators tests pass with the guards on). R5.2 is escapable through
+`requireCompilableFixture: false` for a purely syntactic analyzer whose fixture deliberately names an
+unreferenced package; the opt-out is stated at the call site, never in the harness. R5.3 has no escape hatch.
+
+**R5.7** — After the fix applies, every project of the changed solution is compiled and the errors exposed as
+`CodeFixResult.Errors` / `ErrorText`. A fix that emits uncompilable code reports no diagnostic of its own, so
+asserting on the fixed text alone passes while the consumer's build breaks — and a fix that edits an
+interface in one project can break the class implementing it in another, which no single-project fixture can
+show.
 
 **R5.5** — The generator DLLs are copied to the test bin root by `CopyGeneratorRuntimeAssets` and
 `Assembly.Load`-ed by simple name into the default ALC. Coverage attribution depends on this. The harness
@@ -462,6 +470,49 @@ fall back to R5.4 as written, opt-in on the new overload, and note the split in 
 
 **Why it is a spike, not a task.** It is a behaviour change to a published API with call sites outside the
 area being changed, and the answer decides whether the package bump is `10.1.0` or needs a release note.
+
+**RESULT — run 2026-09-10. Mixed. Guards stay on by default; one explicit, documented opt-out is added.**
+
+Both guards applied unconditionally, then both suites run:
+
+| Suite | Result |
+|---|---|
+| `MintPlayer.SourceGenerators.Tests` | **242 passed, 0 failed** |
+| `MintPlayer.Assertions.SourceGenerator.Tests` | **57 passed, 8 failed** |
+
+All 242 SourceGenerators tests — including the 12 code-fix tests — pass with both guards on, so nothing in
+the area this PRD touches depends on the silent semantics.
+
+All 8 Assertions failures are guard 1, from a single root cause across 5 call sites (one is a `[Theory]` with
+four cases):
+
+```
+FixtureNotUsableException : The fixture does not compile, so no analyzer diagnostic can be trusted.
+  /FixInput/Input.cs(1,7): error CS0246: The type or namespace name 'FluentAssertions' could not be found
+```
+
+These are **fixture hygiene, not latent defects.** `FluentAssertionsMigrationAnalyzer` registers exactly one
+callback — `RegisterSyntaxNodeAction(AnalyzeUsingDirective, SyntaxKind.UsingDirective)` — and never touches a
+semantic model, so an unresolved namespace cannot change its outcome. The fixtures name a package the test
+project deliberately does not reference, which is the point: the analyzer exists to migrate code *away from*
+FluentAssertions.
+
+Neither branch of the decision rule fits cleanly, so the guard is kept strong and the exception made
+explicit rather than the guard weakened everywhere:
+
+- Both overloads take `bool requireCompilableFixture = true`. The default protects every fixture.
+- The 5 migration call sites pass `requireCompilableFixture: false` with a comment stating why the semantic
+  model cannot matter there. Turning it off is a claim a reviewer can check, made where the claim applies.
+
+R5.4 as originally written — opt-in on the new overload only — is therefore **not** taken: it would have left
+the 12 SourceGenerators code-fix tests and the 9 Assertions ones running under the old silent semantics,
+which the 242-test pass shows is unnecessary. The package bump stays `10.1.0`; the new parameter is optional
+and defaulted, so no existing call site changes meaning except the 5 that opt out deliberately.
+
+**Also delivered here, beyond the spike's question.** `CodeFixResult.Errors` / `ErrorText`: the fixed
+solution is compiled across every project after the fix applies, so a test can assert that the *output*
+compiles. Acceptance criterion 5 (get-only properties must not produce CS0535) cannot be written without it,
+and a fix that breaks the class in another project is invisible to a single-project fixture.
 
 ### S3 — Does the properties bag survive the analyzer-driver round trip? *(gates R1.3, R1.5, 1h)*
 
