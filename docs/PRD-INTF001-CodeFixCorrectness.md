@@ -658,6 +658,8 @@ across 25 test projects; `MintPlayer.SourceGenerators.Tests` went from 242 to 25
 | N1 | `record` throws during registration | Fixed — `TypeDeclarationSyntax` + `FirstOrDefault` |
 | N2 | Get-only property emitted as `{ get; set; }` → CS0535 | Fixed — accessors mirror the class |
 | N3 | Member required on every interface → false positives | Fixed — union membership, single report |
+| N4 | `ParseTypeName("void")` → invalid return type, CS1547 | Fixed — `PredefinedType` |
+| N5 | Parameter modifiers and generic arity dropped from the signature | Fixed — `RefKind` modifiers, type parameters, constraints |
 
 ### Also found during implementation, beyond the eight
 
@@ -671,6 +673,23 @@ issue within minutes of existing.
 Two of the M2 tests were themselves wrong and were corrected in M4/M5 — a `}`-matching helper defeated by a
 property's `{ get; }`, and an assertion aimed at the whole document where the class legitimately still
 declares the field under test. Worth recording because these are the tests that certify the fixes.
+
+**A tenth, found in review (N5).** The issue's author, reviewing the PR, spotted that
+`CreateInterfaceMember` dropped **parameter modifiers and generic arity**: it built parameters as
+`Parameter(Identifier(p.Name)).WithType(...)` with no `RefKind`, and called `MethodDeclaration` with no type
+parameter list. Verified before changing anything — six fixtures, six failures:
+
+```
+public void Write(out int x)          → interface gets void Write(int x)   → CS0535
+public T Find<T>(string key)          → interface gets Find(string key)    → CS0246 on T, then CS0535
+public void Many<TKey, TValue>(…)     → CS0246 on TKey and TValue
+```
+
+Exactly the family of N2 and N4: a signature that reads plausibly and does not compile. Fixed by carrying
+`ref`/`out`/`in`/`ref readonly`, the type parameter list, and constraint clauses in the order the language
+requires (primary constraint, then base types and interfaces, then `new()` — symbol order compiles only by
+luck). `params` and default values are deliberately not carried: neither participates in implementation
+matching, so omitting them costs convenience at an interface call site but cannot break a build.
 
 ### What changed shape from the plan
 
@@ -694,6 +713,19 @@ Genuinely not being done — not a parking lot:
   here.
 - `RunGeneratorFixAsync` (Spark's second harness entry point, for diagnostics emitted by a generator rather
   than a `DiagnosticAnalyzer`). No `INTF001` need; adding it speculatively widens a published API.
+
+- **Signature-aware membership.** `INTF001` decides whether an interface already carries a member **by name
+  alone** (`satisfied.Contains(member.Name)`), so an overload with a different signature counts as
+  satisfying it. This is pre-existing and deliberate, and it is now the last place where the rule's notion of
+  "the same member" is looser than the compiler's — raised in review once the per-interface false positives
+  were gone. It stays, because the alternative is worse for this rule: matching on signature would report
+  every overload of a name the interface already declares, which is the shape most likely to appear on the
+  kind of class this rule targets, and the fix would then add near-duplicate members that differ only in a
+  parameter list. A rule whose job is "this looks like it belongs on the interface" is better slightly
+  permissive than noisy. Revisit only if a real report turns up that the name test misses.
+
+- **`params` and default parameter values on generated methods.** Neither participates in implementation
+  matching, so omitting them cannot break a build ([N5](#outcome)).
 
 ## Version
 

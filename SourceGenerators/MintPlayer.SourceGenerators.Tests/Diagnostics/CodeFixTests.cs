@@ -559,6 +559,51 @@ public class InterfaceImplementationCodeFixTests
         again.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// A generated method signature must match the class's well enough to still implement it.
+    /// </summary>
+    /// <remarks>
+    /// The same failure mode as the get-only property and the <c>void</c> return type: a signature
+    /// that reads plausibly and does not compile. Parameter modifiers and generic arity are part of
+    /// the signature the compiler matches on, so dropping either leaves the class no longer
+    /// implementing the interface the fix just wrote — <c>CS0535</c> — or, for a type parameter
+    /// used but never declared, source that does not parse as a member at all.
+    ///
+    /// Asserted on <see cref="CodeFixResult.Errors"/> rather than on the text, because in every one
+    /// of these cases the text looks reasonable.
+    /// </remarks>
+    [Theory]
+    [InlineData("public void Write(out int x) { x = 1; }")]
+    [InlineData("public void Read(ref int x) { }")]
+    [InlineData("public void Peek(in int x) { }")]
+    [InlineData("public T Find<T>(string key) => default!;")]
+    [InlineData("public T Pick<T>(string key) where T : class, new() => new T();")]
+    [InlineData("public void Many<TKey, TValue>(TKey key, TValue value) { }")]
+    public async Task ItKeepsTheSignatureTheClassActuallyImplements(string declaration)
+    {
+        var result = await CodeFixHarness.ApplyAsync(Analyzer, Provider, $$"""
+            namespace Demo;
+
+            public interface IThing
+            {
+                void DoIt();
+            }
+
+            public class Thing : IThing
+            {
+                public void DoIt() { }
+                {{declaration}}
+            }
+            """);
+
+        result.Errors.Should().BeEmpty(result.ErrorText);
+
+        // Whether the member was declared or declined, nothing may be left to report: an unfixed
+        // diagnostic is a legitimate outcome, a miscompiled one is not.
+        var again = await GeneratorHarness.RunAnalyzerAsync(Analyzer, [result.FixedSource]);
+        again.Should().BeEmpty();
+    }
+
     private const string TwoInterfaces = """
         namespace Demo;
 

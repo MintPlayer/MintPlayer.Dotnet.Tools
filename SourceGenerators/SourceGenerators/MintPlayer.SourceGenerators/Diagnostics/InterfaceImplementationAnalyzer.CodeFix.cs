@@ -169,13 +169,27 @@ public class InterfaceCodeFixProvider : CodeFixProvider
         switch (member)
         {
             case IMethodSymbol methodSymbol:
-                return SyntaxFactory.MethodDeclaration(ReturnType(methodSymbol), methodSymbol.Name)
+                var method = SyntaxFactory.MethodDeclaration(ReturnType(methodSymbol), methodSymbol.Name)
                     .WithParameterList(SyntaxFactory.ParameterList(
-                        SyntaxFactory.SeparatedList(
-                            methodSymbol.Parameters.Select(p => SyntaxFactory.Parameter(
-                                    SyntaxFactory.Identifier(p.Name))
-                                .WithType(SyntaxFactory.ParseTypeName(p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))))))
+                        SyntaxFactory.SeparatedList(methodSymbol.Parameters.Select(Parameter))))
                     .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken));
+
+                // A generic method must carry its own type parameters: they are part of the
+                // signature the compiler matches on, and the parameter and return types reference
+                // them by name. Without the list the declaration does not even bind — `T` is an
+                // undeclared type (CS0246) — and the class stops implementing the interface the fix
+                // just wrote (CS0535).
+                if (methodSymbol.TypeParameters.Length > 0)
+                {
+                    method = method
+                        .WithTypeParameterList(SyntaxFactory.TypeParameterList(
+                            SyntaxFactory.SeparatedList(methodSymbol.TypeParameters
+                                .Select(tp => SyntaxFactory.TypeParameter(tp.Name)))))
+                        .WithConstraintClauses(SyntaxFactory.List(
+                            methodSymbol.TypeParameters.Select(ConstraintClause).Where(c => c is not null)!));
+                }
+
+                return method;
 
             case IPropertySymbol propertySymbol:
                 var accessors = Accessors(propertySymbol).ToArray();
@@ -193,6 +207,81 @@ public class InterfaceCodeFixProvider : CodeFixProvider
             default:
                 return null;
         }
+    }
+
+    /// <summary>
+    /// One parameter of a generated interface method, carrying its <c>ref</c>/<c>out</c>/<c>in</c>
+    /// modifier.
+    /// </summary>
+    /// <remarks>
+    /// The modifier is part of the signature the compiler matches on, so dropping it declares an
+    /// overload the class does not have: <c>void Write(out int x)</c> becomes
+    /// <c>void Write(int x)</c>, and the class stops implementing the interface — CS0535, in code
+    /// that compiled before the fix ran.
+    ///
+    /// <c>params</c> and default values are deliberately not carried: neither participates in
+    /// implementation matching, so omitting them costs call-site convenience on the interface but
+    /// cannot break the build.
+    /// </remarks>
+    private static ParameterSyntax Parameter(IParameterSymbol parameter)
+    {
+        var syntax = SyntaxFactory
+            .Parameter(SyntaxFactory.Identifier(parameter.Name))
+            .WithType(SyntaxFactory.ParseTypeName(parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
+
+        var modifiers = parameter.RefKind switch
+        {
+            RefKind.Ref => new[] { SyntaxKind.RefKeyword },
+            RefKind.Out => [SyntaxKind.OutKeyword],
+            RefKind.In => [SyntaxKind.InKeyword],
+            // `ref readonly` parameters (C# 12). Ordered ref-then-readonly, which is the only legal
+            // spelling.
+            RefKind.RefReadOnlyParameter => [SyntaxKind.RefKeyword, SyntaxKind.ReadOnlyKeyword],
+            _ => [],
+        };
+
+        return modifiers.Length == 0
+            ? syntax
+            : syntax.WithModifiers(SyntaxFactory.TokenList(modifiers.Select(SyntaxFactory.Token)));
+    }
+
+    /// <summary>
+    /// The constraint clause for one type parameter, or <see langword="null"/> when it has none.
+    /// </summary>
+    /// <remarks>
+    /// Constraints are ordered as the language requires: the primary constraint
+    /// (<c>class</c>/<c>struct</c>/<c>notnull</c>/<c>unmanaged</c>) first, then base types and
+    /// interfaces, then <c>new()</c> last. Emitting them in symbol order compiles only by luck.
+    ///
+    /// <c>unmanaged</c> subsumes <c>struct</c> — Roslyn reports both — and a <c>struct</c>
+    /// constraint already implies a parameterless constructor, so <c>new()</c> alongside it is a
+    /// compile error rather than a redundancy.
+    /// </remarks>
+    private static TypeParameterConstraintClauseSyntax? ConstraintClause(ITypeParameterSymbol typeParameter)
+    {
+        var constraints = new List<TypeParameterConstraintSyntax>();
+
+        if (typeParameter.HasUnmanagedTypeConstraint)
+            constraints.Add(SyntaxFactory.TypeConstraint(SyntaxFactory.ParseTypeName("unmanaged")));
+        else if (typeParameter.HasValueTypeConstraint)
+            constraints.Add(SyntaxFactory.ClassOrStructConstraint(SyntaxKind.StructConstraint));
+        else if (typeParameter.HasReferenceTypeConstraint)
+            constraints.Add(SyntaxFactory.ClassOrStructConstraint(SyntaxKind.ClassConstraint));
+        else if (typeParameter.HasNotNullConstraint)
+            constraints.Add(SyntaxFactory.TypeConstraint(SyntaxFactory.ParseTypeName("notnull")));
+
+        foreach (var constraintType in typeParameter.ConstraintTypes)
+            constraints.Add(SyntaxFactory.TypeConstraint(
+                SyntaxFactory.ParseTypeName(constraintType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))));
+
+        if (typeParameter.HasConstructorConstraint && !typeParameter.HasValueTypeConstraint)
+            constraints.Add(SyntaxFactory.ConstructorConstraint());
+
+        return constraints.Count == 0
+            ? null
+            : SyntaxFactory.TypeParameterConstraintClause(
+                SyntaxFactory.IdentifierName(typeParameter.Name),
+                SyntaxFactory.SeparatedList(constraints));
     }
 
     /// <summary>
