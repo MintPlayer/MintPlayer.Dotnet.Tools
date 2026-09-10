@@ -446,11 +446,16 @@ public class InterfaceImplementationCodeFixTests
             """);
 
         result.Applied.Should().BeTrue();
-        result.FixedSource.Should().Contain("void Extra();");
-        result.FixedSource.Should().NotContain("Note");
-        result.FixedSource.Should().NotContain("Changed");
-        result.FixedSource.Should().NotContain("Nested");
         result.Errors.Should().BeEmpty(result.ErrorText);
+
+        // Asserted against the interface body alone. The class legitimately still declares the
+        // field, event or nested type, so a NotContain over the whole document would fail on the
+        // fixture's own source rather than on anything the fix did.
+        var declaration = Declaration(result, "IThing");
+        declaration.Should().Contain("void Extra();");
+        declaration.Should().NotContain("Note");
+        declaration.Should().NotContain("Changed");
+        declaration.Should().NotContain("Nested");
     }
 
     /// <summary>
@@ -582,13 +587,28 @@ public class InterfaceImplementationCodeFixTests
     /// runs at all, which is how an earlier test in this file passed while the fix was unreachable.
     /// </remarks>
     private static string Declaration(CodeFixResult result, string interfaceName)
+        => Declaration(result.FixedSource, interfaceName);
+
+    private static string Declaration(string source, string interfaceName)
     {
-        var source = result.FixedSource;
         var start = source.IndexOf($"interface {interfaceName}", StringComparison.Ordinal);
         start.Should().BeGreaterThanOrEqualTo(0, $"the fixed source should still declare {interfaceName}");
 
         var open = source.IndexOf('{', start);
-        var close = source.IndexOf('}', open);
-        return source[open..(close + 1)];
+        open.Should().BeGreaterThanOrEqualTo(0, $"{interfaceName} should have a body");
+
+        // Brace counting, not IndexOf('}'). A property accessor list is itself a brace pair, so
+        // taking the first closing brace truncates the declaration at `{ get; }` and everything
+        // after it — including the member the fix just added — silently vanishes from the
+        // assertion.
+        var depth = 0;
+        for (var i = open; i < source.Length; i++)
+        {
+            if (source[i] == '{') depth++;
+            else if (source[i] == '}' && --depth == 0)
+                return source[open..(i + 1)];
+        }
+
+        throw new InvalidOperationException($"Unbalanced braces in the declaration of {interfaceName}.");
     }
 }
