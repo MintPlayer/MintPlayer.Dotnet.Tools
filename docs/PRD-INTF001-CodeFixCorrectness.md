@@ -119,29 +119,42 @@ Corrections to the issue as filed, all verified empirically:
 
 ### R1 — Analyzer: correct multi-interface semantics
 
-**R1.1** — A public member must be reported only when it is absent from **every** interface the class
-declares, not when it is absent from any one of them. The message names the class's interface set, or the
-diagnostic is raised once per class rather than once per interface. **Which of the two is a design decision
-gated by [S1](#s1--what-does-intf001-mean-for-a-class-implementing-several-interfaces-gates-r1-r2-2h).**
+**R1.1** — A public member is reported **once**, when it is absent from every interface the class declares
+(**variant A**, settled by [S1](#s1--what-does-intf001-mean-for-a-class-implementing-several-interfaces-gates-r1-r2-2h)).
+Membership is tested against the union of all declared interfaces and their bases, so a member carried by one
+interface is never reported against another. Interfaces that exist only in metadata still count towards the
+union — they satisfy a member — but are never offered as a target, since they cannot be edited.
 
 **R1.2** — Member lookup continues to honour base interfaces (`iface.AllInterfaces`, `Analyzer.cs:38-40`).
 Unchanged; recorded so the fix can be aligned to it in [R2.3](#r23--honour-base-interfaces).
 
-**R1.3** — The diagnostic carries the target interface's identity in its `properties` bag:
+**R1.3** — The message format changes to name the candidate set rather than a single interface:
 
-```csharp
-properties: ImmutableDictionary<string, string?>.Empty
-    .Add(InterfaceNameProperty, iface.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)),
+```
+"Public member '{0}' is not defined in any implemented interface ({1})"
 ```
 
-Fully qualified, not `iface.Name`, so two same-named interfaces in different namespaces cannot collide. The
-`Diagnostic.Create(DiagnosticDescriptor, Location, ImmutableDictionary<string,string>, object[])` overload is
-present on the pinned Roslyn 5.3.0. `iface.Name` stays as message argument `{1}`. **This repo has no existing
-properties-bag precedent** — `grep properties:` across all analyzer code returns nothing — so this
-establishes the pattern for `MintPlayer.Assertions` too.
+`{1}` is the comma-separated list of in-source interfaces. Under variant A the diagnostic deliberately does
+**not** name one target — choosing between them is the fix's job ([R2.5](#r25--offer-one-action-per-candidate-interface)).
+`INTF001`'s id, title, category and severity are unchanged. Existing analyzer tests that assert the old
+message text are updated in M3.
 
-**R1.4** — The member name goes in the properties bag alongside it, so the fix can act on the reported member
-rather than recomputing the whole set ([R2.4](#r24--one-diagnostic-one-member)).
+**R1.4** — The diagnostic carries the member name in its `properties` bag, so the fix acts on the reported
+member rather than recomputing the whole set ([R2.4](#r24--one-diagnostic-one-member)):
+
+```csharp
+properties: ImmutableDictionary<string, string?>.Empty.Add(MemberNameProperty, member.Name),
+```
+
+The `Diagnostic.Create(DiagnosticDescriptor, Location, ImmutableDictionary<string,string>, object[])`
+overload is present on the pinned Roslyn 5.3.0 and round-trips intact ([S3](#s3--does-the-properties-bag-survive-the-analyzer-driver-round-trip-gates-r13-r15-1h)).
+**This repo has no existing properties-bag precedent** — `grep properties:` across all analyzer code returns
+nothing — so this establishes the pattern.
+
+> **Superseded.** An earlier draft of R1.3 put the *interface* identity in the bag, fully qualified, so the
+> fix could recover the single interface the diagnostic named. Variant A removes the need: there is no single
+> named interface to recover. The fully-qualified display string survives as the code action's equivalence
+> key instead ([R2.5](#r25--offer-one-action-per-candidate-interface)).
 
 ### R2 — Code fix: correctness
 
@@ -169,10 +182,17 @@ rather than merely wrong. The code action title changes from "Add missing member
 single member; `BatchFixer` continues to provide the add-them-all behaviour, correctly, one diagnostic at a
 time.
 
-**R2.5 — Resolve the target interface from the properties bag.**
-`diagnostic.Properties.TryGetValue(InterfaceNameProperty, out var name)`, resolved against
-`classSymbol.Interfaces` by fully-qualified display string (**D1**). This also removes the `GetDeclaredSymbol`
-call made purely to re-find the interface. If the key is absent or unresolvable, the fix registers nothing.
+**R2.5 — Offer one action per candidate interface.**
+The fix enumerates the class's in-source interfaces and registers one code action each — *"Add 'LastName' to
+IPerson"*, *"Add 'LastName' to IAuditable"* — replacing the hardcoded `Interfaces.FirstOrDefault()` (**D1**).
+Each action's `equivalenceKey` is the interface's fully-qualified display string, not its short name, so two
+same-named interfaces in different namespaces cannot collide and `BatchFixer` groups correctly. With a single
+interface — the overwhelmingly common case — exactly one action is offered and the UX is unchanged.
+
+This is what makes variant A safe where per-interface reporting was not: under the rejected variant B,
+*Fix all occurrences* would have added every missing member to **every** interface, which is the same
+wrong-target failure D1 is about, merely arrived at from the other direction. See
+[S1](#s1--what-does-intf001-mean-for-a-class-implementing-several-interfaces-gates-r1-r2-2h).
 
 **R2.6 — Locate the interface document by symbol, not by path string.**
 
@@ -395,6 +415,36 @@ interface explicitly, documenting it in the rule description rather than leaving
 (resolve target from the properties bag) has a different shape under (a) than under (b), so guessing here
 costs the code-fix work twice.
 
+**RESULT — run 2026-09-10 against master `8a98149`. Take (a). The decision rule's two clauses both fired and
+(a) wins on a ground the rule did not anticipate: `FixAll`.**
+
+Both variants were implemented and run over six fixtures. Diagnostic counts:
+
+| Fixture | shipped | variant A | variant B |
+|---|---|---|---|
+| `single-interface-one-missing` | 1 | 1 | 1 |
+| `two-interfaces-split-nothing-missing` | **2 (both false)** | **0** | **0** |
+| `two-interfaces-one-genuinely-missing` | **4 (2 false)** | **1** | 2 |
+| `base-interface-member` | 0 | 0 | 0 |
+| `spark-shape-batched-load-actions` | 1 | 1 | 1 |
+| `cross-project` | 1 | 1 | 1 |
+
+N3 is confirmed with numbers: a two-interface class where each member sits on its own interface produces
+**two diagnostics, both false**, and neither is suppressible without suppressing the rule.
+
+Both variants remove every false positive, so the rule's first clause ("(b) with no false positives → take
+(b)") and its second ("(b) still produces duplicates → take (a)") both fire. The tiebreak is `FixAll`. Under
+(b), `LastName` — missing from both interfaces — yields two diagnostics on the same source location, and
+*Fix all occurrences in document* would add the member to **both** `IPerson` and `IAuditable`. That is the
+same wrong-target damage D1 describes, reached from the other side, and it would be introduced by the very
+change meant to remove it. Under (a) the member yields one diagnostic and the ambiguity surfaces where it
+belongs — as a choice between two code actions, with `BatchFixer` grouping on `equivalenceKey` so a batch
+run picks one interface and stays consistent.
+
+Cost of (a): the message format changes (R1.3) and the interface key leaves the properties bag (R1.4). For a
+single-interface class, still exactly one diagnostic and one action — no behaviour change for the common
+case, which is every fixture in the current test suite and the live Spark report.
+
 ### S2 — Can the loud guards be turned on for the existing overload? *(gates R5.4, 2h)*
 
 **Question.** R5.2 (fail on fixture compile errors) and R5.3 (fail when nothing changed) are what make a
@@ -429,6 +479,34 @@ for the single-fix path and have `BatchFixer` fall back to a deterministic recom
 **Why it is a spike, not a task.** It is a one-hour empirical check whose failure would invalidate the design
 of R2.4 and R2.5 — cheap to run, expensive to discover late.
 
+**RESULT — run 2026-09-10. Clean pass. Proceed with R1.4 as written.**
+
+A two-key bag (`TargetInterface`, `TargetMember`) survived `WithAnalyzers(...).GetAnalyzerDiagnosticsAsync`
+intact — both keys present and correct on the diagnostic reaching the consumer. On the `cross-project`
+fixture the full R2.5/R2.6 chain was then walked by hand and worked end to end:
+
+```
+through GetAnalyzerDiagnosticsAsync: 2 propert(ies)
+    TargetInterface = global::IThing
+    TargetMember    = Extra
+    resolved interface symbol from property: IThing        ← fully-qualified match against classSymbol.Interfaces
+    GetDocumentId -> Contracts/IThing.cs                   ← the OTHER project's document, O(1)
+    FilePath match -> Contracts/IThing.cs
+```
+
+Two things worth recording. First, `Solution.GetDocumentId(SyntaxTree)` resolves a document in a *referenced*
+project, which is the whole of R2.6 — confirmed, not assumed. Second, the `FilePath` comparison also
+succeeded here, **because the rig sets `filePath:` on every document**. That is exactly D4's masking
+mechanism reproduced from the other direction: the shipped comparison works right up until a document has no
+path, and then fails silently. R5.1's "every document gets a real `filePath`" must therefore not be the only
+thing standing between the suite and a vacuous pass — hence R5.3.
+
+Variant A drops the `TargetInterface` key (see [S1](#s1--what-does-intf001-mean-for-a-class-implementing-several-interfaces-gates-r1-r2-2h)),
+so only `TargetMember` ships. The round trip is proven for both.
+
+`BatchFixer` was not exercised here; it consumes the same `Diagnostic` objects, so the bag cannot be lost in
+transit, but the multi-action grouping under R2.5 is verified by test in M5 rather than assumed.
+
 ### S4 — Does narrowing the Workspaces reference change the packed output? *(gates R7, 1h)*
 
 **Question.** R7.1 swaps the `Microsoft.CodeAnalysis` metapackage for an explicit
@@ -446,6 +524,23 @@ scope for this PR and the metapackage stays; a packaging change does not belong 
 
 **Why it is a spike, not a task.** It touches packaging on a package with real consumers, and this repo has a
 documented history of pack-asset globs behaving differently than they read. One hour of diffing settles it.
+
+**RESULT — run 2026-09-10. Clean pass. Proceed with R7 as written.**
+
+`dotnet pack -c Release` before and after, both producing `MintPlayer.SourceGenerators.10.21.1.nupkg`:
+
+- **File list: byte-identical.** 18 entries, 11 under `analyzers/`, `diff` reports no differences.
+- **`.nuspec`: identical**, dependency groups included.
+
+The packed `analyzers/` tree carries no Workspaces assembly before or after — the only assembly
+`AddAnalysisTimeDependencies` adds is `Microsoft.Extensions.DependencyInjection.Abstractions`, exactly as
+intended. So today's output was already correct; R7 changes how that outcome is *guaranteed*, not what ships.
+
+Implemented as `<PackageReference Remove="Microsoft.CodeAnalysis" />` against the metapackage inherited from
+`eng/sourcegenerator.targets`, plus an explicit
+`Microsoft.CodeAnalysis.CSharp.Workspaces` with `PrivateAssets="all" ExcludeAssets="runtime"`. Scoping the
+removal to this csproj rather than editing the shared targets keeps the blast radius to the one project that
+actually contains a `CodeFixProvider`.
 
 ## Migration / Backward Compatibility
 
