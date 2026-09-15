@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+	<!--
+	Single source of truth for which Roslyn a source-generator project in THIS solution compiles
+	against. Imported by eng/sourcegenerator.targets (every generator) and by
+	MintPlayer.SourceGenerators.Tools.csproj (the base-class assembly that ships next to them).
+
+	Both have to agree. A generator built against Roslyn 4.14 that loads a Tools.dll built against
+	Roslyn 5.9 is the same mismatch as building the generator itself against the wrong version, just
+	one assembly further away and harder to see.
+
+	$(RoslynVersion) selects the flavour and is set by the dual-build in sourcegenerator.targets:
+	  roslyn4.9  -> Microsoft.CodeAnalysis.CSharp 4.14.0  (VS 2022 / .NET SDK 8-10)
+	  roslyn5.0  -> Microsoft.CodeAnalysis.CSharp 5.9.0   (VS 18 / .NET SDK 11)   [default]
+
+	The folder names under analyzers/dotnet/ are Roslyn's own probing convention: the host picks the
+	HIGHEST roslyn<N.N> folder that is <= its own compiler version. So roslyn4.9 is what every
+	Roslyn 4.9-through-4.14 host resolves, and roslyn5.0 is what Roslyn 5.x hosts resolve.
+
+	Keep RoslynVersion, the folder names in AddGeneratorAnalyzerAssets, and the expected layout in
+	PackagingTests in sync - those three are the whole contract.
+	-->
+
+	<PropertyGroup Condition="'$(RoslynVersion)' == ''">
+		<RoslynVersion>roslyn5.0</RoslynVersion>
+	</PropertyGroup>
+
+	<Choose>
+		<When Condition="'$(RoslynVersion)' == 'roslyn4.9'">
+			<PropertyGroup>
+				<MicrosoftCodeAnalysisVersion>4.14.0</MicrosoftCodeAnalysisVersion>
+				<MicrosoftCodeAnalysisAnalyzersVersion>3.11.0</MicrosoftCodeAnalysisAnalyzersVersion>
+				<DefineConstants>$(DefineConstants);ROSLYN_4_9;ROSLYN_4_0_OR_GREATER;ROSLYN_4_9_OR_GREATER</DefineConstants>
+			</PropertyGroup>
+		</When>
+		<When Condition="'$(RoslynVersion)' == 'roslyn5.0'">
+			<PropertyGroup>
+				<MicrosoftCodeAnalysisVersion>5.9.0</MicrosoftCodeAnalysisVersion>
+				<MicrosoftCodeAnalysisAnalyzersVersion>5.9.0</MicrosoftCodeAnalysisAnalyzersVersion>
+				<DefineConstants>$(DefineConstants);ROSLYN_5_0;ROSLYN_4_0_OR_GREATER;ROSLYN_4_9_OR_GREATER;ROSLYN_5_0_OR_GREATER</DefineConstants>
+			</PropertyGroup>
+		</When>
+		<Otherwise>
+			<!--
+			Hard stop rather than a silent fallback. A typo in RoslynVersion used to select the
+			Otherwise branch of a Choose that pinned the same versions as the branch it missed,
+			so it built fine and shipped the wrong thing.
+			-->
+			<PropertyGroup>
+				<_RoslynVersionInvalid>true</_RoslynVersionInvalid>
+			</PropertyGroup>
+		</Otherwise>
+	</Choose>
+
+	<!--
+	CollectPackageReferences as well as BeforeBuild: an unknown flavour leaves every Roslyn
+	PackageReference without a version, so restore fails first and reports NU1015 ("do not have a
+	version specified") against three packages the author never named. Failing during restore puts
+	the real reason in front of that.
+	-->
+	<Target Name="_ValidateRoslynVersion" BeforeTargets="CollectPackageReferences;BeforeBuild" Condition="'$(_RoslynVersionInvalid)' == 'true'">
+		<Error Text="RoslynVersion='$(RoslynVersion)' is not a known flavour. Use 'roslyn4.9' or 'roslyn5.0', or leave it unset for the default." />
+	</Target>
+</Project>

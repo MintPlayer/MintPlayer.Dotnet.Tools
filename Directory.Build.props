@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+	<!--
+	Output isolation for the Roslyn dual-build (see SourceGenerators/eng/roslyn.props).
+
+	A source generator here is built twice from ONE project file, with $(RoslynVersion) passed as a
+	global property. Global properties do not change a project's default obj\ and bin\ paths, so
+	without this the two flavours would restore and compile over each other: one project.assets.json
+	holding whichever Microsoft.CodeAnalysis version restored last, and one
+	bin\<Config>\netstandard2.0\<Assembly>.dll that pack would then copy into BOTH roslyn folders -
+	exactly the bug the dual-build exists to remove, reintroduced one level down.
+
+	This has to live in Directory.Build.props specifically. BaseIntermediateOutputPath is consumed by
+	NuGet restore and by Microsoft.Common.props, both of which run before any Import inside the
+	csproj body - setting it from eng/roslyn.props would be far too late and would silently have no
+	effect on restore.
+
+	The default flavour keeps the plain obj\ and bin\ paths so that a normal `dotnet build`, the IDE,
+	and every non-generator project in the repo are completely unaffected.
+	-->
+	<PropertyGroup Condition="'$(RoslynVersion)' != '' and '$(RoslynVersion)' != 'roslyn5.0'">
+		<BaseIntermediateOutputPath>obj\$(RoslynVersion)\</BaseIntermediateOutputPath>
+		<BaseOutputPath>bin\$(RoslynVersion)\</BaseOutputPath>
+
+		<!--
+		The SDK builds DefaultItemExcludes out of $(BaseOutputPath) and $(BaseIntermediateOutputPath),
+		so relocating those two also stops the DEFAULT obj\ and bin\ from being excluded. The **\*.cs
+		glob then swallows the other flavour's generated AssemblyInfo.cs and the build dies in a wall
+		of CS0579 duplicate-attribute errors. Exclude both roots by name, unconditionally.
+		-->
+		<DefaultItemExcludes>$(DefaultItemExcludes);obj\**;bin\**</DefaultItemExcludes>
+	</PropertyGroup>
+</Project>

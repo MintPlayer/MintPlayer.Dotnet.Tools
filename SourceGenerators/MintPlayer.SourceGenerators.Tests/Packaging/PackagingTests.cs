@@ -1,3 +1,5 @@
+﻿using System.IO.Compression;
+
 namespace MintPlayer.SourceGenerators.Tests.Packaging;
 
 /// <summary>
@@ -27,7 +29,7 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
     /// with no error anywhere.
     /// </summary>
     [Theory]
-    [InlineData("analyzers/dotnet/roslyn4.0/cs/MintPlayer.SourceGenerators.dll")]
+    [InlineData("analyzers/dotnet/roslyn5.0/cs/MintPlayer.SourceGenerators.dll")]
     [InlineData("analyzers/dotnet/roslyn4.9/cs/MintPlayer.SourceGenerators.dll")]
     public void TheGeneratorShipsInEveryRoslynAnalyzerFolder(string expectedPath)
         => feed.EntriesOf(GeneratorPackage).Should().Contain(expectedPath);
@@ -41,10 +43,49 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
     /// more often, nothing at all.
     /// </remarks>
     [Theory]
-    [InlineData("analyzers/dotnet/roslyn4.0/cs/MintPlayer.SourceGenerators.Tools.dll")]
+    [InlineData("analyzers/dotnet/roslyn5.0/cs/MintPlayer.SourceGenerators.Tools.dll")]
     [InlineData("analyzers/dotnet/roslyn4.9/cs/MintPlayer.SourceGenerators.Tools.dll")]
     public void TheGeneratorsRuntimeDependencyShipsBesideIt(string expectedPath)
         => feed.EntriesOf(GeneratorPackage).Should().Contain(expectedPath);
+
+    /// <summary>
+    /// The two Roslyn folders must hold genuinely DIFFERENT builds.
+    /// </summary>
+    /// <remarks>
+    /// Until the dual-build landed, <c>AddGeneratorAnalyzerAssets</c> copied one assembly - built
+    /// against a single Roslyn - into both folders. Every layout assertion above passed: the
+    /// entries were all present and correctly named. The package restored cleanly, and a consumer
+    /// on the other Roslyn got a generator bound to a compiler they did not have.
+    ///
+    /// Comparing the bytes is the assertion that would have failed. Nothing about the folder names
+    /// can express it.
+    /// </remarks>
+    [Theory]
+    [InlineData("MintPlayer.SourceGenerators.dll")]
+    [InlineData("MintPlayer.SourceGenerators.Tools.dll")]
+    public void EachRoslynFolderCarriesItsOwnBuild(string assemblyName)
+    {
+        using var archive = ZipFile.OpenRead(feed.NupkgPath(GeneratorPackage));
+
+        var roslyn49 = BytesOf(archive, $"analyzers/dotnet/roslyn4.9/cs/{assemblyName}");
+        var roslyn50 = BytesOf(archive, $"analyzers/dotnet/roslyn5.0/cs/{assemblyName}");
+
+        roslyn50.Should().NotEqual(roslyn49,
+            $"{assemblyName} in roslyn5.0 must be compiled against Microsoft.CodeAnalysis 5.x and " +
+            "the roslyn4.9 copy against 4.x - identical bytes mean one build was copied into both " +
+            "folders, which ships the wrong compiler binding to half of all consumers");
+    }
+
+    private static byte[] BytesOf(ZipArchive archive, string entryPath)
+    {
+        var entry = archive.GetEntry(entryPath);
+        entry.Should().NotBeNull($"the package must contain {entryPath}");
+
+        using var stream = entry!.Open();
+        using var buffer = new MemoryStream();
+        stream.CopyTo(buffer);
+        return buffer.ToArray();
+    }
 
     [Fact]
     public void TheGeneratorPackageShipsItsBuildProps()
@@ -114,8 +155,8 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
     /// </remarks>
     [Theory]
     [InlineData(GeneratorPackage, "SourceGenerators/SourceGenerators/MintPlayer.SourceGenerators/MintPlayer.SourceGenerators.csproj",
-        "analyzers/dotnet/roslyn4.0/cs/MintPlayer.SourceGenerators.dll",
-        "analyzers/dotnet/roslyn4.0/cs/MintPlayer.SourceGenerators.Tools.dll",
+        "analyzers/dotnet/roslyn5.0/cs/MintPlayer.SourceGenerators.dll",
+        "analyzers/dotnet/roslyn5.0/cs/MintPlayer.SourceGenerators.Tools.dll",
         "analyzers/dotnet/roslyn4.9/cs/MintPlayer.SourceGenerators.dll",
         "analyzers/dotnet/roslyn4.9/cs/MintPlayer.SourceGenerators.Tools.dll",
         "analyzers/dotnet/cs/MintPlayer.SourceGenerators.Attributes.dll",

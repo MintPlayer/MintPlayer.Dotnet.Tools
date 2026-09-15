@@ -13,41 +13,64 @@
 		<IncludeBuildOutput>false</IncludeBuildOutput>
 		<IsRoslynComponent>true</IsRoslynComponent>
 		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-		<RoslynVersion></RoslynVersion>
+	</PropertyGroup>
+
+	<!--
+	Which Roslyn your generator compiles against. Set $(RoslynVersion) in your csproj:
+
+	  roslyn4.9  -> Microsoft.CodeAnalysis.CSharp 4.14.0  (VS 2022 / .NET SDK 8-10)
+	  roslyn5.0  -> Microsoft.CodeAnalysis.CSharp 5.9.0   (VS 18 / .NET SDK 11)   [default]
+
+	To ship one package that serves both, build your generator twice - once per value - and pack
+	each output into the matching analyzers/dotnet/roslyn<N.N>/cs folder below. Roslyn loads the
+	HIGHEST roslyn<N.N> folder that is <= the host compiler's own version, so a host on Roslyn 4.14
+	takes roslyn4.9 and a host on Roslyn 5.x takes roslyn5.0.
+
+	Do NOT put one assembly in both folders. It restores cleanly and then fails inside the
+	consumer's compiler the first time it touches an API the host's Roslyn does not have.
+
+	This mirrors SourceGenerators/eng/roslyn.props in the MintPlayer.Dotnet.Tools repo, which is
+	what the MintPlayer generators themselves build with. The two must stay in sync.
+	-->
+	<PropertyGroup Condition="'$(RoslynVersion)' == ''">
+		<RoslynVersion>roslyn5.0</RoslynVersion>
 	</PropertyGroup>
 
 	<Choose>
-		<When Condition="$(RoslynVersion) == 'roslyn4.0'">
+		<When Condition="'$(RoslynVersion)' == 'roslyn4.9'">
 			<ItemGroup>
 				<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
 				<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
-				<!--<PackageReference Include="Microsoft.CodeAnalysis.Features" Version="4.0.1" PrivateAssets="all" />-->
-			</ItemGroup>
-			<PropertyGroup>
-				<DefineConstants>$(DefineConstants);ROSLYN_4_0;ROSLYN_4_0_OR_GREATER</DefineConstants>
-			</PropertyGroup>
-		</When>
-		<Otherwise>
-			<ItemGroup>
-				<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
-				<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
-				<!--<PackageReference Include="Microsoft.CodeAnalysis.Features" Version="4.9.2" PrivateAssets="all" />-->
 			</ItemGroup>
 			<PropertyGroup>
 				<DefineConstants>$(DefineConstants);ROSLYN_4_9;ROSLYN_4_0_OR_GREATER;ROSLYN_4_9_OR_GREATER</DefineConstants>
 			</PropertyGroup>
+		</When>
+		<Otherwise>
+			<ItemGroup>
+				<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" PrivateAssets="all" />
+				<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+			</ItemGroup>
+			<PropertyGroup>
+				<DefineConstants>$(DefineConstants);ROSLYN_5_0;ROSLYN_4_0_OR_GREATER;ROSLYN_4_9_OR_GREATER;ROSLYN_5_0_OR_GREATER</DefineConstants>
+			</PropertyGroup>
 		</Otherwise>
 	</Choose>
 
+	<!--
+	The build output goes into the folder for the flavour that was actually built - NOT into every
+	roslyn<N.N> folder. Copying one assembly into several of them is the failure this indirection
+	exists to prevent: NuGet is happy, the consumer restores fine, and then the generator faults
+	inside their compiler the first time it reaches for an API their Roslyn does not have.
+
+	One `dotnet pack` therefore yields a single-flavour package. To publish one package covering
+	both, build and pack per flavour and merge, or drive the second flavour from a target in your
+	own csproj (MintPlayer.Dotnet.Tools does the latter; see eng/sourcegenerator.targets there).
+	-->
 	<ItemGroup>
 		<!-- Put the assets for this project in the correct package path -->
-		<!-- Rolsyn 4.0 -->
-		<None Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="true" />
-		<None Include="$(PkgMintPlayer_SourceGenerators_Tools)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="true" />
-
-		<!-- Rolsyn 4.9 -->
-		<None Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="true" />
-		<None Include="$(PkgMintPlayer_SourceGenerators_Tools)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="true" />
+		<None Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/$(RoslynVersion)/cs" Visible="true" />
+		<None Include="$(PkgMintPlayer_SourceGenerators_Tools)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/$(RoslynVersion)/cs" Visible="true" />
 
 		<!-- Attributes assembly, if exists -->
 		<None Condition="'$(Configuration)' == 'Release' " Include="$(MSBuildProjectDirectory)..\$(MSBuildProjectName).Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
@@ -55,9 +78,6 @@
 
 	<!-- Microsoft.Extensions.DependencyInjection.Abstractions (only when referenced in the package project) -->
 	<ItemGroup Condition="'$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)' != ''">
-		<!-- Rolsyn 4.0 -->
-		<None Include="$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="true" />
-		<!-- Rolsyn 4.9 -->
-		<None Include="$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="true" />
+		<None Include="$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/$(RoslynVersion)/cs" Visible="true" />
 	</ItemGroup>
 </Project>

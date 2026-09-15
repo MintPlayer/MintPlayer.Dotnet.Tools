@@ -176,7 +176,7 @@ public sealed class DotnetSdkTests : IDisposable
             "<Project xmlns=\"http://schemas.microsoft.com/developer/msbuild/2003\">" +
             "<PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
 
-        (await _sdk.GetMajorVersionAsync(path, default)).Should().Be(10);
+        (await _sdk.GetMajorVersionAsync(path, default)).Should().Be(11);
     }
 
     #endregion

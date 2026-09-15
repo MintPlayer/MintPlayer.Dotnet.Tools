@@ -19,8 +19,17 @@
 		<PackageReference Include="Avalonia.Controls.DataGrid" Version="12.1.2" />
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
 
-		<!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
-		<PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.3.22" />
+		<!--
+		No Avalonia.Diagnostics reference on purpose. That package has no 12.x release (11.3.22 is
+		the newest on nuget.org), and Avalonia 12 did not fold DevTools into another package - the
+		Avalonia.Diagnostics namespace in the core 12.x assemblies is only the low-level debug
+		surface (AvaloniaObjectExtensions.GetDiagnostic, IAvaloniaObjectDebug), not DevTools.
+
+		Pinning 11.3.22 here would restore, because NuGet unifies Avalonia up to 12.1.2, and then
+		fail at runtime the first time somebody added AttachDevTools(): 11.x-compiled DevTools
+		against the 12.x runtime. Nothing in this sample calls AttachDevTools(), so the reference
+		was only a trap. Add it back once Avalonia.Diagnostics ships a 12.x.
+		-->
 	</ItemGroup>
 
 	<ItemGroup>

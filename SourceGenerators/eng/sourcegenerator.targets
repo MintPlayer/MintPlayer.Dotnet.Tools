@@ -13,33 +13,15 @@
 		<IncludeBuildOutput>false</IncludeBuildOutput>
 		<IsRoslynComponent>true</IsRoslynComponent>
 		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-		<RoslynVersion></RoslynVersion>
 	</PropertyGroup>
 
-	<Choose>
-		<When Condition="$(RoslynVersion) == 'roslyn4.0'">
-			<ItemGroup>
-				<PackageReference Include="Microsoft.CodeAnalysis" Version="4.14.0" PrivateAssets="all" />
-				<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
-				<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
-				<!--<PackageReference Include="Microsoft.CodeAnalysis.Features" Version="4.0.1" PrivateAssets="all" />-->
-			</ItemGroup>
-			<PropertyGroup>
-				<DefineConstants>$(DefineConstants);ROSLYN_4_0;ROSLYN_4_0_OR_GREATER</DefineConstants>
-			</PropertyGroup>
-		</When>
-		<Otherwise>
-			<ItemGroup>
-				<PackageReference Include="Microsoft.CodeAnalysis" Version="4.14.0" PrivateAssets="all" />
-				<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
-				<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
-				<!--<PackageReference Include="Microsoft.CodeAnalysis.Features" Version="4.9.2" PrivateAssets="all" />-->
-			</ItemGroup>
-			<PropertyGroup>
-				<DefineConstants>$(DefineConstants);ROSLYN_4_9;ROSLYN_4_0_OR_GREATER;ROSLYN_4_9_OR_GREATER</DefineConstants>
-			</PropertyGroup>
-		</Otherwise>
-	</Choose>
+	<Import Project="$(MSBuildThisFileDirectory)roslyn.props" />
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.CodeAnalysis" Version="$(MicrosoftCodeAnalysisVersion)" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="$(MicrosoftCodeAnalysisVersion)" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="$(MicrosoftCodeAnalysisAnalyzersVersion)" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj" PrivateAssets="all" />
@@ -71,10 +53,40 @@
 		<TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);AddGeneratorAnalyzerAssets</TargetsForTfmSpecificContentInPackage>
 	</PropertyGroup>
 
-	<Target Name="AddGeneratorAnalyzerAssets">
+	<!--
+	The Roslyn 4.9 flavour, built out of this same project file with $(RoslynVersion) overridden.
+	/Directory.Build.props redirects its obj\ and bin\ so it cannot collide with the default
+	(Roslyn 5.0) build sitting in the plain bin\$(Configuration)\.
+
+	Guarded against re-entry: the inner build inherits nothing of this because it runs Build, not
+	Pack, but the condition makes that explicit rather than incidental.
+	-->
+	<Target Name="BuildRoslyn49Flavour" Condition="'$(RoslynVersion)' == '' or '$(RoslynVersion)' == 'roslyn5.0'">
+		<MSBuild Projects="$(MSBuildProjectFullPath)"
+		         Targets="Build"
+		         Properties="RoslynVersion=roslyn4.9;Configuration=$(Configuration)" />
+	</Target>
+
+	<Target Name="AddGeneratorAnalyzerAssets" DependsOnTargets="BuildRoslyn49Flavour">
+		<PropertyGroup>
+			<!--
+			Where each flavour's output lands. Keep these two in step with the PackagePath values
+			below and with /Directory.Build.props - the folder name under analyzers/dotnet/ is
+			Roslyn's probing convention (host loads the highest roslyn<N.N> folder <= its own
+			compiler version), so a mismatch here hands a consumer bits built against a compiler
+			they do not have.
+			-->
+			<_Roslyn50Out>$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0</_Roslyn50Out>
+			<_Roslyn49Out>$(MSBuildProjectDirectory)\bin\roslyn4.9\$(Configuration)\netstandard2.0</_Roslyn49Out>
+			<_ToolsDir>$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Tools\bin</_ToolsDir>
+		</PropertyGroup>
+
 		<ItemGroup>
-			<_GeneratorAssembly Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll" />
-			<_GeneratorToolsAssets Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Tools\bin\$(Configuration)\netstandard2.0\*.dll" />
+			<_GeneratorAssembly50 Include="$(_Roslyn50Out)\$(AssemblyName).dll" />
+			<_GeneratorAssembly49 Include="$(_Roslyn49Out)\$(AssemblyName).dll" />
+
+			<_GeneratorToolsAssets50 Include="$(_ToolsDir)\$(Configuration)\netstandard2.0\*.dll" />
+			<_GeneratorToolsAssets49 Include="$(_ToolsDir)\roslyn4.9\$(Configuration)\netstandard2.0\*.dll" />
 
 			<!--
 			The generator's OWN attributes assembly, from this project's own output directory.
@@ -83,8 +95,11 @@
 			else a particular generator needs in analyzers/dotnet/cs is that feature's business —
 			the [AutoValueComparer] dependency, for instance, is added by
 			eng/valuecomparergenerator.targets, which only the projects that actually use it import.
+
+			Attributes are plain netstandard2.0 with no Roslyn reference, so one copy serves both
+			flavours and it is taken from the default build.
 			-->
-			<_GeneratorAttributeAssets Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).Attributes.dll" />
+			<_GeneratorAttributeAssets Include="$(_Roslyn50Out)\$(AssemblyName).Attributes.dll" />
 		</ItemGroup>
 
 		<!--
@@ -97,11 +112,19 @@
 		A GLOB contributes nothing when it matches nothing, so there '@(x)' == '' is the correct
 		and only workable test. Getting this backwards produces a guard that silently never
 		fires, which is worse than no guard because it reads as protection.
+
+		Both flavours are checked. A missing roslyn4.9 build is the quiet failure this whole
+		dual-build exists to prevent: pack would simply ship one folder and every Roslyn 4.x
+		consumer would fall through to nothing.
 		-->
-		<Error Condition="!Exists('%(_GeneratorAssembly.FullPath)')"
+		<Error Condition="!Exists('%(_GeneratorAssembly50.FullPath)')"
 		       Text="The generator assembly was not found at bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll. Packing would produce a package with no analyzer in it." />
-		<Error Condition="'@(_GeneratorToolsAssets)' == ''"
+		<Error Condition="!Exists('%(_GeneratorAssembly49.FullPath)')"
+		       Text="The Roslyn 4.9 generator assembly was not found at bin\roslyn4.9\$(Configuration)\netstandard2.0\$(AssemblyName).dll. Packing would ship nothing for Roslyn 4.x hosts." />
+		<Error Condition="'@(_GeneratorToolsAssets50)' == ''"
 		       Text="MintPlayer.SourceGenerators.Tools was not found in bin\$(Configuration)\netstandard2.0. Packing would produce a generator that cannot resolve its base class and silently never runs." />
+		<Error Condition="'@(_GeneratorToolsAssets49)' == ''"
+		       Text="MintPlayer.SourceGenerators.Tools was not found in bin\roslyn4.9\$(Configuration)\netstandard2.0. Packing would ship a Roslyn 4.9 generator whose base class assembly is missing." />
 		<Error Condition="!Exists('%(_GeneratorAttributeAssets.FullPath)')"
 		       Text="$(AssemblyName).Attributes.dll was not found in bin\$(Configuration)\netstandard2.0. Packing would produce a generator whose own attributes Roslyn cannot resolve." />
 
@@ -109,13 +132,13 @@
 			<!-- The attributes live one level up, shared by both Roslyn versions. -->
 			<TfmSpecificPackageFile Include="@(_GeneratorAttributeAssets)" PackagePath="analyzers/dotnet/cs" />
 
-			<!-- Roslyn 4.0 -->
-			<TfmSpecificPackageFile Include="@(_GeneratorAssembly)" PackagePath="analyzers/dotnet/roslyn4.0/cs" />
-			<TfmSpecificPackageFile Include="@(_GeneratorToolsAssets)" PackagePath="analyzers/dotnet/roslyn4.0/cs" />
+			<!-- Roslyn 4.9 — compiled against Microsoft.CodeAnalysis.CSharp 4.14.0 -->
+			<TfmSpecificPackageFile Include="@(_GeneratorAssembly49)" PackagePath="analyzers/dotnet/roslyn4.9/cs" />
+			<TfmSpecificPackageFile Include="@(_GeneratorToolsAssets49)" PackagePath="analyzers/dotnet/roslyn4.9/cs" />
 
-			<!-- Roslyn 4.9 -->
-			<TfmSpecificPackageFile Include="@(_GeneratorAssembly)" PackagePath="analyzers/dotnet/roslyn4.9/cs" />
-			<TfmSpecificPackageFile Include="@(_GeneratorToolsAssets)" PackagePath="analyzers/dotnet/roslyn4.9/cs" />
+			<!-- Roslyn 5.0 — compiled against Microsoft.CodeAnalysis.CSharp 5.9.0 -->
+			<TfmSpecificPackageFile Include="@(_GeneratorAssembly50)" PackagePath="analyzers/dotnet/roslyn5.0/cs" />
+			<TfmSpecificPackageFile Include="@(_GeneratorToolsAssets50)" PackagePath="analyzers/dotnet/roslyn5.0/cs" />
 		</ItemGroup>
 	</Target>
 

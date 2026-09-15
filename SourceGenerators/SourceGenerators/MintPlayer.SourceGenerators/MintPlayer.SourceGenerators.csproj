@@ -72,10 +72,15 @@
 	<Import Project="..\..\eng\sourcegenerator.targets" />
 	<Import Project="..\..\eng\newtonsoftjson.targets" />
 	<Import Project="..\..\eng\valuecomparergenerator.targets" />
+
+	<!--
+	The Microsoft.CodeAnalysis metapackage that eng/sourcegenerator.targets adds is dropped here on
+	purpose; the explicit Workspaces reference below takes its place. The version itself is NOT
+	re-pinned - eng/roslyn.props owns that, so this project follows whichever Roslyn flavour is
+	being built.
+	-->
 	<ItemGroup>
 	  <PackageReference Remove="Microsoft.CodeAnalysis" />
-	  <PackageReference Update="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" />
-	  <PackageReference Update="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
 	</ItemGroup>
 
 	<!--
@@ -93,7 +98,7 @@
 	exactly this reason; see their csproj comments before removing either.
 	-->
 	<ItemGroup>
-	  <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" PrivateAssets="all" ExcludeAssets="runtime">
+	  <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="$(MicrosoftCodeAnalysisVersion)" PrivateAssets="all" ExcludeAssets="runtime">
 	    <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 	  </PackageReference>
 	</ItemGroup>

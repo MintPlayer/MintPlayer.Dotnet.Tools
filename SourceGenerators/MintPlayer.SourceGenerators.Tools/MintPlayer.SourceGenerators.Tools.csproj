@@ -37,9 +37,17 @@
 		<None Include="Targets\sourcegenerator_tools.targets" Pack="true" PackagePath="build/$(PackageId).targets" />
 	</ItemGroup>
 
+	<!--
+	Built once per Roslyn flavour, same as the generators that carry it. See eng/roslyn.props.
+	The generator and the Tools.dll sitting next to it in analyzers/dotnet/roslyn<N.N>/cs must be
+	compiled against the same Roslyn, or the generator resolves its base class against the wrong
+	Microsoft.CodeAnalysis and fails inside the consumer's compiler.
+	-->
+	<Import Project="../eng/roslyn.props" />
+
 	<ItemGroup>
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
-		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="$(MicrosoftCodeAnalysisVersion)" />
+		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="$(MicrosoftCodeAnalysisAnalyzersVersion)" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
 	</ItemGroup>
 
 	<Import Project="../eng/filenesting.targets" />

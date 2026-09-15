@@ -1,9 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-	<!-- Group files -->
+	<!--
+	Nest Foo.Bar.cs under Foo.cs in the IDE.
+
+	The %(Filename) and %(Extension) arguments MUST stay backtick-quoted. Metadata is pasted straight
+	into the property-function call text, so a filename containing a comma splits into extra
+	arguments and MSBuild fails evaluation with MSB4186 - not a warning, the project does not load at
+	all. The SDK generates exactly such a file: ".NETStandard,Version=v2.0.AssemblyAttributes.cs".
+
+	That normally sits in the default obj\, where the SDK's DefaultItemExcludes keeps it out of
+	@(Compile). Give the project a non-default BaseIntermediateOutputPath - which the Roslyn
+	dual-build does, see /Directory.Build.props - and it lands inside the glob below, taking every
+	generator project down with it.
+	-->
 	<ItemGroup>
 		<Compile Update="$(MSBuildProjectDirectory)\**\*.*.cs">
-			<DependentUpon>$([System.Text.RegularExpressions.Regex]::Replace(%(Filename), '(?:.(?![.]))+$', %(Extension)))</DependentUpon>
+			<DependentUpon>$([System.Text.RegularExpressions.Regex]::Replace(`%(Filename)`, '(?:.(?![.]))+$', `%(Extension)`))</DependentUpon>
 		</Compile>
 	</ItemGroup>
 </Project>
