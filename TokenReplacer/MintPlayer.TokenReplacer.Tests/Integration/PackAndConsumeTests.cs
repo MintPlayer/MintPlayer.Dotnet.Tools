@@ -75,11 +75,11 @@ public class PackAndConsumeTests
                 	</ItemGroup>
                 </Project>
                 """);
-            // net10.0, not netstandard2.0. The package ships no compiled output
+            // net11.0, not netstandard2.0. The package ships no compiled output
             // (IncludeBuildOutput=false), so the TFM is incidental to what is being tested --
             // but netstandard2.0 pulls in NETStandard.Library, which is the one package that
             // would have to come from nuget.org into the isolated packages folder on every run.
-            // net10.0 resolves entirely from the SDK's targeting packs, so the test needs no
+            // net11.0 resolves entirely from the SDK's targeting packs, so the test needs no
             // network at all. Do not change this back without re-reading the nuget.config
             // comment above.
             File.WriteAllText(Path.Combine(sampleDir, "sample.csproj"), $"""
@@ -120,7 +120,7 @@ public class PackAndConsumeTests
             var build = RunDotnet(consumerDir, "build -tl:off", env);
             AssertBuildSucceeded(build);
 
-            var copied = Path.Combine(consumerDir, "bin", "Debug", "net10.0", "web-loader.js");
+            var copied = Path.Combine(consumerDir, "bin", "Debug", "net11.0", "web-loader.js");
             File.Exists(copied).Should().BeTrue(because: $"the stamped asset belongs at '{copied}'. Build output:{Environment.NewLine}{build.Output}");
             File.ReadAllText(copied).Should().Be(
                 $"""export const loaderUrl = "https://cdn.example.com/sample-web-component@{SampleVersion}/loader.js";""");

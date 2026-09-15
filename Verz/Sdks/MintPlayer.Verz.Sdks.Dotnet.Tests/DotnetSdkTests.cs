@@ -92,6 +92,7 @@ public sealed class DotnetSdkTests : IDisposable
     [InlineData("net8.0", 8)]
     [InlineData("net9.0", 9)]
     [InlineData("net10.0", 10)]
+    [InlineData("net11.0", 11)]
     public async Task GetMajorVersionAsync_ReadsASingleTargetFramework(string tfm, int expected)
     {
         var path = WriteProject("A.csproj", $"<TargetFramework>{tfm}</TargetFramework>");
@@ -102,9 +103,11 @@ public sealed class DotnetSdkTests : IDisposable
     [Fact]
     public async Task GetMajorVersionAsync_PicksTheHighestOfSeveralTargetFrameworks()
     {
-        var path = WriteProject("A.csproj", "<TargetFrameworks>net8.0;net10.0;net9.0</TargetFrameworks>");
+        // Deliberately out of order, and spanning the single-to-double digit boundary: a string
+        // comparison would pick net9.0 here.
+        var path = WriteProject("A.csproj", "<TargetFrameworks>net8.0;net11.0;net10.0;net9.0</TargetFrameworks>");
 
-        (await _sdk.GetMajorVersionAsync(path, default)).Should().Be(10);
+        (await _sdk.GetMajorVersionAsync(path, default)).Should().Be(11);
     }
 
     [Fact]

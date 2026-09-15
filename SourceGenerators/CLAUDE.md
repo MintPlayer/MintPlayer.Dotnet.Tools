@@ -52,13 +52,30 @@ The canonical shape, verifiable against any published package:
 
 ```
 analyzers/dotnet/cs/               attribute assemblies (shared by both Roslyn versions)
-analyzers/dotnet/roslyn4.0/cs/     the generator + MintPlayer.SourceGenerators.Tools.dll
-analyzers/dotnet/roslyn4.9/cs/     the same
+analyzers/dotnet/roslyn4.9/cs/     generator + Tools.dll, built against Microsoft.CodeAnalysis 4.14.0
+analyzers/dotnet/roslyn5.0/cs/     generator + Tools.dll, built against Microsoft.CodeAnalysis 5.9.0
 build/<PackageId>.props/.targets
 (no lib/ — a generator is a build-time component)
 ```
 
 Roslyn loads analyzers **only** from those paths. A DLL one folder away is restored and never run.
+It picks the **highest** `roslyn<N.N>` folder that is `<=` the host compiler's own version, so a
+Roslyn 4.14 host takes `roslyn4.9` and a Roslyn 5.x host takes `roslyn5.0`.
+
+### The two folders hold DIFFERENT builds
+
+This is the point of the layout, and it was wrong for a long time: `$(RoslynVersion)` was never set,
+both branches of the `Choose` pinned the same version, and pack copied **one** assembly into both
+folders. Every layout assertion passed — the entries were present and correctly named — while half of
+all consumers got a generator bound to a compiler they did not have.
+
+`eng/roslyn.props` owns the version per flavour; `eng/sourcegenerator.targets` builds the second one
+via a child `dotnet build` process and packs each into its own folder. Never re-pin
+`Microsoft.CodeAnalysis*` in an individual generator csproj — a `PackageReference Update` there
+overrides the flavour and silently collapses the dual-build back to one version.
+
+`PackagingTests.EachRoslynFolderCarriesItsOwnBuild` compares the **bytes** in the two folders. That
+is the assertion that catches this; no amount of path checking can.
 
 ### Every generator here needs `MintPlayer.ValueComparerGenerator.Attributes.dll`
 

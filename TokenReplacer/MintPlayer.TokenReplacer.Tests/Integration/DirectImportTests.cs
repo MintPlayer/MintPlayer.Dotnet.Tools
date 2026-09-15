@@ -48,7 +48,7 @@ public class DirectImportTests
             AssertBuildSucceeded(RunDotnet(dir, "build -tl:off"));
 
             var generated = File.ReadAllText(Path.Combine(dir, "generated", "result.txt"));
-            var copied = Path.Combine(dir, "bin", "Debug", "net10.0", "generated", "result.txt");
+            var copied = Path.Combine(dir, "bin", "Debug", "net11.0", "generated", "result.txt");
 
             using (new AssertionScope("the generated file"))
             {
@@ -76,7 +76,7 @@ public class DirectImportTests
         {
             AssertBuildSucceeded(RunDotnet(dir, "build -tl:off"));
 
-            var generated = Path.Combine(dir, "obj", "Debug", "net10.0", "tokenreplacer", "template.txt");
+            var generated = Path.Combine(dir, "obj", "Debug", "net11.0", "tokenreplacer", "template.txt");
             File.Exists(generated).Should().BeTrue(because: $"the default output belongs at '{generated}'");
             File.ReadAllText(generated).Should().Be("v=7.7.7");
         }
@@ -125,7 +125,7 @@ public class DirectImportTests
         try
         {
             AssertBuildSucceeded(RunDotnet(dir, "build -tl:off"));
-            var generated = Path.Combine(dir, "obj", "Debug", "net10.0", "tokenreplacer", "template.txt");
+            var generated = Path.Combine(dir, "obj", "Debug", "net11.0", "tokenreplacer", "template.txt");
             File.Exists(generated).Should().BeTrue();
 
             AssertBuildSucceeded(RunDotnet(dir, "clean -tl:off"));
