@@ -99,7 +99,7 @@ public class DocSamples
         name.Should().StartWith("hello").And.MatchRegex("^hello");
 
         var temperature = 21.52;
-        temperature.Should().BeCloseTo(21.5, 0.1);
+        temperature.Should().BeApproximately(21.5, 0.1);
 
         var ratio = 0.5;
         ratio.Should().BeInRange(0, 1);

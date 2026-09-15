@@ -92,51 +92,51 @@ public class DateTimeOffsetAssertions
 
     /// <summary>Asserts the subject's year equals <paramref name="expected"/>.</summary>
     public AndConstraint<DateTimeOffsetAssertions> HaveYear(int expected, string? because = null, params object?[] becauseArgs)
-        => HaveComponent("year", expected, Subject?.Year, because, becauseArgs);
+        => HaveComponent("Expected {subject} to have year {0}{reason}, but found <null>.", "Expected {subject} to have year {0}{reason}, but found {1}.", expected, Subject?.Year, because, becauseArgs);
 
     /// <summary>Asserts the subject's month equals <paramref name="expected"/>.</summary>
     public AndConstraint<DateTimeOffsetAssertions> HaveMonth(int expected, string? because = null, params object?[] becauseArgs)
-        => HaveComponent("month", expected, Subject?.Month, because, becauseArgs);
+        => HaveComponent("Expected {subject} to have month {0}{reason}, but found <null>.", "Expected {subject} to have month {0}{reason}, but found {1}.", expected, Subject?.Month, because, becauseArgs);
 
     /// <summary>Asserts the subject's day equals <paramref name="expected"/>.</summary>
     public AndConstraint<DateTimeOffsetAssertions> HaveDay(int expected, string? because = null, params object?[] becauseArgs)
-        => HaveComponent("day", expected, Subject?.Day, because, becauseArgs);
+        => HaveComponent("Expected {subject} to have day {0}{reason}, but found <null>.", "Expected {subject} to have day {0}{reason}, but found {1}.", expected, Subject?.Day, because, becauseArgs);
 
     /// <summary>Asserts the subject's hour equals <paramref name="expected"/>.</summary>
     public AndConstraint<DateTimeOffsetAssertions> HaveHour(int expected, string? because = null, params object?[] becauseArgs)
-        => HaveComponent("hour", expected, Subject?.Hour, because, becauseArgs);
+        => HaveComponent("Expected {subject} to have hour {0}{reason}, but found <null>.", "Expected {subject} to have hour {0}{reason}, but found {1}.", expected, Subject?.Hour, because, becauseArgs);
 
     /// <summary>Asserts the subject's minute equals <paramref name="expected"/>.</summary>
     public AndConstraint<DateTimeOffsetAssertions> HaveMinute(int expected, string? because = null, params object?[] becauseArgs)
-        => HaveComponent("minute", expected, Subject?.Minute, because, becauseArgs);
+        => HaveComponent("Expected {subject} to have minute {0}{reason}, but found <null>.", "Expected {subject} to have minute {0}{reason}, but found {1}.", expected, Subject?.Minute, because, becauseArgs);
 
     /// <summary>Asserts the subject's second equals <paramref name="expected"/>.</summary>
     public AndConstraint<DateTimeOffsetAssertions> HaveSecond(int expected, string? because = null, params object?[] becauseArgs)
-        => HaveComponent("second", expected, Subject?.Second, because, becauseArgs);
+        => HaveComponent("Expected {subject} to have second {0}{reason}, but found <null>.", "Expected {subject} to have second {0}{reason}, but found {1}.", expected, Subject?.Second, because, becauseArgs);
 
     /// <summary>Asserts the subject's year differs from <paramref name="unexpected"/> (a null subject passes).</summary>
     public AndConstraint<DateTimeOffsetAssertions> NotHaveYear(int unexpected, string? because = null, params object?[] becauseArgs)
-        => NotHaveComponent("year", unexpected, Subject?.Year, because, becauseArgs);
+        => NotHaveComponent("Did not expect {subject} to have year {0}{reason}.", unexpected, Subject?.Year, because, becauseArgs);
 
     /// <summary>Asserts the subject's month differs from <paramref name="unexpected"/> (a null subject passes).</summary>
     public AndConstraint<DateTimeOffsetAssertions> NotHaveMonth(int unexpected, string? because = null, params object?[] becauseArgs)
-        => NotHaveComponent("month", unexpected, Subject?.Month, because, becauseArgs);
+        => NotHaveComponent("Did not expect {subject} to have month {0}{reason}.", unexpected, Subject?.Month, because, becauseArgs);
 
     /// <summary>Asserts the subject's day differs from <paramref name="unexpected"/> (a null subject passes).</summary>
     public AndConstraint<DateTimeOffsetAssertions> NotHaveDay(int unexpected, string? because = null, params object?[] becauseArgs)
-        => NotHaveComponent("day", unexpected, Subject?.Day, because, becauseArgs);
+        => NotHaveComponent("Did not expect {subject} to have day {0}{reason}.", unexpected, Subject?.Day, because, becauseArgs);
 
     /// <summary>Asserts the subject's hour differs from <paramref name="unexpected"/> (a null subject passes).</summary>
     public AndConstraint<DateTimeOffsetAssertions> NotHaveHour(int unexpected, string? because = null, params object?[] becauseArgs)
-        => NotHaveComponent("hour", unexpected, Subject?.Hour, because, becauseArgs);
+        => NotHaveComponent("Did not expect {subject} to have hour {0}{reason}.", unexpected, Subject?.Hour, because, becauseArgs);
 
     /// <summary>Asserts the subject's minute differs from <paramref name="unexpected"/> (a null subject passes).</summary>
     public AndConstraint<DateTimeOffsetAssertions> NotHaveMinute(int unexpected, string? because = null, params object?[] becauseArgs)
-        => NotHaveComponent("minute", unexpected, Subject?.Minute, because, becauseArgs);
+        => NotHaveComponent("Did not expect {subject} to have minute {0}{reason}.", unexpected, Subject?.Minute, because, becauseArgs);
 
     /// <summary>Asserts the subject's second differs from <paramref name="unexpected"/> (a null subject passes).</summary>
     public AndConstraint<DateTimeOffsetAssertions> NotHaveSecond(int unexpected, string? because = null, params object?[] becauseArgs)
-        => NotHaveComponent("second", unexpected, Subject?.Second, because, becauseArgs);
+        => NotHaveComponent("Did not expect {subject} to have second {0}{reason}.", unexpected, Subject?.Second, because, becauseArgs);
 
     /// <summary>Asserts the subject's date component equals that of <paramref name="expected"/> (time of day and offset are ignored).</summary>
     public AndConstraint<DateTimeOffsetAssertions> BeSameDateAs(DateTimeOffset expected, string? because = null, params object?[] becauseArgs)
@@ -224,20 +224,116 @@ public class DateTimeOffsetAssertions
     private static TimeSpan Distance(DateTimeOffset left, DateTimeOffset right)
         => TimeSpan.FromTicks(Math.Abs(left.UtcTicks - right.UtcTicks));
 
-    private AndConstraint<DateTimeOffsetAssertions> HaveComponent(string name, int expected, int? actual, string? because, object?[] becauseArgs)
+    /// <remarks>
+    /// The message templates arrive as literals instead of being built here from a component name.
+    /// Concatenating the name into the template ran on EVERY call, passing or failing, putting two
+    /// string allocations on the passing path of every component assertion - exactly what the
+    /// Phase 2 boundary forbids. Literals cost nothing, and the arguments are only boxed into an
+    /// array once a condition has actually failed.
+    /// </remarks>
+    private AndConstraint<DateTimeOffsetAssertions> HaveComponent(string nullTemplate, string mismatchTemplate, int expected, int? actual, string? because, object?[] becauseArgs)
     {
         Assert().ForCondition(Subject.HasValue).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to have " + name + " {0}{reason}, but found <null>.", expected)
+            .FailWith(nullTemplate, expected)
             .ForCondition(!Subject.HasValue || actual == expected).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to have " + name + " {0}{reason}, but found {1}.", expected, actual);
+            .FailWith(mismatchTemplate, expected, actual);
         return new(this);
     }
 
     // The negative needs no null stage: without a value there is no component to object to, so null passes.
-    private AndConstraint<DateTimeOffsetAssertions> NotHaveComponent(string name, int unexpected, int? actual, string? because, object?[] becauseArgs)
+    private AndConstraint<DateTimeOffsetAssertions> NotHaveComponent(string matchTemplate, int unexpected, int? actual, string? because, object?[] becauseArgs)
     {
         Assert().ForCondition(!Subject.HasValue || actual != unexpected).BecauseOf(because, becauseArgs)
-            .FailWith("Did not expect {subject} to have " + name + " {0}{reason}.", unexpected);
+            .FailWith(matchTemplate, unexpected);
         return new(this);
+    }
+
+    // The four negatives below. Each is the logical complement of its positive counterpart, and a
+    // null subject PASSES every one of them - consistent with the library's documented rule that a
+    // negative assertion is satisfied by the absence of a subject. They exist because
+    // NotBeBefore(x) reads as what a test means, where the equivalent BeOnOrAfter(x) makes the
+    // reader do the inversion.
+
+    /// <summary>Asserts the subject is not before <paramref name="unexpected"/> (a null subject passes).</summary>
+    public AndConstraint<DateTimeOffsetAssertions> NotBeBefore(DateTimeOffset unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(!(Subject < unexpected)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be before {0}{reason}, but found {1}.", unexpected, Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject is not on or before <paramref name="unexpected"/> (a null subject passes).</summary>
+    public AndConstraint<DateTimeOffsetAssertions> NotBeOnOrBefore(DateTimeOffset unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(!(Subject <= unexpected)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be on or before {0}{reason}, but found {1}.", unexpected, Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject is not after <paramref name="unexpected"/> (a null subject passes).</summary>
+    public AndConstraint<DateTimeOffsetAssertions> NotBeAfter(DateTimeOffset unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(!(Subject > unexpected)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be after {0}{reason}, but found {1}.", unexpected, Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject is not on or after <paramref name="unexpected"/> (a null subject passes).</summary>
+    public AndConstraint<DateTimeOffsetAssertions> NotBeOnOrAfter(DateTimeOffset unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(!(Subject >= unexpected)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be on or after {0}{reason}, but found {1}.", unexpected, Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject's millisecond equals <paramref name="expected"/>.</summary>
+    public AndConstraint<DateTimeOffsetAssertions> HaveMillisecond(int expected, string? because = null, params object?[] becauseArgs)
+        => HaveComponent("Expected {subject} to have millisecond {0}{reason}, but found <null>.", "Expected {subject} to have millisecond {0}{reason}, but found {1}.", expected, Subject?.Millisecond, because, becauseArgs);
+
+    /// <summary>Asserts the subject's millisecond does not equal <paramref name="unexpected"/> (a null subject passes).</summary>
+    public AndConstraint<DateTimeOffsetAssertions> NotHaveMillisecond(int unexpected, string? because = null, params object?[] becauseArgs)
+        => NotHaveComponent("Did not expect {subject} to have millisecond {0}{reason}.", unexpected, Subject?.Millisecond, because, becauseArgs);
+
+    /// <summary>
+    /// Asserts the subject equals <paramref name="expected"/> <b>including its offset</b>.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Be"/> compares instants, so 2024-01-01T12:00+00:00 and 2024-01-01T13:00+01:00 are
+    /// equal to it - they are the same moment. <c>BeExactly</c> additionally requires the same
+    /// <see cref="DateTimeOffset.Offset"/>, which is what a test round-tripping a value through a
+    /// wire format or a database actually wants to pin. There was previously no way to express this.
+    /// </remarks>
+    public AndConstraint<DateTimeOffsetAssertions> BeExactly(DateTimeOffset expected, string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(Subject.HasValue && Subject.Value.EqualsExact(expected)).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to be exactly {0} (same offset){reason}, but found {1}.", expected, Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject does not equal <paramref name="unexpected"/> including its offset (a null subject passes).</summary>
+    public AndConstraint<DateTimeOffsetAssertions> NotBeExactly(DateTimeOffset unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(!Subject.HasValue || !Subject.Value.EqualsExact(unexpected)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be exactly {0} (same offset){reason}.", unexpected);
+        return new(this);
+    }
+
+    /// <summary>Asserts the nullable subject has no value. Reads better than <c>NotHaveValue()</c> and is what a reader coming from any other assertion library will reach for first.</summary>
+    public AndConstraint<DateTimeOffsetAssertions> BeNull(string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(!Subject.HasValue).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to be <null>{reason}, but found {0}.", Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the nullable subject has a value, and exposes it via <c>Which</c> so the unwrapped value chains.</summary>
+    public AndWhichConstraint<DateTimeOffsetAssertions, DateTimeOffset> NotBeNull(string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(Subject.HasValue).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} not to be <null>{reason}.");
+        // GetValueOrDefault, not Value: inside an AssertionScope the failure above is collected
+        // rather than thrown, so execution reaches here with no value and .Value would throw an
+        // InvalidOperationException that masks the real, already-recorded failure.
+        return new(this, Subject.GetValueOrDefault());
     }
 }

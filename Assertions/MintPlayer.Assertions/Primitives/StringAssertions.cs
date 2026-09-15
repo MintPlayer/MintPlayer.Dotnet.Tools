@@ -407,4 +407,42 @@ public class StringAssertions : ReferenceTypeAssertions<string, StringAssertions
         }
         return false;
     }
+
+    /// <summary>Asserts the subject is one of <paramref name="validValues"/> (ordinal comparison).</summary>
+    public AndConstraint<StringAssertions> BeOneOf(params string?[] validValues)
+        => BeOneOf(validValues, because: null);
+
+    /// <summary>Asserts the subject is one of <paramref name="validValues"/> (ordinal comparison).</summary>
+    public AndConstraint<StringAssertions> BeOneOf(string?[] validValues, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(validValues);
+        Assert().ForCondition(IsOneOf(validValues)).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to be one of {0}{reason}, but found {1}.", validValues, Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject is none of <paramref name="unexpectedValues"/>.</summary>
+    public AndConstraint<StringAssertions> NotBeOneOf(params string?[] unexpectedValues)
+        => NotBeOneOf(unexpectedValues, because: null);
+
+    /// <summary>Asserts the subject is none of <paramref name="unexpectedValues"/>. An empty set passes.</summary>
+    public AndConstraint<StringAssertions> NotBeOneOf(string?[] unexpectedValues, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(unexpectedValues);
+        Assert().ForCondition(!IsOneOf(unexpectedValues)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be one of {0}{reason}, but found {1}.", unexpectedValues, Subject);
+        return new(this);
+    }
+
+    // foreach with an early exit, not LINQ Contains(): no enumerator, no closure, nothing allocated
+    // on the passing path. Ordinal, matching Be().
+    private bool IsOneOf(string?[] values)
+    {
+        foreach (var value in values)
+        {
+            if (string.Equals(Subject, value, StringComparison.Ordinal)) return true;
+        }
+
+        return false;
+    }
 }

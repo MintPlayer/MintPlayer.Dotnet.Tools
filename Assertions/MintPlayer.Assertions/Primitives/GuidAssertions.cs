@@ -93,4 +93,26 @@ public class GuidAssertions
             .FailWith("Did not expect {subject} to have a value{reason}, but found {0}.", Subject);
         return new(this);
     }
+
+    // BeNull/NotBeNull on a nullable value type. The behaviour already existed as
+    // NotHaveValue/HaveValue, but `x.Should().BeNull()` is what every reader reaches for first and
+    // it simply did not compile. NotBeNull exposes the unwrapped value via Which so it chains.
+
+    /// <summary>Asserts the nullable subject has no value.</summary>
+    public AndConstraint<GuidAssertions> BeNull(string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(!Subject.HasValue).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to be <null>{reason}, but found {0}.", Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the nullable subject has a value, exposed via <c>Which</c>.</summary>
+    public AndWhichConstraint<GuidAssertions, Guid> NotBeNull(string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(Subject.HasValue).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} not to be <null>{reason}.");
+        // GetValueOrDefault, not Value: inside an AssertionScope the failure above is collected
+        // rather than thrown, so .Value would throw and mask the real, already-recorded failure.
+        return new(this, Subject.GetValueOrDefault());
+    }
 }

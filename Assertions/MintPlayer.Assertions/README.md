@@ -266,11 +266,11 @@ One implementation over `INumber<T>` covers every numeric type, including `Half`
 `BigInteger`:
 
 `Be` `NotBe` `BePositive` `BeNegative` `BeGreaterThan` `BeGreaterThanOrEqualTo` `BeLessThan`
-`BeLessThanOrEqualTo` `BeInRange` `NotBeInRange` `BeOneOf` `BeCloseTo` `NotBeCloseTo`
+`BeLessThanOrEqualTo` `BeInRange` `NotBeInRange` `BeOneOf` `BeApproximately` `NotBeApproximately` `BeNull` `NotBeNull` `Match`
 `HaveValue` `NotHaveValue`
 
 ```csharp
-temperature.Should().BeCloseTo(21.5, 0.1);
+temperature.Should().BeApproximately(21.5, 0.1);
 ratio.Should().BeInRange(0, 1);
 ```
 
@@ -598,7 +598,7 @@ through `[RequiresDynamicCode]`.
 ## Notes
 
 - `Be` uses `Equals`; `BeSameAs` compares references; `BeEquivalentTo` compares structure.
-- Negative assertions (`NotContain`, `NotBeCloseTo`, …) treat a null subject as passing; positive
+- Negative assertions (`NotContain`, `NotBeApproximately`, …) treat a null subject as passing; positive
   ones require a value.
 - `BeOneOf` and other `params` overloads have a sibling taking `IEnumerable<T>` when you also
   need `because`, since C# allows only one trailing `params`.

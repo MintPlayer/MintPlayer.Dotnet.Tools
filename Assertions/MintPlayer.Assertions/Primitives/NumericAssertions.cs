@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Numerics;
 using MintPlayer.Assertions.Execution;
 
@@ -192,4 +193,58 @@ public class NumericAssertions<T>
 
     // Subtract the smaller from the larger before T.Abs so unsigned types never wrap.
     private static T Difference(T left, T right) => T.Abs(left >= right ? left - right : right - left);
+
+    // BeNull/NotBeNull on a nullable value type. The behaviour already existed as
+    // NotHaveValue/HaveValue, but `x.Should().BeNull()` is what every reader reaches for first and
+    // it simply did not compile. NotBeNull exposes the unwrapped value via Which so it chains.
+
+    /// <summary>Asserts the nullable subject has no value.</summary>
+    public AndConstraint<NumericAssertions<T>> BeNull(string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(!Subject.HasValue).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to be <null>{reason}, but found {0}.", Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the nullable subject has a value, exposed via <c>Which</c>.</summary>
+    public AndWhichConstraint<NumericAssertions<T>, T> NotBeNull(string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(Subject.HasValue).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} not to be <null>{reason}.");
+        // GetValueOrDefault, not Value: inside an AssertionScope the failure above is collected
+        // rather than thrown, so .Value would throw and mask the real, already-recorded failure.
+        return new(this, Subject.GetValueOrDefault());
+    }
+
+    /// <summary>
+    /// Asserts the subject satisfies an arbitrary predicate; the predicate's source text appears in
+    /// the failure message.
+    /// </summary>
+    /// <remarks>
+    /// Takes a plain <see cref="Func{T, TResult}"/>, not FluentAssertions' <c>Expression&lt;Func&lt;...&gt;&gt;</c>.
+    /// FA needs the expression tree to print the predicate and pays <c>Expression.Compile()</c> —
+    /// runtime IL emit, AOT-hostile, slow on first call — for every assertion. The caller-captured
+    /// <paramref name="predicateExpression"/> recovers the same text at compile time for nothing.
+    ///
+    /// <paramref name="becauseArgs"/> is a plain array rather than <c>params</c> so the captured
+    /// expression can stay last.
+    /// </remarks>
+    public AndConstraint<NumericAssertions<T>> Match(Func<T?, bool> predicate, string? because = null, object?[]? becauseArgs = null,
+        [CallerArgumentExpression(nameof(predicate))] string? predicateExpression = null)
+    {
+        ArgumentNullException.ThrowIfNull(predicate);
+        Assert().ForCondition(predicate(Subject)).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to match condition ({0}){reason}, but found {1}.", predicateExpression, Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject does not satisfy <paramref name="predicate"/>.</summary>
+    public AndConstraint<NumericAssertions<T>> NotMatch(Func<T?, bool> predicate, string? because = null, object?[]? becauseArgs = null,
+        [CallerArgumentExpression(nameof(predicate))] string? predicateExpression = null)
+    {
+        ArgumentNullException.ThrowIfNull(predicate);
+        Assert().ForCondition(!predicate(Subject)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to match condition ({0}){reason}, but found {1}.", predicateExpression, Subject);
+        return new(this);
+    }
 }

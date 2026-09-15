@@ -98,4 +98,71 @@ public class ComparableAssertions<T>
 
     // Renders default(T) of a null reference subject as <null> instead of a misleading default value.
     private object? SubjectForMessage => hasValue ? Subject : null;
+
+    /// <summary>
+    /// Asserts the subject ranks equally with <paramref name="expected"/> — <c>CompareTo</c> returns
+    /// zero — without requiring <c>Equals</c> to agree.
+    /// </summary>
+    /// <remarks>
+    /// In FluentAssertions this is a genuinely different assertion from <c>Be</c>, because FA's
+    /// <c>Be</c> uses <c>Equals</c>. Here it is a <b>synonym</b>: this class already defines
+    /// equality as <c>CompareTo</c> returning zero, so <see cref="Be"/> does the same comparison.
+    ///
+    /// It exists for two reasons, neither of them behavioural: FA call sites port without an edit,
+    /// and a call site that cares about the distinction — a type whose <c>CompareTo</c> and
+    /// <c>Equals</c> disagree — can say which one it means instead of leaving the reader to look up
+    /// what <c>Be</c> does on comparables.
+    /// </remarks>
+    public AndConstraint<ComparableAssertions<T>> BeRankedEquallyTo(T expected, string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(hasValue && Subject!.CompareTo(expected) == 0).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to rank equally to {0}{reason}, but found {1}.", expected, SubjectForMessage);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject does not rank equally with <paramref name="unexpected"/> (a null subject passes).</summary>
+    public AndConstraint<ComparableAssertions<T>> NotBeRankedEquallyTo(T unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(!hasValue || Subject!.CompareTo(unexpected) != 0).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to rank equally to {0}{reason}.", unexpected);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject is one of <paramref name="validValues"/>, by rank.</summary>
+    public AndConstraint<ComparableAssertions<T>> BeOneOf(params T[] validValues)
+        => BeOneOf(validValues, because: null);
+
+    /// <summary>Asserts the subject is one of <paramref name="validValues"/>, by rank.</summary>
+    public AndConstraint<ComparableAssertions<T>> BeOneOf(T[] validValues, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(validValues);
+        Assert().ForCondition(hasValue && RanksEqualToAny(validValues)).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to be one of {0}{reason}, but found {1}.", validValues, SubjectForMessage);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject is none of <paramref name="unexpectedValues"/> (a null subject passes).</summary>
+    public AndConstraint<ComparableAssertions<T>> NotBeOneOf(params T[] unexpectedValues)
+        => NotBeOneOf(unexpectedValues, because: null);
+
+    /// <summary>Asserts the subject is none of <paramref name="unexpectedValues"/> (a null subject passes).</summary>
+    public AndConstraint<ComparableAssertions<T>> NotBeOneOf(T[] unexpectedValues, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(unexpectedValues);
+        Assert().ForCondition(!hasValue || !RanksEqualToAny(unexpectedValues)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be one of {0}{reason}, but found {1}.", unexpectedValues, SubjectForMessage);
+        return new(this);
+    }
+
+    // foreach with an early exit, not LINQ Any(): no enumerator, no closure, nothing allocated on
+    // the passing path.
+    private bool RanksEqualToAny(T[] values)
+    {
+        foreach (var value in values)
+        {
+            if (Subject!.CompareTo(value) == 0) return true;
+        }
+
+        return false;
+    }
 }

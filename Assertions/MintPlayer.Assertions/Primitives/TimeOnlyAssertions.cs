@@ -99,19 +99,19 @@ public class TimeOnlyAssertions
 
     /// <summary>Asserts the subject's hour component equals <paramref name="expected"/>.</summary>
     public AndConstraint<TimeOnlyAssertions> HaveHours(int expected, string? because = null, params object?[] becauseArgs)
-        => HaveComponent("hours", expected, Subject?.Hour, because, becauseArgs);
+        => HaveComponent("Expected {subject} to have hours {0}{reason}, but found <null>.", "Expected {subject} to have hours {0}{reason}, but found {1}.", expected, Subject?.Hour, because, becauseArgs);
 
     /// <summary>Asserts the subject's minute component equals <paramref name="expected"/>.</summary>
     public AndConstraint<TimeOnlyAssertions> HaveMinutes(int expected, string? because = null, params object?[] becauseArgs)
-        => HaveComponent("minutes", expected, Subject?.Minute, because, becauseArgs);
+        => HaveComponent("Expected {subject} to have minutes {0}{reason}, but found <null>.", "Expected {subject} to have minutes {0}{reason}, but found {1}.", expected, Subject?.Minute, because, becauseArgs);
 
     /// <summary>Asserts the subject's second component equals <paramref name="expected"/>.</summary>
     public AndConstraint<TimeOnlyAssertions> HaveSeconds(int expected, string? because = null, params object?[] becauseArgs)
-        => HaveComponent("seconds", expected, Subject?.Second, because, becauseArgs);
+        => HaveComponent("Expected {subject} to have seconds {0}{reason}, but found <null>.", "Expected {subject} to have seconds {0}{reason}, but found {1}.", expected, Subject?.Second, because, becauseArgs);
 
     /// <summary>Asserts the subject's millisecond component equals <paramref name="expected"/>.</summary>
     public AndConstraint<TimeOnlyAssertions> HaveMilliseconds(int expected, string? because = null, params object?[] becauseArgs)
-        => HaveComponent("milliseconds", expected, Subject?.Millisecond, because, becauseArgs);
+        => HaveComponent("Expected {subject} to have milliseconds {0}{reason}, but found <null>.", "Expected {subject} to have milliseconds {0}{reason}, but found {1}.", expected, Subject?.Millisecond, because, becauseArgs);
 
     /// <summary>Asserts the nullable subject has a value.</summary>
     public AndConstraint<TimeOnlyAssertions> HaveValue(string? because = null, params object?[] becauseArgs)
@@ -138,12 +138,129 @@ public class TimeOnlyAssertions
         return forward < backward ? forward : backward;
     }
 
-    private AndConstraint<TimeOnlyAssertions> HaveComponent(string name, int expected, int? actual, string? because, object?[] becauseArgs)
+    /// <remarks>
+    /// The message templates arrive as literals instead of being built here from a component name.
+    /// Concatenating the name into the template ran on EVERY call, passing or failing, putting two
+    /// string allocations on the passing path of every component assertion - exactly what the
+    /// Phase 2 boundary forbids. Literals cost nothing, and the arguments are only boxed into an
+    /// array once a condition has actually failed.
+    /// </remarks>
+    private AndConstraint<TimeOnlyAssertions> HaveComponent(string nullTemplate, string mismatchTemplate, int expected, int? actual, string? because, object?[] becauseArgs)
     {
         Assert().ForCondition(Subject.HasValue).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to have " + name + " {0}{reason}, but found <null>.", expected)
+            .FailWith(nullTemplate, expected)
             .ForCondition(!Subject.HasValue || actual == expected).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to have " + name + " {0}{reason}, but found {1}.", expected, actual);
+            .FailWith(mismatchTemplate, expected, actual);
+        return new(this);
+    }
+
+    // The four negatives below. Each is the logical complement of its positive counterpart, and a
+    // null subject PASSES every one of them - consistent with the library's documented rule that a
+    // negative assertion is satisfied by the absence of a subject. They exist because
+    // NotBeBefore(x) reads as what a test means, where the equivalent BeOnOrAfter(x) makes the
+    // reader do the inversion.
+
+    /// <summary>Asserts the subject is not before <paramref name="unexpected"/> (a null subject passes).</summary>
+    public AndConstraint<TimeOnlyAssertions> NotBeBefore(TimeOnly unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(!(Subject < unexpected)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be before {0}{reason}, but found {1}.", unexpected, Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject is not on or before <paramref name="unexpected"/> (a null subject passes).</summary>
+    public AndConstraint<TimeOnlyAssertions> NotBeOnOrBefore(TimeOnly unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(!(Subject <= unexpected)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be on or before {0}{reason}, but found {1}.", unexpected, Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject is not after <paramref name="unexpected"/> (a null subject passes).</summary>
+    public AndConstraint<TimeOnlyAssertions> NotBeAfter(TimeOnly unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(!(Subject > unexpected)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be after {0}{reason}, but found {1}.", unexpected, Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject is not on or after <paramref name="unexpected"/> (a null subject passes).</summary>
+    public AndConstraint<TimeOnlyAssertions> NotBeOnOrAfter(TimeOnly unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(!(Subject >= unexpected)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be on or after {0}{reason}, but found {1}.", unexpected, Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject's hours does not equal <paramref name="unexpected"/> (a null subject passes).</summary>
+    public AndConstraint<TimeOnlyAssertions> NotHaveHours(int unexpected, string? because = null, params object?[] becauseArgs)
+        => NotHaveComponent("Did not expect {subject} to have hours {0}{reason}.", unexpected, Subject?.Hour, because, becauseArgs);
+
+    /// <summary>Asserts the subject's minutes does not equal <paramref name="unexpected"/> (a null subject passes).</summary>
+    public AndConstraint<TimeOnlyAssertions> NotHaveMinutes(int unexpected, string? because = null, params object?[] becauseArgs)
+        => NotHaveComponent("Did not expect {subject} to have minutes {0}{reason}.", unexpected, Subject?.Minute, because, becauseArgs);
+
+    /// <summary>Asserts the subject's seconds does not equal <paramref name="unexpected"/> (a null subject passes).</summary>
+    public AndConstraint<TimeOnlyAssertions> NotHaveSeconds(int unexpected, string? because = null, params object?[] becauseArgs)
+        => NotHaveComponent("Did not expect {subject} to have seconds {0}{reason}.", unexpected, Subject?.Second, because, becauseArgs);
+
+    /// <summary>Asserts the subject's milliseconds does not equal <paramref name="unexpected"/> (a null subject passes).</summary>
+    public AndConstraint<TimeOnlyAssertions> NotHaveMilliseconds(int unexpected, string? because = null, params object?[] becauseArgs)
+        => NotHaveComponent("Did not expect {subject} to have milliseconds {0}{reason}.", unexpected, Subject?.Millisecond, because, becauseArgs);
+
+    /// <summary>Asserts the subject is one of <paramref name="validValues"/>.</summary>
+    public AndConstraint<TimeOnlyAssertions> BeOneOf(params TimeOnly[] validValues)
+        => BeOneOf(validValues, because: null);
+
+    /// <summary>Asserts the subject is one of <paramref name="validValues"/>.</summary>
+    public AndConstraint<TimeOnlyAssertions> BeOneOf(TimeOnly[] validValues, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(validValues);
+        Assert().ForCondition(Subject.HasValue && Array.IndexOf(validValues, Subject.Value) >= 0).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to be one of {0}{reason}, but found {1}.", validValues, Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject is none of <paramref name="unexpectedValues"/> (a null subject passes).</summary>
+    public AndConstraint<TimeOnlyAssertions> NotBeOneOf(params TimeOnly[] unexpectedValues)
+        => NotBeOneOf(unexpectedValues, because: null);
+
+    /// <summary>
+    /// Asserts the subject is none of <paramref name="unexpectedValues"/> (a null subject passes).
+    /// An empty set passes too: there is nothing for the subject to be one of.
+    /// </summary>
+    public AndConstraint<TimeOnlyAssertions> NotBeOneOf(TimeOnly[] unexpectedValues, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(unexpectedValues);
+        Assert().ForCondition(!Subject.HasValue || Array.IndexOf(unexpectedValues, Subject.Value) < 0).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be one of {0}{reason}, but found {1}.", unexpectedValues, Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the nullable subject has no value. Reads better than <c>NotHaveValue()</c> and is what a reader coming from any other assertion library will reach for first.</summary>
+    public AndConstraint<TimeOnlyAssertions> BeNull(string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(!Subject.HasValue).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to be <null>{reason}, but found {0}.", Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the nullable subject has a value, and exposes it via <c>Which</c> so the unwrapped value chains.</summary>
+    public AndWhichConstraint<TimeOnlyAssertions, TimeOnly> NotBeNull(string? because = null, params object?[] becauseArgs)
+    {
+        Assert().ForCondition(Subject.HasValue).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} not to be <null>{reason}.");
+        // GetValueOrDefault, not Value: inside an AssertionScope the failure above is collected
+        // rather than thrown, so execution reaches here with no value and .Value would throw an
+        // InvalidOperationException that masks the real, already-recorded failure.
+        return new(this, Subject.GetValueOrDefault());
+    }
+
+    // No null stage: without a value there is no component to object to, so a null subject passes.
+    private AndConstraint<TimeOnlyAssertions> NotHaveComponent(string matchTemplate, int unexpected, int? actual, string? because, object?[] becauseArgs)
+    {
+        Assert().ForCondition(!Subject.HasValue || actual != unexpected).BecauseOf(because, becauseArgs)
+            .FailWith(matchTemplate, unexpected);
         return new(this);
     }
 }
