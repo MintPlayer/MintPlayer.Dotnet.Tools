@@ -153,6 +153,13 @@ not needed — a registry gives the same reflection-free result with none of the
 
 Everything above ships in v1. There is no deferred tier.
 
+> **Added after delivery.** That sentence was true of the category list above, but a later comparison
+> against the FluentAssertions source found real gaps inside those categories — most notably
+> equivalency, which shipped 12 options against FA's ~60. Because this document disclaims a deferred
+> tier, that narrowness reads as a deliberate boundary when it was in fact scope not reached. See
+> [Assertions-phase2-prd.md](./Assertions-phase2-prd.md) for the full inventory, and
+> [Assertions-phase2-plan.md](./Assertions-phase2-plan.md) for how it closes.
+
 ## 3. Packages & repo layout
 
 Following repo conventions (folder per family, `MintPlayer.*` ids, xUnit tests, per-project
