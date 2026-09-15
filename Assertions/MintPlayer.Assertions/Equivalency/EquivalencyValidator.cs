@@ -259,35 +259,91 @@ internal static class EquivalencyValidator
             return;
         }
 
-        // Greedy bipartite matching: each expectation item claims the first unmatched subject
-        // item it is fully equivalent to (trial comparison into a throwaway collector).
-        var matched = new bool[subjectItems.Count];
-        foreach (var expectationItem in expectationItems)
+        // Maximum bipartite matching, not greedy first-fit.
+        //
+        // Greedy was WRONG, not merely slow: each expectation claimed the first unmatched subject
+        // it was equivalent to, so it could strand a later expectation that had only one candidate
+        // left. Expectations [A, B] against subjects [X, Y], where A is equivalent to both and B
+        // only to X: greedy gives X to A, leaves B with nothing, and reports a difference even
+        // though the perfect matching A-Y, B-X exists. Augmenting paths find that matching.
+        //
+        // It also allocated a List<Difference> per (expectation x subject) probe — a failing 20x20
+        // comparison built roughly 400 lists to throw them all away. One reusable collector now
+        // serves every probe.
+        var candidates = BuildCandidateMatrix(context, path, subjectItems, expectationItems, itemDeclaredType, depth);
+
+        // subjectMatchedTo[s] = index of the expectation currently holding subject item s, or -1.
+        var subjectMatchedTo = new int[subjectItems.Count];
+        Array.Fill(subjectMatchedTo, -1);
+
+        var visited = new bool[subjectItems.Count];
+        for (var e = 0; e < expectationItems.Count; e++)
         {
-            var found = false;
-            for (var i = 0; i < subjectItems.Count; i++)
+            Array.Clear(visited);
+            if (!TryAssign(e, candidates, subjectMatchedTo, visited))
             {
-                if (matched[i]) continue;
-                var trial = new List<Difference>();
-                CompareNode(context, trial, $"{path}[?]", subjectItems[i], expectationItem, itemDeclaredType, depth + 1);
-                if (trial.Count == 0)
-                {
-                    matched[i] = true;
-                    found = true;
-                    break;
-                }
+                differences.Add(new(path, $"expected collection to contain {Formatter.Format(expectationItems[e])}, but no equivalent item was found"));
             }
-            if (!found)
-                differences.Add(new(path, $"expected collection to contain {Formatter.Format(expectationItem)}, but no equivalent item was found"));
         }
 
         var extras = new List<object?>();
         for (var i = 0; i < subjectItems.Count; i++)
         {
-            if (!matched[i]) extras.Add(subjectItems[i]);
+            if (subjectMatchedTo[i] < 0) extras.Add(subjectItems[i]);
         }
         if (extras.Count > 0)
             differences.Add(new(path, $"found unexpected item(s) {Formatter.Format(extras)}"));
+    }
+
+    /// <summary>
+    /// candidates[e * subjectCount + s] — whether expectation item <c>e</c> is equivalent to
+    /// subject item <c>s</c>.
+    /// </summary>
+    /// <remarks>
+    /// Flattened into one array rather than a jagged one: a single allocation instead of one per
+    /// row. The comparisons themselves share a single collector that is cleared between probes,
+    /// because their only purpose here is the yes/no answer — the differences they produce are
+    /// never reported, since a failure to match is described in terms of the whole item.
+    /// </remarks>
+    private static bool[] BuildCandidateMatrix(Context context, string path,
+        List<object?> subjectItems, List<object?> expectationItems, Type? itemDeclaredType, int depth)
+    {
+        var candidates = new bool[expectationItems.Count * subjectItems.Count];
+        var probe = new List<Difference>();
+
+        for (var e = 0; e < expectationItems.Count; e++)
+        {
+            for (var sIndex = 0; sIndex < subjectItems.Count; sIndex++)
+            {
+                probe.Clear();
+                CompareNode(context, probe, $"{path}[?]", subjectItems[sIndex], expectationItems[e], itemDeclaredType, depth + 1);
+                candidates[(e * subjectItems.Count) + sIndex] = probe.Count == 0;
+            }
+        }
+
+        return candidates;
+    }
+
+    /// <summary>
+    /// Kuhn's augmenting-path step: try to find a subject item for expectation <paramref name="e"/>,
+    /// displacing earlier assignments when they have an alternative of their own.
+    /// </summary>
+    private static bool TryAssign(int e, bool[] candidates, int[] subjectMatchedTo, bool[] visited)
+    {
+        var subjectCount = subjectMatchedTo.Length;
+        for (var s = 0; s < subjectCount; s++)
+        {
+            if (visited[s] || !candidates[(e * subjectCount) + s]) continue;
+
+            visited[s] = true;
+            if (subjectMatchedTo[s] < 0 || TryAssign(subjectMatchedTo[s], candidates, subjectMatchedTo, visited))
+            {
+                subjectMatchedTo[s] = e;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Hash-based multiset comparison for collections of value-like items (avoids O(n²)).</summary>

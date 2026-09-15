@@ -445,4 +445,186 @@ public class StringAssertions : ReferenceTypeAssertions<string, StringAssertions
 
         return false;
     }
+
+    // ---- occurrence-constrained containment (M4) -------------------------------------------
+
+    /// <summary>
+    /// Asserts <paramref name="expected"/> occurs in the subject the number of times
+    /// <paramref name="occurrence"/> describes: <c>Contain("x", Exactly.Twice())</c>.
+    /// </summary>
+    /// <remarks>
+    /// Counting is a span scan with <see cref="MemoryExtensions.IndexOf(ReadOnlySpan{char}, ReadOnlySpan{char}, StringComparison)"/>,
+    /// which allocates nothing. Overlapping matches are NOT counted: after a hit the scan resumes
+    /// past the whole match, so "aa" occurs once in "aaa", not twice. That is the reading a test
+    /// means by "appears twice", and it is what a reader assumes without being told.
+    /// </remarks>
+    public AndConstraint<StringAssertions> Contain(string expected, OccurrenceConstraint occurrence, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(expected);
+        var count = CountOccurrences(Subject, expected, StringComparison.Ordinal);
+
+        Assert().ForCondition(Subject is not null && occurrence.IsSatisfiedBy(count)).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to contain {0} {1}{reason}, but found it {2} time(s).", expected, occurrence, count);
+        return new(this);
+    }
+
+    /// <summary>Asserts <paramref name="expected"/> occurs the given number of times, ignoring case.</summary>
+    public AndConstraint<StringAssertions> ContainEquivalentOf(string expected, OccurrenceConstraint occurrence, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(expected);
+        var count = CountOccurrences(Subject, expected, StringComparison.OrdinalIgnoreCase);
+
+        Assert().ForCondition(Subject is not null && occurrence.IsSatisfiedBy(count)).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to contain {0} (ignoring case) {1}{reason}, but found it {2} time(s).", expected, occurrence, count);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject matches <paramref name="pattern"/> the given number of times.</summary>
+    public AndConstraint<StringAssertions> MatchRegex([StringSyntax(StringSyntaxAttribute.Regex)] string pattern,
+        OccurrenceConstraint occurrence, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(pattern);
+        // Regex.Count, not Matches(...).Count: the latter allocates a MatchCollection plus a Match
+        // object per hit, to produce a number.
+        var count = Subject is null ? 0 : Regex.Count(Subject, pattern);
+
+        Assert().ForCondition(Subject is not null && occurrence.IsSatisfiedBy(count)).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to match regex {0} {1}{reason}, but it matched {2} time(s).", pattern, occurrence, count);
+        return new(this);
+    }
+
+    // ---- pre-built Regex overloads (M4) ------------------------------------------------------
+
+    /// <summary>Asserts the subject matches <paramref name="regex"/>.</summary>
+    /// <remarks>
+    /// Prefer this over the string-pattern overload in a suite that uses more than a handful of
+    /// distinct patterns. The string overload goes through the framework's static
+    /// <see cref="Regex"/> cache, which holds <see cref="Regex.CacheSize"/> entries (15 by default):
+    /// past that it thrashes, and every call re-parses and re-compiles the pattern. Passing a
+    /// <see cref="Regex"/> — ideally a <c>[GeneratedRegex]</c> — hoists that cost out of the
+    /// assertion entirely.
+    /// </remarks>
+    public AndConstraint<StringAssertions> MatchRegex(Regex regex, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(regex);
+        Assert().ForCondition(Subject is not null && regex.IsMatch(Subject)).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to match regex {0}{reason}, but found {1}.", regex, Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject matches <paramref name="regex"/> the given number of times.</summary>
+    public AndConstraint<StringAssertions> MatchRegex(Regex regex, OccurrenceConstraint occurrence, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(regex);
+        var count = Subject is null ? 0 : regex.Count(Subject);
+
+        Assert().ForCondition(Subject is not null && occurrence.IsSatisfiedBy(count)).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to match regex {0} {1}{reason}, but it matched {2} time(s).", regex, occurrence, count);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject does not match <paramref name="regex"/>. See <see cref="MatchRegex(Regex, string?, object?[])"/>.</summary>
+    public AndConstraint<StringAssertions> NotMatchRegex(Regex regex, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(regex);
+        Assert().ForCondition(Subject is null || !regex.IsMatch(Subject)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to match regex {0}{reason}, but found {1}.", regex, Subject);
+        return new(this);
+    }
+
+    // ---- lines (M4) --------------------------------------------------------------------------
+
+    /// <summary>Asserts the subject has exactly <paramref name="expected"/> lines.</summary>
+    /// <remarks>
+    /// Counted with <see cref="MemoryExtensions.EnumerateLines(ReadOnlySpan{char})"/>, which
+    /// allocates nothing and understands every newline convention. FluentAssertions splits into a
+    /// <c>string[]</c> first — one array plus one string per line, on every call — to produce a
+    /// number.
+    ///
+    /// Directly useful here: this repo ships source generators, and asserting on generated output
+    /// is exactly what these are for.
+    /// </remarks>
+    public AndConstraint<StringAssertions> HaveLineCount(int expected, string? because = null, params object?[] becauseArgs)
+    {
+        var count = CountLines(Subject);
+
+        Assert().ForCondition(Subject is not null && count == expected).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to have {0} line(s){reason}, but found {1}.", expected, count);
+        return new(this);
+    }
+
+    /// <summary>Asserts the subject does not have exactly <paramref name="unexpected"/> lines (a null subject passes).</summary>
+    public AndConstraint<StringAssertions> NotHaveLineCount(int unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        var count = CountLines(Subject);
+
+        Assert().ForCondition(Subject is null || count != unexpected).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to have {0} line(s){reason}.", unexpected);
+        return new(this);
+    }
+
+    /// <summary>Asserts one of the subject's lines equals <paramref name="expected"/> exactly.</summary>
+    /// <remarks>
+    /// Compares whole lines, not substrings — the distinction <see cref="Contain(string, string?, object?[])"/>
+    /// cannot make. Line endings are not part of the comparison, so a fixture written with LF
+    /// matches output produced with CRLF.
+    /// </remarks>
+    public AndConstraint<StringAssertions> ContainLine(string expected, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(expected);
+
+        Assert().ForCondition(HasLine(Subject, expected)).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to contain a line {0}{reason}, but found {1}.", expected, Subject);
+        return new(this);
+    }
+
+    /// <summary>Asserts none of the subject's lines equals <paramref name="unexpected"/> (a null subject passes).</summary>
+    public AndConstraint<StringAssertions> NotContainLine(string unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(unexpected);
+
+        Assert().ForCondition(!HasLine(Subject, unexpected)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to contain a line {0}{reason}.", unexpected);
+        return new(this);
+    }
+
+    // ---- span helpers: all allocation-free ---------------------------------------------------
+
+    private static int CountOccurrences(string? subject, string value, StringComparison comparison)
+    {
+        if (subject is null) return 0;
+
+        var count = 0;
+        var remaining = subject.AsSpan();
+        while (true)
+        {
+            var index = remaining.IndexOf(value.AsSpan(), comparison);
+            if (index < 0) return count;
+
+            count++;
+            // Resume past the whole match: overlapping occurrences are not counted.
+            remaining = remaining[(index + value.Length)..];
+        }
+    }
+
+    private static int CountLines(string? subject)
+    {
+        if (subject is null) return 0;
+
+        var count = 0;
+        foreach (var _ in subject.AsSpan().EnumerateLines()) count++;
+        return count;
+    }
+
+    private static bool HasLine(string? subject, string expected)
+    {
+        if (subject is null) return false;
+
+        foreach (var line in subject.AsSpan().EnumerateLines())
+        {
+            if (line.SequenceEqual(expected.AsSpan())) return true;
+        }
+
+        return false;
+    }
 }

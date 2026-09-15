@@ -61,6 +61,7 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
 
         var comparer = EqualityComparer<TKey>.Default;
         var source = Pairs ?? [];
+        // for-loop with if-statement uses less memory allocations than a Where LINQ statement
         for (var i = 0; i < source.Count; i++)
         {
             var pair = source[i];
