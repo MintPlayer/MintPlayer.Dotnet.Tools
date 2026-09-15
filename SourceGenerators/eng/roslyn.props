@@ -25,6 +25,26 @@
 		<RoslynVersion>roslyn5.0</RoslynVersion>
 	</PropertyGroup>
 
+	<!--
+	The analyzer folder names, in ONE place.
+
+	Every targets file that contributes to the analyzer payload must use these, not a literal.
+	eng/sourcegenerator.targets ships the generator and Tools.dll; eng/newtonsoftjson.targets ships
+	Newtonsoft.Json and the comparer assembly that ClassNamesSourceGenerator's [ModuleInitializer]
+	calls into. They have to land in the SAME folders.
+
+	When these names were literals, renaming them in one file and not the other produced a package
+	where the generator sat in a folder without its dependency. The consumer got CS8032
+	"cannot be created ... TypeInitializationException: The type initializer for '<Module>' threw an
+	exception" and no generated code - and the layout tests still passed, because every file the
+	package was asked about was present, just not together.
+	-->
+	<PropertyGroup>
+		<RoslynSharedPackagePath>analyzers/dotnet/cs</RoslynSharedPackagePath>
+		<Roslyn49PackagePath>analyzers/dotnet/roslyn4.9/cs</Roslyn49PackagePath>
+		<Roslyn50PackagePath>analyzers/dotnet/roslyn5.0/cs</Roslyn50PackagePath>
+	</PropertyGroup>
+
 	<Choose>
 		<When Condition="'$(RoslynVersion)' == 'roslyn4.9'">
 			<PropertyGroup>

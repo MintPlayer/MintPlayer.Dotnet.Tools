@@ -55,6 +55,55 @@ public sealed class PackedFeed : IDisposable
         }
 
         PackLog = string.Join(Environment.NewLine, log);
+
+        EvictStalePacktestFromGlobalCache();
+    }
+
+    /// <summary>
+    /// Removes this run's package version from the machine's global packages folder.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Version"/> is a CONSTANT, and the global packages folder is deliberately shared
+    /// (see <see cref="NuGetConfigXml"/>). NuGet treats an id+version already present there as
+    /// authoritative and never re-extracts it — so without this, every run after the first restores
+    /// whatever the FIRST run happened to produce, and the freshly packed .nupkg in the local feed
+    /// is ignored entirely.
+    ///
+    /// That is not theoretical. It hid a broken analyzer layout: the packages were being built
+    /// correctly-shaped locally and asserted against a cached copy from before a folder rename, so
+    /// the suite was green on a machine where the real package was broken, and only CI — with a
+    /// cold cache — failed. A packaging test that reads a stale artifact is worse than no packaging
+    /// test, because it reports on something other than what was just built.
+    /// </remarks>
+    private static void EvictStalePacktestFromGlobalCache()
+    {
+        var packagesRoot = Environment.GetEnvironmentVariable("NUGET_PACKAGES");
+        if (string.IsNullOrWhiteSpace(packagesRoot))
+            packagesRoot = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
+
+        if (!Directory.Exists(packagesRoot))
+            return;
+
+        foreach (var project in ProjectsToPack)
+        {
+            var cached = Path.Combine(
+                packagesRoot, Path.GetFileNameWithoutExtension(project).ToLowerInvariant(), Version);
+
+            try
+            {
+                if (Directory.Exists(cached))
+                    Directory.Delete(cached, recursive: true);
+            }
+            catch (IOException)
+            {
+                // A concurrent restore holds a lock. Leave it: a stale read is a visible test
+                // failure, whereas failing the fixture here would be an unrelated flake.
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
     }
 
     /// <summary>

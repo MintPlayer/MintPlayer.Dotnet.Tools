@@ -148,15 +148,15 @@
 
 		<ItemGroup>
 			<!-- The attributes live one level up, shared by both Roslyn versions. -->
-			<TfmSpecificPackageFile Include="@(_GeneratorAttributeAssets)" PackagePath="analyzers/dotnet/cs" />
+			<TfmSpecificPackageFile Include="@(_GeneratorAttributeAssets)" PackagePath="$(RoslynSharedPackagePath)" />
 
 			<!-- Roslyn 4.9 — compiled against Microsoft.CodeAnalysis.CSharp 4.14.0 -->
-			<TfmSpecificPackageFile Include="@(_GeneratorAssembly49)" PackagePath="analyzers/dotnet/roslyn4.9/cs" />
-			<TfmSpecificPackageFile Include="@(_GeneratorToolsAssets49)" PackagePath="analyzers/dotnet/roslyn4.9/cs" />
+			<TfmSpecificPackageFile Include="@(_GeneratorAssembly49)" PackagePath="$(Roslyn49PackagePath)" />
+			<TfmSpecificPackageFile Include="@(_GeneratorToolsAssets49)" PackagePath="$(Roslyn49PackagePath)" />
 
 			<!-- Roslyn 5.0 — compiled against Microsoft.CodeAnalysis.CSharp 5.9.0 -->
-			<TfmSpecificPackageFile Include="@(_GeneratorAssembly50)" PackagePath="analyzers/dotnet/roslyn5.0/cs" />
-			<TfmSpecificPackageFile Include="@(_GeneratorToolsAssets50)" PackagePath="analyzers/dotnet/roslyn5.0/cs" />
+			<TfmSpecificPackageFile Include="@(_GeneratorAssembly50)" PackagePath="$(Roslyn50PackagePath)" />
+			<TfmSpecificPackageFile Include="@(_GeneratorToolsAssets50)" PackagePath="$(Roslyn50PackagePath)" />
 		</ItemGroup>
 	</Target>
 

@@ -47,8 +47,9 @@
 		       Text="MintPlayer.ValueComparers.NewtonsoftJson.dll was not found in bin\$(Configuration)\netstandard2.0. This generator registers the Newtonsoft.Json value comparers, so packing without it produces a generator that fails to load." />
 
 		<ItemGroup>
-			<TfmSpecificPackageFile Include="@(_NewtonsoftJsonPackageAssets);@(_NewtonsoftJsonComparerAssets)" PackagePath="analyzers/dotnet/roslyn4.0/cs" />
-			<TfmSpecificPackageFile Include="@(_NewtonsoftJsonPackageAssets);@(_NewtonsoftJsonComparerAssets)" PackagePath="analyzers/dotnet/roslyn4.9/cs" />
+			<!-- Both flavours, via eng/roslyn.props so these cannot drift from sourcegenerator.targets. -->
+			<TfmSpecificPackageFile Include="@(_NewtonsoftJsonPackageAssets);@(_NewtonsoftJsonComparerAssets)" PackagePath="$(Roslyn49PackagePath)" />
+			<TfmSpecificPackageFile Include="@(_NewtonsoftJsonPackageAssets);@(_NewtonsoftJsonComparerAssets)" PackagePath="$(Roslyn50PackagePath)" />
 		</ItemGroup>
 	</Target>
 

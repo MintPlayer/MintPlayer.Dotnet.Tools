@@ -159,6 +159,16 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
         "analyzers/dotnet/roslyn5.0/cs/MintPlayer.SourceGenerators.Tools.dll",
         "analyzers/dotnet/roslyn4.9/cs/MintPlayer.SourceGenerators.dll",
         "analyzers/dotnet/roslyn4.9/cs/MintPlayer.SourceGenerators.Tools.dll",
+        // ClassNamesSourceGenerator's [ModuleInitializer] calls JObjectValueComparer.Register(), so
+        // these two must sit in EVERY roslyn folder, not just the one eng/newtonsoftjson.targets
+        // happened to name. When that file still said roslyn4.0 after the folders were renamed, the
+        // roslyn5.0 generator shipped without them and every consumer on Roslyn 5.x got CS8032
+        // "TypeInitializationException: The type initializer for '<Module>' threw an exception"
+        // and silently no generated code. Every other layout assertion passed.
+        "analyzers/dotnet/roslyn5.0/cs/MintPlayer.ValueComparers.NewtonsoftJson.dll",
+        "analyzers/dotnet/roslyn5.0/cs/Newtonsoft.Json.dll",
+        "analyzers/dotnet/roslyn4.9/cs/MintPlayer.ValueComparers.NewtonsoftJson.dll",
+        "analyzers/dotnet/roslyn4.9/cs/Newtonsoft.Json.dll",
         "analyzers/dotnet/cs/MintPlayer.SourceGenerators.Attributes.dll",
         // [AutoValueComparer] decorates this generator's own model types, so Roslyn cannot load
         // the generator without it. Dropping this entry does not degrade the package, it disables
