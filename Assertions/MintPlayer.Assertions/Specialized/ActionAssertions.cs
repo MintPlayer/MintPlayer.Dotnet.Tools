@@ -63,6 +63,78 @@ public class ActionAssertions
         return new(this);
     }
 
+    /// <summary>Asserts that invoking the action throws <b>something</b>, without constraining the type.</summary>
+    public ExceptionAssertions<Exception> Throw(string? because = null, params object?[] becauseArgs)
+        => Throw<Exception>(because, becauseArgs);
+
+    /// <summary>
+    /// Asserts that invoking the action does not throw <typeparamref name="TException"/>. Other
+    /// exceptions are allowed through.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="NotThrow"/>, which forbids every exception. This one says "whatever
+    /// else happens, not this" — the shape a test wants when it is pinning one specific failure mode
+    /// and is indifferent to the rest.
+    /// </remarks>
+    public AndConstraint<ActionAssertions> NotThrow<TException>(string? because = null, params object?[] becauseArgs)
+        where TException : Exception
+    {
+        Assert().ForCondition(Subject is not null).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} not to throw {0}{reason}, but the action was <null>.", typeof(TException));
+        if (Subject is null) return new(this);
+
+        Exception? caught = null;
+        try { Subject.Invoke(); }
+        catch (Exception ex) { caught = ex; }
+
+        var match = ExceptionExtractor.Assignable<TException>(caught);
+        Assert().ForCondition(match is null).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to throw {0}{reason}, but it threw {1}: {2}.", typeof(TException), match?.GetType(), match?.Message);
+        return new(this);
+    }
+
+    /// <summary>
+    /// Repeatedly invokes the action every <paramref name="pollInterval"/> until it stops throwing
+    /// or <paramref name="waitTime"/> has elapsed. Fails with the last exception when it never
+    /// succeeded.
+    /// </summary>
+    /// <remarks>
+    /// The synchronous counterpart of <see cref="AsyncFunctionAssertions.NotThrowAfterAsync"/>, for
+    /// polling something that becomes consistent shortly after an operation — a file handle being
+    /// released, a cache settling.
+    /// </remarks>
+    public AndConstraint<ActionAssertions> NotThrowAfter(TimeSpan waitTime, TimeSpan pollInterval, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(waitTime, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfLessThan(pollInterval, TimeSpan.Zero);
+
+        Assert().ForCondition(Subject is not null).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} not to throw after {0}{reason}, but the action was <null>.", waitTime);
+        if (Subject is null) return new(this);
+
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        Exception? last;
+        while (true)
+        {
+            try
+            {
+                Subject.Invoke();
+                return new(this);
+            }
+            catch (Exception ex)
+            {
+                last = ex;
+            }
+
+            if (stopwatch.Elapsed >= waitTime) break;
+            Thread.Sleep(pollInterval);
+        }
+
+        Assert().ForCondition(false).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} not to throw after {0}{reason}, but it kept throwing {1}: {2}.", waitTime, last.GetType(), last.Message);
+        return new(this);
+    }
+
     /// <summary>
     /// Starts asserting on the execution time of the action. The action is not invoked here;
     /// each assertion method on the result measures one invocation with a <see cref="System.Diagnostics.Stopwatch"/>.

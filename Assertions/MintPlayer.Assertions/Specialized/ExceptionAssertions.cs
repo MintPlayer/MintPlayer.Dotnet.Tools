@@ -17,6 +17,58 @@ public class ExceptionAssertions<TException> : ReferenceTypeAssertions<TExceptio
     /// <summary>The caught exception, for direct inspection (same as <see cref="ReferenceTypeAssertions{TSubject, TSelf}.Subject"/>).</summary>
     public TException Which => Subject!;
 
+    /// <summary>The caught exception. Identical to <see cref="Which"/>; both spellings read naturally depending on the sentence.</summary>
+    public TException And => Subject!;
+
+    /// <summary>
+    /// Asserts the exception message does <b>not</b> match the given wildcard pattern.
+    /// </summary>
+    /// <remarks>
+    /// A null exception passes, consistent with the library's rule for negative assertions.
+    /// </remarks>
+    public AndConstraint<ExceptionAssertions<TException>> WithoutMessage(string wildcardPattern, string? because = null, params object?[] becauseArgs)
+        => WithoutMessage(wildcardPattern, StringComparison.Ordinal, because, becauseArgs);
+
+    /// <summary>Asserts the exception message does not match the pattern, using an explicit <paramref name="comparison"/>.</summary>
+    public AndConstraint<ExceptionAssertions<TException>> WithoutMessage(string wildcardPattern, StringComparison comparison, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(wildcardPattern);
+        Assert().ForCondition(Subject is null || !WildcardPattern.IsMatch(Subject.Message, wildcardPattern, comparison)).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to have a message matching {0}{reason}, but found {1}.", wildcardPattern, Subject?.Message);
+        return new(this);
+    }
+
+    /// <summary>
+    /// Asserts the exception has an inner exception assignable to <paramref name="innerExceptionType"/>.
+    /// </summary>
+    /// <remarks>
+    /// The runtime-<see cref="Type"/> counterpart of <see cref="WithInnerException{TInner}"/>, for
+    /// table-driven tests where the expected type is only known at runtime. It cannot drill in — the
+    /// static type is unknown — so it returns the same assertions rather than a typed continuation.
+    /// </remarks>
+    public AndConstraint<ExceptionAssertions<TException>> WithInnerException(Type innerExceptionType, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(innerExceptionType);
+        var inner = Subject?.InnerException;
+        Assert().ForCondition(inner is not null).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to have an inner exception of type {0}{reason}, but it has none.", innerExceptionType)
+            .ForCondition(inner is null || innerExceptionType.IsInstanceOfType(inner)).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to have an inner exception of type {0}{reason}, but found {1}: {2}.", innerExceptionType, inner?.GetType(), inner?.Message);
+        return new(this);
+    }
+
+    /// <summary>Asserts the exception has an inner exception of exactly <paramref name="innerExceptionType"/> (not a derived type).</summary>
+    public AndConstraint<ExceptionAssertions<TException>> WithInnerExceptionExactly(Type innerExceptionType, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(innerExceptionType);
+        var inner = Subject?.InnerException;
+        Assert().ForCondition(inner is not null).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to have an inner exception of exactly type {0}{reason}, but it has none.", innerExceptionType)
+            .ForCondition(inner is null || inner.GetType() == innerExceptionType).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to have an inner exception of exactly type {0}{reason}, but found {1}: {2}.", innerExceptionType, inner?.GetType(), inner?.Message);
+        return new(this);
+    }
+
     /// <summary>
     /// Asserts the exception message matches the given wildcard pattern, <b>case-sensitively</b>.
     /// <c>*</c> matches any sequence (including newlines), <c>?</c> matches exactly one character.

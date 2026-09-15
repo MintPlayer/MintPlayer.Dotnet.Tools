@@ -129,4 +129,136 @@ public class GenericAsyncFunctionAssertions<TResult>
             .FailWith("Expected {subject} to throw {0}{reason}, but no exception was thrown.", expectedType);
         return null;
     }
+
+    /// <summary>Asserts that awaiting the function throws <b>something</b>, without constraining the type.</summary>
+    public ThrownExceptionTask<Exception> ThrowAsync(string? because = null, params object?[] becauseArgs)
+        => ThrowAsync<Exception>(because, becauseArgs);
+
+    /// <summary>
+    /// Asserts that awaiting the function does not throw <typeparamref name="TException"/>. Other
+    /// exceptions are allowed through.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <c>NotThrowAsync()</c>, which forbids every exception. This one says "whatever
+    /// else happens, not this".
+    /// </remarks>
+    public async Task<AndWhichConstraint<GenericAsyncFunctionAssertions<TResult>, TResult>> NotThrowAsync<TException>(string? because = null, object?[]? becauseArgs = null)
+        where TException : Exception
+    {
+        Assert().ForCondition(Subject is not null).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} not to throw {0}{reason}, but the function was <null>.", typeof(TException));
+        if (Subject is null) return new(this, default!);
+
+        Exception? caught = null;
+        try { await Subject.Invoke().ConfigureAwait(false); }
+        catch (Exception ex) { caught = ex; }
+
+        var match = ExceptionExtractor.Assignable<TException>(caught);
+        Assert().ForCondition(match is null).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to throw {0}{reason}, but it threw {1}: {2}.", typeof(TException), match?.GetType(), match?.Message);
+        return new(this, default!);
+    }
+
+    /// <summary>
+    /// Asserts that awaiting the function throws <typeparamref name="TException"/> <b>and</b> does so
+    /// within <paramref name="timeout"/>.
+    /// </summary>
+    /// <remarks>
+    /// For code that is supposed to fail fast: a retry loop that gives up, a circuit breaker that
+    /// opens. Asserting only that it throws would pass even if it took a minute to get there.
+    /// </remarks>
+    public async Task<ExceptionAssertions<TException>> ThrowWithinAsync<TException>(TimeSpan timeout, string? because = null, object?[]? becauseArgs = null)
+        where TException : Exception
+    {
+        Assert().ForCondition(Subject is not null).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to throw {0} within {1}{reason}, but the function was <null>.", typeof(TException), timeout);
+        if (Subject is null) return new(null, SubjectExpression);
+
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        Exception? caught = null;
+        try { await Subject.Invoke().ConfigureAwait(false); }
+        catch (Exception ex) { caught = ex; }
+        stopwatch.Stop();
+
+        var match = ExceptionExtractor.Assignable<TException>(caught);
+        Assert().ForCondition(match is not null).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to throw {0} within {1}{reason}, but it threw {2}.", typeof(TException), timeout, caught?.GetType())
+            .ForCondition(match is null || stopwatch.Elapsed <= timeout).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to throw {0} within {1}{reason}, but it took {2}.", typeof(TException), timeout, stopwatch.Elapsed);
+        return new(match, SubjectExpression);
+    }
+
+    /// <summary>
+    /// Asserts that the task returned by the function does <b>not</b> complete within
+    /// <paramref name="timeout"/>.
+    /// </summary>
+    /// <remarks>
+    /// The assertion for code that is supposed to block: a semaphore that should hold, a consumer
+    /// that should wait for a producer. Without it there is no way to state "this must not finish
+    /// yet" other than sleeping and hoping.
+    /// </remarks>
+    public async Task<AndWhichConstraint<GenericAsyncFunctionAssertions<TResult>, TResult>> NotCompleteWithinAsync(TimeSpan timeout, string? because = null, object?[]? becauseArgs = null)
+    {
+        Assert().ForCondition(Subject is not null).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} not to complete within {0}{reason}, but the function was <null>.", timeout);
+        if (Subject is null) return new(this, default!);
+
+        var completed = false;
+        try
+        {
+            var task = Subject.Invoke();
+            completed = await TimeoutHelper.CompletesWithin(task, timeout).ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // A fault IS a completion for this assertion's purposes: the task stopped running
+            // inside the window, which is exactly what the caller said must not happen. Swallowed
+            // rather than rethrown so the message below is the one reported.
+            completed = true;
+        }
+
+        Assert().ForCondition(!completed).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} not to complete within {0}{reason}, but it did.", timeout);
+        return new(this, default!);
+    }
+
+    /// <summary>
+    /// Repeatedly invokes and awaits the function every <paramref name="pollInterval"/> until it
+    /// stops throwing or <paramref name="waitTime"/> has elapsed.
+    /// </summary>
+    /// <remarks>
+    /// Present on the non-generic variant already; its absence here meant a Func&lt;Task&lt;T&gt;&gt;
+    /// could not be polled at all.
+    /// </remarks>
+    public async Task<AndWhichConstraint<GenericAsyncFunctionAssertions<TResult>, TResult>> NotThrowAfterAsync(
+        TimeSpan waitTime, TimeSpan pollInterval, string? because = null, object?[]? becauseArgs = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(waitTime, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfLessThan(pollInterval, TimeSpan.Zero);
+
+        Assert().ForCondition(Subject is not null).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} not to throw after {0}{reason}, but the function was <null>.", waitTime);
+        if (Subject is null) return new(this, default!);
+
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        Exception? last;
+        while (true)
+        {
+            try
+            {
+                return new(this, await Subject.Invoke().ConfigureAwait(false));
+            }
+            catch (Exception ex)
+            {
+                last = ex;
+            }
+
+            if (stopwatch.Elapsed >= waitTime) break;
+            await Task.Delay(pollInterval).ConfigureAwait(false);
+        }
+
+        Assert().ForCondition(false).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} not to throw after {0}{reason}, but it kept throwing {1}: {2}.", waitTime, last.GetType(), last.Message);
+        return new(this, default!);
+    }
 }
