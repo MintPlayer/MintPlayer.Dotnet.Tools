@@ -65,7 +65,7 @@ types keep `BeCloseTo`, matching FA and resolving the internal collision); `With
 Then: update MPA0100's rename table for anything deliberately left divergent, and list those in the
 README so a migrating user never meets an unexplained compile error.
 
-## Milestone 3 — Free wins (PRD §3) ✅
+## Milestone 3 — Free wins (PRD §3) ⚠️ mostly done — three items NOT built, see Status
 
 Pure additions, no mechanism, no allocation. Largest surface-per-cost in the project.
 
@@ -92,7 +92,7 @@ Pure additions, no mechanism, no allocation. Largest surface-per-cost in the pro
   `ContainItemsAssignableTo`.
 - Dictionaries: `Equal`/`NotEqual`, bulk `Contain`/`NotContain` overloads, the missing count family.
 
-## Milestone 4 — Cheap-if-deliberate (PRD §4) ✅
+## Milestone 4 — Cheap-if-deliberate (PRD §4) ⚠️ mostly done — one item NOT built, see Status
 
 Each has a naive implementation that breaches the boundary. Use the named mechanism.
 
@@ -114,12 +114,27 @@ Each has a naive implementation that breaches the boundary. Use the named mechan
 
 ## Status — where this stands
 
-**Done: M0 through M4.** 965 assertion tests pass, full Release build clean, MPA0005 reports zero
-across the solution. Every milestone was verified by a full-solution Release build and the complete
-assertions suite before pushing, after a single-project build once let a rename break a consumer in
-another project.
+**Done: M0, M1, M2. Mostly done: M3, M4.** 965 assertion tests pass, full Release build clean,
+MPA0005 reports zero across the solution. Every milestone was verified by a full-solution Release
+build and the complete assertions suite before pushing, after a single-project build once let a
+rename break a consumer in another project.
 
-**Remaining: M5 (equivalency options — the largest), M6, M7, M8.**
+**Remaining: the six unbuilt items below, then M5 (equivalency options — the largest), M6, M7, M8.**
+
+### Planned but NOT built — verified absent from the source
+
+Checked by grep, not by memory. These are listed in the milestone bodies above as if done; they are
+not:
+
+| Item | Milestone | Note |
+|---|---|---|
+| `TaskCompletionSource` / `TaskCompletionSource<T>` assertions | M3 async | Whole family absent. No `Should()` overload for either type |
+| `BeProperSubsetOf` / `BeProperSupersetOf` | M3 collections | `BeSubsetOf` and `BeSupersetOf` exist; the *proper* (strict) variants do not |
+| Comparer-lambda overloads on `Equal` / `StartWith` / `EndWith` | M3 collections | The `Func<T, TExpectation, bool>` forms that let two differently-typed sequences be compared |
+| String `config` overloads (`IgnoringCase`, whitespace, newline style) | M4 | Intended as a `StringComparison`/flags parameter rather than FA's per-call options object |
+
+None is blocked; all four are ordinary additions. They were simply missed, and the milestones were
+marked complete before this was checked.
 
 ### What was done differently from the plan above
 
