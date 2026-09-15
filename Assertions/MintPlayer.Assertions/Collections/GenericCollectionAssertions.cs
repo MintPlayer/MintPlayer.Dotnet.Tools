@@ -1235,11 +1235,23 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
 
     /// <summary>Asserts the collection contains every one of <paramref name="expected"/>.</summary>
     /// <remarks>
-    /// The bulk counterpart of <see cref="Contain(T, string, object?[])"/>. Without it, asserting on
-    /// several expected items meant one call each and a failure message naming only the first one
-    /// that was missing.
+    /// Named <c>ContainAll</c>, not an overload of <c>Contain</c>, following the convention
+    /// <c>StringAssertions</c> already sets (<c>ContainAll</c> / <c>NotContainAny</c> /
+    /// <c>NotContainAll</c>).
+    ///
+    /// FluentAssertions spells this as another <c>Contain</c> overload, and that shape has a trap:
+    /// <c>Contain(oneItem)</c> matches both the single-item overload and a <c>params</c> bulk one in
+    /// EXPANDED form only — neither is applicable in normal form, because both end in a params
+    /// parameter with no argument — and the tie goes to the candidate needing no defaulted
+    /// arguments, i.e. the bulk one. It compiles and reports a collection-shaped message for what
+    /// the author wrote as a single-item assertion. A distinct name removes the ambiguity outright,
+    /// and lets the terse <c>params</c> form exist safely.
     /// </remarks>
-    public AndConstraint<GenericCollectionAssertions<T>> Contain(IEnumerable<T> expected, string? because = null, params object?[] becauseArgs)
+    public AndConstraint<GenericCollectionAssertions<T>> ContainAll(params T[] expected)
+        => ContainAll((IEnumerable<T>)expected, because: null);
+
+    /// <summary>Asserts the collection contains every one of <paramref name="expected"/>.</summary>
+    public AndConstraint<GenericCollectionAssertions<T>> ContainAll(IEnumerable<T> expected, string? because = null, params object?[] becauseArgs)
     {
         ArgumentNullException.ThrowIfNull(expected);
         var actual = Items;
@@ -1257,7 +1269,17 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     }
 
     /// <summary>Asserts the collection contains none of <paramref name="unexpected"/>.</summary>
-    public AndConstraint<GenericCollectionAssertions<T>> NotContain(IEnumerable<T> unexpected, string? because = null, params object?[] becauseArgs)
+    /// <remarks>
+    /// <c>NotContainAny</c> rather than <c>NotContain</c>: it asserts that NONE of the values are
+    /// present, which is what <c>NotContainAny</c> says and what <c>NotContain</c> leaves open.
+    /// Matches <c>StringAssertions.NotContainAny</c>. See <c>ContainAll</c> for why bulk membership
+    /// does not share the single-item name.
+    /// </remarks>
+    public AndConstraint<GenericCollectionAssertions<T>> NotContainAny(params T[] unexpected)
+        => NotContainAny((IEnumerable<T>)unexpected, because: null);
+
+    /// <summary>Asserts the collection contains none of <paramref name="unexpected"/>.</summary>
+    public AndConstraint<GenericCollectionAssertions<T>> NotContainAny(IEnumerable<T> unexpected, string? because = null, params object?[] becauseArgs)
     {
         ArgumentNullException.ThrowIfNull(unexpected);
         var actual = Items;

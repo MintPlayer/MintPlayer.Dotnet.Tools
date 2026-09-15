@@ -1,4 +1,4 @@
-namespace MintPlayer.Assertions.Tests;
+﻿namespace MintPlayer.Assertions.Tests;
 
 /// <summary>
 /// The collection and dictionary surface added in Phase 2 (PRD §3).
@@ -10,11 +10,11 @@ public class Phase2CollectionAdditionsTests
     #region Bulk membership
 
     [Fact]
-    public void Contain_TakesSeveralExpectedItems()
+    public void ContainAll_TakesSeveralExpectedItems()
     {
-        Numbers.Should().Contain([2, 4]);
+        Numbers.Should().ContainAll(2, 4);
 
-        var ex = Record.Exception(() => Numbers.Should().Contain([2, 9, 11]));
+        var ex = Record.Exception(() => Numbers.Should().ContainAll(2, 9, 11));
         Assert.IsType<AssertionFailedException>(ex);
     }
 
@@ -23,21 +23,21 @@ public class Phase2CollectionAdditionsTests
     /// call per item stops at the first failure.
     /// </summary>
     [Fact]
-    public void Contain_NamesEveryMissingItem()
+    public void ContainAll_NamesEveryMissingItem()
     {
-        var ex = Record.Exception(() => Numbers.Should().Contain([9, 11]));
+        var ex = Record.Exception(() => Numbers.Should().ContainAll(9, 11));
 
         Assert.Contains("9", ex!.Message);
         Assert.Contains("11", ex.Message);
     }
 
     [Fact]
-    public void NotContain_TakesSeveralItems()
+    public void NotContainAny_TakesSeveralItems()
     {
-        Numbers.Should().NotContain([9, 11]);
+        Numbers.Should().NotContainAny(9, 11);
 
         Assert.IsType<AssertionFailedException>(
-            Record.Exception(() => Numbers.Should().NotContain([9, 3])));
+            Record.Exception(() => Numbers.Should().NotContainAny(9, 3)));
     }
 
     #endregion
@@ -183,13 +183,13 @@ public class Phase2CollectionAdditionsTests
     /// because one would silently hijack single-pair calls (see the remarks on the method).
     /// </summary>
     [Fact]
-    public void Contain_TakesSeveralPairs()
+    public void ContainAll_TakesSeveralPairs()
     {
         KeyValuePair<string, int>[] both = [new("ann", 30), new("bob", 40)];
-        Ages().Should().Contain(both);
+        Ages().Should().ContainAll(both);
 
         KeyValuePair<string, int>[] wrong = [new("ann", 99)];
-        Assert.IsType<AssertionFailedException>(Record.Exception(() => Ages().Should().Contain(wrong)));
+        Assert.IsType<AssertionFailedException>(Record.Exception(() => Ages().Should().ContainAll(wrong)));
     }
 
     /// <summary>A single pair still reaches the single-pair overload, with its own message.</summary>
@@ -203,10 +203,10 @@ public class Phase2CollectionAdditionsTests
     }
 
     [Fact]
-    public void NotContain_TakesSeveralPairs()
+    public void NotContainAny_TakesSeveralPairs()
     {
         KeyValuePair<string, int>[] neither = [new("ann", 99), new("zoe", 1)];
-        Ages().Should().NotContain(neither);
+        Ages().Should().NotContainAny(neither);
     }
 
     [Fact]
@@ -227,11 +227,11 @@ public class Phase2CollectionAdditionsTests
     /// a key the default comparer would call missing. The new bulk overloads must honour that too.
     /// </summary>
     [Fact]
-    public void BulkContain_HonoursTheDictionarysOwnComparer()
+    public void ContainAll_HonoursTheDictionarysOwnComparer()
     {
         var caseInsensitive = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { ["Ann"] = 30 };
 
-        caseInsensitive.Should().Contain(new KeyValuePair<string, int>("ANN", 30));
+        caseInsensitive.Should().ContainAll(new KeyValuePair<string, int>("ANN", 30));
     }
 
     #endregion

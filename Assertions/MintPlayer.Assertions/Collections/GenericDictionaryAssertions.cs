@@ -440,15 +440,23 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
     /// one call each and a message naming only the first one that was absent.
     /// </remarks>
     /// <remarks>
-    /// Takes <see cref="IEnumerable{T}"/> and deliberately has NO <c>params</c> sibling. A
-    /// <c>params KeyValuePair&lt;TKey,TValue&gt;[]</c> overload silently hijacks single-pair calls:
-    /// <c>Contain(onePair)</c> matches both it and <c>Contain(KeyValuePair, string?, object?[])</c>
-    /// in EXPANDED form only — neither is applicable in normal form, because both end in a params
-    /// parameter with no argument — and the tie then goes to the candidate needing no defaulted
-    /// arguments, which is the bulk one. The call compiles, runs the wrong assertion and produces a
-    /// message about a collection. Bulk callers pass a collection explicitly.
+    /// Named <c>ContainAll</c>, not an overload of <c>Contain</c>, following the convention
+    /// <c>StringAssertions</c> already sets (<c>ContainAll</c> / <c>NotContainAny</c> /
+    /// <c>NotContainAll</c>).
+    ///
+    /// FluentAssertions spells this as another <c>Contain</c> overload, and that shape has a trap:
+    /// <c>Contain(oneItem)</c> matches both the single-item overload and a <c>params</c> bulk one in
+    /// EXPANDED form only — neither is applicable in normal form, because both end in a params
+    /// parameter with no argument — and the tie goes to the candidate needing no defaulted
+    /// arguments, i.e. the bulk one. It compiles and reports a collection-shaped message for what
+    /// the author wrote as a single-item assertion. A distinct name removes the ambiguity outright,
+    /// and lets the terse <c>params</c> form exist safely.
     /// </remarks>
-    public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> Contain(IEnumerable<KeyValuePair<TKey, TValue>> expected, string? because = null, params object?[] becauseArgs)
+    public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> ContainAll(params KeyValuePair<TKey, TValue>[] expected)
+        => ContainAll((IEnumerable<KeyValuePair<TKey, TValue>>)expected, because: null);
+
+    /// <summary>Asserts the dictionary contains every one of <paramref name="expected"/>.</summary>
+    public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> ContainAll(IEnumerable<KeyValuePair<TKey, TValue>> expected, string? because = null, params object?[] becauseArgs)
     {
         ArgumentNullException.ThrowIfNull(expected);
         if (Pairs is null) return FailNull("to contain the expected pairs", because, becauseArgs);
@@ -469,15 +477,23 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
 
     /// <summary>Asserts the dictionary contains none of <paramref name="unexpected"/>.</summary>
     /// <remarks>
-    /// Takes <see cref="IEnumerable{T}"/> and deliberately has NO <c>params</c> sibling. A
-    /// <c>params KeyValuePair&lt;TKey,TValue&gt;[]</c> overload silently hijacks single-pair calls:
-    /// <c>Contain(onePair)</c> matches both it and <c>Contain(KeyValuePair, string?, object?[])</c>
-    /// in EXPANDED form only — neither is applicable in normal form, because both end in a params
-    /// parameter with no argument — and the tie then goes to the candidate needing no defaulted
-    /// arguments, which is the bulk one. The call compiles, runs the wrong assertion and produces a
-    /// message about a collection. Bulk callers pass a collection explicitly.
+    /// Named <c>ContainAll</c>, not an overload of <c>Contain</c>, following the convention
+    /// <c>StringAssertions</c> already sets (<c>ContainAll</c> / <c>NotContainAny</c> /
+    /// <c>NotContainAll</c>).
+    ///
+    /// FluentAssertions spells this as another <c>Contain</c> overload, and that shape has a trap:
+    /// <c>Contain(oneItem)</c> matches both the single-item overload and a <c>params</c> bulk one in
+    /// EXPANDED form only — neither is applicable in normal form, because both end in a params
+    /// parameter with no argument — and the tie goes to the candidate needing no defaulted
+    /// arguments, i.e. the bulk one. It compiles and reports a collection-shaped message for what
+    /// the author wrote as a single-item assertion. A distinct name removes the ambiguity outright,
+    /// and lets the terse <c>params</c> form exist safely.
     /// </remarks>
-    public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> NotContain(IEnumerable<KeyValuePair<TKey, TValue>> unexpected, string? because = null, params object?[] becauseArgs)
+    public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> NotContainAny(params KeyValuePair<TKey, TValue>[] unexpected)
+        => NotContainAny((IEnumerable<KeyValuePair<TKey, TValue>>)unexpected, because: null);
+
+    /// <summary>Asserts the dictionary contains none of <paramref name="unexpected"/>.</summary>
+    public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> NotContainAny(IEnumerable<KeyValuePair<TKey, TValue>> unexpected, string? because = null, params object?[] becauseArgs)
     {
         ArgumentNullException.ThrowIfNull(unexpected);
         if (Pairs is null) return FailNull("not to contain the given pairs", because, becauseArgs);

@@ -37,10 +37,21 @@ namespace MintPlayer.Assertions.Specialized;
 public class ExecutionTimeAssertions
 {
     /// <summary>
-    /// Grace added to the deadline before giving up, so a genuinely borderline action is reported
-    /// as "took slightly too long" rather than "never finished".
+    /// Grace added to the deadline before giving up, so an action that does finish is reported as
+    /// "took too long" rather than "never finished".
     /// </summary>
-    private static readonly TimeSpan DeadlineGrace = TimeSpan.FromMilliseconds(50);
+    /// <remarks>
+    /// Deliberately generous. The deadline exists to turn an infinite hang into a failure, not to
+    /// measure anything — the verdict comes from the stopwatch, which is unaffected by how long the
+    /// wait was willing to be. An action that completes costs nothing extra, because the wait
+    /// returns as soon as it does; only a genuinely stuck action pays the full grace.
+    ///
+    /// It was 50ms, which is the kind of number that looks fine and is not: <c>BeLessThan(Zero)</c>
+    /// against a 20ms action left 50ms to cover a thread-pool hop plus the sleep, so on a loaded
+    /// machine a completing action was intermittently reported as never finishing. A tight grace
+    /// buys nothing and costs determinism.
+    /// </remarks>
+    private static readonly TimeSpan DeadlineGrace = TimeSpan.FromSeconds(1);
 
     private readonly Action? action;
     private Measurement? measurement;
