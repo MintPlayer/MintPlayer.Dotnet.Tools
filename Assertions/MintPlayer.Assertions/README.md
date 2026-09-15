@@ -293,7 +293,7 @@ ratio.Should().BeInRange(0, 1);
 
 `BeEmpty` `NotBeEmpty` `BeNullOrEmpty` `NotBeNullOrEmpty` `HaveCount` (value or predicate)
 `HaveCountGreaterThan` `HaveCountGreaterThanOrEqualTo` `HaveCountLessThan`
-`HaveCountLessThanOrEqualTo` `HaveSameCountAs` `NotHaveSameCountAs` `ContainSingle` `Contain`
+`HaveCountLessThanOrEqualTo` `HaveSameCount` `NotHaveSameCount` `ContainSingle` `Contain`
 `NotContain` `ContainInOrder` `OnlyContain` `OnlyHaveUniqueItems` `NotContainNulls` `Equal`
 `NotEqual` `StartWith` `EndWith` `BeInAscendingOrder` `BeInDescendingOrder` `BeSubsetOf`
 `NotBeSubsetOf` `IntersectWith` `NotIntersectWith` `AllSatisfy` `SatisfyRespectively`
@@ -355,7 +355,7 @@ act.Should().ThrowExactly<ArgumentException>().WithMessage("*must not be empty*"
 act.Should().NotThrow();
 ```
 
-On the thrown exception: `WithMessage` `WithInnerException<T>` `WithInnerExactly<T>`
+On the thrown exception: `WithMessage` `WithInnerException<T>` `WithInnerExceptionExactly<T>`
 `WithParameterName` `Where(predicate)`, plus `Which` for the exception itself.
 
 `WithMessage` matches a glob **case-sensitively**. When case should not matter, say so at the
@@ -515,7 +515,7 @@ MPA0100 offers a code fix that does this across a file, including the handful of
 | `HaveCountGreaterOrEqualTo` | `HaveCountGreaterThanOrEqualTo` |
 | `BeGreaterOrEqualTo` | `BeGreaterThanOrEqualTo` |
 | `BeLessOrEqualTo` | `BeLessThanOrEqualTo` |
-| `WithInnerExceptionExactly<T>` | `WithInnerExactly<T>` |
+| `WithInnerExceptionExactly<T>` | `WithInnerExceptionExactly<T>` |
 
 `AssertionScope` moves to `MintPlayer.Assertions.Execution`. The fixer is deliberately
 syntax-driven, so it still works after you have removed the FluentAssertions package.

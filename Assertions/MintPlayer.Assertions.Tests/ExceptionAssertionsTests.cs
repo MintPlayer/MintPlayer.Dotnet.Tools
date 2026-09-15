@@ -164,7 +164,7 @@ public class ExceptionAssertionsTests
     {
         Action act = () => throw new InvalidOperationException("outer", new ArgumentException("inner"));
 
-        act.Should().Throw<InvalidOperationException>().WithInnerExactly<ArgumentException>();
+        act.Should().Throw<InvalidOperationException>().WithInnerExceptionExactly<ArgumentException>();
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public class ExceptionAssertionsTests
         Action act = () => throw new InvalidOperationException("outer", new ArgumentNullException("param"));
 
         var ex = Record.Exception(() =>
-            act.Should().Throw<InvalidOperationException>().WithInnerExactly<ArgumentException>());
+            act.Should().Throw<InvalidOperationException>().WithInnerExceptionExactly<ArgumentException>());
 
         var failure = Assert.IsType<AssertionFailedException>(ex);
         Assert.Contains("exactly type System.ArgumentException", failure.Message);

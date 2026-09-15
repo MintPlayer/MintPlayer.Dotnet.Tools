@@ -140,30 +140,30 @@ public class NumericAssertionsTests
     }
 
     [Fact]
-    public void BeCloseTo_Passes_WithinDelta() => 10.Should().BeCloseTo(12, 2);
+    public void BeCloseTo_Passes_WithinDelta() => 10.Should().BeApproximately(12, 2);
 
     [Fact]
     public void BeCloseTo_Passes_ForUnsignedWrapCase()
     {
         byte value = 1;
-        value.Should().BeCloseTo(3, 5);
+        value.Should().BeApproximately(3, 5);
     }
 
     [Fact]
     public void BeCloseTo_Fails_OutsideDelta()
     {
-        var ex = Record.Exception(() => 10.Should().BeCloseTo(15, 2));
+        var ex = Record.Exception(() => 10.Should().BeApproximately(15, 2));
         Assert.IsType<AssertionFailedException>(ex);
         Assert.Contains("to be within 2 of 15", ex.Message);
     }
 
     [Fact]
-    public void NotBeCloseTo_Passes_OutsideDelta() => 10.Should().NotBeCloseTo(15, 2);
+    public void NotBeCloseTo_Passes_OutsideDelta() => 10.Should().NotBeApproximately(15, 2);
 
     [Fact]
     public void NotBeCloseTo_Fails_WithinDelta()
     {
-        var ex = Record.Exception(() => 10.Should().NotBeCloseTo(12, 2));
+        var ex = Record.Exception(() => 10.Should().NotBeApproximately(12, 2));
         Assert.IsType<AssertionFailedException>(ex);
         Assert.Contains("Did not expect", ex.Message);
         Assert.Contains("within 2 of 12", ex.Message);

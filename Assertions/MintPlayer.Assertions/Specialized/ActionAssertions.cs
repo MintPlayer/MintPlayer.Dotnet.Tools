@@ -29,9 +29,10 @@ public class ActionAssertions
         where TException : Exception
     {
         var caught = InvokeAndCatch(because, becauseArgs, typeof(TException));
-        Assert().ForCondition(caught is null || caught is TException).BecauseOf(because, becauseArgs)
+        var match = ExceptionExtractor.Assignable<TException>(caught);
+        Assert().ForCondition(caught is null || match is not null).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to throw {0}{reason}, but {1} was thrown: {2}.", typeof(TException), caught?.GetType(), caught?.Message);
-        return new(caught as TException, SubjectExpression);
+        return new(match, SubjectExpression);
     }
 
     /// <summary>Asserts that invoking the action throws an exception of exactly type <typeparamref name="TException"/> (not a derived type).</summary>
@@ -39,9 +40,10 @@ public class ActionAssertions
         where TException : Exception
     {
         var caught = InvokeAndCatch(because, becauseArgs, typeof(TException));
-        Assert().ForCondition(caught is null || caught.GetType() == typeof(TException)).BecauseOf(because, becauseArgs)
+        var match = ExceptionExtractor.Exactly<TException>(caught);
+        Assert().ForCondition(caught is null || match is not null).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to throw exactly {0}{reason}, but {1} was thrown: {2}.", typeof(TException), caught?.GetType(), caught?.Message);
-        return new(caught?.GetType() == typeof(TException) ? (TException?)caught : null, SubjectExpression);
+        return new(match, SubjectExpression);
     }
 
     /// <summary>Asserts that invoking the action does not throw any exception.</summary>

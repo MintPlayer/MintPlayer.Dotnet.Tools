@@ -163,7 +163,7 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     }
 
     /// <summary>Asserts the collection has the same number of items as <paramref name="otherCollection"/>.</summary>
-    public AndConstraint<GenericCollectionAssertions<T>> HaveSameCountAs(System.Collections.IEnumerable otherCollection, string? because = null, params object?[] becauseArgs)
+    public AndConstraint<GenericCollectionAssertions<T>> HaveSameCount(System.Collections.IEnumerable otherCollection, string? because = null, params object?[] becauseArgs)
     {
         ArgumentNullException.ThrowIfNull(otherCollection);
         var items = Items;
@@ -176,7 +176,7 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     }
 
     /// <summary>Asserts the collection does not have the same number of items as <paramref name="otherCollection"/>.</summary>
-    public AndConstraint<GenericCollectionAssertions<T>> NotHaveSameCountAs(System.Collections.IEnumerable otherCollection, string? because = null, params object?[] becauseArgs)
+    public AndConstraint<GenericCollectionAssertions<T>> NotHaveSameCount(System.Collections.IEnumerable otherCollection, string? because = null, params object?[] becauseArgs)
     {
         ArgumentNullException.ThrowIfNull(otherCollection);
         var items = Items;

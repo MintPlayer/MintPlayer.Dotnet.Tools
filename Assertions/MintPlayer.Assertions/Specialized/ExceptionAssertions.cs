@@ -62,7 +62,7 @@ public class ExceptionAssertions<TException> : ReferenceTypeAssertions<TExceptio
     }
 
     /// <summary>Asserts the exception has an inner exception of exactly type <typeparamref name="TInner"/> (not a derived type) and drills into it.</summary>
-    public ExceptionAssertions<TInner> WithInnerExactly<TInner>(string? because = null, params object?[] becauseArgs)
+    public ExceptionAssertions<TInner> WithInnerExceptionExactly<TInner>(string? because = null, params object?[] becauseArgs)
         where TInner : Exception
     {
         var inner = Subject?.InnerException;

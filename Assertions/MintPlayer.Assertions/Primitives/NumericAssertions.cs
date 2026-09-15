@@ -159,7 +159,7 @@ public class NumericAssertions<T>
     }
 
     /// <summary>Asserts the value is within <paramref name="delta"/> of <paramref name="expected"/> (inclusive).</summary>
-    public AndConstraint<NumericAssertions<T>> BeCloseTo(T expected, T delta, string? because = null, params object?[] becauseArgs)
+    public AndConstraint<NumericAssertions<T>> BeApproximately(T expected, T delta, string? because = null, params object?[] becauseArgs)
     {
         Assert().ForCondition(Subject is { } value && Difference(value, expected) <= delta).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to be within {0} of {1}{reason}, but found {2}.", delta, expected, Subject);
@@ -167,7 +167,7 @@ public class NumericAssertions<T>
     }
 
     /// <summary>Asserts the value is further than <paramref name="delta"/> from <paramref name="unexpected"/> (a null value passes).</summary>
-    public AndConstraint<NumericAssertions<T>> NotBeCloseTo(T unexpected, T delta, string? because = null, params object?[] becauseArgs)
+    public AndConstraint<NumericAssertions<T>> NotBeApproximately(T unexpected, T delta, string? because = null, params object?[] becauseArgs)
     {
         Assert().ForCondition(Subject is not { } value || Difference(value, unexpected) > delta).BecauseOf(because, becauseArgs)
             .FailWith("Did not expect {subject} to be within {0} of {1}{reason}, but found {2}.", delta, unexpected, Subject);

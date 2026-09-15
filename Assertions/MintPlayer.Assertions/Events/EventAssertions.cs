@@ -33,9 +33,17 @@ public sealed class EventAssertions
     }
 
     /// <summary>Asserts at least one occurrence carries an argument of type <typeparamref name="TArgs"/> matching the predicate.</summary>
-    public EventAssertions WithArgs<TArgs>(Func<TArgs, bool> predicate,
-        [CallerArgumentExpression(nameof(predicate))] string? predicateExpression = null,
-        string? because = null, params object?[] becauseArgs)
+    /// <remarks>
+    /// <paramref name="because"/> comes before <paramref name="predicateExpression"/>, and
+    /// <paramref name="becauseArgs"/> is a plain array rather than <c>params</c>, so that the
+    /// caller-captured expression can stay last. The previous ordering put
+    /// <paramref name="predicateExpression"/> second, which silently bound a positional
+    /// <c>WithArgs(p, "my reason")</c> to it — the reason vanished from the message and the
+    /// predicate text was replaced by it. Same shape as
+    /// <see cref="Specialized.ExceptionAssertions{TException}.Where"/>, for the same reason.
+    /// </remarks>
+    public EventAssertions WithArgs<TArgs>(Func<TArgs, bool> predicate, string? because = null, object?[]? becauseArgs = null,
+        [CallerArgumentExpression(nameof(predicate))] string? predicateExpression = null)
     {
         ArgumentNullException.ThrowIfNull(predicate);
         var matches = Occurrences.Where(o => o.Parameters.OfType<TArgs>().Any(a => predicate(a))).ToArray();

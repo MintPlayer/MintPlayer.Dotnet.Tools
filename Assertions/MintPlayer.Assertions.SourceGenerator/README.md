@@ -4,9 +4,10 @@ Roslyn analyzers and code fixes that ship inside the `MintPlayer.Assertions` pac
 (`analyzers/dotnet/cs`). They catch the assertion mistakes that make a test silently pass, and
 offer a one-click migration from FluentAssertions.
 
-There is no analyzer test infrastructure in this repo; the diagnostics are validated live —
-the test project references this analyzer project, so MPA0001/MPA0002/MPA0003 run on the real
-test code at integration time.
+The diagnostics are validated two ways. `MintPlayer.Assertions.SourceGenerator.Tests` has
+per-analyzer and per-generator test files driving them over source fixtures, and they are
+additionally validated live — the assertions test project references this analyzer project, so
+every rule runs on real test code at integration time.
 
 ## Diagnostics
 
@@ -93,11 +94,17 @@ of FluentAssertions symbols is attempted.
    | `HaveCountGreaterOrEqualTo(` | `HaveCountGreaterThanOrEqualTo(` |
    | `BeGreaterOrEqualTo(` | `BeGreaterThanOrEqualTo(` |
    | `BeLessOrEqualTo(` | `BeLessThanOrEqualTo(` |
-   | `WithInnerExceptionExactly<` | `WithInnerExactly<` |
+
+   The table used to be longer. `WithInnerExceptionExactly`, `HaveSameCount` and
+   `BeApproximately` were renamed in MintPlayer.Assertions to match FluentAssertions, so there is
+   nothing left to translate — the right fix for a gratuitous naming divergence is to stop
+   diverging, not to carry a mapping forever.
 
    `Invoking`/`Awaiting` are shape-compatible and stay as-is; `NotThrowAfter(` has no direct
    equivalent and is deliberately left untouched (it will surface as a compile error to resolve
-   by hand).
+   by hand). Two divergences are kept on purpose and cannot be expressed as renames —
+   `action.ExecutionTime().Should()` → `action.Should().ExecutionTime()`, and `WithArgs`'
+   parameter order — both documented in the main README.
 
 ```csharp
 // Before

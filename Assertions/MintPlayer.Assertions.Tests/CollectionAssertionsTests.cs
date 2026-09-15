@@ -94,20 +94,20 @@ public class CollectionAssertionsTests
     }
 
     [Fact]
-    public void HaveSameCountAs()
+    public void HaveSameCount()
     {
-        new[] { 1, 2 }.Should().HaveSameCountAs(new[] { "a", "b" });
+        new[] { 1, 2 }.Should().HaveSameCount(new[] { "a", "b" });
 
-        var ex = Fails(() => new[] { 1, 2 }.Should().HaveSameCountAs(new[] { "a" }));
+        var ex = Fails(() => new[] { 1, 2 }.Should().HaveSameCount(new[] { "a" }));
         Assert.Contains("to have 1 item(s), the same count as the other collection", ex.Message);
     }
 
     [Fact]
-    public void NotHaveSameCountAs()
+    public void NotHaveSameCount()
     {
-        new[] { 1, 2 }.Should().NotHaveSameCountAs(new[] { "a" });
+        new[] { 1, 2 }.Should().NotHaveSameCount(new[] { "a" });
 
-        var ex = Fails(() => new[] { 1, 2 }.Should().NotHaveSameCountAs(new[] { "a", "b" }));
+        var ex = Fails(() => new[] { 1, 2 }.Should().NotHaveSameCount(new[] { "a", "b" }));
         Assert.Contains("Did not expect", ex.Message);
         Assert.Contains("2 item(s)", ex.Message);
     }

@@ -49,9 +49,9 @@ public readonly struct ThrownExceptionTask<TException> where TException : Except
         => Drill(assertions => assertions.WithInnerException<TInner>(because, becauseArgs));
 
     /// <summary>Asserts the thrown exception has an inner exception of exactly <typeparamref name="TInner"/>, and drills into it.</summary>
-    public ThrownExceptionTask<TInner> WithInnerExactly<TInner>(string? because = null, params object?[] becauseArgs)
+    public ThrownExceptionTask<TInner> WithInnerExceptionExactly<TInner>(string? because = null, params object?[] becauseArgs)
         where TInner : Exception
-        => Drill(assertions => assertions.WithInnerExactly<TInner>(because, becauseArgs));
+        => Drill(assertions => assertions.WithInnerExceptionExactly<TInner>(because, becauseArgs));
 
     private ThrownExceptionTask<TException> Continue(Action<ExceptionAssertions<TException>> apply)
         => new(Applied(apply));

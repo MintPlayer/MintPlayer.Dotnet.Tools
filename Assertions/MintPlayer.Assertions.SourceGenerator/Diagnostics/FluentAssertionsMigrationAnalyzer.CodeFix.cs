@@ -38,7 +38,17 @@ public class FluentAssertionsMigrationCodeFixProvider : CodeFixProvider
         ["HaveCountGreaterOrEqualTo"] = "HaveCountGreaterThanOrEqualTo",
         ["BeGreaterOrEqualTo"] = "BeGreaterThanOrEqualTo",
         ["BeLessOrEqualTo"] = "BeLessThanOrEqualTo",
-        ["WithInnerExceptionExactly"] = "WithInnerExactly",
+
+        // Phase 2 removed the entries that used to live here for WithInnerExceptionExactly and
+        // HaveSameCount: those members were renamed in MintPlayer.Assertions to match
+        // FluentAssertions, so there is nothing left to translate. The right fix for a gratuitous
+        // naming divergence is to stop diverging, not to carry a mapping forever.
+        //
+        // Deliberate remaining divergences are NOT listed here either, because they are shape
+        // changes rather than renames and a table of names cannot express them:
+        //   action.ExecutionTime().Should()  ->  action.Should().ExecutionTime()
+        //   WithArgs(predicate, because)     ->  parameter order differs
+        // Both are documented in MintPlayer.Assertions/README.md.
     }.ToImmutableDictionary();
 
     public override ImmutableArray<string> FixableDiagnosticIds =>

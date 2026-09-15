@@ -180,10 +180,13 @@ public class CodeFixTests
     /// in the rename table is asserted rather than sampled.
     /// </summary>
     [Theory]
+    // WithInnerExceptionExactly used to be here, mapping to MintPlayer's WithInnerExactly. Phase 2
+    // renamed the MintPlayer member to match FluentAssertions, so the entry became an identity
+    // mapping — which this test cannot express, since it asserts the old name is GONE from the
+    // fixed source while the new name is present. The row is removed with the table entry.
     [InlineData("HaveCountGreaterOrEqualTo", "HaveCountGreaterThanOrEqualTo")]
     [InlineData("BeGreaterOrEqualTo", "BeGreaterThanOrEqualTo")]
     [InlineData("BeLessOrEqualTo", "BeLessThanOrEqualTo")]
-    [InlineData("WithInnerExceptionExactly", "WithInnerExactly")]
     public async Task ItRenamesTheKnownRenamedMembers(string before, string after)
     {
         var result = await Harness.Instance.ApplyCodeFixAsync(
