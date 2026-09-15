@@ -63,7 +63,7 @@ public sealed class DotnetSdkTests : IDisposable
     [Fact]
     public async Task GetPackageIdAsync_FallsBackToTheFileName()
     {
-        var path = WriteProject("Fallback.Name.csproj", "<TargetFramework>net10.0</TargetFramework>");
+        var path = WriteProject("Fallback.Name.csproj", "<TargetFramework>net11.0</TargetFramework>");
 
         (await _sdk.GetPackageIdAsync(path, default)).Should().Be("Fallback.Name");
     }
@@ -127,7 +127,7 @@ public sealed class DotnetSdkTests : IDisposable
     public async Task GetMajorVersionAsync_PrefersTargetFrameworkOverTargetFrameworks()
     {
         var path = WriteProject("A.csproj",
-            "<TargetFramework>net9.0</TargetFramework><TargetFrameworks>net8.0;net10.0</TargetFrameworks>");
+            "<TargetFramework>net9.0</TargetFramework><TargetFrameworks>net8.0;net10.0;net11.0</TargetFrameworks>");
 
         (await _sdk.GetMajorVersionAsync(path, default)).Should().Be(9);
     }
@@ -163,7 +163,7 @@ public sealed class DotnetSdkTests : IDisposable
     [Fact]
     public async Task GetMajorVersionAsync_MisreadsNetFrameworkMonikers()
     {
-        var path = WriteProject("A.csproj", "<TargetFrameworks>net472;net10.0</TargetFrameworks>");
+        var path = WriteProject("A.csproj", "<TargetFrameworks>net472;net10.0;net11.0</TargetFrameworks>");
 
         (await _sdk.GetMajorVersionAsync(path, default)).Should().Be(472);
     }
@@ -174,7 +174,7 @@ public sealed class DotnetSdkTests : IDisposable
         var path = Path.Combine(_dir, "Ns.csproj");
         File.WriteAllText(path,
             "<Project xmlns=\"http://schemas.microsoft.com/developer/msbuild/2003\">" +
-            "<PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+            "<PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
 
         (await _sdk.GetMajorVersionAsync(path, default)).Should().Be(10);
     }
@@ -186,7 +186,7 @@ public sealed class DotnetSdkTests : IDisposable
     [Fact]
     public async Task ComputeCurrentPublicApiHashAsync_WithoutABuildOutput_ThrowsAClearError()
     {
-        var path = WriteProject("A.csproj", "<TargetFramework>net10.0</TargetFramework>");
+        var path = WriteProject("A.csproj", "<TargetFramework>net11.0</TargetFramework>");
 
         var act = async () => await _sdk.ComputeCurrentPublicApiHashAsync(path, "Release", default);
 

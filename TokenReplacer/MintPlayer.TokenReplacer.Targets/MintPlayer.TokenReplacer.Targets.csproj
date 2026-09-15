@@ -45,7 +45,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.Build.Utilities.Core" Version="18.4.0" />
+		<PackageReference Include="Microsoft.Build.Utilities.Core" Version="18.10.1" />
 	</ItemGroup>
 
 </Project>

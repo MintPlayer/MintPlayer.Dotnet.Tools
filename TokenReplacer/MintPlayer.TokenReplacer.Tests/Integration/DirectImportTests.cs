@@ -13,7 +13,7 @@ public class DirectImportTests
     private static string FixtureCsproj(string body, string? extraProperties = null) => $"""
         <Project Sdk="Microsoft.NET.Sdk">
         	<PropertyGroup>
-        		<TargetFramework>net10.0</TargetFramework>
+        		<TargetFramework>net11.0</TargetFramework>
         		<TokenReplacerTasksAssembly>{Slashed(TasksAssemblyPath)}</TokenReplacerTasksAssembly>
         		<TokenReplacerOwnVersion>0.0.0-test</TokenReplacerOwnVersion>
         {extraProperties}

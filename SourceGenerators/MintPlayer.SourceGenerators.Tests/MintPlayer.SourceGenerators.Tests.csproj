@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net10.0</TargetFramework>
+		<TargetFramework>net11.0</TargetFramework>
 		<LangVersion>14</LangVersion>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
@@ -14,7 +14,7 @@
 		  <PrivateAssets>all</PrivateAssets>
 		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.0" />
 		<PackageReference Include="xunit" Version="2.9.3" />
 		<PackageReference Include="xunit.runner.visualstudio" Version="4.0.0">
 		  <PrivateAssets>all</PrivateAssets>
@@ -22,21 +22,21 @@
 		</PackageReference>
 
 		<!-- Roslyn host, at the version the generators are compiled against. -->
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
 		<!--
 		The generator assemblies also contain CodeFixProviders, which reference
 		Microsoft.CodeAnalysis.Workspaces (this is what the RS1038 warnings on those projects
 		are about). Reflecting over the assembly loads every type, so Workspaces has to be
 		present or GetTypes throws ReflectionTypeLoadException.
 		-->
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.3.0" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" />
 		<!-- ServiceRegistrationsGenerator returns nothing unless this is in the reference set. -->
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.5" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="11.0.0-rc.1.26425.128" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0-rc.1.26425.128" />
 		<!-- The CLI generator emits code against System.CommandLine. -->
-		<PackageReference Include="System.CommandLine" Version="2.0.5" />
+		<PackageReference Include="System.CommandLine" Version="3.0.0-rc.1.26425.128" />
 		<!-- The CLI generator emits a host builder against Microsoft.Extensions.Hosting. -->
-		<PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.5" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="11.0.0-rc.1.26425.128" />
 	</ItemGroup>
 
 	<!--
@@ -56,14 +56,10 @@
 		<!-- The harness. Brings Microsoft.CodeAnalysis.CSharp and .Workspaces with it. -->
 		<ProjectReference Include="..\MintPlayer.SourceGenerators.Testing\MintPlayer.SourceGenerators.Testing.csproj" />
 
-		<ProjectReference Include="..\SourceGenerators\MintPlayer.SourceGenerators\MintPlayer.SourceGenerators.csproj"
-		                  ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
-		<ProjectReference Include="..\Mapper\MintPlayer.Mapper\MintPlayer.Mapper.csproj"
-		                  ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
-		<ProjectReference Include="..\Cli\MintPlayer.CliGenerator\MintPlayer.CliGenerator.csproj"
-		                  ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
-		<ProjectReference Include="..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator\MintPlayer.ValueComparerGenerator.csproj"
-		                  ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\SourceGenerators\MintPlayer.SourceGenerators\MintPlayer.SourceGenerators.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\Mapper\MintPlayer.Mapper\MintPlayer.Mapper.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\Cli\MintPlayer.CliGenerator\MintPlayer.CliGenerator.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator\MintPlayer.ValueComparerGenerator.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
 
 		<!-- Attribute assemblies ARE referenced normally: the test input sources need them to compile. -->
 		<ProjectReference Include="..\SourceGenerators\MintPlayer.SourceGenerators.Attributes\MintPlayer.SourceGenerators.Attributes.csproj" />
@@ -102,11 +98,8 @@
 			<_GeneratorAssets Include="$(MSBuildThisFileDirectory)..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.ValueComparerGenerator.dll" />
 			<_GeneratorAssets Include="$(MSBuildThisFileDirectory)..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.ValueComparerGenerator.pdb" />
 		</ItemGroup>
-		<Error Condition="'@(_GeneratorAssets)' == ''"
-		       Text="No generator assemblies found to copy. Coverage for the generators would silently be zero, so this is a hard failure rather than a warning." />
-		<Copy SourceFiles="@(_GeneratorAssets)"
-		      DestinationFolder="$(OutputPath)"
-		      SkipUnchangedFiles="true" />
+		<Error Condition="'@(_GeneratorAssets)' == ''" Text="No generator assemblies found to copy. Coverage for the generators would silently be zero, so this is a hard failure rather than a warning." />
+		<Copy SourceFiles="@(_GeneratorAssets)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
 	</Target>
 
 	<ItemGroup>

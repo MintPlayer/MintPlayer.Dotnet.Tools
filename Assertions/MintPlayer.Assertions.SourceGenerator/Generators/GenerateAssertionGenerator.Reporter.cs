@@ -21,8 +21,7 @@ internal sealed class UnsupportedAssertionReporter : IDiagnosticReporter
         {
             yield return DiagnosticRules.UnsupportedGenerateAssertionRule.Create(
                 declaration.Location.ToLocation(compilation),
-                $"{declaration.ContainingTypeFullName}.{declaration.MethodName}",
-                declaration.Diagnostic!);
+                [$"{declaration.ContainingTypeFullName}.{declaration.MethodName}", declaration.Diagnostic!]);
         }
     }
 }

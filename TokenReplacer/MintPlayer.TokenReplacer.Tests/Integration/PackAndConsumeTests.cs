@@ -85,7 +85,7 @@ public class PackAndConsumeTests
             File.WriteAllText(Path.Combine(sampleDir, "sample.csproj"), $"""
                 <Project Sdk="Microsoft.NET.Sdk">
                 	<PropertyGroup>
-                		<TargetFramework>net10.0</TargetFramework>
+                		<TargetFramework>net11.0</TargetFramework>
                 		<PackageId>{SamplePackageId}</PackageId>
                 		<IncludeBuildOutput>false</IncludeBuildOutput>
                 		<NoWarn>$(NoWarn);NU5128</NoWarn>
@@ -110,7 +110,7 @@ public class PackAndConsumeTests
             File.WriteAllText(Path.Combine(consumerDir, "consumer.csproj"), $"""
                 <Project Sdk="Microsoft.NET.Sdk">
                 	<PropertyGroup>
-                		<TargetFramework>net10.0</TargetFramework>
+                		<TargetFramework>net11.0</TargetFramework>
                 	</PropertyGroup>
                 	<ItemGroup>
                 		<PackageReference Include="{SamplePackageId}" Version="{SampleVersion}" />

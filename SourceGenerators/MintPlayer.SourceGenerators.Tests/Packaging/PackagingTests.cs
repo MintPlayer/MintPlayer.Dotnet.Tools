@@ -200,7 +200,7 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
         File.WriteAllText(Path.Combine(consumer, "consumer.csproj"), $"""
             <Project Sdk="Microsoft.NET.Sdk">
             	<PropertyGroup>
-            		<TargetFramework>net10.0</TargetFramework>
+            		<TargetFramework>net11.0</TargetFramework>
             		<Nullable>enable</Nullable>
             		<LangVersion>14</LangVersion>
             		<!-- So the assertion below can look at what was actually emitted. -->
@@ -258,7 +258,7 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
         File.WriteAllText(Path.Combine(consumer, "consumeremit.csproj"), $"""
             <Project Sdk="Microsoft.NET.Sdk">
             	<PropertyGroup>
-            		<TargetFramework>net10.0</TargetFramework>
+            		<TargetFramework>net11.0</TargetFramework>
             		<Nullable>enable</Nullable>
             		<LangVersion>14</LangVersion>
             		<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>

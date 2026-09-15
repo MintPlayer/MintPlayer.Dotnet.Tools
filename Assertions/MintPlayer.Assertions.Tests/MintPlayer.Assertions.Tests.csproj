@@ -8,7 +8,7 @@
 		lines and the coverage server unions the three reports per file rather than growing
 		the denominator.
 		-->
-		<TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+		<TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
 		<LangVersion>14</LangVersion>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
