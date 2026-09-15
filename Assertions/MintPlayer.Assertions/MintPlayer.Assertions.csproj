@@ -36,7 +36,15 @@
 	<!-- The source generator and analyzers ship inside this package so a single
 	     PackageReference gives consumers the full experience. -->
 	<ItemGroup>
-		<ProjectReference Include="..\MintPlayer.Assertions.SourceGenerator\MintPlayer.Assertions.SourceGenerator.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+		<!--
+		OutputItemType="Analyzer" so the library's own analyzers run while compiling the library.
+
+		Without it this reference only ordered the build for packing, and the rules never saw the
+		code they were written to guard — MPA0005 in particular, which catches a boxed enumerator
+		that is invisible in the source and can only be found by measuring or by an analyzer. The
+		library shipping a rule it does not itself obey is the wrong way round.
+		-->
+		<ProjectReference Include="..\MintPlayer.Assertions.SourceGenerator\MintPlayer.Assertions.SourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
 	</ItemGroup>
 
 	<!--

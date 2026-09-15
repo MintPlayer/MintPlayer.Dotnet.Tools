@@ -157,8 +157,9 @@ internal static class EquivalencyValidator
         // node asserted nothing and therefore cannot fail — see the ValidationResult docs.
         var comparedMembers = 0;
 
-        foreach (var expectationMember in expectationMembers)
+        for (var i = 0; i < expectationMembers.Count; i++)
         {
+            var expectationMember = expectationMembers[i];
             if (excludedNames is not null && excludedNames.Contains(expectationMember.Name)) continue;
             if (path.Length == 0 && context.Options.IncludedMembers.Count > 0
                 && !context.Options.IncludedMembers.Contains(expectationMember.Name)) continue;
@@ -420,8 +421,9 @@ internal static class EquivalencyValidator
 
     private static MemberAccessor? FindByName(IReadOnlyList<MemberAccessor> members, string name)
     {
-        foreach (var member in members)
+        for (var i = 0; i < members.Count; i++)
         {
+            var member = members[i];
             if (string.Equals(member.Name, name, StringComparison.Ordinal)) return member;
         }
         return null;

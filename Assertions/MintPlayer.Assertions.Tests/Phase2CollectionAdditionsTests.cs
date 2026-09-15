@@ -178,18 +178,36 @@ public class Phase2CollectionAdditionsTests
     public void NotEqual()
         => Ages().Should().NotEqual(new Dictionary<string, int> { ["ann"] = 30 });
 
+    /// <summary>
+    /// Bulk pair assertions take a collection, deliberately — there is no <c>params</c> overload,
+    /// because one would silently hijack single-pair calls (see the remarks on the method).
+    /// </summary>
     [Fact]
     public void Contain_TakesSeveralPairs()
     {
-        Ages().Should().Contain(new KeyValuePair<string, int>("ann", 30), new KeyValuePair<string, int>("bob", 40));
+        KeyValuePair<string, int>[] both = [new("ann", 30), new("bob", 40)];
+        Ages().Should().Contain(both);
 
-        Assert.IsType<AssertionFailedException>(
-            Record.Exception(() => Ages().Should().Contain(new KeyValuePair<string, int>("ann", 99))));
+        KeyValuePair<string, int>[] wrong = [new("ann", 99)];
+        Assert.IsType<AssertionFailedException>(Record.Exception(() => Ages().Should().Contain(wrong)));
+    }
+
+    /// <summary>A single pair still reaches the single-pair overload, with its own message.</summary>
+    [Fact]
+    public void ASinglePairStillBindsToTheSinglePairOverload()
+    {
+        var ex = Record.Exception(() => Ages().Should().Contain(new KeyValuePair<string, int>("ann", 99)));
+
+        Assert.IsType<AssertionFailedException>(ex);
+        Assert.Contains("at key", ex.Message);
     }
 
     [Fact]
     public void NotContain_TakesSeveralPairs()
-        => Ages().Should().NotContain(new KeyValuePair<string, int>("ann", 99), new KeyValuePair<string, int>("zoe", 1));
+    {
+        KeyValuePair<string, int>[] neither = [new("ann", 99), new("zoe", 1)];
+        Ages().Should().NotContain(neither);
+    }
 
     [Fact]
     public void TheCountFamily()

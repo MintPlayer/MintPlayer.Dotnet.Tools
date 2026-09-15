@@ -246,8 +246,9 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         }
 
         var matches = new List<T>();
-        foreach (var item in items)
+        for (var i = 0; i < items.Count; i++)
         {
+            var item = items[i];
             if (predicate(item)) matches.Add(item);
         }
 
@@ -287,8 +288,9 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         if (items is null) return FailNull("not to contain a single item matching the given predicate", because, becauseArgs);
 
         var matches = new List<T>();
-        foreach (var item in items)
+        for (var i = 0; i < items.Count; i++)
         {
+            var item = items[i];
             if (predicate(item)) matches.Add(item);
         }
 
@@ -331,8 +333,9 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
 
         var found = false;
         T match = default!;
-        foreach (var item in items)
+        for (var i = 0; i < items.Count; i++)
         {
+            var item = items[i];
             if (predicate(item)) { found = true; match = item; break; }
         }
 
@@ -347,11 +350,12 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         var items = Items;
         if (items is null) return FailNull($"not to contain {Formatting.Formatter.Format(unexpected)}", because, becauseArgs);
 
+        // Indexed: foreach over the IReadOnlyList<T> interface boxes the struct enumerator.
         var comparer = EqualityComparer<T>.Default;
         var found = false;
-        foreach (var item in items)
+        for (var i = 0; i < items.Count; i++)
         {
-            if (comparer.Equals(item, unexpected)) { found = true; break; }
+            if (comparer.Equals(items[i], unexpected)) { found = true; break; }
         }
 
         Assert().ForCondition(!found).BecauseOf(because, becauseArgs)
@@ -367,8 +371,9 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         if (items is null) return FailNull("not to contain an item matching the given predicate", because, becauseArgs);
 
         var matches = new List<T>();
-        foreach (var item in items)
+        for (var i = 0; i < items.Count; i++)
         {
+            var item = items[i];
             if (predicate(item)) matches.Add(item);
         }
 
@@ -397,8 +402,9 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
 
         var comparer = EqualityComparer<T>.Default;
         var position = 0;
-        foreach (var item in items)
+        for (var i = 0; i < items.Count; i++)
         {
+            var item = items[i];
             if (position < expectedItems.Count && comparer.Equals(item, expectedItems[position]))
                 position++;
         }
@@ -438,8 +444,9 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
 
         var comparer = EqualityComparer<T>.Default;
         var position = 0;
-        foreach (var item in items)
+        for (var i = 0; i < items.Count; i++)
         {
+            var item = items[i];
             if (position < unexpectedItems.Count && comparer.Equals(item, unexpectedItems[position]))
                 position++;
         }
@@ -457,8 +464,9 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         if (items is null) return FailNull("to only contain items matching the given predicate", because, becauseArgs);
 
         var mismatches = new List<T>();
-        foreach (var item in items)
+        for (var i = 0; i < items.Count; i++)
         {
+            var item = items[i];
             if (!predicate(item)) mismatches.Add(item);
         }
 
@@ -491,8 +499,9 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         if (items is null) return FailNull("not to only contain items matching the given predicate", because, becauseArgs);
 
         var allMatch = true;
-        foreach (var item in items)
+        for (var i = 0; i < items.Count; i++)
         {
+            var item = items[i];
             if (!predicate(item)) { allMatch = false; break; }
         }
 
@@ -507,16 +516,25 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         var items = Items;
         if (items is null) return FailNull("to only have unique items", because, becauseArgs);
 
+        // Detect first, allocate second — and for a small collection, detect without allocating at
+        // all. Two HashSets and a List were built on every call (464 bytes/op on five items) to
+        // report duplicates that are almost never there.
+        //
+        // The pairwise scan is O(n^2) but allocation-free, which wins comfortably at the sizes that
+        // dominate real assertions. Above the threshold the set earns its allocation.
+        if (!HasDuplicates(items)) return new(this);
+
         var seen = new HashSet<T>();
         var duplicates = new HashSet<T>();
         var duplicatesInOrder = new List<T>();
-        foreach (var item in items)
+        for (var i = 0; i < items.Count; i++)
         {
+            var item = items[i];
             if (!seen.Add(item) && duplicates.Add(item))
                 duplicatesInOrder.Add(item);
         }
 
-        Assert().ForCondition(duplicatesInOrder.Count == 0).BecauseOf(because, becauseArgs)
+        Assert().ForCondition(false).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to only have unique items{reason}, but found duplicate(s) {0}.", duplicatesInOrder);
         return new(this);
     }
@@ -538,8 +556,9 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
 
         var seen = new HashSet<T>();
         var hasDuplicate = false;
-        foreach (var item in items)
+        for (var i = 0; i < items.Count; i++)
         {
+            var item = items[i];
             if (!seen.Add(item)) { hasDuplicate = true; break; }
         }
 
@@ -580,13 +599,24 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         var items = Items;
         if (items is null) return FailNull("not to contain <null> items", because, becauseArgs);
 
+        // Detect first, allocate second. The index list used to be built on every call — for a
+        // collection with no nulls, which is the overwhelming majority, it was allocated, filled
+        // with nothing and thrown away.
+        var hasNull = false;
+        for (var i = 0; i < items.Count; i++)
+        {
+            if (items[i] is null) { hasNull = true; break; }
+        }
+
+        if (!hasNull) return new(this);
+
         var nullIndexes = new List<int>();
         for (var i = 0; i < items.Count; i++)
         {
             if (items[i] is null) nullIndexes.Add(i);
         }
 
-        Assert().ForCondition(nullIndexes.Count == 0).BecauseOf(because, becauseArgs)
+        Assert().ForCondition(false).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} not to contain <null> items{reason}, but found <null> at index(es) {0}.", nullIndexes);
         return new(this);
     }
@@ -951,8 +981,9 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
 
         var missing = new HashSet<T>();
         var missingInOrder = new List<T>();
-        foreach (var item in items)
+        for (var i = 0; i < items.Count; i++)
         {
+            var item = items[i];
             if (!superset.Contains(item) && missing.Add(item))
                 missingInOrder.Add(item);
         }
@@ -971,8 +1002,9 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         if (items is null) return FailNull("not to be a subset of the given superset", because, becauseArgs);
 
         var isSubset = true;
-        foreach (var item in items)
+        for (var i = 0; i < items.Count; i++)
         {
+            var item = items[i];
             if (!superset.Contains(item)) { isSubset = false; break; }
         }
 
@@ -990,8 +1022,9 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         if (items is null) return FailNull("to intersect with the other collection", because, becauseArgs);
 
         var intersects = false;
-        foreach (var item in items)
+        for (var i = 0; i < items.Count; i++)
         {
+            var item = items[i];
             if (other.Contains(item)) { intersects = true; break; }
         }
 
@@ -1010,8 +1043,9 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
 
         var shared = new HashSet<T>();
         var sharedInOrder = new List<T>();
-        foreach (var item in items)
+        for (var i = 0; i < items.Count; i++)
         {
+            var item = items[i];
             if (other.Contains(item) && shared.Add(item))
                 sharedInOrder.Add(item);
         }
@@ -1352,8 +1386,9 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
 
         var seen = new HashSet<TKey>();
         var duplicates = new List<TKey>();
-        foreach (var item in actual)
+        for (var i = 0; i < actual.Count; i++)
         {
+            var item = actual[i];
             var key = keySelector(item);
             if (!seen.Add(key)) duplicates.Add(key);
         }
@@ -1404,5 +1439,37 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         }
 
         return -1;
+    }
+
+    /// <summary>Collection size at or below which duplicate detection scans pairwise instead of building a set.</summary>
+    /// <remarks>
+    /// 32 items is 496 comparisons worst case, which is far cheaper than the allocation and hashing
+    /// a <see cref="HashSet{T}"/> would cost — and it allocates nothing, which is the point.
+    /// </remarks>
+    private const int PairwiseScanThreshold = 32;
+
+    private static bool HasDuplicates(IReadOnlyList<T> items)
+    {
+        if (items.Count > PairwiseScanThreshold)
+        {
+            var set = new HashSet<T>();
+            for (var i = 0; i < items.Count; i++)
+            {
+                if (!set.Add(items[i])) return true;
+            }
+
+            return false;
+        }
+
+        var comparer = EqualityComparer<T>.Default;
+        for (var i = 0; i < items.Count; i++)
+        {
+            for (var j = i + 1; j < items.Count; j++)
+            {
+                if (comparer.Equals(items[i], items[j])) return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -60,8 +60,10 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
         }
 
         var comparer = EqualityComparer<TKey>.Default;
-        foreach (var pair in Pairs ?? [])
+        var source = Pairs ?? [];
+        for (var i = 0; i < source.Count; i++)
         {
+            var pair = source[i];
             if (comparer.Equals(pair.Key, key))
             {
                 value = pair.Value;
@@ -94,10 +96,9 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
     /// <summary>Asserts the dictionary contains at least one item.</summary>
     public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> NotBeEmpty(string? because = null, params object?[] becauseArgs)
     {
-        var pairs = Pairs;
-        if (pairs is null) return FailNull("not to be empty", because, becauseArgs);
+        if (!TryGetCount(out var actualCount)) return FailNull("not to be empty", because, becauseArgs);
 
-        Assert().ForCondition(pairs.Count > 0).BecauseOf(because, becauseArgs)
+        Assert().ForCondition(actualCount > 0).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} not to be empty{reason}.");
         return new(this);
     }
@@ -105,11 +106,14 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
     /// <summary>Asserts the dictionary contains exactly <paramref name="expected"/> items.</summary>
     public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> HaveCount(int expected, string? because = null, params object?[] becauseArgs)
     {
-        var pairs = Pairs;
-        if (pairs is null) return FailNull($"to contain {expected} item(s)", because, becauseArgs);
+        if (!TryGetCount(out var actualCount)) return FailNull($"to contain {expected} item(s)", because, becauseArgs);
 
-        Assert().ForCondition(pairs.Count == expected).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to contain {0} item(s){reason}, but found {1}: {2}.", expected, pairs.Count, pairs);
+        Assert().ForCondition(actualCount == expected).BecauseOf(because, becauseArgs)
+            // Subject, not Pairs: an argument expression is evaluated BEFORE the call, so
+            // naming Pairs here materialised the whole dictionary on every passing
+            // assertion to build a message that was never rendered. Subject is already in
+            // hand and the formatter walks it the same way.
+            .FailWith("Expected {subject} to contain {0} item(s){reason}, but found {1}: {2}.", expected, actualCount, Subject);
         return new(this);
     }
 
@@ -131,8 +135,10 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
     /// <summary>Asserts the dictionary contains the given key, and exposes its value via Which.</summary>
     public AndWhichConstraint<GenericDictionaryAssertions<TKey, TValue>, TValue> ContainKey(TKey expected, string? because = null, params object?[] becauseArgs)
     {
-        var pairs = Pairs;
-        if (pairs is null)
+        // Null-check the SUBJECT, not Pairs: touching Pairs materialised the whole dictionary on
+        // every call, and TryGetValueForKey does not need it. Pairs is only reached below, to render
+        // the failure.
+        if (Subject is null)
         {
             FailNull($"to contain key {Formatting.Formatter.Format(expected)}", because, becauseArgs);
             return new(this, default!);
@@ -142,7 +148,7 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
             return new(this, found);
 
         Assert().ForCondition(false).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to contain key {0}{reason}, but found {1}.", expected, pairs);
+            .FailWith("Expected {subject} to contain key {0}{reason}, but found {1}.", expected, Subject);
         return new(this, default!);
     }
 
@@ -159,8 +165,9 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
         if (pairs is null) return FailNull($"to contain keys {Formatting.Formatter.Format(expectedKeys)}", because, becauseArgs);
 
         var missingKeys = new List<TKey>();
-        foreach (var key in expectedKeys)
+        for (var i = 0; i < expectedKeys.Count; i++)
         {
+            var key = expectedKeys[i];
             if (!TryGetValueForKey(key, out _)) missingKeys.Add(key);
         }
 
@@ -208,8 +215,9 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
         if (pairs is null) return FailNull($"not to contain keys {Formatting.Formatter.Format(unexpectedKeys)}", because, becauseArgs);
 
         var presentKeys = new List<TKey>();
-        foreach (var key in unexpectedKeys)
+        for (var i = 0; i < unexpectedKeys.Count; i++)
         {
+            var key = unexpectedKeys[i];
             if (TryGetValueForKey(key, out _)) presentKeys.Add(key);
         }
 
@@ -221,18 +229,10 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
     /// <summary>Asserts the dictionary contains the given value.</summary>
     public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> ContainValue(TValue expected, string? because = null, params object?[] becauseArgs)
     {
-        var pairs = Pairs;
-        if (pairs is null) return FailNull($"to contain value {Formatting.Formatter.Format(expected)}", because, becauseArgs);
+        if (Subject is null) return FailNull($"to contain value {Formatting.Formatter.Format(expected)}", because, becauseArgs);
 
-        var comparer = EqualityComparer<TValue>.Default;
-        var found = false;
-        foreach (var pair in pairs)
-        {
-            if (comparer.Equals(pair.Value, expected)) { found = true; break; }
-        }
-
-        Assert().ForCondition(found).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to contain value {0}{reason}, but found {1}.", expected, pairs);
+        Assert().ForCondition(HoldsValue(expected)).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to contain value {0}{reason}, but found {1}.", expected, Subject);
         return new(this);
     }
 
@@ -249,14 +249,16 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
         if (pairs is null) return FailNull($"to contain values {Formatting.Formatter.Format(expectedValues)}", because, becauseArgs);
 
         var presentValues = new HashSet<TValue>();
-        foreach (var pair in pairs)
+        for (var i = 0; i < pairs.Count; i++)
         {
+            var pair = pairs[i];
             presentValues.Add(pair.Value);
         }
 
         var missingValues = new List<TValue>();
-        foreach (var value in expectedValues)
+        for (var i = 0; i < expectedValues.Count; i++)
         {
+            var value = expectedValues[i];
             if (!presentValues.Contains(value)) missingValues.Add(value);
         }
 
@@ -273,8 +275,9 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
 
         var comparer = EqualityComparer<TValue>.Default;
         var found = false;
-        foreach (var pair in pairs)
+        for (var i = 0; i < pairs.Count; i++)
         {
+            var pair = pairs[i];
             if (comparer.Equals(pair.Value, unexpected)) { found = true; break; }
         }
 
@@ -305,10 +308,12 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
 
         var comparer = EqualityComparer<TValue>.Default;
         var presentValues = new List<TValue>();
-        foreach (var value in unexpectedValues)
+        for (var i = 0; i < unexpectedValues.Count; i++)
         {
-            foreach (var pair in pairs)
+            var value = unexpectedValues[i];
+            for (var j = 0; j < pairs.Count; j++)
             {
+                var pair = pairs[j];
                 if (comparer.Equals(pair.Value, value)) { presentValues.Add(value); break; }
             }
         }
@@ -365,8 +370,9 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
     private static TValue FirstValueFor(IReadOnlyList<KeyValuePair<TKey, TValue>> pairs, TKey key)
     {
         var comparer = EqualityComparer<TKey>.Default;
-        foreach (var pair in pairs)
+        for (var i = 0; i < pairs.Count; i++)
         {
+            var pair = pairs[i];
             if (comparer.Equals(pair.Key, key)) return pair.Value;
         }
         return default!;
@@ -386,8 +392,9 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
         var expectedPairs = expected as IReadOnlyList<KeyValuePair<TKey, TValue>> ?? [.. expected];
 
         var missing = new List<TKey>();
-        foreach (var pair in expectedPairs)
+        for (var i = 0; i < expectedPairs.Count; i++)
         {
+            var pair = expectedPairs[i];
             if (!TryGetValueForKey(pair.Key, out var value) || !EqualityComparer<TValue>.Default.Equals(value, pair.Value))
             {
                 missing.Add(pair.Key);
@@ -411,8 +418,9 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
         var same = actual.Count == unexpectedPairs.Count;
         if (same)
         {
-            foreach (var pair in unexpectedPairs)
+            for (var i = 0; i < unexpectedPairs.Count; i++)
             {
+                var pair = unexpectedPairs[i];
                 if (!TryGetValueForKey(pair.Key, out var value) || !EqualityComparer<TValue>.Default.Equals(value, pair.Value))
                 {
                     same = false;
@@ -427,13 +435,18 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
     }
 
     /// <summary>Asserts the dictionary contains every one of <paramref name="expected"/>.</summary>
-    public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> Contain(params KeyValuePair<TKey, TValue>[] expected)
-        => Contain((IEnumerable<KeyValuePair<TKey, TValue>>)expected, because: null);
-
-    /// <summary>Asserts the dictionary contains every one of <paramref name="expected"/>.</summary>
     /// <remarks>
     /// The bulk counterpart of the single-pair overloads. Without it, several expected pairs meant
     /// one call each and a message naming only the first one that was absent.
+    /// </remarks>
+    /// <remarks>
+    /// Takes <see cref="IEnumerable{T}"/> and deliberately has NO <c>params</c> sibling. A
+    /// <c>params KeyValuePair&lt;TKey,TValue&gt;[]</c> overload silently hijacks single-pair calls:
+    /// <c>Contain(onePair)</c> matches both it and <c>Contain(KeyValuePair, string?, object?[])</c>
+    /// in EXPANDED form only — neither is applicable in normal form, because both end in a params
+    /// parameter with no argument — and the tie then goes to the candidate needing no defaulted
+    /// arguments, which is the bulk one. The call compiles, runs the wrong assertion and produces a
+    /// message about a collection. Bulk callers pass a collection explicitly.
     /// </remarks>
     public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> Contain(IEnumerable<KeyValuePair<TKey, TValue>> expected, string? because = null, params object?[] becauseArgs)
     {
@@ -455,10 +468,15 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
     }
 
     /// <summary>Asserts the dictionary contains none of <paramref name="unexpected"/>.</summary>
-    public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> NotContain(params KeyValuePair<TKey, TValue>[] unexpected)
-        => NotContain((IEnumerable<KeyValuePair<TKey, TValue>>)unexpected, because: null);
-
-    /// <summary>Asserts the dictionary contains none of <paramref name="unexpected"/>.</summary>
+    /// <remarks>
+    /// Takes <see cref="IEnumerable{T}"/> and deliberately has NO <c>params</c> sibling. A
+    /// <c>params KeyValuePair&lt;TKey,TValue&gt;[]</c> overload silently hijacks single-pair calls:
+    /// <c>Contain(onePair)</c> matches both it and <c>Contain(KeyValuePair, string?, object?[])</c>
+    /// in EXPANDED form only — neither is applicable in normal form, because both end in a params
+    /// parameter with no argument — and the tie then goes to the candidate needing no defaulted
+    /// arguments, which is the bulk one. The call compiles, runs the wrong assertion and produces a
+    /// message about a collection. Bulk callers pass a collection explicitly.
+    /// </remarks>
     public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> NotContain(IEnumerable<KeyValuePair<TKey, TValue>> unexpected, string? because = null, params object?[] becauseArgs)
     {
         ArgumentNullException.ThrowIfNull(unexpected);
@@ -486,44 +504,103 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
     /// <summary>Asserts the dictionary has more than <paramref name="expected"/> pairs.</summary>
     public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> HaveCountGreaterThan(int expected, string? because = null, params object?[] becauseArgs)
     {
-        var actual = Pairs;
-        if (actual is null) return FailNull("to have more pairs than expected", because, becauseArgs);
+        if (!TryGetCount(out var actualCount)) return FailNull("to have more pairs than expected", because, becauseArgs);
 
-        Assert().ForCondition(actual.Count > expected).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to have more than {0} pair(s){reason}, but found {1}.", expected, actual.Count);
+        Assert().ForCondition(actualCount > expected).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to have more than {0} pair(s){reason}, but found {1}.", expected, actualCount);
         return new(this);
     }
 
     /// <summary>Asserts the dictionary has at least <paramref name="expected"/> pairs.</summary>
     public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> HaveCountGreaterThanOrEqualTo(int expected, string? because = null, params object?[] becauseArgs)
     {
-        var actual = Pairs;
-        if (actual is null) return FailNull("to have at least the expected number of pairs", because, becauseArgs);
+        if (!TryGetCount(out var actualCount)) return FailNull("to have at least the expected number of pairs", because, becauseArgs);
 
-        Assert().ForCondition(actual.Count >= expected).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to have at least {0} pair(s){reason}, but found {1}.", expected, actual.Count);
+        Assert().ForCondition(actualCount >= expected).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to have at least {0} pair(s){reason}, but found {1}.", expected, actualCount);
         return new(this);
     }
 
     /// <summary>Asserts the dictionary has fewer than <paramref name="expected"/> pairs.</summary>
     public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> HaveCountLessThan(int expected, string? because = null, params object?[] becauseArgs)
     {
-        var actual = Pairs;
-        if (actual is null) return FailNull("to have fewer pairs than expected", because, becauseArgs);
+        if (!TryGetCount(out var actualCount)) return FailNull("to have fewer pairs than expected", because, becauseArgs);
 
-        Assert().ForCondition(actual.Count < expected).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to have fewer than {0} pair(s){reason}, but found {1}.", expected, actual.Count);
+        Assert().ForCondition(actualCount < expected).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to have fewer than {0} pair(s){reason}, but found {1}.", expected, actualCount);
         return new(this);
     }
 
     /// <summary>Asserts the dictionary has at most <paramref name="expected"/> pairs.</summary>
     public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> HaveCountLessThanOrEqualTo(int expected, string? because = null, params object?[] becauseArgs)
     {
-        var actual = Pairs;
-        if (actual is null) return FailNull("to have at most the expected number of pairs", because, becauseArgs);
+        if (!TryGetCount(out var actualCount)) return FailNull("to have at most the expected number of pairs", because, becauseArgs);
 
-        Assert().ForCondition(actual.Count <= expected).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to have at most {0} pair(s){reason}, but found {1}.", expected, actual.Count);
+        Assert().ForCondition(actualCount <= expected).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to have at most {0} pair(s){reason}, but found {1}.", expected, actualCount);
         return new(this);
+    }
+
+    /// <summary>
+    /// The subject's pair count, without materialising it when the subject can report it itself.
+    /// </summary>
+    /// <remarks>
+    /// This exists because <see cref="Pairs"/> could not help here: <c>Dictionary&lt;TKey,TValue&gt;</c>
+    /// does NOT implement <c>IReadOnlyList&lt;KeyValuePair&lt;TKey,TValue&gt;&gt;</c>, so the
+    /// "already a list, use it as-is" fast path never applied to the most common subject of all, and
+    /// every count-only assertion copied the whole dictionary just to read <c>Count</c> — measured at
+    /// 144 bytes per assertion on a two-entry dictionary, on the passing path.
+    ///
+    /// Returns false only when the subject is null, which the caller reports.
+    /// </remarks>
+    private bool TryGetCount(out int count)
+    {
+        switch (Subject)
+        {
+            case null:
+                count = 0;
+                return false;
+            case ICollection<KeyValuePair<TKey, TValue>> collection:
+                count = collection.Count;
+                return true;
+            case IReadOnlyCollection<KeyValuePair<TKey, TValue>> readOnly:
+                count = readOnly.Count;
+                return true;
+            default:
+                count = Pairs!.Count;
+                return true;
+        }
+    }
+
+    /// <summary>
+    /// Whether any pair holds <paramref name="value"/>, without materialising a
+    /// <c>Dictionary&lt;TKey,TValue&gt;</c> subject.
+    /// </summary>
+    /// <remarks>
+    /// The Dictionary case is special-cased because its enumerator is a struct and iterating the
+    /// concrete type never boxes it. Anything else falls back to the materialised list and an
+    /// indexed loop — foreach there would iterate through IReadOnlyList and box.
+    /// </remarks>
+    private bool HoldsValue(TValue value)
+    {
+        var comparer = EqualityComparer<TValue>.Default;
+
+        if (Subject is Dictionary<TKey, TValue> dictionary)
+        {
+            foreach (var pair in dictionary)
+            {
+                if (comparer.Equals(pair.Value, value)) return true;
+            }
+
+            return false;
+        }
+
+        var pairs = Pairs!;
+        for (var i = 0; i < pairs.Count; i++)
+        {
+            if (comparer.Equals(pairs[i].Value, value)) return true;
+        }
+
+        return false;
     }
 }
