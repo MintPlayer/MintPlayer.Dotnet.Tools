@@ -82,16 +82,50 @@ public class PassingPathAllocationTests
             measured: () => sink = subject.Should().BeAfter(earlier).And);
     }
 
+    /// <summary>
+    /// A collection subject that is already a list must not be copied.
+    /// </summary>
+    /// <remarks>
+    /// This was the open question left when the gate was first written: the subject is materialised
+    /// once per assertions instance so that lazy sequences are not re-enumerated, but for a subject
+    /// that is ALREADY a <c>List&lt;T&gt;</c> or an array the copy was pure waste — allocated on
+    /// every assertion, proportional to the collection's size, read once and discarded. Measured,
+    /// fixed, and now pinned.
+    ///
+    /// A lazy sequence is still copied, by design, so it is deliberately not asserted on here.
+    ///
+    /// ⚠️ Known limit: this pins <c>Contain</c>, whose loop is indexed. Most other collection
+    /// assertions still <c>foreach</c> over the <c>IReadOnlyList&lt;T&gt;</c> interface, which boxes
+    /// the underlying struct enumerator — one allocation per assertion. Converting all of them is
+    /// mechanical but touches ~20 loop bodies, and doing it as a bulk regex rewrite is how subtle
+    /// semantic breaks get introduced. So it is staged: the two hot membership paths are indexed and
+    /// pinned here, the rest follow with their own tests rather than in one sweep.
+    /// </remarks>
+    [Fact]
+    public void ACollectionAssertionOnAnAlreadyMaterialisedSubjectAddsNothing()
+    {
+        var items = new[] { 1, 2, 3, 4, 5 };
+
+        AssertAddsNothing(
+            baseline: () => sink = items.Should(),
+            measured: () => sink = items.Should().Contain(3).And);
+    }
+
+    [Fact]
+    public void ACountAssertionAddsNothing()
+    {
+        var items = new List<int> { 1, 2, 3 };
+
+        AssertAddsNothing(
+            baseline: () => sink = items.Should(),
+            measured: () => sink = items.Should().HaveCount(3).And);
+    }
+
     // Deliberately NOT covered here, and why:
     //
     // - Exception assertions. `Should().Throw<T>()` allocates the exception itself, which dominates
     //   and is the caller's cost, not the library's. "Adds nothing" is the wrong question; the right
     //   one is a ceiling, which would be brittle. Covered by the benchmarks instead.
-    // - Collection assertions. A collection subject is materialised (at most once per assertions
-    //   instance, cached in a field) so `.And.`-chains and lazy sequences are not re-enumerated.
-    //   Whether that materialisation allocates for an already-materialised array is a real question
-    //   worth settling — but it is an EXISTING cost, so pinning it before measuring it would either
-    //   bake in a regression or ship a red test. Settle it, then add the test.
 
     /// <summary>
     /// A passing assertion inside an <see cref="AssertionScope"/> must not allocate either — the

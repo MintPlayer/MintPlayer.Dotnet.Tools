@@ -303,11 +303,14 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         var items = Items;
         if (items is null) return FailNull($"to contain {Formatting.Formatter.Format(expected)}", because, becauseArgs);
 
+        // Indexed, not foreach. `items` is typed IReadOnlyList<T>, so foreach iterates through the
+        // INTERFACE and boxes the underlying struct enumerator — one heap allocation per assertion,
+        // on the passing path. Indexing costs an interface call and allocates nothing.
         var comparer = EqualityComparer<T>.Default;
         var found = false;
-        foreach (var item in items)
+        for (var i = 0; i < items.Count; i++)
         {
-            if (comparer.Equals(item, expected)) { found = true; break; }
+            if (comparer.Equals(items[i], expected)) { found = true; break; }
         }
 
         Assert().ForCondition(found).BecauseOf(because, becauseArgs)
@@ -1379,13 +1382,15 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         return new(this);
     }
 
-    // Membership helpers: explicit loops rather than LINQ Contains/IndexOf, so no enumerator or
-    // closure is allocated while the assertion passes.
+    // Membership helpers: explicit INDEXED loops, not LINQ and not foreach. LINQ Contains/IndexOf
+    // would allocate an enumerator and a closure; foreach over the IReadOnlyList<T> interface boxes
+    // the underlying struct enumerator. Indexing allocates nothing.
     private static bool Includes(IReadOnlyList<T> source, T value)
     {
-        foreach (var item in source)
+        var comparer = EqualityComparer<T>.Default;
+        for (var i = 0; i < source.Count; i++)
         {
-            if (EqualityComparer<T>.Default.Equals(item, value)) return true;
+            if (comparer.Equals(source[i], value)) return true;
         }
 
         return false;
