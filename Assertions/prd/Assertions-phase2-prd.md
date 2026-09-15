@@ -55,20 +55,53 @@ Second corollary: **a feature on its own assertion type costs nothing to asserti
 it.** `HaveMethod` on `TypeAssertions` is hot-path reflection, but only for the person who called it.
 This is what makes §5 admissible without breaching the boundary.
 
-### Enforcement (this is the part that does not exist yet)
+### Enforcement — what was built, and what was not
 
-The current plan records "Benchmarks are present, not gating" (`Assertions-plan.md:85`). That is the
-gap that makes the boundary unenforceable, and Phase 2 closes it:
+The v1 plan records "Benchmarks are present, not gating" (`Assertions-plan.md:85`). That gap made
+the boundary unenforceable. Two mechanisms now close it, and one planned mechanism was dropped.
 
-1. **The equivalency benchmark becomes a gate.** A regression beyond noise fails the work.
-2. **A new per-assertion micro-benchmark suite** covering the *passing* path of a representative
-   assertion from each family (string, numeric, collection, exception, date). Today a change that
-   added an allocation to every passing assertion in the library would be caught by nothing.
-3. **An allocation assertion on the passing path**: a test that runs N passing assertions and asserts
-   zero (or a pinned constant) allocations, so a regression is a test failure with a name, not a
-   number someone has to notice in a benchmark report.
+**Built — `PassingPathAllocationTests`.** Runs N passing assertions and asserts the assertion adds
+nothing over a bare `Should()` on the same subject. Allocation rather than time, deliberately: bytes
+per operation are deterministic and can fail a build honestly, where wall-clock in CI is noise and a
+timing gate is either too loose to catch anything or flaky. Relative to a per-case baseline rather
+than an absolute byte count, so it states the rule instead of pinning a number that drifts.
 
-Without (2) and (3), "no performance loss" is an aspiration. With them it is a build failure.
+**Built — `MPA0005`, the analyzer.** `foreach` over an interface-typed indexable collection boxes
+the underlying struct enumerator: one allocation per call, on the passing path, and **invisible in
+the source** — the loop is character-for-character identical to an allocation-free one, and only the
+static type decides. Neither review nor measurement-by-sampling reliably finds that. See §12.
+
+**Built — `PassingPathBenchmarks`.** Per-assertion wall-clock for one representative assertion per
+family, against FluentAssertions. Informational, not gated.
+
+**NOT built — gating the equivalency benchmark.** Still "present, not gating". Wiring BenchmarkDotNet
+into CI as a pass/fail gate is noise-prone, and the allocation test plus the analyzer cover the
+regressions that actually occurred. Left open deliberately rather than silently: if a *time*
+regression with no allocation change ever appears, nothing currently catches it.
+
+**Dropped — a data-driven allocation sweep.** A single test looping a table of every assertion,
+reporting all offenders at once, was built and then removed in favour of the analyzer. It found 10
+of 34 sampled assertions allocating, which is what surfaced the fixes below — but it only ever covers
+rows someone remembered to add, whereas the analyzer is exhaustive over the code. Worth knowing it
+existed, and why it is gone.
+
+### What the boundary work actually found
+
+Five *pre-existing* passing-path violations, none introduced by Phase 2. This is the evidence that
+Milestone 0 belonged first:
+
+| Violation | Scale |
+|---|---|
+| `FailWith`'s `params object?[]` allocating and boxing at the call site | 339 of 366 call sites |
+| `AndConstraint` / `AndWhichConstraint` being classes | ~360 return sites |
+| `HaveComponent` concatenating its message template on every call | 31 call sites |
+| `Items` / `Pairs` copying an already-materialised subject | every collection and dictionary assertion |
+| `foreach` boxing the interface enumerator | 27 sites, incl. 2 in `EquivalencyValidator` |
+
+The last one was found by the analyzer, not by measurement, and two of its sites sit in the
+equivalency walker the headline number comes from. Twice more, the boundary caught a regression
+*while it was being written* rather than after: a `Func<int,bool>` helper that would have captured
+and allocated a closure per call, and a message fragment that would have been concatenated eagerly.
 
 ### The nine constraints a contributor must follow
 
@@ -147,10 +180,13 @@ MintPlayer compares the caught exception directly (`Specialized/ActionAssertions
 `FuncAssertions.cs:73`), so the same test **fails**.
 
 This changes what `Throw<T>` *means*, and it changes `Subject`: FA's is `IEnumerable<TException>`
-(several matches can survive extraction) where MintPlayer's is a single `TException?`. With no
-backward-compatibility constraint, **take FA's shape** — extraction genuinely can yield more than one
-match, and a single-subject API would have to pick one arbitrarily. `Which` keeps working as
-first-match sugar.
+(several matches can survive extraction) where MintPlayer's is a single `TException?`.
+
+> **Decided against FA's shape during implementation.** `IEnumerable<TException>` costs a collection
+> allocation on the passing path of every exception assertion, and §0 outranks FA-shape-matching.
+> The case it buys — several matching inner exceptions, each needing separate assertions — is
+> vanishingly rare. `ExceptionExtractor` returns the **first** match, seeing through nested wrappers
+> via `Flatten()`, and stays opaque when the caller asks about `AggregateException` itself.
 
 Cost: none. Pure `try`/`catch` plus type tests; the throw dominates.
 
@@ -267,7 +303,7 @@ only equality. One extra `Offset` comparison.
 - Async: `ThrowWithinAsync`, `NotCompleteWithinAsync`, `NotThrowAfterAsync` on the generic variant,
   the whole `TaskCompletionSource` family, and **all `ValueTask` support** (grep for `ValueTask`
   returns nothing).
-- Collections: `Contain(IEnumerable<T>)` / `NotContain(IEnumerable<T>)`, `BeSupersetOf`,
+- Collections: bulk membership — shipped as `ContainAll` / `NotContainAny`, see §8 — `BeSupersetOf`,
   `BeProperSubsetOf`/`BeProperSupersetOf`, `HaveElementAt`/`HaveElementPreceding`/
   `HaveElementSucceeding`, key-selector overloads on `OnlyHaveUniqueItems` and `NotContainNulls`,
   comparer-lambda overloads on `Equal`/`StartWith`/`EndWith`, `ContainItemsAssignableTo`.
@@ -287,7 +323,7 @@ mechanism is named.
 | `OccurrenceConstraint` (`Contain("x", Exactly.Twice())`, `MatchRegex(…, AtLeast.Once())`) | `Regex.Matches(...).Count` allocates a `MatchCollection` plus a `Match` per hit | `MemoryExtensions.IndexOf` loop over spans for the literal case; `Regex.Count` (.NET 7+) for the regex case. One small class per call site is the accepted floor |
 | `MatchRegex(Regex)` / `NotMatchRegex(Regex)` | — | **This is a fix, not a cost.** Today `MatchRegex` calls static `Regex.IsMatch` (`Primitives/StringAssertions.cs:344`), which goes through the framework cache capped at `Regex.CacheSize` (default 15). A suite with more than ~15 distinct patterns **re-parses and re-compiles on every call**. A `Regex`-typed overload lets callers hoist a `[GeneratedRegex]` out of the hot path |
 | String `config` overloads (`IgnoringCase`, whitespace, newline style) | FA clones a default options object per call plus a `Func<>` closure (`StringAssertions.cs:153`) | A `StringComparison`/flags-enum parameter — zero allocation, no closure. Normalisation over spans, not `Replace` |
-| Better unordered-collection matching | — | MintPlayer's greedy first-fit allocates a throwaway `List<Difference>` **per (expectation × candidate) probe** (`EquivalencyValidator.cs:263-281`) — a failing 20×20 comparison allocates ~400 lists. A proper bipartite match (FA's `Collections/MaximumMatching/`) is both more correct and less allocating. Algorithmic, orthogonal to reflection |
+| Better unordered-collection matching | — | **Re-classified during implementation: this was a correctness bug, not an allocation one.** Greedy first-fit let each expectation claim the first subject item it matched, stranding a later expectation with only one candidate left — expectations `[A, B]` against subjects `[X, Y]` where `A` matches both and `B` only `X` reports a difference although the perfect matching `A→Y, B→X` exists. So `BeEquivalentTo` could **fail on equivalent data** depending on item order. Replaced with maximum bipartite matching via augmenting paths. The allocation win (one reusable collector instead of a `List<Difference>` per probe — ~400 on a failing 20×20) came along with it |
 
 ---
 
@@ -439,6 +475,29 @@ Everything renamed above leaves MPA0100 with nothing to map. For the two entries
 either add them to MPA0100's table or list them in the README as known breaks — a migrating user
 should never meet an unexplained compile error.
 
+### Bulk membership: `ContainAll` / `NotContainAny`, decided during implementation
+
+The bulk collection and dictionary overloads were first added as more `Contain` / `NotContain`
+overloads, copying FA. That shape carries a trap, and FA has it too: `Contain(oneItem)` matches both
+the single-item overload and a `params` bulk one in **expanded form only** — neither is applicable in
+normal form, because both end in a `params` parameter with no argument — so the tie goes to whichever
+needs no defaulted arguments, which is the bulk one. It compiles and reports a collection-shaped
+message for what the author wrote as a single-item assertion.
+
+`StringAssertions` had already settled the naming question in this library: `ContainAll` (all
+present), `NotContainAny` (none present), `NotContainAll` (at least one missing). The bulk methods now
+use it. The ambiguity is gone by construction rather than by a resolution hint, `NotContainAny` says
+which of the two negations it means, and the terse `params` form is safe again because
+`ContainAll(a, b)` cannot collide with `Contain(x)`.
+
+`[OverloadResolutionPriority]` was considered and rejected: it makes the chosen overload depend on an
+attribute the reader cannot see at the call site — the same invisibility that made the boxed
+enumerator so hard to find. It is the right tool when renaming is impossible; here it was not.
+
+Also dropped: the generic `HaveSameCount<TExpectation>(IEnumerable<TExpectation>)` overload listed
+earlier. The non-generic `IEnumerable` form already accepts every typed collection, so FA call sites
+bind to it unchanged and a second overload would only add ambiguity.
+
 ---
 
 ## 9. Events: the one genuine architectural tension
@@ -481,6 +540,32 @@ So Phase 2's assertions are hand-written against the `Assert()` seam — which i
 `Given<T>`/`WithExpectation`/reportables/lazy args (§2.3, §5).
 
 ---
+
+## 12. MPA0005 — the analyzer the boundary needed
+
+Added during implementation; not foreseen when this document was written.
+
+`foreach` over a variable whose static type is `IReadOnlyList<T>` or `IList<T>` boxes the underlying
+struct enumerator. These two loops are character-for-character identical and only the static type
+decides which allocates:
+
+```csharp
+List<int> a = ...;           foreach (var x in a) { }   // struct enumerator, no allocation
+IReadOnlyList<int> b = ...;  foreach (var x in b) { }   // boxed enumerator, one allocation
+```
+
+Nothing at the call site says so, which is why review misses it and why a sampled allocation test
+only finds the instances it happens to cover. A static rule is exhaustive.
+
+Scoped narrowly on purpose. It fires only for **indexable** interfaces, where an indexed loop is a
+free fix; iterating an `IEnumerable<T>` parameter boxes too, but there is often nothing the author
+can do, and a rule that cannot be acted on gets suppressed wholesale — taking the actionable cases
+with it. It fires only inside `MintPlayer.Assertions`, because consumers iterate interfaces all day
+and are right to.
+
+**It also exposed that the library was not running its own analyzers at all.** The `ProjectReference`
+to the analyzer project lacked `OutputItemType="Analyzer"`, so it only ordered the build for packing
+and every rule — MPA0001 through MPA0004 — was blind to the code it was written to guard.
 
 ## 11. Where MintPlayer is already ahead (do not regress these)
 

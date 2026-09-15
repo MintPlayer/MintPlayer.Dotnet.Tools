@@ -13,7 +13,7 @@ Two standing constraints, from the PRD:
 
 ---
 
-## Milestone 0 — Make the boundary enforceable ⏳
+## Milestone 0 — Make the boundary enforceable ✅ (partly; see PRD §0)
 
 **This goes first. Every later milestone is measured against what it establishes.** Today the only
 benchmark covers `BeEquivalentTo`, and it is explicitly not gating
@@ -32,7 +32,7 @@ library would be caught by nothing.
 
 Exit: a passing-path regression is a build failure, not a judgement call.
 
-## Milestone 1 — Correctness defects (PRD §2) ⏳
+## Milestone 1 — Correctness defects (PRD §2) ✅
 
 Bugs before surface. Wrong answers matter more than missing methods.
 
@@ -53,7 +53,7 @@ Bugs before surface. Wrong answers matter more than missing methods.
    `MintPlayer.Assertions.SourceGenerator/Diagnostics/`), and fix the stale claim at
    `MintPlayer.Assertions.SourceGenerator/README.md:7-9` that no analyzer test infrastructure exists.
 
-## Milestone 2 — Renames (PRD §8) ⏳
+## Milestone 2 — Renames (PRD §8) ✅
 
 Do these early, in one commit, before new surface is written against the old names.
 
@@ -65,7 +65,7 @@ types keep `BeCloseTo`, matching FA and resolving the internal collision); `With
 Then: update MPA0100's rename table for anything deliberately left divergent, and list those in the
 README so a migrating user never meets an unexplained compile error.
 
-## Milestone 3 — Free wins (PRD §3) ⏳
+## Milestone 3 — Free wins (PRD §3) ✅
 
 Pure additions, no mechanism, no allocation. Largest surface-per-cost in the project.
 
@@ -92,7 +92,7 @@ Pure additions, no mechanism, no allocation. Largest surface-per-cost in the pro
   `ContainItemsAssignableTo`.
 - Dictionaries: `Equal`/`NotEqual`, bulk `Contain`/`NotContain` overloads, the missing count family.
 
-## Milestone 4 — Cheap-if-deliberate (PRD §4) ⏳
+## Milestone 4 — Cheap-if-deliberate (PRD §4) ✅
 
 Each has a naive implementation that breaches the boundary. Use the named mechanism.
 
@@ -108,6 +108,56 @@ Each has a naive implementation that breaches the boundary. Use the named mechan
 - Replace the greedy first-fit unordered-collection match with a proper bipartite match, removing the
   throwaway `List<Difference>` per probe (`EquivalencyValidator.cs:263-281`; a failing 20×20
   comparison allocates ~400 lists).
+
+
+---
+
+## Status — where this stands
+
+**Done: M0 through M4.** 965 assertion tests pass, full Release build clean, MPA0005 reports zero
+across the solution. Every milestone was verified by a full-solution Release build and the complete
+assertions suite before pushing, after a single-project build once let a rename break a consumer in
+another project.
+
+**Remaining: M5 (equivalency options — the largest), M6, M7, M8.**
+
+### What was done differently from the plan above
+
+Recorded because the plan text still reads as originally written, and the reasoning matters more
+than the instruction:
+
+1. **`AggregateException` keeps a single `Subject`** (PRD §2.1), not FA's `IEnumerable<TException>`.
+   The collection costs an allocation on the passing path of every exception assertion; §0 outranks
+   FA-shape-matching.
+2. **Bulk membership is `ContainAll` / `NotContainAny`**, not more `Contain` / `NotContain`
+   overloads (PRD §8). FA's shape lets a `params` bulk overload silently hijack single-item calls.
+   `StringAssertions` had already set the naming convention in this library.
+3. **The generic `HaveSameCount<TExpectation>` overload was dropped** — the non-generic `IEnumerable`
+   form already binds every typed collection.
+4. **The bipartite matcher was a correctness fix, not a performance one** (PRD §4). Greedy first-fit
+   could report a difference between equivalent collections depending on item order.
+5. **MPA0005 was added** (PRD §12) — not foreseen when the plan was written. It also exposed that the
+   library was not running its own analyzers at all.
+6. **A data-driven allocation sweep was built and removed** in favour of the analyzer (PRD §0).
+7. **`net8.0` and `net9.0` were dropped** from all six multi-targeting projects in the repo —
+   Assertions, its tests, Http, and the three Verz projects. Both reach end of support shortly, and
+   carrying them constrains which BCL APIs the library may use. ⚠️ This narrows the shipped surface
+   of packages beyond Assertions; revisit if Http/Verz need wider reach.
+8. **`ExecutionTime`'s deadline grace is 1 second, not 50ms.** 50ms left `BeLessThan(Zero)` against a
+   20ms action too little room for a thread-pool hop, so a *completing* action was intermittently
+   reported as never finishing. The grace exists to turn a hang into a failure, not to measure.
+
+### Known gaps left open, deliberately
+
+- **The equivalency benchmark is still not gated.** A pure time regression with no allocation change
+  would pass unnoticed.
+- **The baseline table below is unfilled.** The benchmarks were never run to completion in this
+  environment; the v1 figures are carried forward as the reference point, not re-measured.
+- **PRD §13's open questions are all still open** — test-framework exceptions, whether to build the
+  Types/Assembly/selector family and whether to spike the generated variant, XML scope, permanently
+  rejecting `IEquivalencyStep`, and the `monitor.Raise` shape. M6 and M7 depend on answers.
+
+---
 
 ## Milestone 5 — Equivalency options (PRD §6.1) ⏳
 
@@ -182,7 +232,11 @@ First and only full test run (repo policy). Then:
 
 ---
 
-## Baseline (fill in at Milestone 0)
+## Baseline
+
+⚠️ Not re-measured. The v1 equivalency figures are carried forward as the reference point; the
+per-assertion rows were never run to completion in this environment. The deterministic guard is
+`PassingPathAllocationTests`, not these numbers.
 
 | benchmark | time | allocated |
 |---|---|---|
