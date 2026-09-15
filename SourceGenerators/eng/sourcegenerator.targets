@@ -62,9 +62,27 @@
 	Pack, but the condition makes that explicit rather than incidental.
 	-->
 	<Target Name="BuildRoslyn49Flavour" Condition="'$(RoslynVersion)' == '' or '$(RoslynVersion)' == 'roslyn5.0'">
-		<MSBuild Projects="$(MSBuildProjectFullPath)"
-		         Targets="Build"
-		         Properties="RoslynVersion=roslyn4.9;Configuration=$(Configuration)" />
+		<!--
+		A separate `dotnet build` PROCESS, not the MSBuild task.
+
+		The flavour has its own BaseIntermediateOutputPath, so it needs its own restore: the outer
+		`dotnet build`/`dotnet pack` restored the DEFAULT obj\ only, and nothing else ever writes
+		obj\roslyn4.9\project.assets.json. Without it the inner build fails NETSDK1004 on every
+		clean checkout and every CI run - it only appears to work on a tree where someone has
+		already built this flavour by hand.
+
+		The MSBuild task cannot do it. Restore and Build there share one project-evaluation cache
+		keyed on (project, global properties); both calls have the same key, so Build reuses the
+		evaluation from before Restore wrote the assets file and fails with a wall of CS0518 /
+		CS0012 "Predefined type 'System.Object' is not defined" - the shape of a project evaluated
+		with no references at all. Splitting Targets="Restore" and Targets="Build" into two tasks
+		does not help, because the cache is what is stale, not the ordering.
+
+		A child process gets a fresh evaluation and an implicit restore, which is exactly what
+		`msbuild -restore` does internally. Recursion is not a concern: the inner build carries
+		RoslynVersion=roslyn4.9, so this target's own condition is false there.
+		-->
+		<Exec Command="dotnet build &quot;$(MSBuildProjectFullPath)&quot; -c $(Configuration) -p:RoslynVersion=roslyn4.9 --nologo -v quiet" />
 	</Target>
 
 	<Target Name="AddGeneratorAnalyzerAssets" DependsOnTargets="BuildRoslyn49Flavour">
