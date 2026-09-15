@@ -16,13 +16,34 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     public GenericCollectionAssertions(IEnumerable<T>? subject, string? subjectExpression) : base(subject, subjectExpression) { }
 
     /// <summary>The subject materialized into a list exactly once (null when the subject is null).</summary>
+    /// <remarks>
+    /// A subject that is <b>already</b> a random-access collection is used as-is rather than copied.
+    /// Copying it allocated a fresh list proportional to the collection's size on every assertion,
+    /// passing or failing — which for the common case of asserting on a <c>List&lt;T&gt;</c> or an
+    /// array was the single largest cost in the call, and it bought nothing: the copy was read and
+    /// discarded.
+    ///
+    /// The copy still happens for anything else, which is the case that matters: a lazily-evaluated
+    /// sequence must not be enumerated once per assertion in a chain, and may not be replayable at
+    /// all.
+    ///
+    /// Consequence worth knowing: for an already-materialised subject this is a live view, not a
+    /// snapshot. Mutating the collection midway through a chained assertion is visible to the later
+    /// links. That is arguably the more honest reading — it IS the collection — and no assertion
+    /// here mutates.
+    /// </remarks>
     private IReadOnlyList<T>? Items
     {
         get
         {
             if (!materialized)
             {
-                items = Subject is null ? null : [.. Subject];
+                items = Subject switch
+                {
+                    null => null,
+                    IReadOnlyList<T> alreadyAList => alreadyAList,
+                    _ => [.. Subject],
+                };
                 materialized = true;
             }
             return items;
@@ -1173,5 +1194,210 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
             (enumerator as IDisposable)?.Dispose();
         }
         return count;
+    }
+
+    /// <summary>Asserts the collection contains every one of <paramref name="expected"/>.</summary>
+    /// <remarks>
+    /// The bulk counterpart of <see cref="Contain(T, string, object?[])"/>. Without it, asserting on
+    /// several expected items meant one call each and a failure message naming only the first one
+    /// that was missing.
+    /// </remarks>
+    public AndConstraint<GenericCollectionAssertions<T>> Contain(IEnumerable<T> expected, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(expected);
+        var actual = Items;
+        if (actual is null) return FailNull("to contain the expected items", because, becauseArgs);
+
+        var missing = new List<T>();
+        foreach (var item in expected)
+        {
+            if (!Includes(actual, item)) missing.Add(item);
+        }
+
+        Assert().ForCondition(missing.Count == 0).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to contain {0}{reason}, but could not find {1}.", expected, missing);
+        return new(this);
+    }
+
+    /// <summary>Asserts the collection contains none of <paramref name="unexpected"/>.</summary>
+    public AndConstraint<GenericCollectionAssertions<T>> NotContain(IEnumerable<T> unexpected, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(unexpected);
+        var actual = Items;
+        if (actual is null) return FailNull("not to contain the given items", because, becauseArgs);
+
+        var found = new List<T>();
+        foreach (var item in unexpected)
+        {
+            if (Includes(actual, item)) found.Add(item);
+        }
+
+        Assert().ForCondition(found.Count == 0).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to contain {0}{reason}, but found {1}.", unexpected, found);
+        return new(this);
+    }
+
+    /// <summary>Asserts every item of <paramref name="expectedSubset"/> is present in the collection.</summary>
+    /// <remarks>The mirror of <c>BeSubsetOf</c>, from the other side of the relation.</remarks>
+    public AndConstraint<GenericCollectionAssertions<T>> BeSupersetOf(IEnumerable<T> expectedSubset, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(expectedSubset);
+        var actual = Items;
+        if (actual is null) return FailNull("to be a superset of the given collection", because, becauseArgs);
+
+        var missing = new List<T>();
+        foreach (var item in expectedSubset)
+        {
+            if (!Includes(actual, item)) missing.Add(item);
+        }
+
+        Assert().ForCondition(missing.Count == 0).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to be a superset of {0}{reason}, but it is missing {1}.", expectedSubset, missing);
+        return new(this);
+    }
+
+    /// <summary>Asserts the collection is not a superset of <paramref name="unexpectedSubset"/>.</summary>
+    public AndConstraint<GenericCollectionAssertions<T>> NotBeSupersetOf(IEnumerable<T> unexpectedSubset, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(unexpectedSubset);
+        var actual = Items;
+        if (actual is null) return FailNull("not to be a superset of the given collection", because, becauseArgs);
+
+        var containsAll = true;
+        foreach (var item in unexpectedSubset)
+        {
+            if (!Includes(actual, item)) { containsAll = false; break; }
+        }
+
+        Assert().ForCondition(!containsAll).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to be a superset of {0}{reason}.", unexpectedSubset);
+        return new(this);
+    }
+
+    /// <summary>Asserts the item at <paramref name="index"/> equals <paramref name="expected"/>, and exposes it via <c>Which</c>.</summary>
+    public AndWhichConstraint<GenericCollectionAssertions<T>, T> HaveElementAt(int index, T expected, string? because = null, params object?[] becauseArgs)
+    {
+        var actual = Items;
+        if (actual is null)
+        {
+            FailNull("to have an element at the given index", because, becauseArgs);
+            return new(this, default!);
+        }
+
+        Assert().ForCondition(index >= 0 && index < actual.Count).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to have an element at index {0}{reason}, but it has only {1} item(s).", index, actual.Count);
+        if (index < 0 || index >= actual.Count) return new(this, default!);
+
+        var found = actual[index];
+        Assert().ForCondition(EqualityComparer<T>.Default.Equals(found, expected)).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to have {0} at index {1}{reason}, but found {2}.", expected, index, found);
+        return new(this, found);
+    }
+
+    /// <summary>Asserts <paramref name="successor"/> appears in the collection immediately after <paramref name="expected"/>.</summary>
+    public AndConstraint<GenericCollectionAssertions<T>> HaveElementPreceding(T successor, T expected, string? because = null, params object?[] becauseArgs)
+    {
+        var actual = Items;
+        if (actual is null) return FailNull("to have an element preceding the given item", because, becauseArgs);
+
+        var index = IndexOf(actual, successor);
+        Assert().ForCondition(index > 0 && EqualityComparer<T>.Default.Equals(actual[index - 1], expected)).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to have {0} preceding {1}{reason}.", expected, successor);
+        return new(this);
+    }
+
+    /// <summary>Asserts <paramref name="predecessor"/> appears in the collection immediately before <paramref name="expected"/>.</summary>
+    public AndConstraint<GenericCollectionAssertions<T>> HaveElementSucceeding(T predecessor, T expected, string? because = null, params object?[] becauseArgs)
+    {
+        var actual = Items;
+        if (actual is null) return FailNull("to have an element succeeding the given item", because, becauseArgs);
+
+        var index = IndexOf(actual, predecessor);
+        Assert().ForCondition(index >= 0 && index + 1 < actual.Count && EqualityComparer<T>.Default.Equals(actual[index + 1], expected)).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to have {0} succeeding {1}{reason}.", expected, predecessor);
+        return new(this);
+    }
+
+    /// <summary>Asserts every item is assignable to <typeparamref name="TExpected"/>, ignoring nulls.</summary>
+    public AndConstraint<GenericCollectionAssertions<T>> ContainItemsAssignableTo<TExpected>(string? because = null, params object?[] becauseArgs)
+    {
+        var actual = Items;
+        if (actual is null) return FailNull("to contain items assignable to the given type", because, becauseArgs);
+
+        var offender = -1;
+        for (var i = 0; i < actual.Count; i++)
+        {
+            if (actual[i] is not TExpected) { offender = i; break; }
+        }
+
+        Assert().ForCondition(offender < 0).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to contain only items assignable to {0}{reason}, but item at index {1} is {2}.",
+                typeof(TExpected), offender, offender < 0 ? null : actual[offender]?.GetType());
+        return new(this);
+    }
+
+    /// <summary>Asserts the items are unique by the key produced by <paramref name="keySelector"/>.</summary>
+    /// <remarks>
+    /// Uniqueness by a projection is what real tests usually want — unique Ids, unique names — where
+    /// the items themselves compare by reference and are trivially all distinct.
+    /// </remarks>
+    public AndConstraint<GenericCollectionAssertions<T>> OnlyHaveUniqueItems<TKey>(Func<T, TKey> keySelector, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(keySelector);
+        var actual = Items;
+        if (actual is null) return FailNull("to only have unique items", because, becauseArgs);
+
+        var seen = new HashSet<TKey>();
+        var duplicates = new List<TKey>();
+        foreach (var item in actual)
+        {
+            var key = keySelector(item);
+            if (!seen.Add(key)) duplicates.Add(key);
+        }
+
+        Assert().ForCondition(duplicates.Count == 0).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to only have unique items{reason}, but found duplicate key(s) {0}.", duplicates);
+        return new(this);
+    }
+
+    /// <summary>Asserts no item has a null key as produced by <paramref name="keySelector"/>.</summary>
+    public AndConstraint<GenericCollectionAssertions<T>> NotContainNulls<TKey>(Func<T, TKey> keySelector, string? because = null, params object?[] becauseArgs)
+        where TKey : class
+    {
+        ArgumentNullException.ThrowIfNull(keySelector);
+        var actual = Items;
+        if (actual is null) return FailNull("not to contain items with a null key", because, becauseArgs);
+
+        var offender = -1;
+        for (var i = 0; i < actual.Count; i++)
+        {
+            if (keySelector(actual[i]) is null) { offender = i; break; }
+        }
+
+        Assert().ForCondition(offender < 0).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to contain items with a null key{reason}, but found one at index {0}.", offender);
+        return new(this);
+    }
+
+    // Membership helpers: explicit loops rather than LINQ Contains/IndexOf, so no enumerator or
+    // closure is allocated while the assertion passes.
+    private static bool Includes(IReadOnlyList<T> source, T value)
+    {
+        foreach (var item in source)
+        {
+            if (EqualityComparer<T>.Default.Equals(item, value)) return true;
+        }
+
+        return false;
+    }
+
+    private static int IndexOf(IReadOnlyList<T> source, T value)
+    {
+        for (var i = 0; i < source.Count; i++)
+        {
+            if (EqualityComparer<T>.Default.Equals(source[i], value)) return i;
+        }
+
+        return -1;
     }
 }
