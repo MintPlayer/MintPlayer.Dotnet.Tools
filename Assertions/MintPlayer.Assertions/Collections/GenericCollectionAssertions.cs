@@ -1,3 +1,4 @@
+﻿using System.Runtime.InteropServices;
 using MintPlayer.Assertions.Execution;
 using MintPlayer.Assertions.Primitives;
 
@@ -10,43 +11,68 @@ namespace MintPlayer.Assertions.Collections;
 /// </summary>
 public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerable<T>, GenericCollectionAssertions<T>>
 {
-    private IReadOnlyList<T>? items;
+    private T[]? copy;
     private bool materialized;
 
     public GenericCollectionAssertions(IEnumerable<T>? subject, string? subjectExpression) : base(subject, subjectExpression) { }
 
-    /// <summary>The subject materialized into a list exactly once (null when the subject is null).</summary>
+    /// <summary>
+    /// The subject as a <see cref="ReadOnlySpan{T}"/>. Callers must rule out a null subject first —
+    /// a span cannot represent one, and a null subject is a failure every assertion reports in its
+    /// own words.
+    /// </summary>
     /// <remarks>
-    /// A subject that is <b>already</b> a random-access collection is used as-is rather than copied.
-    /// Copying it allocated a fresh list proportional to the collection's size on every assertion,
-    /// passing or failing — which for the common case of asserting on a <c>List&lt;T&gt;</c> or an
-    /// array was the single largest cost in the call, and it bought nothing: the copy was read and
-    /// discarded.
-    ///
-    /// The copy still happens for anything else, which is the case that matters: a lazily-evaluated
-    /// sequence must not be enumerated once per assertion in a chain, and may not be replayable at
-    /// all.
-    ///
-    /// Consequence worth knowing: for an already-materialised subject this is a live view, not a
-    /// snapshot. Mutating the collection midway through a chained assertion is visible to the later
-    /// links. That is arguably the more honest reading — it IS the collection — and no assertion
-    /// here mutates.
+    /// <para>
+    /// A span rather than <c>IReadOnlyList&lt;T&gt;</c>, measured rather than assumed. Iterating the
+    /// interface went through <c>IEnumerable&lt;T&gt;.GetEnumerator()</c>, whose return type is the
+    /// interface <c>IEnumerator&lt;T&gt;</c>, so the underlying struct enumerator was <b>boxed</b> —
+    /// one heap allocation per assertion, invisible in the source, because the loop reads identically
+    /// whether the static type is concrete or not.
+    /// </para>
+    /// <para>
+    /// Indexing the interface instead fixes the allocation and costs time: every <c>this[i]</c> and
+    /// every <c>Count</c> is an interface dispatch the JIT cannot inline. Measured on 100k loops over
+    /// 8 items, the naive indexed loop ran ~1.4x SLOWER than the boxed foreach it replaced. A span
+    /// has no dispatch at all — its enumerator is a ref struct that inlines, and bounds checks go
+    /// against the span's own length — and came out ~2x faster than the boxed foreach for a List
+    /// subject and ~7x faster for an array.
+    /// </para>
+    /// <para>
+    /// The array case is checked first and matters: an array is not a <c>List&lt;T&gt;</c>, so
+    /// testing for the list alone silently drops every <c>T[]</c> subject onto the slow path — and
+    /// arrays are what test code writes.
+    /// </para>
+    /// <para>
+    /// ⚠️ <see cref="CollectionsMarshal.AsSpan"/> hands back the list's own backing array. The span
+    /// is invalidated if the list is resized. That is safe here only because no assertion mutates its
+    /// subject; it would not be safe in general.
+    /// </para>
+    /// <para>
+    /// Anything that is not already contiguous is copied once and cached, which is the case that
+    /// forced materialisation in the first place: a lazily-evaluated sequence must not be enumerated
+    /// once per assertion in a chain, and may not be replayable at all.
+    /// </para>
+    /// <para>
+    /// For an already-contiguous subject this is a live view, not a snapshot — mutating the
+    /// collection midway through a chained assertion is visible to the later links. That is the more
+    /// honest reading: it IS the collection.
+    /// </para>
     /// </remarks>
-    private IReadOnlyList<T>? Items
+    private ReadOnlySpan<T> Items
     {
         get
         {
+            // Contiguous already: no copy, no cache, no dispatch.
+            if (Subject is T[] array) return array;
+            if (Subject is List<T> list) return CollectionsMarshal.AsSpan(list);
+
             if (!materialized)
             {
-                items = Subject switch
-                {
-                    null => null,
-                    IReadOnlyList<T> alreadyAList => alreadyAList,
-                    _ => [.. Subject],
-                };
+                copy = Subject is null ? null : [.. Subject];
                 materialized = true;
             }
-            return items;
+
+            return copy;
         }
     }
 
@@ -60,21 +86,21 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     /// <summary>Asserts the collection contains no items.</summary>
     public AndConstraint<GenericCollectionAssertions<T>> BeEmpty(string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull("to be empty", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull("to be empty", because, becauseArgs);
 
-        Assert().ForCondition(items.Count == 0).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to be empty{reason}, but found {0}.", items);
+        Assert().ForCondition(items.Length == 0).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to be empty{reason}, but found {0}.", Subject);
         return new(this);
     }
 
     /// <summary>Asserts the collection contains at least one item.</summary>
     public AndConstraint<GenericCollectionAssertions<T>> NotBeEmpty(string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull("not to be empty", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull("not to be empty", because, becauseArgs);
 
-        Assert().ForCondition(items.Count > 0).BecauseOf(because, becauseArgs)
+        Assert().ForCondition(items.Length > 0).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} not to be empty{reason}.");
         return new(this);
     }
@@ -86,8 +112,8 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     public AndConstraint<GenericCollectionAssertions<T>> NotBeNullOrEmpty(string? because = null, params object?[] becauseArgs)
     {
         var items = Items;
-        Assert().ForCondition(items is { Count: > 0 }).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} not to be null or empty{reason}, but found {0}.", (object?)items);
+        Assert().ForCondition(Subject is not null && items.Length > 0).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} not to be null or empty{reason}, but found {0}.", Subject);
         return new(this);
     }
 
@@ -95,19 +121,19 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     public AndConstraint<GenericCollectionAssertions<T>> BeNullOrEmpty(string? because = null, params object?[] becauseArgs)
     {
         var items = Items;
-        Assert().ForCondition(items is null or { Count: 0 }).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to be null or empty{reason}, but found {0}.", (object?)items);
+        Assert().ForCondition(Subject is null || items.Length == 0).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to be null or empty{reason}, but found {0}.", Subject);
         return new(this);
     }
 
     /// <summary>Asserts the collection contains exactly <paramref name="expected"/> items.</summary>
     public AndConstraint<GenericCollectionAssertions<T>> HaveCount(int expected, string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull($"to contain {expected} item(s)", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull($"to contain {expected} item(s)", because, becauseArgs);
 
-        Assert().ForCondition(items.Count == expected).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to contain {0} item(s){reason}, but found {1}: {2}.", expected, items.Count, items);
+        Assert().ForCondition(items.Length == expected).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to contain {0} item(s){reason}, but found {1}: {2}.", expected, items.Length, Subject);
         return new(this);
     }
 
@@ -119,11 +145,11 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     /// </summary>
     public AndConstraint<GenericCollectionAssertions<T>> NotHaveCount(int unexpected, string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull($"not to contain {unexpected} item(s)", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull($"not to contain {unexpected} item(s)", because, becauseArgs);
 
-        Assert().ForCondition(items.Count != unexpected).BecauseOf(because, becauseArgs)
-            .FailWith("Did not expect {subject} to contain {0} item(s){reason}, but found {1}.", unexpected, items);
+        Assert().ForCondition(items.Length != unexpected).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to contain {0} item(s){reason}, but found {1}.", unexpected, Subject);
         return new(this);
     }
 
@@ -131,55 +157,55 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     public AndConstraint<GenericCollectionAssertions<T>> HaveCount(Func<int, bool> predicate, string? because = null, params object?[] becauseArgs)
     {
         ArgumentNullException.ThrowIfNull(predicate);
+        if (Subject is null) return FailNull("to have a count matching the given predicate", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull("to have a count matching the given predicate", because, becauseArgs);
 
-        Assert().ForCondition(predicate(items.Count)).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to have a count matching the given predicate{reason}, but count is {0}: {1}.", items.Count, items);
+        Assert().ForCondition(predicate(items.Length)).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to have a count matching the given predicate{reason}, but count is {0}: {1}.", items.Length, Subject);
         return new(this);
     }
 
     /// <summary>Asserts the collection contains more than <paramref name="expected"/> items.</summary>
     public AndConstraint<GenericCollectionAssertions<T>> HaveCountGreaterThan(int expected, string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull($"to contain more than {expected} item(s)", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull($"to contain more than {expected} item(s)", because, becauseArgs);
 
-        Assert().ForCondition(items.Count > expected).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to contain more than {0} item(s){reason}, but found {1}: {2}.", expected, items.Count, items);
+        Assert().ForCondition(items.Length > expected).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to contain more than {0} item(s){reason}, but found {1}: {2}.", expected, items.Length, Subject);
         return new(this);
     }
 
     /// <summary>Asserts the collection contains at least <paramref name="expected"/> items.</summary>
     public AndConstraint<GenericCollectionAssertions<T>> HaveCountGreaterThanOrEqualTo(int expected, string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull($"to contain at least {expected} item(s)", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull($"to contain at least {expected} item(s)", because, becauseArgs);
 
-        Assert().ForCondition(items.Count >= expected).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to contain at least {0} item(s){reason}, but found {1}: {2}.", expected, items.Count, items);
+        Assert().ForCondition(items.Length >= expected).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to contain at least {0} item(s){reason}, but found {1}: {2}.", expected, items.Length, Subject);
         return new(this);
     }
 
     /// <summary>Asserts the collection contains fewer than <paramref name="expected"/> items.</summary>
     public AndConstraint<GenericCollectionAssertions<T>> HaveCountLessThan(int expected, string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull($"to contain fewer than {expected} item(s)", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull($"to contain fewer than {expected} item(s)", because, becauseArgs);
 
-        Assert().ForCondition(items.Count < expected).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to contain fewer than {0} item(s){reason}, but found {1}: {2}.", expected, items.Count, items);
+        Assert().ForCondition(items.Length < expected).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to contain fewer than {0} item(s){reason}, but found {1}: {2}.", expected, items.Length, Subject);
         return new(this);
     }
 
     /// <summary>Asserts the collection contains at most <paramref name="expected"/> items.</summary>
     public AndConstraint<GenericCollectionAssertions<T>> HaveCountLessThanOrEqualTo(int expected, string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull($"to contain at most {expected} item(s)", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull($"to contain at most {expected} item(s)", because, becauseArgs);
 
-        Assert().ForCondition(items.Count <= expected).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to contain at most {0} item(s){reason}, but found {1}: {2}.", expected, items.Count, items);
+        Assert().ForCondition(items.Length <= expected).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to contain at most {0} item(s){reason}, but found {1}: {2}.", expected, items.Length, Subject);
         return new(this);
     }
 
@@ -187,12 +213,12 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     public AndConstraint<GenericCollectionAssertions<T>> HaveSameCount(System.Collections.IEnumerable otherCollection, string? because = null, params object?[] becauseArgs)
     {
         ArgumentNullException.ThrowIfNull(otherCollection);
+        if (Subject is null) return FailNull("to have the same count as the other collection", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull("to have the same count as the other collection", because, becauseArgs);
 
         var expectedCount = Count(otherCollection);
-        Assert().ForCondition(items.Count == expectedCount).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to have {0} item(s), the same count as the other collection{reason}, but found {1}: {2}.", expectedCount, items.Count, items);
+        Assert().ForCondition(items.Length == expectedCount).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to have {0} item(s), the same count as the other collection{reason}, but found {1}: {2}.", expectedCount, items.Length, Subject);
         return new(this);
     }
 
@@ -200,11 +226,11 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     public AndConstraint<GenericCollectionAssertions<T>> NotHaveSameCount(System.Collections.IEnumerable otherCollection, string? because = null, params object?[] becauseArgs)
     {
         ArgumentNullException.ThrowIfNull(otherCollection);
+        if (Subject is null) return FailNull("not to have the same count as the other collection", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull("not to have the same count as the other collection", because, becauseArgs);
 
         var unexpectedCount = Count(otherCollection);
-        Assert().ForCondition(items.Count != unexpectedCount).BecauseOf(because, becauseArgs)
+        Assert().ForCondition(items.Length != unexpectedCount).BecauseOf(because, becauseArgs)
             .FailWith("Did not expect {subject} to have {0} item(s), the same count as the other collection{reason}.", unexpectedCount);
         return new(this);
     }
@@ -222,31 +248,33 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     /// </remarks>
     public AndWhichConstraint<GenericCollectionAssertions<T>, T> ContainSingle(string? because = null, params object?[] becauseArgs)
     {
-        var items = Items;
-        if (items is null)
+        if (Subject is null)
         {
             FailNull("to contain a single item", because, becauseArgs);
             return new(this, default!);
         }
 
-        Assert().ForCondition(items.Count == 1).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to contain a single item{reason}, but found {0}: {1}.", items.Count, items);
-        return new(this, items.Count == 1 ? items[0] : default!);
+        var items = Items;
+
+        Assert().ForCondition(items.Length == 1).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to contain a single item{reason}, but found {0}: {1}.", items.Length, Subject);
+        return new(this, items.Length == 1 ? items[0] : default!);
     }
 
     /// <summary>Asserts exactly one item matches the predicate, and exposes it via Which.</summary>
     public AndWhichConstraint<GenericCollectionAssertions<T>, T> ContainSingle(Func<T, bool> predicate, string? because = null, params object?[] becauseArgs)
     {
         ArgumentNullException.ThrowIfNull(predicate);
-        var items = Items;
-        if (items is null)
+        if (Subject is null)
         {
             FailNull("to contain a single item matching the given predicate", because, becauseArgs);
             return new(this, default!);
         }
 
+        var items = Items;
+
         var matches = new List<T>();
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
             var item = items[i];
             if (predicate(item)) matches.Add(item);
@@ -268,11 +296,11 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     /// </remarks>
     public AndConstraint<GenericCollectionAssertions<T>> NotContainSingle(string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull("not to contain a single item", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull("not to contain a single item", because, becauseArgs);
 
-        Assert().ForCondition(items.Count != 1).BecauseOf(because, becauseArgs)
-            .FailWith("Did not expect {subject} to contain a single item{reason}, but found {0}.", items);
+        Assert().ForCondition(items.Length != 1).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to contain a single item{reason}, but found {0}.", Subject);
         return new(this);
     }
 
@@ -284,11 +312,11 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     public AndConstraint<GenericCollectionAssertions<T>> NotContainSingle(Func<T, bool> predicate, string? because = null, params object?[] becauseArgs)
     {
         ArgumentNullException.ThrowIfNull(predicate);
+        if (Subject is null) return FailNull("not to contain a single item matching the given predicate", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull("not to contain a single item matching the given predicate", because, becauseArgs);
 
         var matches = new List<T>();
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
             var item = items[i];
             if (predicate(item)) matches.Add(item);
@@ -302,21 +330,21 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     /// <summary>Asserts the collection contains the given item.</summary>
     public AndConstraint<GenericCollectionAssertions<T>> Contain(T expected, string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull($"to contain {Formatting.Formatter.Format(expected)}", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull($"to contain {Formatting.Formatter.Format(expected)}", because, becauseArgs);
 
         // Indexed, not foreach. `items` is typed IReadOnlyList<T>, so foreach iterates through the
         // INTERFACE and boxes the underlying struct enumerator — one heap allocation per assertion,
         // on the passing path. Indexing costs an interface call and allocates nothing.
         var comparer = EqualityComparer<T>.Default;
         var found = false;
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
             if (comparer.Equals(items[i], expected)) { found = true; break; }
         }
 
         Assert().ForCondition(found).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to contain {0}{reason}, but found {1}.", expected, items);
+            .FailWith("Expected {subject} to contain {0}{reason}, but found {1}.", expected, Subject);
         return new(this);
     }
 
@@ -324,36 +352,37 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     public AndWhichConstraint<GenericCollectionAssertions<T>, T> Contain(Func<T, bool> predicate, string? because = null, params object?[] becauseArgs)
     {
         ArgumentNullException.ThrowIfNull(predicate);
-        var items = Items;
-        if (items is null)
+        if (Subject is null)
         {
             FailNull("to contain an item matching the given predicate", because, becauseArgs);
             return new(this, default!);
         }
 
+        var items = Items;
+
         var found = false;
         T match = default!;
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
             var item = items[i];
             if (predicate(item)) { found = true; match = item; break; }
         }
 
         Assert().ForCondition(found).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to contain an item matching the given predicate{reason}, but found {0}.", items);
+            .FailWith("Expected {subject} to contain an item matching the given predicate{reason}, but found {0}.", Subject);
         return new(this, match);
     }
 
     /// <summary>Asserts the collection does not contain the given item.</summary>
     public AndConstraint<GenericCollectionAssertions<T>> NotContain(T unexpected, string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull($"not to contain {Formatting.Formatter.Format(unexpected)}", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull($"not to contain {Formatting.Formatter.Format(unexpected)}", because, becauseArgs);
 
         // Indexed: foreach over the IReadOnlyList<T> interface boxes the struct enumerator.
         var comparer = EqualityComparer<T>.Default;
         var found = false;
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
             if (comparer.Equals(items[i], unexpected)) { found = true; break; }
         }
@@ -367,11 +396,11 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     public AndConstraint<GenericCollectionAssertions<T>> NotContain(Func<T, bool> predicate, string? because = null, params object?[] becauseArgs)
     {
         ArgumentNullException.ThrowIfNull(predicate);
+        if (Subject is null) return FailNull("not to contain an item matching the given predicate", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull("not to contain an item matching the given predicate", because, becauseArgs);
 
         var matches = new List<T>();
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
             var item = items[i];
             if (predicate(item)) matches.Add(item);
@@ -397,12 +426,12 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     {
         ArgumentNullException.ThrowIfNull(expected);
         var items = Items;
-        var expectedItems = expected as IReadOnlyList<T> ?? [.. expected];
-        if (items is null) return FailNull($"to contain {Formatting.Formatter.Format(expectedItems)} in order", because, becauseArgs);
+        var expectedItems = Spans.ListFrom(expected);
+        if (Subject is null) return FailNull($"to contain {Formatting.Formatter.Format(expectedItems)} in order", because, becauseArgs);
 
         var comparer = EqualityComparer<T>.Default;
         var position = 0;
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
             var item = items[i];
             if (position < expectedItems.Count && comparer.Equals(item, expectedItems[position]))
@@ -413,7 +442,7 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         {
             Assert().ForCondition(false).BecauseOf(because, becauseArgs)
                 .FailWith("Expected {subject} to contain {0} in order{reason}, but {1} (expected item {2}) was not found in that order in {3}.",
-                    expectedItems, expectedItems[position], position, items);
+                    expectedItems, expectedItems[position], position, Subject);
         }
         return new(this);
     }
@@ -439,12 +468,12 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     {
         ArgumentNullException.ThrowIfNull(unexpected);
         var items = Items;
-        var unexpectedItems = unexpected as IReadOnlyList<T> ?? [.. unexpected];
-        if (items is null) return FailNull($"not to contain {Formatting.Formatter.Format(unexpectedItems)} in order", because, becauseArgs);
+        var unexpectedItems = Spans.ListFrom(unexpected);
+        if (Subject is null) return FailNull($"not to contain {Formatting.Formatter.Format(unexpectedItems)} in order", because, becauseArgs);
 
         var comparer = EqualityComparer<T>.Default;
         var position = 0;
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
             var item = items[i];
             if (position < unexpectedItems.Count && comparer.Equals(item, unexpectedItems[position]))
@@ -452,7 +481,7 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         }
 
         Assert().ForCondition(position < unexpectedItems.Count).BecauseOf(because, becauseArgs)
-            .FailWith("Did not expect {subject} to contain {0} in order{reason}, but found {1}.", unexpectedItems, items);
+            .FailWith("Did not expect {subject} to contain {0} in order{reason}, but found {1}.", unexpectedItems, Subject);
         return new(this);
     }
 
@@ -460,11 +489,11 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     public AndConstraint<GenericCollectionAssertions<T>> OnlyContain(Func<T, bool> predicate, string? because = null, params object?[] becauseArgs)
     {
         ArgumentNullException.ThrowIfNull(predicate);
+        if (Subject is null) return FailNull("to only contain items matching the given predicate", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull("to only contain items matching the given predicate", because, becauseArgs);
 
         var mismatches = new List<T>();
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
             var item = items[i];
             if (!predicate(item)) mismatches.Add(item);
@@ -495,26 +524,26 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     public AndConstraint<GenericCollectionAssertions<T>> NotOnlyContain(Func<T, bool> predicate, string? because = null, params object?[] becauseArgs)
     {
         ArgumentNullException.ThrowIfNull(predicate);
+        if (Subject is null) return FailNull("not to only contain items matching the given predicate", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull("not to only contain items matching the given predicate", because, becauseArgs);
 
         var allMatch = true;
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
             var item = items[i];
             if (!predicate(item)) { allMatch = false; break; }
         }
 
         Assert().ForCondition(!allMatch).BecauseOf(because, becauseArgs)
-            .FailWith("Did not expect {subject} to only contain items matching the given predicate{reason}, but all {0} item(s) did.", items.Count);
+            .FailWith("Did not expect {subject} to only contain items matching the given predicate{reason}, but all {0} item(s) did.", items.Length);
         return new(this);
     }
 
     /// <summary>Asserts the collection contains no duplicate items.</summary>
     public AndConstraint<GenericCollectionAssertions<T>> OnlyHaveUniqueItems(string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull("to only have unique items", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull("to only have unique items", because, becauseArgs);
 
         // Detect first, allocate second — and for a small collection, detect without allocating at
         // all. Two HashSets and a List were built on every call (464 bytes/op on five items) to
@@ -527,7 +556,7 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         var seen = new HashSet<T>();
         var duplicates = new HashSet<T>();
         var duplicatesInOrder = new List<T>();
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
             var item = items[i];
             if (!seen.Add(item) && duplicates.Add(item))
@@ -551,19 +580,19 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     /// </remarks>
     public AndConstraint<GenericCollectionAssertions<T>> NotOnlyHaveUniqueItems(string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull("not to only have unique items", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull("not to only have unique items", because, becauseArgs);
 
         var seen = new HashSet<T>();
         var hasDuplicate = false;
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
             var item = items[i];
             if (!seen.Add(item)) { hasDuplicate = true; break; }
         }
 
         Assert().ForCondition(hasDuplicate).BecauseOf(because, becauseArgs)
-            .FailWith("Did not expect {subject} to only have unique items{reason}, but found {0}.", items);
+            .FailWith("Did not expect {subject} to only have unique items{reason}, but found {0}.", Subject);
         return new(this);
     }
 
@@ -579,31 +608,31 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     /// </remarks>
     public AndConstraint<GenericCollectionAssertions<T>> ContainNulls(string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull("to contain <null> items", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull("to contain <null> items", because, becauseArgs);
 
         var containsNull = false;
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
             if (items[i] is null) { containsNull = true; break; }
         }
 
         Assert().ForCondition(containsNull).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to contain <null> items{reason}, but found {0}.", items);
+            .FailWith("Expected {subject} to contain <null> items{reason}, but found {0}.", Subject);
         return new(this);
     }
 
     /// <summary>Asserts the collection contains no null items.</summary>
     public AndConstraint<GenericCollectionAssertions<T>> NotContainNulls(string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull("not to contain <null> items", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull("not to contain <null> items", because, becauseArgs);
 
         // Detect first, allocate second. The index list used to be built on every call — for a
         // collection with no nulls, which is the overwhelming majority, it was allocated, filled
         // with nothing and thrown away.
         var hasNull = false;
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
             if (items[i] is null) { hasNull = true; break; }
         }
@@ -611,7 +640,7 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         if (!hasNull) return new(this);
 
         var nullIndexes = new List<int>();
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
             if (items[i] is null) nullIndexes.Add(i);
         }
@@ -630,11 +659,11 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     {
         ArgumentNullException.ThrowIfNull(expected);
         var items = Items;
-        var expectedItems = expected as IReadOnlyList<T> ?? [.. expected];
-        if (items is null) return FailNull($"to equal {Formatting.Formatter.Format(expectedItems)}", because, becauseArgs);
+        var expectedItems = Spans.ListFrom(expected);
+        if (Subject is null) return FailNull($"to equal {Formatting.Formatter.Format(expectedItems)}", because, becauseArgs);
 
         var comparer = EqualityComparer<T>.Default;
-        var commonLength = Math.Min(items.Count, expectedItems.Count);
+        var commonLength = Math.Min(items.Length, expectedItems.Count);
         for (var i = 0; i < commonLength; i++)
         {
             if (!comparer.Equals(items[i], expectedItems[i]))
@@ -646,9 +675,9 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
             }
         }
 
-        Assert().ForCondition(items.Count == expectedItems.Count).BecauseOf(because, becauseArgs)
+        Assert().ForCondition(items.Length == expectedItems.Count).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to equal {0}{reason}, but it contains {1} item(s) instead of {2}: {3}.",
-                expectedItems, items.Count, expectedItems.Count, items);
+                expectedItems, items.Length, expectedItems.Count, Subject);
         return new(this);
     }
 
@@ -657,12 +686,12 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     {
         ArgumentNullException.ThrowIfNull(unexpected);
         var items = Items;
-        var unexpectedItems = unexpected as IReadOnlyList<T> ?? [.. unexpected];
-        if (items is null) return FailNull($"not to equal {Formatting.Formatter.Format(unexpectedItems)}", because, becauseArgs);
+        var unexpectedItems = Spans.ListFrom(unexpected);
+        if (Subject is null) return FailNull($"not to equal {Formatting.Formatter.Format(unexpectedItems)}", because, becauseArgs);
 
         var comparer = EqualityComparer<T>.Default;
-        var equal = items.Count == unexpectedItems.Count;
-        for (var i = 0; equal && i < items.Count; i++)
+        var equal = items.Length == unexpectedItems.Count;
+        for (var i = 0; equal && i < items.Length; i++)
         {
             equal = comparer.Equals(items[i], unexpectedItems[i]);
         }
@@ -675,13 +704,13 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     /// <summary>Asserts the collection starts with the given item.</summary>
     public AndConstraint<GenericCollectionAssertions<T>> StartWith(T expected, string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull($"to start with {Formatting.Formatter.Format(expected)}", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull($"to start with {Formatting.Formatter.Format(expected)}", because, becauseArgs);
 
-        Assert().ForCondition(items.Count > 0).BecauseOf(because, becauseArgs)
+        Assert().ForCondition(items.Length > 0).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to start with {0}{reason}, but the collection is empty.", expected)
-            .ForCondition(items.Count == 0 || EqualityComparer<T>.Default.Equals(items[0], expected)).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to start with {0}{reason}, but found {1}.", expected, items.Count > 0 ? items[0] : default);
+            .ForCondition(items.Length == 0 || EqualityComparer<T>.Default.Equals(items[0], expected)).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to start with {0}{reason}, but found {1}.", expected, items.Length > 0 ? items[0] : default);
         return new(this);
     }
 
@@ -690,18 +719,18 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     {
         ArgumentNullException.ThrowIfNull(expected);
         var items = Items;
-        var expectedItems = expected as IReadOnlyList<T> ?? [.. expected];
-        if (items is null) return FailNull($"to start with {Formatting.Formatter.Format(expectedItems)}", because, becauseArgs);
+        var expectedItems = Spans.ListFrom(expected);
+        if (Subject is null) return FailNull($"to start with {Formatting.Formatter.Format(expectedItems)}", because, becauseArgs);
 
         var comparer = EqualityComparer<T>.Default;
-        var matches = items.Count >= expectedItems.Count;
+        var matches = items.Length >= expectedItems.Count;
         for (var i = 0; matches && i < expectedItems.Count; i++)
         {
             matches = comparer.Equals(items[i], expectedItems[i]);
         }
 
         Assert().ForCondition(matches).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to start with {0}{reason}, but found {1}.", expectedItems, items);
+            .FailWith("Expected {subject} to start with {0}{reason}, but found {1}.", expectedItems, Subject);
         return new(this);
     }
 
@@ -716,10 +745,10 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     /// </remarks>
     public AndConstraint<GenericCollectionAssertions<T>> NotStartWith(T unexpected, string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull($"not to start with {Formatting.Formatter.Format(unexpected)}", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull($"not to start with {Formatting.Formatter.Format(unexpected)}", because, becauseArgs);
 
-        var startsWith = items.Count > 0 && EqualityComparer<T>.Default.Equals(items[0], unexpected);
+        var startsWith = items.Length > 0 && EqualityComparer<T>.Default.Equals(items[0], unexpected);
 
         Assert().ForCondition(!startsWith).BecauseOf(because, becauseArgs)
             .FailWith("Did not expect {subject} to start with {0}{reason}.", unexpected);
@@ -738,11 +767,11 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     {
         ArgumentNullException.ThrowIfNull(unexpected);
         var items = Items;
-        var unexpectedItems = unexpected as IReadOnlyList<T> ?? [.. unexpected];
-        if (items is null) return FailNull($"not to start with {Formatting.Formatter.Format(unexpectedItems)}", because, becauseArgs);
+        var unexpectedItems = Spans.ListFrom(unexpected);
+        if (Subject is null) return FailNull($"not to start with {Formatting.Formatter.Format(unexpectedItems)}", because, becauseArgs);
 
         var comparer = EqualityComparer<T>.Default;
-        var startsWith = items.Count >= unexpectedItems.Count;
+        var startsWith = items.Length >= unexpectedItems.Count;
         for (var i = 0; startsWith && i < unexpectedItems.Count; i++)
         {
             startsWith = comparer.Equals(items[i], unexpectedItems[i]);
@@ -756,13 +785,13 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     /// <summary>Asserts the collection ends with the given item.</summary>
     public AndConstraint<GenericCollectionAssertions<T>> EndWith(T expected, string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull($"to end with {Formatting.Formatter.Format(expected)}", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull($"to end with {Formatting.Formatter.Format(expected)}", because, becauseArgs);
 
-        Assert().ForCondition(items.Count > 0).BecauseOf(because, becauseArgs)
+        Assert().ForCondition(items.Length > 0).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to end with {0}{reason}, but the collection is empty.", expected)
-            .ForCondition(items.Count == 0 || EqualityComparer<T>.Default.Equals(items[^1], expected)).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to end with {0}{reason}, but found {1}.", expected, items.Count > 0 ? items[^1] : default);
+            .ForCondition(items.Length == 0 || EqualityComparer<T>.Default.Equals(items[^1], expected)).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to end with {0}{reason}, but found {1}.", expected, items.Length > 0 ? items[^1] : default);
         return new(this);
     }
 
@@ -771,19 +800,19 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     {
         ArgumentNullException.ThrowIfNull(expected);
         var items = Items;
-        var expectedItems = expected as IReadOnlyList<T> ?? [.. expected];
-        if (items is null) return FailNull($"to end with {Formatting.Formatter.Format(expectedItems)}", because, becauseArgs);
+        var expectedItems = Spans.ListFrom(expected);
+        if (Subject is null) return FailNull($"to end with {Formatting.Formatter.Format(expectedItems)}", because, becauseArgs);
 
         var comparer = EqualityComparer<T>.Default;
-        var matches = items.Count >= expectedItems.Count;
-        var offset = items.Count - expectedItems.Count;
+        var matches = items.Length >= expectedItems.Count;
+        var offset = items.Length - expectedItems.Count;
         for (var i = 0; matches && i < expectedItems.Count; i++)
         {
             matches = comparer.Equals(items[offset + i], expectedItems[i]);
         }
 
         Assert().ForCondition(matches).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to end with {0}{reason}, but found {1}.", expectedItems, items);
+            .FailWith("Expected {subject} to end with {0}{reason}, but found {1}.", expectedItems, Subject);
         return new(this);
     }
 
@@ -794,10 +823,10 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     /// </summary>
     public AndConstraint<GenericCollectionAssertions<T>> NotEndWith(T unexpected, string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull($"not to end with {Formatting.Formatter.Format(unexpected)}", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull($"not to end with {Formatting.Formatter.Format(unexpected)}", because, becauseArgs);
 
-        var endsWith = items.Count > 0 && EqualityComparer<T>.Default.Equals(items[^1], unexpected);
+        var endsWith = items.Length > 0 && EqualityComparer<T>.Default.Equals(items[^1], unexpected);
 
         Assert().ForCondition(!endsWith).BecauseOf(because, becauseArgs)
             .FailWith("Did not expect {subject} to end with {0}{reason}.", unexpected);
@@ -813,12 +842,12 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     {
         ArgumentNullException.ThrowIfNull(unexpected);
         var items = Items;
-        var unexpectedItems = unexpected as IReadOnlyList<T> ?? [.. unexpected];
-        if (items is null) return FailNull($"not to end with {Formatting.Formatter.Format(unexpectedItems)}", because, becauseArgs);
+        var unexpectedItems = Spans.ListFrom(unexpected);
+        if (Subject is null) return FailNull($"not to end with {Formatting.Formatter.Format(unexpectedItems)}", because, becauseArgs);
 
         var comparer = EqualityComparer<T>.Default;
-        var endsWith = items.Count >= unexpectedItems.Count;
-        var offset = items.Count - unexpectedItems.Count;
+        var endsWith = items.Length >= unexpectedItems.Count;
+        var offset = items.Length - unexpectedItems.Count;
         for (var i = 0; endsWith && i < unexpectedItems.Count; i++)
         {
             endsWith = comparer.Equals(items[offset + i], unexpectedItems[i]);
@@ -921,28 +950,28 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     private AndConstraint<GenericCollectionAssertions<T>> AssertNotOrder(IComparer<T> comparer, bool descending, string? because, object?[] becauseArgs)
     {
         var direction = descending ? "descending" : "ascending";
+        if (Subject is null) return FailNull($"not to be in {direction} order", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull($"not to be in {direction} order", because, becauseArgs);
 
         var ordered = true;
-        for (var i = 1; ordered && i < items.Count; i++)
+        for (var i = 1; ordered && i < items.Length; i++)
         {
             var comparison = comparer.Compare(items[i - 1], items[i]);
             if (descending ? comparison < 0 : comparison > 0) ordered = false;
         }
 
         Assert().ForCondition(!ordered).BecauseOf(because, becauseArgs)
-            .FailWith("Did not expect {subject} to be in " + direction + " order{reason}, but found {0}.", items);
+            .FailWith("Did not expect {subject} to be in " + direction + " order{reason}, but found {0}.", Subject);
         return new(this);
     }
 
     private AndConstraint<GenericCollectionAssertions<T>> AssertOrder(IComparer<T> comparer, bool descending, string? because, object?[] becauseArgs)
     {
         var direction = descending ? "descending" : "ascending";
+        if (Subject is null) return FailNull($"to be in {direction} order", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull($"to be in {direction} order", because, becauseArgs);
 
-        for (var i = 1; i < items.Count; i++)
+        for (var i = 1; i < items.Length; i++)
         {
             var comparison = comparer.Compare(items[i - 1], items[i]);
             if (descending ? comparison < 0 : comparison > 0)
@@ -977,11 +1006,11 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         ArgumentNullException.ThrowIfNull(expectedSuperset);
         var items = Items;
         var superset = new HashSet<T>(expectedSuperset);
-        if (items is null) return FailNull("to be a subset of the given superset", because, becauseArgs);
+        if (Subject is null) return FailNull("to be a subset of the given superset", because, becauseArgs);
 
         var missing = new HashSet<T>();
         var missingInOrder = new List<T>();
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
             var item = items[i];
             if (!superset.Contains(item) && missing.Add(item))
@@ -999,10 +1028,10 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         ArgumentNullException.ThrowIfNull(unexpectedSuperset);
         var items = Items;
         var superset = new HashSet<T>(unexpectedSuperset);
-        if (items is null) return FailNull("not to be a subset of the given superset", because, becauseArgs);
+        if (Subject is null) return FailNull("not to be a subset of the given superset", because, becauseArgs);
 
         var isSubset = true;
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
             var item = items[i];
             if (!superset.Contains(item)) { isSubset = false; break; }
@@ -1019,10 +1048,10 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         ArgumentNullException.ThrowIfNull(otherCollection);
         var items = Items;
         var other = new HashSet<T>(otherCollection);
-        if (items is null) return FailNull("to intersect with the other collection", because, becauseArgs);
+        if (Subject is null) return FailNull("to intersect with the other collection", because, becauseArgs);
 
         var intersects = false;
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
             var item = items[i];
             if (other.Contains(item)) { intersects = true; break; }
@@ -1039,11 +1068,11 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         ArgumentNullException.ThrowIfNull(otherCollection);
         var items = Items;
         var other = new HashSet<T>(otherCollection);
-        if (items is null) return FailNull("not to intersect with the other collection", because, becauseArgs);
+        if (Subject is null) return FailNull("not to intersect with the other collection", because, becauseArgs);
 
         var shared = new HashSet<T>();
         var sharedInOrder = new List<T>();
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
             var item = items[i];
             if (other.Contains(item) && shared.Add(item))
@@ -1062,8 +1091,8 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     public AndConstraint<GenericCollectionAssertions<T>> AllSatisfy(Action<T> assertion, string? because = null, params object?[] becauseArgs)
     {
         ArgumentNullException.ThrowIfNull(assertion);
+        if (Subject is null) return FailNull("to all satisfy the given assertion", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull("to all satisfy the given assertion", because, becauseArgs);
 
         var failures = InspectItems(items, _ => assertion);
         Assert().ForCondition(failures.Count == 0).BecauseOf(because, becauseArgs)
@@ -1088,16 +1117,16 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     public AndConstraint<GenericCollectionAssertions<T>> SatisfyRespectively(IEnumerable<Action<T>> assertions, string? because = null, params object?[] becauseArgs)
     {
         ArgumentNullException.ThrowIfNull(assertions);
-        var inspectors = assertions as IReadOnlyList<Action<T>> ?? [.. assertions];
+        var inspectors = Spans.ListFrom(assertions);
         if (inspectors.Count == 0) throw new ArgumentException("At least one inspector is required.", nameof(assertions));
+        if (Subject is null) return FailNull($"to satisfy all {inspectors.Count} inspector(s)", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull($"to satisfy all {inspectors.Count} inspector(s)", because, becauseArgs);
 
-        if (items.Count != inspectors.Count)
+        if (items.Length != inspectors.Count)
         {
             Assert().ForCondition(false).BecauseOf(because, becauseArgs)
                 .FailWith("Expected {subject} to satisfy all {0} inspector(s){reason}, but it contains {1} item(s): {2}.",
-                    inspectors.Count, items.Count, items);
+                    inspectors.Count, items.Length, Subject);
             return new(this);
         }
 
@@ -1114,10 +1143,10 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     /// outer scope is active, the per-item scopes bubble into it instead and the returned list
     /// stays empty — the outer scope already carries the indexed failures.
     /// </summary>
-    private static List<string> InspectItems(IReadOnlyList<T> items, Func<int, Action<T>> inspectorFor)
+    private static List<string> InspectItems(ReadOnlySpan<T> items, Func<int, Action<T>> inspectorFor)
     {
         var failures = new List<string>();
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
             try
             {
@@ -1135,10 +1164,10 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     /// <summary>Asserts every item is exactly of type <typeparamref name="TExpected"/> (not a derived type).</summary>
     public AndConstraint<GenericCollectionAssertions<T>> AllBeOfType<TExpected>(string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull($"to all be of type {typeof(TExpected).FullName}", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull($"to all be of type {typeof(TExpected).FullName}", because, becauseArgs);
 
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
             if (items[i]?.GetType() != typeof(TExpected))
             {
@@ -1154,10 +1183,10 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     /// <summary>Asserts every item is assignable to <typeparamref name="TExpected"/>.</summary>
     public AndConstraint<GenericCollectionAssertions<T>> AllBeAssignableTo<TExpected>(string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull($"to all be assignable to {typeof(TExpected).FullName}", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull($"to all be assignable to {typeof(TExpected).FullName}", because, becauseArgs);
 
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
             if (items[i] is not TExpected)
             {
@@ -1182,17 +1211,17 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     /// </remarks>
     public AndConstraint<GenericCollectionAssertions<T>> NotAllBeOfType<TExpected>(string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull($"not to all be of type {typeof(TExpected).FullName}", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull($"not to all be of type {typeof(TExpected).FullName}", because, becauseArgs);
 
         var allMatch = true;
-        for (var i = 0; allMatch && i < items.Count; i++)
+        for (var i = 0; allMatch && i < items.Length; i++)
         {
             if (items[i]?.GetType() != typeof(TExpected)) allMatch = false;
         }
 
         Assert().ForCondition(!allMatch).BecauseOf(because, becauseArgs)
-            .FailWith("Did not expect {subject} to all be of type {0}{reason}, but all {1} item(s) are.", typeof(TExpected), items.Count);
+            .FailWith("Did not expect {subject} to all be of type {0}{reason}, but all {1} item(s) are.", typeof(TExpected), items.Length);
         return new(this);
     }
 
@@ -1202,17 +1231,17 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     /// </summary>
     public AndConstraint<GenericCollectionAssertions<T>> NotAllBeAssignableTo<TExpected>(string? because = null, params object?[] becauseArgs)
     {
+        if (Subject is null) return FailNull($"not to all be assignable to {typeof(TExpected).FullName}", because, becauseArgs);
         var items = Items;
-        if (items is null) return FailNull($"not to all be assignable to {typeof(TExpected).FullName}", because, becauseArgs);
 
         var allMatch = true;
-        for (var i = 0; allMatch && i < items.Count; i++)
+        for (var i = 0; allMatch && i < items.Length; i++)
         {
             if (items[i] is not TExpected) allMatch = false;
         }
 
         Assert().ForCondition(!allMatch).BecauseOf(because, becauseArgs)
-            .FailWith("Did not expect {subject} to all be assignable to {0}{reason}, but all {1} item(s) are.", typeof(TExpected), items.Count);
+            .FailWith("Did not expect {subject} to all be assignable to {0}{reason}, but all {1} item(s) are.", typeof(TExpected), items.Length);
         return new(this);
     }
 
@@ -1255,7 +1284,7 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     {
         ArgumentNullException.ThrowIfNull(expected);
         var actual = Items;
-        if (actual is null) return FailNull("to contain the expected items", because, becauseArgs);
+        if (Subject is null) return FailNull("to contain the expected items", because, becauseArgs);
 
         var missing = new List<T>();
         foreach (var item in expected)
@@ -1283,7 +1312,7 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     {
         ArgumentNullException.ThrowIfNull(unexpected);
         var actual = Items;
-        if (actual is null) return FailNull("not to contain the given items", because, becauseArgs);
+        if (Subject is null) return FailNull("not to contain the given items", because, becauseArgs);
 
         var found = new List<T>();
         foreach (var item in unexpected)
@@ -1302,7 +1331,7 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     {
         ArgumentNullException.ThrowIfNull(expectedSubset);
         var actual = Items;
-        if (actual is null) return FailNull("to be a superset of the given collection", because, becauseArgs);
+        if (Subject is null) return FailNull("to be a superset of the given collection", because, becauseArgs);
 
         var missing = new List<T>();
         foreach (var item in expectedSubset)
@@ -1320,7 +1349,7 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     {
         ArgumentNullException.ThrowIfNull(unexpectedSubset);
         var actual = Items;
-        if (actual is null) return FailNull("not to be a superset of the given collection", because, becauseArgs);
+        if (Subject is null) return FailNull("not to be a superset of the given collection", because, becauseArgs);
 
         var containsAll = true;
         foreach (var item in unexpectedSubset)
@@ -1337,15 +1366,15 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     public AndWhichConstraint<GenericCollectionAssertions<T>, T> HaveElementAt(int index, T expected, string? because = null, params object?[] becauseArgs)
     {
         var actual = Items;
-        if (actual is null)
+        if (Subject is null)
         {
             FailNull("to have an element at the given index", because, becauseArgs);
             return new(this, default!);
         }
 
-        Assert().ForCondition(index >= 0 && index < actual.Count).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to have an element at index {0}{reason}, but it has only {1} item(s).", index, actual.Count);
-        if (index < 0 || index >= actual.Count) return new(this, default!);
+        Assert().ForCondition(index >= 0 && index < actual.Length).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to have an element at index {0}{reason}, but it has only {1} item(s).", index, actual.Length);
+        if (index < 0 || index >= actual.Length) return new(this, default!);
 
         var found = actual[index];
         Assert().ForCondition(EqualityComparer<T>.Default.Equals(found, expected)).BecauseOf(because, becauseArgs)
@@ -1357,7 +1386,7 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     public AndConstraint<GenericCollectionAssertions<T>> HaveElementPreceding(T successor, T expected, string? because = null, params object?[] becauseArgs)
     {
         var actual = Items;
-        if (actual is null) return FailNull("to have an element preceding the given item", because, becauseArgs);
+        if (Subject is null) return FailNull("to have an element preceding the given item", because, becauseArgs);
 
         var index = IndexOf(actual, successor);
         Assert().ForCondition(index > 0 && EqualityComparer<T>.Default.Equals(actual[index - 1], expected)).BecauseOf(because, becauseArgs)
@@ -1369,10 +1398,10 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     public AndConstraint<GenericCollectionAssertions<T>> HaveElementSucceeding(T predecessor, T expected, string? because = null, params object?[] becauseArgs)
     {
         var actual = Items;
-        if (actual is null) return FailNull("to have an element succeeding the given item", because, becauseArgs);
+        if (Subject is null) return FailNull("to have an element succeeding the given item", because, becauseArgs);
 
         var index = IndexOf(actual, predecessor);
-        Assert().ForCondition(index >= 0 && index + 1 < actual.Count && EqualityComparer<T>.Default.Equals(actual[index + 1], expected)).BecauseOf(because, becauseArgs)
+        Assert().ForCondition(index >= 0 && index + 1 < actual.Length && EqualityComparer<T>.Default.Equals(actual[index + 1], expected)).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to have {0} succeeding {1}{reason}.", expected, predecessor);
         return new(this);
     }
@@ -1381,10 +1410,10 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     public AndConstraint<GenericCollectionAssertions<T>> ContainItemsAssignableTo<TExpected>(string? because = null, params object?[] becauseArgs)
     {
         var actual = Items;
-        if (actual is null) return FailNull("to contain items assignable to the given type", because, becauseArgs);
+        if (Subject is null) return FailNull("to contain items assignable to the given type", because, becauseArgs);
 
         var offender = -1;
-        for (var i = 0; i < actual.Count; i++)
+        for (var i = 0; i < actual.Length; i++)
         {
             if (actual[i] is not TExpected) { offender = i; break; }
         }
@@ -1404,11 +1433,11 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     {
         ArgumentNullException.ThrowIfNull(keySelector);
         var actual = Items;
-        if (actual is null) return FailNull("to only have unique items", because, becauseArgs);
+        if (Subject is null) return FailNull("to only have unique items", because, becauseArgs);
 
         var seen = new HashSet<TKey>();
         var duplicates = new List<TKey>();
-        for (var i = 0; i < actual.Count; i++)
+        for (var i = 0; i < actual.Length; i++)
         {
             var item = actual[i];
             var key = keySelector(item);
@@ -1426,10 +1455,10 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     {
         ArgumentNullException.ThrowIfNull(keySelector);
         var actual = Items;
-        if (actual is null) return FailNull("not to contain items with a null key", because, becauseArgs);
+        if (Subject is null) return FailNull("not to contain items with a null key", because, becauseArgs);
 
         var offender = -1;
-        for (var i = 0; i < actual.Count; i++)
+        for (var i = 0; i < actual.Length; i++)
         {
             if (keySelector(actual[i]) is null) { offender = i; break; }
         }
@@ -1442,10 +1471,10 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     // Membership helpers: explicit INDEXED loops, not LINQ and not foreach. LINQ Contains/IndexOf
     // would allocate an enumerator and a closure; foreach over the IReadOnlyList<T> interface boxes
     // the underlying struct enumerator. Indexing allocates nothing.
-    private static bool Includes(IReadOnlyList<T> source, T value)
+    private static bool Includes(ReadOnlySpan<T> source, T value)
     {
         var comparer = EqualityComparer<T>.Default;
-        for (var i = 0; i < source.Count; i++)
+        for (var i = 0; i < source.Length; i++)
         {
             if (comparer.Equals(source[i], value)) return true;
         }
@@ -1453,9 +1482,9 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         return false;
     }
 
-    private static int IndexOf(IReadOnlyList<T> source, T value)
+    private static int IndexOf(ReadOnlySpan<T> source, T value)
     {
-        for (var i = 0; i < source.Count; i++)
+        for (var i = 0; i < source.Length; i++)
         {
             if (EqualityComparer<T>.Default.Equals(source[i], value)) return i;
         }
@@ -1470,12 +1499,12 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     /// </remarks>
     private const int PairwiseScanThreshold = 32;
 
-    private static bool HasDuplicates(IReadOnlyList<T> items)
+    private static bool HasDuplicates(ReadOnlySpan<T> items)
     {
-        if (items.Count > PairwiseScanThreshold)
+        if (items.Length > PairwiseScanThreshold)
         {
             var set = new HashSet<T>();
-            for (var i = 0; i < items.Count; i++)
+            for (var i = 0; i < items.Length; i++)
             {
                 if (!set.Add(items[i])) return true;
             }
@@ -1484,9 +1513,9 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         }
 
         var comparer = EqualityComparer<T>.Default;
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Length; i++)
         {
-            for (var j = i + 1; j < items.Count; j++)
+            for (var j = i + 1; j < items.Length; j++)
             {
                 if (comparer.Equals(items[i], items[j])) return true;
             }
