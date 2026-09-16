@@ -119,7 +119,29 @@ MPA0005 reports zero across the solution. Every milestone was verified by a full
 build and the complete assertions suite before pushing, after a single-project build once let a
 rename break a consumer in another project.
 
-**Remaining: the six unbuilt items below, then M5 (equivalency options — the largest), M6, M7, M8.**
+**Remaining: the four unbuilt items below, then M5 (equivalency options — the largest), M6, M7, M8.**
+
+### After M4: the subject is iterated as a span
+
+Not a milestone — a correction to work already done, prompted by actually measuring it.
+
+MPA0005's original guidance ("index the interface instead") was wrong on time, and the 27 converted
+sites were converted that way. A standalone benchmark showed the indexed loop ran **1.4× slower** than
+the boxed `foreach` it replaced, while a span ran ~2× faster for a `List<T>` subject and ~7× faster
+for an array — all three allocation-free. Full table in PRD §12.1.
+
+`Items` and `Pairs` now return `ReadOnlySpan<T>`; `Spans.From` does the conversion. Null checks moved
+from the materialised collection to `Subject`, because a span cannot represent null. MPA0005's message
+now points at spans and says explicitly not to settle for indexing.
+
+The **expectation** side stays a list (`Spans.ListFrom`) and that is deliberate: a ref struct cannot
+reach `FailWith`'s `object?` parameters or be captured by a lambda, and those sequences are rendered
+in messages. Trying it produced 52 errors of exactly those two kinds.
+
+Worth carrying forward: both times a bulk regex was used on these files it introduced a semantic bug
+the compiler could not see — once renaming a local that held a *value* rather than a collection, so a
+dictionary failure stopped reporting what was actually found. The test suite caught both. Prefer
+compiler- or analyzer-verified transformations over pattern rewrites here.
 
 ### Planned but NOT built — verified absent from the source
 

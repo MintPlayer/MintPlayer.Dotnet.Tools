@@ -138,6 +138,10 @@ Derived from how the current code actually achieves its numbers. Each maps to re
    be exact.
 9. **Keep `Func<>` + `[CallerArgumentExpression]`, never FA's `Expression<Func<>>`.** This is the
    single most important API-shape rule in this document — see §1.
+10. **Iterate the subject as a `ReadOnlySpan<T>`, never as a collection interface, and never "fix" a
+    boxed loop by indexing the interface.** See §12.1 — indexing removes the allocation and is
+    *slower* than the boxed loop it replaces. `Spans.From` does the conversion; `Items`/`Pairs`
+    already return spans.
 
 ### What is NOT a constraint
 
@@ -557,15 +561,52 @@ IReadOnlyList<int> b = ...;  foreach (var x in b) { }   // boxed enumerator, one
 Nothing at the call site says so, which is why review misses it and why a sampled allocation test
 only finds the instances it happens to cover. A static rule is exhaustive.
 
-Scoped narrowly on purpose. It fires only for **indexable** interfaces, where an indexed loop is a
-free fix; iterating an `IEnumerable<T>` parameter boxes too, but there is often nothing the author
-can do, and a rule that cannot be acted on gets suppressed wholesale — taking the actionable cases
-with it. It fires only inside `MintPlayer.Assertions`, because consumers iterate interfaces all day
-and are right to.
+Scoped narrowly on purpose. It fires only for **indexable** interfaces, where a fix is available and
+obvious; iterating an `IEnumerable<T>` parameter boxes too, but there is often nothing the author can
+do, and a rule that cannot be acted on gets suppressed wholesale — taking the actionable cases with
+it. It fires only inside `MintPlayer.Assertions`, because consumers iterate interfaces all day and
+are right to.
 
 **It also exposed that the library was not running its own analyzers at all.** The `ProjectReference`
 to the analyzer project lacked `OutputItemType="Analyzer"`, so it only ordered the build for packing
 and every rule — MPA0001 through MPA0004 — was blind to the code it was written to guard.
+
+### 12.1 The fix is a span, and indexing the interface is NOT the fix
+
+The rule first told authors to convert to `for (var i = 0; i < x.Count; i++)`, and the 27 sites were
+converted that way. **That was wrong on time, and this document said it was free.** A standalone
+benchmark (100k loops over 8 items, Release, .NET 11) settled it:
+
+| variant | time | allocated |
+|---|---|---|
+| `foreach` over `IReadOnlyList<int>` | 22.1 ms | 4,000,040 bytes |
+| `for` over the interface — **what was shipped** | 30.2 ms | 40 bytes |
+| `for`, `Count` hoisted | 18.9 ms | 40 bytes |
+| type check, then span | 10.6 ms | 40 bytes |
+| `foreach` over `List<int>` (control) | 9.9 ms | 40 bytes |
+| *array subject*: boxed `foreach` | 34.2 ms | 3,200,040 bytes |
+| *array subject*: type check, then span | **5.0 ms** | 40 bytes |
+
+Indexing an interface trades the allocation for time: every indexer call and every `Count` read is a
+dispatch the JIT cannot inline, and the naive loop re-reads `Count` once per element. A span has
+neither — its enumerator is a ref struct that inlines, and bounds checks go against the span's own
+length.
+
+So `Items` and `Pairs` return `ReadOnlySpan<T>`: arrays directly, `List<T>` via
+`CollectionsMarshal.AsSpan`, and only a genuinely non-contiguous source copied and cached. **The
+array case is tested first and that ordering is load-bearing** — an array is not a `List<T>`, so
+testing only for the list silently drops every `T[]` subject onto the copying path, and arrays are
+what test code writes.
+
+⚠️ `CollectionsMarshal.AsSpan` returns the list's own backing array; the span is invalidated if the
+list is resized. Safe only because no assertion mutates its subject.
+
+**The expectation side deliberately stays a list** (`Spans.ListFrom`). `ReadOnlySpan<T>` is a ref
+struct, so it cannot be passed to `FailWith`'s `object?` parameters — and the `expected`/`unexpected`
+sequences are rendered in failure messages — nor captured by a lambda, which the inspector assertions
+do. The subject has no such problem because `Subject` is available separately for rendering. Attempting
+the conversion anyway produced 52 compiler errors of exactly those two kinds; the asymmetry is real,
+not an omission.
 
 ## 11. Where MintPlayer is already ahead (do not regress these)
 
