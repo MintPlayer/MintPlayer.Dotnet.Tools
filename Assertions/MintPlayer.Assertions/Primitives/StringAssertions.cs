@@ -10,7 +10,7 @@ namespace MintPlayer.Assertions.Primitives;
 /// matching, and casing. Negative assertions treat a null subject as passing (null starts with,
 /// ends with and contains nothing); positive assertions fail on null.
 /// </summary>
-public class StringAssertions : ReferenceTypeAssertions<string, StringAssertions>
+public partial class StringAssertions : ReferenceTypeAssertions<string, StringAssertions>
 {
     public StringAssertions(string? subject, string? subjectExpression) : base(subject, subjectExpression) { }
 

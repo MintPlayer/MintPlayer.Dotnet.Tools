@@ -58,6 +58,16 @@ public static partial class AssertionExtensions
         [CallerArgumentExpression(nameof(subject))] string? subjectExpression = null)
         => new(subject is null ? null : () => subject().AsTask(), subjectExpression);
 
+    /// <summary>Asserts on a <see cref="TaskCompletionSource"/>: whether something completes it in time.</summary>
+    public static TaskCompletionSourceAssertions Should(this TaskCompletionSource? subject,
+        [CallerArgumentExpression(nameof(subject))] string? subjectExpression = null)
+        => new(subject, subjectExpression);
+
+    /// <inheritdoc cref="Should(TaskCompletionSource, string)"/>
+    public static TaskCompletionSourceAssertions<TResult> Should<TResult>(this TaskCompletionSource<TResult>? subject,
+        [CallerArgumentExpression(nameof(subject))] string? subjectExpression = null)
+        => new(subject, subjectExpression);
+
     /// <summary>Wraps an action on the subject so it can be asserted: <c>sut.Invoking(s =&gt; s.Do()).Should().Throw&lt;X&gt;()</c>.</summary>
     public static Action Invoking<T>(this T subject, Action<T> action)
     {

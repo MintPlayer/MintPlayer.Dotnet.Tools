@@ -681,6 +681,41 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         return new(this);
     }
 
+    /// <summary>
+    /// Asserts the collection equals <paramref name="expected"/> pairwise and in order, comparing each
+    /// pair with <paramref name="equalityComparison"/> instead of <see cref="EqualityComparer{T}.Default"/>.
+    /// </summary>
+    /// <remarks>
+    /// The expectation is a separate type parameter on purpose: this is how two differently-shaped
+    /// sequences get compared — <c>orders.Should().Equal(dtos, (o, d) =&gt; o.Id == d.Id)</c> — without
+    /// projecting one side into the other first, which would allocate a whole sequence just to compare it.
+    /// </remarks>
+    public AndConstraint<GenericCollectionAssertions<T>> Equal<TExpectation>(IEnumerable<TExpectation> expected, Func<T, TExpectation, bool> equalityComparison, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(expected);
+        ArgumentNullException.ThrowIfNull(equalityComparison);
+        var items = Items;
+        var expectedItems = Spans.ListFrom(expected);
+        if (Subject is null) return FailNull($"to equal {Formatting.Formatter.Format(expectedItems)}", because, becauseArgs);
+
+        var commonLength = Math.Min(items.Length, expectedItems.Count);
+        for (var i = 0; i < commonLength; i++)
+        {
+            if (!equalityComparison(items[i], expectedItems[i]))
+            {
+                Assert().ForCondition(false).BecauseOf(because, becauseArgs)
+                    .FailWith("Expected {subject} to equal {0}{reason}, but differs at index {1}: found {2} instead of {3}.",
+                        expectedItems, i, items[i], expectedItems[i]);
+                return new(this);
+            }
+        }
+
+        Assert().ForCondition(items.Length == expectedItems.Count).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to equal {0}{reason}, but it contains {1} item(s) instead of {2}: {3}.",
+                expectedItems, items.Length, expectedItems.Count, Subject);
+        return new(this);
+    }
+
     /// <summary>Asserts the collection does not equal the given collection pairwise.</summary>
     public AndConstraint<GenericCollectionAssertions<T>> NotEqual(IEnumerable<T> unexpected, string? because = null, params object?[] becauseArgs)
     {
@@ -727,6 +762,30 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         for (var i = 0; matches && i < expectedItems.Count; i++)
         {
             matches = comparer.Equals(items[i], expectedItems[i]);
+        }
+
+        Assert().ForCondition(matches).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to start with {0}{reason}, but found {1}.", expectedItems, Subject);
+        return new(this);
+    }
+
+    /// <summary>
+    /// Asserts the collection starts with <paramref name="expected"/>, comparing each pair with
+    /// <paramref name="equalityComparison"/>. See <see cref="Equal{TExpectation}"/> for why the
+    /// expectation carries its own type parameter.
+    /// </summary>
+    public AndConstraint<GenericCollectionAssertions<T>> StartWith<TExpectation>(IEnumerable<TExpectation> expected, Func<T, TExpectation, bool> equalityComparison, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(expected);
+        ArgumentNullException.ThrowIfNull(equalityComparison);
+        var items = Items;
+        var expectedItems = Spans.ListFrom(expected);
+        if (Subject is null) return FailNull($"to start with {Formatting.Formatter.Format(expectedItems)}", because, becauseArgs);
+
+        var matches = items.Length >= expectedItems.Count;
+        for (var i = 0; matches && i < expectedItems.Count; i++)
+        {
+            matches = equalityComparison(items[i], expectedItems[i]);
         }
 
         Assert().ForCondition(matches).BecauseOf(because, becauseArgs)
@@ -809,6 +868,31 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         for (var i = 0; matches && i < expectedItems.Count; i++)
         {
             matches = comparer.Equals(items[offset + i], expectedItems[i]);
+        }
+
+        Assert().ForCondition(matches).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to end with {0}{reason}, but found {1}.", expectedItems, Subject);
+        return new(this);
+    }
+
+    /// <summary>
+    /// Asserts the collection ends with <paramref name="expected"/>, comparing each pair with
+    /// <paramref name="equalityComparison"/>. See <see cref="Equal{TExpectation}"/> for why the
+    /// expectation carries its own type parameter.
+    /// </summary>
+    public AndConstraint<GenericCollectionAssertions<T>> EndWith<TExpectation>(IEnumerable<TExpectation> expected, Func<T, TExpectation, bool> equalityComparison, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(expected);
+        ArgumentNullException.ThrowIfNull(equalityComparison);
+        var items = Items;
+        var expectedItems = Spans.ListFrom(expected);
+        if (Subject is null) return FailNull($"to end with {Formatting.Formatter.Format(expectedItems)}", because, becauseArgs);
+
+        var matches = items.Length >= expectedItems.Count;
+        var offset = items.Length - expectedItems.Count;
+        for (var i = 0; matches && i < expectedItems.Count; i++)
+        {
+            matches = equalityComparison(items[offset + i], expectedItems[i]);
         }
 
         Assert().ForCondition(matches).BecauseOf(because, becauseArgs)
@@ -1039,6 +1123,41 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
 
         Assert().ForCondition(!isSubset).BecauseOf(because, becauseArgs)
             .FailWith("Did not expect {subject} to be a subset of {0}{reason}.", superset);
+        return new(this);
+    }
+
+    /// <summary>
+    /// Asserts every item of the collection is part of <paramref name="expectedSuperset"/>, and that
+    /// the superset holds at least one item the collection does not.
+    /// </summary>
+    /// <remarks>
+    /// Set semantics, like <see cref="BeSubsetOf"/>: duplicates on either side do not make a subset
+    /// proper. <c>[1, 1]</c> is not a proper subset of <c>[1]</c> — both are the set <c>{1}</c>.
+    /// </remarks>
+    public AndConstraint<GenericCollectionAssertions<T>> BeProperSubsetOf(IEnumerable<T> expectedSuperset, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(expectedSuperset);
+        var items = Items;
+        var superset = new HashSet<T>(expectedSuperset);
+        if (Subject is null) return FailNull("to be a proper subset of the given superset", because, becauseArgs);
+
+        var missing = new HashSet<T>();
+        var missingInOrder = new List<T>();
+        var distinct = new HashSet<T>();
+        for (var i = 0; i < items.Length; i++)
+        {
+            var item = items[i];
+            distinct.Add(item);
+            if (!superset.Contains(item) && missing.Add(item))
+                missingInOrder.Add(item);
+        }
+
+        Assert().ForCondition(missingInOrder.Count == 0).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to be a proper subset of {0}{reason}, but item(s) {1} are not part of the superset.", superset, missingInOrder);
+        if (missingInOrder.Count > 0) return new(this);
+
+        Assert().ForCondition(distinct.Count < superset.Count).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to be a proper subset of {0}{reason}, but they contain the same items.", superset);
         return new(this);
     }
 
@@ -1359,6 +1478,36 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
 
         Assert().ForCondition(!containsAll).BecauseOf(because, becauseArgs)
             .FailWith("Did not expect {subject} to be a superset of {0}{reason}.", unexpectedSubset);
+        return new(this);
+    }
+
+    /// <summary>
+    /// Asserts every item of <paramref name="expectedSubset"/> is present in the collection, and that
+    /// the collection holds at least one item the subset does not.
+    /// </summary>
+    /// <remarks>The mirror of <see cref="BeProperSubsetOf"/>, and set-based for the same reason.</remarks>
+    public AndConstraint<GenericCollectionAssertions<T>> BeProperSupersetOf(IEnumerable<T> expectedSubset, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentNullException.ThrowIfNull(expectedSubset);
+        var actual = Items;
+        if (Subject is null) return FailNull("to be a proper superset of the given collection", because, becauseArgs);
+
+        var subset = new HashSet<T>(expectedSubset);
+        var missing = new List<T>();
+        foreach (var item in subset)
+        {
+            if (!Includes(actual, item)) missing.Add(item);
+        }
+
+        Assert().ForCondition(missing.Count == 0).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to be a proper superset of {0}{reason}, but it is missing {1}.", expectedSubset, missing);
+        if (missing.Count > 0) return new(this);
+
+        var distinct = new HashSet<T>();
+        for (var i = 0; i < actual.Length; i++) distinct.Add(actual[i]);
+
+        Assert().ForCondition(distinct.Count > subset.Count).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to be a proper superset of {0}{reason}, but they contain the same items.", expectedSubset);
         return new(this);
     }
 
