@@ -202,9 +202,17 @@ than the instruction:
 ### Known gaps left open, deliberately
 
 - **The equivalency benchmark is still not gated.** A pure time regression with no allocation change
-  would pass unnoticed.
+  would pass unnoticed. This is the one M0 item that never landed, and it is the gap most worth
+  closing next: M5 added real work to the walker (the trait filter runs per member, the inclusion
+  matcher per node), and while every option is emptiness-checked before it is consulted, "checked and
+  found empty" is still a branch that `PassingPathAllocationTests` cannot see.
 - **The baseline table below is unfilled.** The benchmarks were never run to completion in this
   environment; the v1 figures are carried forward as the reference point, not re-measured.
+- **Two delivered PRDs still described the old `roslyn4.0` folder layout.** `docs/PRD-INTF001-…`
+  now carries a footnote pointing at `SourceGenerators/eng/roslyn.props` instead; the body text is
+  left as written, because a delivered PRD is a record of what was done and silently rewriting it
+  would destroy that. `docs/PRD-TestCoverage-Phase2.md` says `roslyn4.x`, which is generic enough to
+  still be true.
 - **PRD §13's open questions are all answered** — see the PRD, where each answer carries its
   reasoning. In short: a registration seam rather than test-framework detection; the
   Types/Assembly/selector family built on runtime reflection because a generated variant is not

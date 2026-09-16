@@ -103,7 +103,7 @@ equivalency walker the headline number comes from. Twice more, the boundary caug
 *while it was being written* rather than after: a `Func<int,bool>` helper that would have captured
 and allocated a closure per call, and a message fragment that would have been concatenated eagerly.
 
-### The nine constraints a contributor must follow
+### The eleven constraints a contributor must follow
 
 Derived from how the current code actually achieves its numbers. Each maps to real code:
 
@@ -142,6 +142,14 @@ Derived from how the current code actually achieves its numbers. Each maps to re
     boxed loop by indexing the interface.** See §12.1 — indexing removes the allocation and is
     *slower* than the boxed loop it replaces. `Spans.From` does the conversion; `Items`/`Pairs`
     already return spans.
+11. **A new parameter that could be a string does not belong beside `because`.** Every assertion ends
+    `(…, string? because = null, params object?[] becauseArgs)`, and that tail swallows anything
+    compatible with it. Three times in Phase 2 a meaningful argument was silently bound to `because`
+    instead — `Contain(params KeyValuePair[])` hijacking single-pair calls, `WithArgs`'s
+    `predicateExpression` eating a positional reason, and `HaveAttribute(name, value)` losing to
+    `HaveAttribute(name, because)`. Each was fixed by a **distinct method name**
+    (`ContainAll`, a reordered signature, `HaveAttributeWithValue`), because overload resolution
+    picking the wrong candidate is invisible to the compiler and to review.
 
 ### What is NOT a constraint
 
@@ -744,19 +752,6 @@ not an omission.
 
 ---
 
-## 12. Success criteria
-
-1. **The boundary holds, and is enforced.** Equivalency benchmark gating; new per-assertion
-   micro-benchmarks; an allocation test on the passing path. No passing-path regression.
-2. All of §2 fixed, with §2.1's API-shape decision recorded.
-3. All of §3 shipped.
-4. §4 shipped using the named mechanisms, not the naive ones.
-5. §6.1 shipped — the equivalency options gap closes to the compile-time-decidable boundary, and
-   §6.2 is documented in the README as the deliberate ceiling it is.
-6. `IsAotCompatible=true` with zero trim warnings preserved; any new `[RequiresDynamicCode]` /
-   `[RequiresUnreferencedCode]` annotation exact (see constraint 8).
-7. Repo policy: **one pull request**, tests run once at the end.
-
 ## 13. Open questions — all five now answered
 
 Backward compatibility is not a constraint, so the questions that were about *whether we may break
@@ -821,3 +816,33 @@ as subjects and open generics), so §6.2 reads as a design boundary rather than 
 tests use — the monitor *is* the subject, and a `Should()` that returns itself adds a word and no
 meaning — but FA spells it the other way, code gets ported, and refusing the spelling buys nothing.
 Being an alias rather than a second implementation, it cannot drift from what it aliases.
+
+---
+
+## 14. Success criteria — outcome
+
+*(Numbered 14 because §12 was already taken by MPA0005; this section previously duplicated that
+number, and moving it here keeps every §12 reference elsewhere valid.)*
+
+| # | Criterion | Outcome |
+|---|---|---|
+| 1 | The boundary holds, and is enforced | ⚠️ **Partly.** `PassingPathAllocationTests` and MPA0005 are built and gating; the **equivalency benchmark is still not gating**, and the per-assertion micro-benchmarks were never run to completion in this environment. No passing-path regression is known, but "known" rests on the allocation test and the analyzer, not on time. |
+| 2 | All of §2 fixed, §2.1's API-shape decision recorded | ✅ `AggregateException` keeps a single `Subject`; the reasoning is in the plan. |
+| 3 | All of §3 shipped | ✅ including the four items M3/M4 had marked done while absent. |
+| 4 | §4 shipped using the named mechanisms | ✅ bipartite matching rather than greedy first-fit — which turned out to be a **correctness** fix, not a performance one. |
+| 5 | §6.1 shipped; §6.2 documented as the ceiling | ✅ and §6.3's two silent passes fixed with it. |
+| 6 | `IsAotCompatible=true`, zero trim warnings, exact annotations | ✅ zero IL warnings from `MintPlayer.Assertions` in a full Release build. Two suppressions cited the wrong id and the build caught them — which is the point of the word *exact*. |
+| 7 | One pull request, tests run once at the end | ✅ one branch, one PR; the suite was run at milestone boundaries where a large engine change made deferring it more expensive than running it, and in full at the end. |
+
+### The one gap worth naming
+
+Criterion 1 is the only one not fully met, and it is the criterion this document opens with. The
+honest statement is: **allocation on the passing path is enforced; time is not.** A change that
+allocated nothing and ran twice as slowly would ship unnoticed today. Closing it means gating the
+equivalency benchmark in CI, which needs a stable-enough machine to set a threshold that is neither
+flaky nor useless — the reason it was deferred in v1 and again here.
+
+M5 is the first work that makes this concretely uncomfortable rather than theoretically so: the
+member-trait filter runs per member and the inclusion matcher per node. Both are branches over
+already-loaded values and both short-circuit on an emptiness check, so neither allocates — which is
+exactly the shape of change the current gates cannot see.

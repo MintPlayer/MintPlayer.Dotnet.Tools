@@ -568,6 +568,10 @@ a trap — so a reference change is not obviously inert for the nupkg.
 **Do.** `dotnet pack -c Release` before and after, and diff the contents of both nupkgs — the file list under
 `analyzers/dotnet/{cs,roslyn4.0/cs,roslyn4.9/cs}` and the `.nuspec` dependency group.
 
+> ⚠️ Historical: the flavour folders are now `roslyn4.9/cs` and `roslyn5.0/cs`, centralised in
+> `SourceGenerators/eng/roslyn.props`. The instruction above is left as written because this PRD is a
+> record of delivered work; read the folder names from `roslyn.props`, not from here.
+
 **Decision rule.** If both are byte-identical apart from the version → R7.1 as written, no release note. If
 the *dependency group* changes but no assemblies move → still proceed; `PrivateAssets="all"` means consumers
 never saw those dependencies. If any assembly is added or removed from `analyzers/` → stop, R7.1 is out of
