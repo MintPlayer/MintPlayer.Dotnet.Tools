@@ -398,80 +398,166 @@ internal static class EquivalencyValidator
         // It also allocated a List<Difference> per (expectation x subject) probe — a failing 20x20
         // comparison built roughly 400 lists to throw them all away. One reusable collector now
         // serves every probe.
-        var candidates = BuildCandidateMatrix(context, path, subjectItems, expectationItems, itemDeclaredType, depth);
+        //
+        // ⚠️ The grid is filled ON DEMAND, and that is not an optimisation — it is the difference
+        // between this being viable and not. Building it up front costs n×m FULL SUBTREE comparisons
+        // unconditionally, where the greedy matcher it replaced did ~n for the overwhelmingly common
+        // case of a collection that already lines up. Measured on the benchmark's 20-item graph:
+        // eager cost 1,027,288 B/op against 13,824 B/op for the same comparison under strict
+        // ordering — 74x, and it shipped unnoticed because no gate watched the walker.
+        // EquivalencyAllocationTests is that gate now.
+        var matcher = new CollectionMatcher(context, path, subjectItems, expectationItems, itemDeclaredType, depth);
 
-        // subjectMatchedTo[s] = index of the expectation currently holding subject item s, or -1.
-        var subjectMatchedTo = new int[subjectItems.Count];
-        Array.Fill(subjectMatchedTo, -1);
-
-        var visited = new bool[subjectItems.Count];
-        for (var e = 0; e < expectationItems.Count; e++)
+        // Greedy first for speed, augmenting paths only for what it could not place — see
+        // MatchGreedily. Two collections that already line up never reach the second phase.
+        if (matcher.MatchGreedily() is { } unmatched)
         {
-            Array.Clear(visited);
-            if (!TryAssign(e, candidates, subjectMatchedTo, visited))
+            foreach (var e in unmatched)
             {
-                differences.Add(new(path, $"expected collection to contain {Formatter.Format(expectationItems[e])}, but no equivalent item was found"));
+                if (!matcher.TryMatch(e))
+                {
+                    differences.Add(new(path, $"expected collection to contain {Formatter.Format(expectationItems[e])}, but no equivalent item was found"));
+                }
             }
         }
 
         var extras = new List<object?>();
         for (var i = 0; i < subjectItems.Count; i++)
         {
-            if (subjectMatchedTo[i] < 0) extras.Add(subjectItems[i]);
+            if (matcher.SubjectMatchedTo[i] < 0) extras.Add(subjectItems[i]);
         }
         if (extras.Count > 0)
             differences.Add(new(path, $"found unexpected item(s) {Formatter.Format(extras)}"));
     }
 
     /// <summary>
-    /// candidates[e * subjectCount + s] — whether expectation item <c>e</c> is equivalent to
-    /// subject item <c>s</c>.
+    /// Maximum bipartite matching between expectation and subject items, where "is this pair
+    /// equivalent" is answered <b>lazily</b> and memoised.
     /// </summary>
     /// <remarks>
-    /// Flattened into one array rather than a jagged one: a single allocation instead of one per
-    /// row. The comparisons themselves share a single collector that is cleared between probes,
-    /// because their only purpose here is the yes/no answer — the differences they produce are
-    /// never reported, since a failure to match is described in terms of the whole item.
+    /// <para>
+    /// The laziness is the whole point. Each cell costs a full recursive subtree comparison, so
+    /// computing the grid up front is n×m subtree walks <i>unconditionally</i> — even for two
+    /// collections that already line up item for item, where the very first candidate tried fits and
+    /// the other n−1 answers are never consulted. Filling on demand makes the aligned case ~n walks
+    /// and keeps the n×m worst case only for collections that genuinely contend.
+    /// </para>
+    /// <para>
+    /// The grid is flattened into one array rather than a jagged one, and every probe shares a
+    /// single collector that is cleared between uses: their only purpose is the yes/no answer, since
+    /// a failure to match is reported in terms of the whole item rather than its inner differences.
+    /// The probe path is built once, not per cell.
+    /// </para>
     /// </remarks>
-    private static bool[] BuildCandidateMatrix(Context context, string path,
-        List<object?> subjectItems, List<object?> expectationItems, Type? itemDeclaredType, int depth)
+    private sealed class CollectionMatcher
     {
-        var candidates = new bool[expectationItems.Count * subjectItems.Count];
-        var probe = new List<Difference>();
+        private const byte Unknown = 0;
+        private const byte Equivalent = 1;
+        private const byte Different = 2;
 
-        for (var e = 0; e < expectationItems.Count; e++)
+        private readonly Context context;
+        private readonly string probePath;
+        private readonly List<object?> subjectItems;
+        private readonly List<object?> expectationItems;
+        private readonly Type? itemDeclaredType;
+        private readonly int depth;
+        private readonly byte[] candidates;
+        private readonly bool[] visited;
+        private readonly List<Difference> probe = [];
+
+        public CollectionMatcher(Context context, string path, List<object?> subjectItems,
+            List<object?> expectationItems, Type? itemDeclaredType, int depth)
         {
-            for (var sIndex = 0; sIndex < subjectItems.Count; sIndex++)
+            this.context = context;
+            this.subjectItems = subjectItems;
+            this.expectationItems = expectationItems;
+            this.itemDeclaredType = itemDeclaredType;
+            this.depth = depth;
+
+            probePath = $"{path}[?]";
+            candidates = new byte[expectationItems.Count * subjectItems.Count];
+            visited = new bool[subjectItems.Count];
+
+            SubjectMatchedTo = new int[subjectItems.Count];
+            Array.Fill(SubjectMatchedTo, -1);
+        }
+
+        /// <summary>The expectation index currently holding each subject item, or -1.</summary>
+        public int[] SubjectMatchedTo { get; }
+
+        /// <summary>
+        /// Claims, for each expectation that can have one, the first <b>still-unclaimed</b> subject
+        /// item it is equivalent to. Returns the expectations left unmatched, or null when all were.
+        /// </summary>
+        /// <remarks>
+        /// The greedy pre-pass that makes the common case linear. Without it, augmenting from
+        /// expectation <c>e</c> rescans subjects from 0 and pays a full subtree comparison against
+        /// every earlier one before reaching its own — 1+2+…+n probes for two collections that
+        /// already line up. Skipping subjects that are already claimed costs nothing and turns that
+        /// into one probe per expectation.
+        ///
+        /// Greedy alone is not a maximum matching — that is the correctness bug this class exists to
+        /// fix — but it is a valid partial one, and augmenting paths run from the leftovers extend
+        /// any valid matching to a maximum. Speed from the first phase, correctness from the second.
+        /// </remarks>
+        public List<int>? MatchGreedily()
+        {
+            List<int>? unmatched = null;
+
+            for (var e = 0; e < expectationItems.Count; e++)
+            {
+                var claimed = false;
+                for (var s = 0; s < subjectItems.Count; s++)
+                {
+                    if (SubjectMatchedTo[s] >= 0) continue;
+                    if (!IsCandidate(e, s)) continue;
+
+                    SubjectMatchedTo[s] = e;
+                    claimed = true;
+                    break;
+                }
+
+                if (!claimed) (unmatched ??= []).Add(e);
+            }
+
+            return unmatched;
+        }
+
+        /// <summary>Finds a subject item for expectation <paramref name="e"/>, displacing earlier assignments that have an alternative.</summary>
+        public bool TryMatch(int e)
+        {
+            Array.Clear(visited);
+            return TryAssign(e);
+        }
+
+        private bool TryAssign(int e)
+        {
+            for (var s = 0; s < subjectItems.Count; s++)
+            {
+                if (visited[s] || !IsCandidate(e, s)) continue;
+
+                visited[s] = true;
+                if (SubjectMatchedTo[s] < 0 || TryAssign(SubjectMatchedTo[s]))
+                {
+                    SubjectMatchedTo[s] = e;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool IsCandidate(int e, int s)
+        {
+            var index = (e * subjectItems.Count) + s;
+            if (candidates[index] == Unknown)
             {
                 probe.Clear();
-                CompareNode(context, probe, $"{path}[?]", subjectItems[sIndex], expectationItems[e], itemDeclaredType, depth + 1);
-                candidates[(e * subjectItems.Count) + sIndex] = probe.Count == 0;
+                CompareNode(context, probe, probePath, subjectItems[s], expectationItems[e], itemDeclaredType, depth + 1);
+                candidates[index] = probe.Count == 0 ? Equivalent : Different;
             }
+            return candidates[index] == Equivalent;
         }
-
-        return candidates;
-    }
-
-    /// <summary>
-    /// Kuhn's augmenting-path step: try to find a subject item for expectation <paramref name="e"/>,
-    /// displacing earlier assignments when they have an alternative of their own.
-    /// </summary>
-    private static bool TryAssign(int e, bool[] candidates, int[] subjectMatchedTo, bool[] visited)
-    {
-        var subjectCount = subjectMatchedTo.Length;
-        for (var s = 0; s < subjectCount; s++)
-        {
-            if (visited[s] || !candidates[(e * subjectCount) + s]) continue;
-
-            visited[s] = true;
-            if (subjectMatchedTo[s] < 0 || TryAssign(subjectMatchedTo[s], candidates, subjectMatchedTo, visited))
-            {
-                subjectMatchedTo[s] = e;
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /// <summary>Hash-based multiset comparison for collections of value-like items (avoids O(n²)).</summary>
