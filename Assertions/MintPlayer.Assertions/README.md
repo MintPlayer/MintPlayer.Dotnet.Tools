@@ -173,20 +173,84 @@ Options (`NotBeEquivalentTo` takes the same):
 
 | Option | Effect |
 |---|---|
+**Choosing members**
+
+| Option | Effect |
+|---|---|
 | `Excluding(x => x.Id)` | Skip a member, by expression — refactor-safe, no magic strings |
 | `ExcludingNested<T>(x => x.CreatedOn)` | Skip a member on every `T` in the graph, including inside collections |
 | `ExcludingPath("Items[0].Name")` | Skip by path, wildcards allowed |
-| `Including(x => x.Name)` | Compare only the listed members |
+| `ExcludingMembersNamed("ETag")` | Skip a name wherever it appears, whatever declares it |
+| `Excluding<DateTime>()` / `Excluding(type)` | Skip every member of that declared type |
+| `Including(x => x.Home.City)` | Compare only the listed paths — nested paths included |
+| `IncludingPath("Items[*].Id")` | Compare only the paths matching a wildcard |
+| `WithMapping("FullName", "Name")` | Match an expectation member onto a differently named subject member |
+| `ExcludingMissingMembers()` / `ThrowingOnMissingMembers()` | Pass or fail when the subject lacks a member (default: fail) |
+
+**Which kinds of member**
+
+| Option | Effect |
+|---|---|
+| `IncludingFields()` / `ExcludingFields()` | Fields take part (default: yes) |
+| `IncludingProperties()` / `ExcludingProperties()` | Properties take part (default: yes) |
+| `IncludingInternalMembers()` | `internal` members take part (default: no) |
+| `IncludingNonBrowsableMembers()` / `ExcludingNonBrowsableMembers()` | `[EditorBrowsable(Never)]` members take part (default: **yes** — see below) |
+| `IncludingExplicitInterfaceMembers()` | Explicitly implemented interface members take part (default: no) |
+
+**How values compare**
+
+| Option | Effect |
+|---|---|
 | `Using<T>((actual, expected) => …)` | Custom comparison for members of type `T` |
-| `WithStrictOrdering()` | Compare collections positionally (default matches unordered) |
+| `Using<T>(IEqualityComparer<T>)` | The same, with a comparer you already have |
 | `ComparingByValue<T>()` / `ComparingByMembers<T>()` | Force `Equals` or member-wise comparison for a type |
+| `ComparingEnumsByName()` / `ComparingEnumsByValue()` | Match two enum types by member name (default: by value) |
+| `ComparingRecordsByValue()` / `ComparingRecordsByMembers()` | Use a record's generated equality (default: member-wise) |
+| `ComparingStringsWith(StringMatchOptions…)` | Casing, whitespace and newline handling for every string in the graph |
+| `TreatingNullAsEmptyString()` | A null string equals an empty one |
+| `WithStrictOrdering()` | Compare collections positionally (default matches unordered) |
+| `WithStrictOrderingFor(path)` / `WithoutStrictOrderingFor(path)` | Ordering for one wildcard path, against the default |
+
+**Depth, recursion and types**
+
+| Option | Effect |
+|---|---|
 | `WithMaxDepth(n)` / `AllowingInfiniteRecursion()` | Bound or unbound recursion (default depth 10) |
+| `ThrowingOnCyclicReferences()` / `IgnoringCyclicReferences()` | Report a cycle as a difference, or treat it as equal (default) |
 | `RespectingRuntimeTypes()` | Resolve members from runtime types instead of declared ones |
 | `AllowingVacuousComparison()` | Permit a comparison that compares no members at all (see below) |
 
 `Excluding` and `Including` take a path relative to the **comparison root**. On a collection
 subject the root is the collection, so an element's member lives at `[0].Name` — reach it with
 `ExcludingNested<T>` or a wildcard path, not `Excluding(x => x.Name)`.
+
+**Exceeding the depth limit is a failure, not a pass.** A graph deeper than `MaxDepth` reports that
+the walk stopped and names the two options that let it continue. Treating what lies below the cut as
+equal — which is what it used to do — means a difference at the bottom of a deep graph never
+surfaces, and nothing says so.
+
+**`[EditorBrowsable(Never)]` members are compared by default**, which is a deliberate divergence
+from FluentAssertions. Hiding a member from IntelliSense is a statement about tooling, not about
+correctness, and an assertion library that silently compares *less* than you wrote is the failure
+mode this one takes most seriously. `ExcludingNonBrowsableMembers()` gives you FA's behaviour.
+
+**`private` and `protected` members are never compared**, even with `IncludingInternalMembers()`.
+The source generator cannot emit an accessor for one, so including them would make the same option
+mean two different things depending on whether a type happened to be scanned.
+
+#### What `BeEquivalentTo` deliberately will not do
+
+These are the boundary of a generator-first design, not a to-do list:
+
+- **No plug-in comparison steps.** There is no `IEquivalencyStep` or `IMemberSelectionRule`. The
+  walk is a closed, inlineable loop over generated accessors; an extension point in the middle of it
+  is a virtual call per node on the passing path, which is precisely the cost this library exists to
+  avoid. `Using<T>(…)` covers the case that actually comes up.
+- **Runtime types the compilation never sees.** The generated accessors are emitted for the types
+  the compiler could find at the call sites. A type loaded by reflection at run time falls back to
+  the reflection provider — correct, just not fast.
+- **Anonymous types as *subjects*, and open generics.** Both work as expectations; neither can have
+  accessors generated for it.
 
 #### Assertions that cannot fail are refused
 
@@ -260,6 +324,21 @@ Expected name to be "hello world", but they differ at index 6: "hello w…" vs "
 
 `Match` uses glob wildcards — `*` for any run of characters, `?` for exactly one.
 
+`Be` `NotBe` `StartWith` `NotStartWith` `EndWith` `NotEndWith` `Contain` and `NotContain` also take
+`StringMatchOptions`, for the comparisons the `EquivalentOf` variants do not cover:
+
+```csharp
+generated.Should().Be(expected,
+    StringMatchOptions.IgnoringCase | StringMatchOptions.IgnoringNewlineStyle);
+```
+
+Flags: `IgnoringCase`, `IgnoringLeadingWhitespace`, `IgnoringTrailingWhitespace`,
+`IgnoringSurroundingWhitespace`, `IgnoringAllWhitespace`, `IgnoringNewlineStyle`. It is a flags enum
+rather than an options-building lambda so it stays a compile-time constant at the call site;
+`IgnoringCase` is free, the rest rewrite both sides and allocate. The failure message names the
+options, because a comparison that fails while whitespace is supposedly being ignored is otherwise
+baffling to read.
+
 ### Numbers
 
 One implementation over `INumber<T>` covers every numeric type, including `Half`, `Int128` and
@@ -296,8 +375,16 @@ ratio.Should().BeInRange(0, 1);
 `HaveCountLessThanOrEqualTo` `HaveSameCount` `NotHaveSameCount` `ContainSingle` `Contain`
 `NotContain` `ContainInOrder` `OnlyContain` `OnlyHaveUniqueItems` `NotContainNulls` `Equal`
 `NotEqual` `StartWith` `EndWith` `BeInAscendingOrder` `BeInDescendingOrder` `BeSubsetOf`
-`NotBeSubsetOf` `IntersectWith` `NotIntersectWith` `AllSatisfy` `SatisfyRespectively`
+`NotBeSubsetOf` `BeProperSubsetOf` `BeSupersetOf` `NotBeSupersetOf` `BeProperSupersetOf`
+`IntersectWith` `NotIntersectWith` `AllSatisfy` `SatisfyRespectively`
 `AllBeOfType<T>` `AllBeAssignableTo<T>` `BeEquivalentTo` `NotBeEquivalentTo`
+
+`Equal`, `StartWith` and `EndWith` also take a comparison lambda, which is how two differently
+shaped sequences get compared without projecting one into the other first:
+
+```csharp
+orders.Should().Equal(dtos, (order, dto) => order.Id == dto.Id);
+```
 
 ```csharp
 orders.Should().BeInAscendingOrder(o => o.PlacedOn);
@@ -400,6 +487,19 @@ await act.Should().ThrowAsync<HttpRequestException>()
 Only the genuinely new type is named — the outer exception type is already known from
 `ThrowAsync<T>()`, so the async chain reads exactly like the synchronous one.
 
+A `TaskCompletionSource` — the shape a test reaches for when it has to observe a signal raised by
+code it does not control — has its own assertions, because the task already exists and is already
+running:
+
+```csharp
+await tcs.Should().CompleteWithinAsync(TimeSpan.FromSeconds(5));
+await tcs.Should().NotCompleteWithinAsync(TimeSpan.FromMilliseconds(50));
+
+var result = (await typedTcs.Should().CompleteWithinAsync(TimeSpan.FromSeconds(5))).Which;
+```
+
+A faulted source is reported as a fault, not as a timeout.
+
 **Every one of these must be awaited.** Skipping the `await` makes the assertion meaningless,
 so it is a compile error rather than a green test — see [MPA0001](#analyzers).
 
@@ -443,8 +543,39 @@ monitor.NotRaisePropertyChangeFor(x => x.Id);
 
 The monitor subscribes to every public event whose handler is a void delegate taking
 `(sender, args)` or no parameters; anything else is listed in `UnmonitoredEvents` rather than
-silently ignored. `OccurredEvents` exposes the raw recordings, and `Clear()` resets them.
-Asserting on an event name that does not exist throws rather than passing vacuously.
+silently ignored. `MonitoredEvents` is the other half of that pair — worth checking when an event
+you expected simply is not there, because "never raised" and "never watched" produce the same
+failure and mean opposite things. `OccurredEvents` exposes the raw recordings, `GetRecordingFor(name)`
+narrows them to one event without asserting, and `Clear()` resets them. Asserting on an event name
+that does not exist throws rather than passing vacuously.
+
+```csharp
+monitor.NotRaiseAnyEvents();                         // covers events added to the type later, too
+monitor.Raise(nameof(Subject.Renamed)).Times(2);
+monitor.Raise(nameof(Subject.Renamed))               // ONE occurrence must satisfy both
+       .WithArgs<RenamedEventArgs>(e => e.OldName == "a", e => e.NewName == "b");
+```
+
+`monitor.Should().Raise(...)` is accepted as an alias of `monitor.Raise(...)`, for code ported from
+FluentAssertions. The terse form is the one used here: the monitor *is* the subject.
+
+Options change what gets watched:
+
+```csharp
+using var monitor = subject.Monitor(EventMonitorOptions.Default with
+{
+    IncludeInterfaceEvents = true,      // reaches an explicitly implemented PropertyChanged
+    ThrowOnUnmonitoredEvents = true,    // fail rather than silently skip
+    EventFilter = e => e.Name != "Noisy",
+});
+```
+
+`IncludeInterfaceEvents` is the one to reach for when a class implements `INotifyPropertyChanged`
+*explicitly*: `typeof(T).GetEvents()` does not list the event, so the monitor records nothing and
+every `RaisePropertyChangeFor` fails with "does not expose a public event named PropertyChanged".
+
+The monitor holds its subject **weakly**, so keeping a monitor in a fixture field does not keep the
+subject alive.
 
 Because binding handlers needs runtime type work, `Monitor()` is annotated
 `[RequiresDynamicCode]`; events with reference-type argument types work under Native AOT.
@@ -470,11 +601,125 @@ $.tags[1]: expected "b", but found "c"
 $.name: property is missing
 ```
 
-### Types
+### Types, members and assemblies
 
 `Be<T>` `NotBe<T>` `BeAssignableTo<T>` `BeDerivedFrom<T>` `Implement<TInterface>`
 `BeDecoratedWith<TAttribute>` (optionally with a predicate; returns the attribute via `Which`)
-`NotBeDecoratedWith<TAttribute>` `BeAbstract` `BeSealed` `BeStatic` `BeAnInterface` `BeAClass`
+`BeDecoratedWithOrInherit<TAttribute>` `NotBeDecoratedWith<TAttribute>` `BeAbstract` `BeSealed`
+`BeStatic` `BeAnInterface` `BeAClass` `BeInNamespace` `BeUnderNamespace`
+
+The member checks return the `MemberInfo` via `Which`, so they chain:
+
+```csharp
+typeof(Order).Should().HaveProperty<int>("Id");
+typeof(Order).Should().HaveMethod("Total", [typeof(decimal)]).Which.Should().Return<decimal>();
+typeof(Order).Should().HaveDefaultConstructor();
+typeof(Order).Should().HaveIndexer([typeof(int)]);
+```
+
+`MethodInfo`: `BeVirtual` `NotBeVirtual` `BeStatic` `Return<T>` `ReturnVoid` `BeAsync` `HaveName`
+`BeDeclaredOn<T>` `BeDecoratedWith<TAttribute>`.
+`PropertyInfo`: `BeOfType<T>` `BeReadOnly` `BeWritable` `BeVirtual`, plus the shared member checks.
+
+`Assembly`: `Reference` `NotReference` `DefineType` `BeSigned` `NotBeSigned`.
+
+**Architecture rules over a set of types**, which report *every* offender rather than the first:
+
+```csharp
+AllTypes.FromAssemblyContaining<Order>()
+    .ThatImplement<IHandler>()
+    .Should().NotBeEmpty()          // see below
+        .And.BeSealed()
+        .And.BeUnderNamespace("Shop.Handlers");
+```
+
+Selectors: `ThatDeriveFrom<T>` `ThatImplement<T>` `ThatAreDecoratedWith<TAttribute>`
+`ThatAreUnderNamespace` `ThatArePublic` `ThatAreClasses` `Where(predicate)`.
+
+`NotBeEmpty()` is worth the extra line: every rule over an empty set holds vacuously, so a selector
+whose filter stopped matching — because the types were renamed, moved or deleted — passes the whole
+suite while checking nothing.
+
+> ⚠️ This family is reflection by nature and is annotated `[RequiresUnreferencedCode]`. It lives on
+> assertion types nothing else touches, so it costs its own caller and no one else — but it belongs
+> in a test project, not in trimmed output.
+
+### Streams
+
+`BeReadable` `BeWritable` `BeSeekable` (and the `Not` forms) `BeReadOnly` `BeWriteOnly`
+`HaveLength` `NotHaveLength` `HavePosition` `NotHavePosition` `BeAtStart` `BeAtEnd`; on a
+`BufferedStream`, also `HaveBufferSize` / `NotHaveBufferSize`.
+
+Asking a non-seekable stream for its length or position fails with that as the reason, rather than
+letting the stream's `NotSupportedException` escape from what was supposed to be an assertion.
+
+### XML
+
+`XDocument`: `HaveRoot` `HaveElement` `BeEquivalentTo`.
+`XElement`: `HaveName` `HaveValue` `HaveAttribute` `HaveAttributeWithValue` `NotHaveAttribute`
+`HaveElement` `HaveElementCount` `BeEmpty` `BeEquivalentTo`.
+`XAttribute`: `HaveName` `HaveValue`.
+
+```csharp
+document.Should().HaveRoot("order").Which.Should().HaveAttributeWithValue("id", "7");
+```
+
+`HaveAttributeWithValue` is spelled out rather than being a second `HaveAttribute` overload:
+`HaveAttribute(name, value)` and `HaveAttribute(name, because)` have identical parameter types, so
+one silently wins. `BeEquivalentTo` here is `XNode.DeepEquals` — ordered and whitespace-sensitive,
+which is XML's own definition rather than a second opinion about it.
+
+---
+
+## Failure messages
+
+Everything in this section runs **only when an assertion fails**, so none of it costs a green suite
+anything.
+
+```csharp
+Formatter.Options = FormattingOptions.Default with { MaxDepth = 6, UseLineBreaks = true };
+```
+
+| Setting | Effect |
+|---|---|
+| `MaxDepth` | How deep into a graph to render (default 3). The elision names this knob. |
+| `MaxStringLength` | Characters before a string is truncated (default 512) |
+| `MaxEnumerableItems` | Items before a sequence is truncated (default 32) |
+| `MaxLines` | Lines before the rendering is cut (default 100) |
+| `UseLineBreaks` | One member or item per line, indented (default off) |
+
+A scope can override them for one block, and register a renderer for one type:
+
+```csharp
+using var scope = new AssertionScope()
+    .WithFormatting(o => o with { UseLineBreaks = true })
+    .Using(new MoneyFormatter());
+```
+
+`Formatter.Register(...)` does the same globally. There is **no assembly scan** for attributed
+formatters, which is how FluentAssertions discovers them: the types would be reachable only by
+reflection, so a trimmer removes them and the scan silently finds nothing. One explicit line cannot
+fail that way.
+
+### Scopes can be inspected
+
+| Member | Use |
+|---|---|
+| `Discard()` | Take the failures so far and clear them — the building block for an assertion that probes and reports its own message |
+| `AddPreFormattedFailure(text)` | Add a message verbatim, with no template escaping |
+| `AddReportable(key, () => …)` | Attach context that is rendered **only if the scope fails** |
+| `HasFailures` | Whether anything has been collected |
+
+### The exception type is yours to choose
+
+```csharp
+AssertionConfiguration.ExceptionFactory = message => new Xunit.Sdk.XunitException(message);
+```
+
+The default is `AssertionFailedException`. FluentAssertions probes loaded assemblies for the test
+framework's own exception type by name; that is a reflective lookup a trimmer defeats silently, so
+this library asks instead of guessing. It matters less than it looks — every runner reports an
+unexpected exception as a failed test.
 
 ---
 

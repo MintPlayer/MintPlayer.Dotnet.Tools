@@ -356,6 +356,29 @@ outright.
 - **Richer detail for reflective assertions** (listing the members that didn't match) — reflect only
   when building the message.
 
+### 5.1 Delivered — and two things the list did not anticipate
+
+All of the above is built (see the M6 notes in the plan). `IValueFormatter` resolves scope-registered
+formatters before global ones; `FormattingOptions` is a record so a scope can change one field with
+`with`; the depth elision now reads `Name {… depth 3 reached; raise FormattingOptions.MaxDepth}`.
+Native test-framework exceptions became `AssertionConfiguration.ExceptionFactory` — see §13, question
+1, for why a registration seam rather than the detection the bullet above assumed.
+
+Two behaviours are defensive rather than featureful, and they share one principle: **the caller is
+already looking at a failure, and that is the worst possible moment to lose the explanation.**
+
+- A formatter that throws is skipped and the next one tried, falling through to the built-in
+  rendering. A bug in a renderer must not replace the assertion's message with its own.
+- A reportable that throws renders as `<threw …>` beside the failure instead of replacing it. Same
+  for a broken `ExceptionFactory`, which falls back to `AssertionFailedException` with the original
+  message plus a note saying what went wrong.
+
+There is a cost the bullet list did not mention and it is worth stating: `Formatter.Options`, the
+global formatter registry and `ExceptionFactory` are **process-wide**. That is right for their
+purpose — a failing assertion usually has no scope, so async-local configuration would be useless —
+but it means the tests that exercise them cannot run in parallel with the rest of the suite, and the
+assertions suite now has parallelisation disabled for that reason.
+
 ---
 
 ## 6. Equivalency: the real decision
@@ -391,6 +414,32 @@ These are filters over a member table the generator already builds, or facts it 
   `ComparingNullCollectionsAsEmpty`) — runtime flags on already-typed values.
 - `Using<T>(IEqualityComparer<T>)` — trivially runtime, no reflection; just a missing overload.
 
+**All delivered in M5**, with four corrections to the analysis above:
+
+1. **Enums and records needed no generator change at all.** `Type.IsEnum` is a runtime fact, and a
+   record is detectable from the compiler-emitted `<Clone>$` method — cached, and only consulted when
+   `ComparingRecordsByValue()` was actually asked for. The scanner still skips enums, and that is
+   correct: an enum has no members worth walking.
+2. **The reflection fallback had to move in step with the scanner.** A trait the generator emits and
+   the reflection provider does not is worse than no trait: the same option would mean two different
+   things depending on whether a type happened to be scanned. The provider now collects public and
+   internal members plus explicit interface properties, and deliberately **not** `private` /
+   `protected` — reachable by reflection, not by generated code. That is also why internal visibility
+   is one option rather than FA's `IncludingInternalFields` + `IncludingInternalProperties`, which
+   combine confusingly with `ExcludingFields`.
+3. **`ExcludingNonBrowsableMembers` is opt-in, not the default** — a deliberate divergence from FA.
+   Hiding a member from IntelliSense is a statement about tooling, not about correctness, and a
+   library that silently compares *less* than the caller wrote is the failure mode this PRD takes most
+   seriously (see the vacuity guard). Default-excluding would have been a silent weakening of every
+   assertion against a type with a hidden member.
+4. **The hash-based multiset shortcut had to be guarded.** Any option that changes what "equal" means
+   for a value — string options, enum-by-name, null-as-empty — also changes what belongs in the same
+   hash bucket. Those comparisons fall back to a pairwise match rather than quietly giving the wrong
+   answer fast.
+
+`ComparingStringsWith` takes the same `StringMatchOptions` the string assertions take, so "ignoring
+newline style" means one thing in this library rather than two.
+
 ### 6.2 The ceiling — inherently runtime, and why
 
 - **`RespectingRuntimeTypes` in the general case.** It resolves `expectation.GetType()` and asks the
@@ -412,14 +461,26 @@ These are filters over a member table the generator already builds, or facts it 
 - `WithAutoConversion` (`Convert.ChangeType`/`TypeDescriptor`), multidimensional arrays
   (`Array.GetValue(int[])`), XML steps, tracing/`WithFullDump`.
 
-### 6.3 Known engine behaviours worth revisiting
+### 6.3 Known engine behaviours worth revisiting — *resolved in M5*
 
-- Depth cut treats deeper nodes as **equal, silently** (`EquivalencyValidator.cs:116`). FA never does
-  this. A silent pass is the worst failure mode an assertion library has.
-- Cycles are silently treated as equal (`:120`); FA offers a `ThrowException` mode.
-- Dictionary comparison is non-generic `IDictionary` only (`:123,:210`), boxing keys and using
-  `Convert.ToString` for path text.
-- `IsValueLike` is a hard-coded type list (`:407-419`).
+- ~~Depth cut treats deeper nodes as **equal, silently**.~~ **Fixed.** Exceeding `MaxDepth` is now a
+  difference whose message names `WithMaxDepth(...)` and `AllowingInfiniteRecursion()`. Three existing
+  tests asserted the old behaviour by name and were updated — the old contract really was "pass
+  silently", so this is a behaviour change, and the right one.
+- ~~Cycles are silently treated as equal.~~ **Fixed.** `ThrowingOnCyclicReferences()` reports one as a
+  difference; ignoring remains the default, because that is what terminates a cyclic graph.
+- ~~Dictionary comparison is non-generic `IDictionary` only.~~ **Fixed**, and it was a second silent
+  pass rather than a nicety: a type implementing only `IReadOnlyDictionary<K,V>` fell through to the
+  *collection* path, so a wrong value under a matching key was reported as "no equivalent item was
+  found". The `IDictionary` path was **kept** rather than folded into the new one — `Contains` and the
+  indexer go through the dictionary's own key comparer, so a
+  `Dictionary<string, T>(OrdinalIgnoreCase)` still matches keys the way it does everywhere else.
+  Rebuilding the lookup with default equality would have taken that away silently, trading one silent
+  failure for another.
+- `IsValueLike` is still a hard-coded type list. Left alone deliberately: `ComparingByValue<T>()` and
+  `ComparingByMembers<T>()` already let a caller override it per type, and every mechanism for
+  inferring value-likeness (does it override `Equals`? is it a struct?) is wrong for some type people
+  actually compare.
 
 ---
 
@@ -449,10 +510,36 @@ Note the generator alternative: `HaveProperty`/`HaveMethod`/`HaveAccessModifier`
 point it at reflection assertions. **That is the differentiated answer to this family** and worth a
 spike before copying FA's runtime approach.
 
+> **Spike outcome: negative, and for a structural reason.** A generator needs a compile-time target.
+> The premise "against a *statically known* type" is the part that does not hold: the whole point of
+> this family is a `Type` chosen at run time, usually from an assembly scan —
+> `AllTypes.From(assembly).ThatImplement<IHandler>().Should().BeSealed()` cannot be known at compile
+> time even in principle. Generating for the subset where the type *is* a `typeof(X)` literal would
+> mean two implementations with different capabilities behind one API, which is worse than one honest
+> one. **Built on runtime reflection**, every entry point annotated `[RequiresUnreferencedCode]`.
+>
+> One thing FA does not have, and this family needs: `TypeSelectorAssertions.NotBeEmpty()`. Every rule
+> over an empty set holds vacuously, so a selector whose filter stopped matching — types renamed,
+> moved or deleted — passes the whole suite while checking nothing. That is §6's vacuity guard one
+> level up, and the same mistake.
+
 Also missing and cheap (no reflection, pure API surface): `Stream` assertions
 (`BeWritable`/`BeSeekable`/`BeReadable`/`HavePosition`/`HaveLength`/`BeReadOnly`/`BeWriteOnly`) and
 `BufferedStream.HaveBufferSize`. XML (`XDocument`/`XElement`/`XAttribute`) is likewise
 reflection-free, just absent — decide whether it is in scope at all.
+
+> **Both built** (§13, question 3: XML is in scope). Two details worth keeping:
+>
+> - The stream assertions check `CanSeek` before reading `Length` or `Position`, which throw
+>   `NotSupportedException` on a network stream, a pipe or a compression stream. An assertion that
+>   lets that escape reports a crash where the honest answer is a failure with a reason.
+> - `XElement.HaveAttributeWithValue(name, value)` is a distinct name rather than a second
+>   `HaveAttribute` overload, because `HaveAttribute(name, value)` and `HaveAttribute(name, because)`
+>   have identical parameter types. This is the **third** time in Phase 2 that a trailing `because`
+>   parameter silently absorbed a meaningful argument, after `Contain`/`ContainAll` and the `WithArgs`
+>   reordering. Treat `(…, string? because = null, params object?[] becauseArgs)` as occupying the
+>   whole tail of the signature: any new parameter that could be a string belongs in a differently
+>   named method.
 
 ---
 
@@ -524,6 +611,34 @@ see, not `Monitor<IFoo>()` over a runtime implementation. Missing event features
 the options overload, `MonitoredEvents`, `GetRecordingFor`, multi-predicate `WithArgs`,
 interface-declared events (`typeof(T).GetEvents()` misses them today), the weak subject reference,
 and the no-events-at-all guard.
+
+### 9.1 Delivered — all of the cheap ones, `Reflection.Emit` still rejected
+
+`EventMonitorOptions` (`IncludeInterfaceEvents`, `ThrowOnUnmonitoredEvents`, `EventFilter`),
+`MonitoredEvents`, `GetRecordingFor(name)`, multi-predicate `WithArgs`, `NotRaiseAnyEvents()`,
+`Times(n)`, and the weak subject reference.
+
+- **`IncludeInterfaceEvents` is off by default**, even though the bullet above frames the gap as a
+  bug. Reaching through the interface for an *implicitly* implemented event would record the same
+  occurrence twice; the monitor skips a name it already has, but only the caller knows whether
+  reaching through the interface is what they meant. The case it is for is an **explicitly**
+  implemented `INotifyPropertyChanged.PropertyChanged`, where the monitor otherwise records nothing
+  and every `RaisePropertyChangeFor` fails with "does not expose a public event named
+  PropertyChanged" — true, and useless.
+- **The weak reference is about a cycle, not about tidiness.** The subscription already runs
+  subject → handler → recorder → monitor, so a strong field on the monitor closed the loop: anything
+  holding the monitor kept the subject alive. Invisible in a `using` block, very visible in a fixture
+  that keeps a monitor in a field, where it silently defeats any test about the subject being
+  collected. Nothing is lost — while the subject is alive the subscription keeps the monitor alive
+  too, and once it is gone there is nothing left to unsubscribe from.
+- **Multi-predicate `WithArgs` is not the same as chaining two `WithArgs` calls**, which is the reason
+  it exists. A chain narrows to what the first predicate matched and runs the second against that
+  narrowed set, so it passes when one occurrence matched only the first and a *different* one matched
+  the second. The predicates are matched independently rather than positionally, because an event's
+  arguments arrive as a bag and pinning a predicate to a position breaks the moment a delegate's
+  parameters are reordered without changing what the event means.
+- `NotRaiseAnyEvents()` beats a list of `NotRaise` calls on more than brevity: it does not go stale
+  when an event is added to the type later.
 
 ---
 
@@ -642,20 +757,67 @@ not an omission.
    `[RequiresUnreferencedCode]` annotation exact (see constraint 8).
 7. Repo policy: **one pull request**, tests run once at the end.
 
-## 13. Open questions (need a decision before the relevant milestone)
+## 13. Open questions — all five now answered
 
 Backward compatibility is not a constraint, so the questions that were about *whether we may break
-something* are closed. What remains is genuine scope and design:
+something* were closed before these. What remained was genuine scope and design. The answers, and
+the reasoning, because the reasoning is the part that has to survive:
 
-1. **§5** — native test-framework exceptions contradict the v1 non-goal
-   (`Assertions-prd.md:49-51`). Revisit or reaffirm? Free at runtime, but it means shipping framework
-   detection the v1 PRD deliberately refused.
-2. **§7** — build the Types/MemberInfo/Assembly/selector family at all? If yes: copy FA's runtime
-   reflection, or spike the source-generated variant first? The latter is the differentiated answer
-   and the reason MintPlayer exists, but it is a spike, not a known quantity.
-3. **§7** — is XML (`XDocument`/`XElement`/`XAttribute`) in scope, or explicitly out? Reflection-free
-   and purely additive, so the only cost is surface area to maintain.
-4. **§6.2** — confirm rejecting the `IEquivalencyStep` / `IMemberSelectionRule` plug-in model
-   **permanently**, and say so in the README, so it stops reading as an unfinished gap rather than a
-   design boundary.
-5. **§9** — keep `monitor.Raise(...)` terse, or adopt FA's `monitor.Should().Raise(...)`?
+**1. §5 — native test-framework exceptions.** *Answered: a registration seam, never detection.*
+
+The v1 non-goal (`Assertions-prd.md:49-51`) refused framework detection, and the refusal was right
+for a reason the v1 PRD did not spell out: FluentAssertions probes the loaded assemblies for
+`Xunit.Sdk.XunitException`, `NUnit.Framework.AssertionException` and friends **by name**, and
+constructs whichever it finds. That is a reflective type lookup, so after trimming the probe finds
+nothing and silently falls back — the behaviour depends on the build rather than on the test
+framework, which is the worst of both.
+
+`AssertionConfiguration.ExceptionFactory` is one line in a fixture, works under every publish mode,
+and says out loud what the probe would have guessed. A factory that throws falls back to
+`AssertionFailedException` with the original message plus a note, because a broken factory must not
+replace the assertion failure with its own error.
+
+**2. §7 — the Types/MemberInfo/Assembly/selector family.** *Answered: build it, on runtime
+reflection; the generated variant is not possible.*
+
+The spike was resolved by thinking about what a generator would key on, and the answer is nothing: a
+generator needs a compile-time target, and the entire point of this family is a `Type` chosen at run
+time, usually from an assembly scan. `AllTypes.From(assembly).ThatImplement<IHandler>()` cannot be
+known at compile time even in principle. So this is the one part of the library where FA's approach
+is not merely acceptable but correct.
+
+It remains admissible under §0 by the second corollary — it lives on assertion types nothing else
+touches — and every entry point is annotated `[RequiresUnreferencedCode]`.
+
+One addition FA does not have, and the family needs: `TypeSelectorAssertions.NotBeEmpty()`. Every
+rule over an empty set holds vacuously, so a selector whose filter stopped matching passes the whole
+suite while checking nothing. That is the equivalency engine's vacuity guard at the level of a type
+set, and it is the same mistake.
+
+**3. §7 — XML.** *Answered: in scope.*
+
+`System.Xml.Linq` is in the shared framework, the assertions are reflection-free, and nothing else in
+the library is affected — so the only cost really was surface area, and the alternative was leaving
+XML tests to write `element.Attribute("id")?.Value.Should().Be("7")`, which reports
+`expected "7" but found <null>` for a missing attribute and a wrong value alike.
+
+`BeEquivalentTo` here is `XNode.DeepEquals` — ordered and whitespace-sensitive. Deliberately XML's own
+definition of sameness rather than a second opinion about it; a structural XML comparison with its own
+ordering and whitespace rules is a project, not a method.
+
+**4. §6.2 — the `IEquivalencyStep` / `IMemberSelectionRule` plug-in model.** *Answered: rejected
+permanently, and now documented as a boundary.*
+
+The walk is a closed, inlineable loop over generated accessors. An extension point inside it is a
+virtual call per node on the passing path, which is precisely the cost this library exists to avoid —
+it would trade the one measured advantage for a feature `Using<T>(…)` already covers for the case
+that actually comes up. The README now states this under "What `BeEquivalentTo` deliberately will not
+do", alongside the other two ceiling items (runtime types the compilation never sees; anonymous types
+as subjects and open generics), so §6.2 reads as a design boundary rather than an unfinished gap.
+
+**5. §9 — `monitor.Raise(...)` versus `monitor.Should().Raise(...)`.** *Answered: both, as an alias.*
+
+`Should()` returns the monitor itself. The terse form stays the one the README and this library's own
+tests use — the monitor *is* the subject, and a `Should()` that returns itself adds a word and no
+meaning — but FA spells it the other way, code gets ported, and refusing the spelling buys nothing.
+Being an alias rather than a second implementation, it cannot drift from what it aliases.

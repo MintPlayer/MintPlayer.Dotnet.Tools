@@ -36,23 +36,79 @@ public sealed class EventMonitor<[DynamicallyAccessedMembers(DynamicallyAccessed
     private readonly List<(EventInfo Event, Delegate Handler)> subscriptions = [];
     private readonly HashSet<string> monitoredEventNames = [];
     private readonly List<string> unmonitoredEvents = [];
-    private readonly T subject;
+    /// <summary>
+    /// The subject, held weakly.
+    /// </summary>
+    /// <remarks>
+    /// Weak on purpose. The subscription runs the other way — the subject holds the handler, which
+    /// holds the recorder, which holds this monitor — so a strong field here formed a cycle in which
+    /// anything holding the monitor kept the subject alive. That is invisible in a <c>using</c>
+    /// block and very visible in a fixture that keeps a monitor in a field, where it silently
+    /// defeats any test about the subject being collected. Nothing is lost: while the subject is
+    /// alive the subscription keeps this monitor alive too, and once it is gone there is nothing
+    /// left to unsubscribe from.
+    /// </remarks>
+    private readonly WeakReference<T> subject;
     private readonly string subjectExpression;
+    private readonly EventMonitorOptions options;
     private int sequence;
     private bool disposed;
 
     /// <summary>Subscribes to all supported public events of <paramref name="subject"/>.</summary>
     [RequiresDynamicCode(DynamicCodeMessage)]
+    public EventMonitor(T subject, string? subjectExpression = null)
+        : this(subject, EventMonitorOptions.Default, subjectExpression) { }
+
+    /// <summary>Subscribes to the events of <paramref name="subject"/> that <paramref name="options"/> allows.</summary>
+    [RequiresDynamicCode(DynamicCodeMessage)]
     [UnconditionalSuppressMessage("Trimming", "IL2060",
         Justification = "The generic method being closed is our own EventRecorder.Handle<TArgs>, whose generic parameter carries no trimming annotations.")]
-    public EventMonitor(T subject, string? subjectExpression = null)
+    // IL2090 is the GetInterfaces() call on typeof(T); IL2075 is GetEvents() on each interface the
+    // loop yields. Both ids are checked against the build rather than guessed — the v1 plan records
+    // two suppressions that cited the wrong id, which meant they suppressed nothing and the
+    // AOT-clean claim was not being enforced at all.
+    [UnconditionalSuppressMessage("Trimming", "IL2090",
+        Justification = "Interface events are opt-in and additive: an interface whose events were trimmed simply contributes none, which is the default behaviour.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "Same opt-in path; a trimmed interface contributes no events and the monitor behaves as it does by default.")]
+    public EventMonitor(T subject, EventMonitorOptions options, string? subjectExpression = null)
     {
         ArgumentNullException.ThrowIfNull(subject);
-        this.subject = subject;
+        ArgumentNullException.ThrowIfNull(options);
+        this.subject = new(subject);
+        this.options = options;
         this.subjectExpression = string.IsNullOrWhiteSpace(subjectExpression) ? "subject" : subjectExpression!;
 
-        foreach (var evt in typeof(T).GetEvents(BindingFlags.Public | BindingFlags.Instance))
+        Subscribe(subject, typeof(T).GetEvents(BindingFlags.Public | BindingFlags.Instance));
+
+        if (options.IncludeInterfaceEvents)
         {
+            foreach (var contract in typeof(T).GetInterfaces())
+            {
+                Subscribe(subject, contract.GetEvents());
+            }
+        }
+
+        if (options.ThrowOnUnmonitoredEvents && unmonitoredEvents.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"Type {typeof(T).Name} exposes event(s) that cannot be monitored: {string.Join(", ", unmonitoredEvents)}. "
+                + "They would be silently absent from every assertion, so ThrowOnUnmonitoredEvents reports them here instead.");
+        }
+    }
+
+    [RequiresDynamicCode(DynamicCodeMessage)]
+    [UnconditionalSuppressMessage("Trimming", "IL2060",
+        Justification = "The generic method being closed is our own EventRecorder.Handle<TArgs>, whose generic parameter carries no trimming annotations.")]
+    private void Subscribe(T instance, EventInfo[] events)
+    {
+        foreach (var evt in events)
+        {
+            // An event already monitored under this name — an implicitly implemented interface event
+            // reached through both the class and the interface — would record every occurrence twice.
+            if (monitoredEventNames.Contains(evt.Name)) continue;
+            if (options.EventFilter is { } filter && !filter(evt)) continue;
+
             var handlerType = evt.EventHandlerType;
             var invoke = handlerType is null ? null : GetInvokeMethod(handlerType);
             var parameters = invoke?.GetParameters() ?? [];
@@ -61,7 +117,7 @@ public sealed class EventMonitor<[DynamicallyAccessedMembers(DynamicallyAccessed
                 || parameters.Any(p => p.ParameterType.IsByRef)
                 || (parameters.Length != 0 && (parameters.Length != 2 || parameters[0].ParameterType.IsValueType)))
             {
-                unmonitoredEvents.Add(evt.Name);
+                if (!unmonitoredEvents.Contains(evt.Name)) unmonitoredEvents.Add(evt.Name);
                 continue;
             }
 
@@ -71,15 +127,16 @@ public sealed class EventMonitor<[DynamicallyAccessedMembers(DynamicallyAccessed
                 var handler = parameters.Length == 0
                     ? Delegate.CreateDelegate(handlerType, recorder, ParameterlessHandleMethod)
                     : Delegate.CreateDelegate(handlerType, recorder, GenericHandleMethod.MakeGenericMethod(parameters[1].ParameterType));
-                evt.AddEventHandler(subject, handler);
+                evt.AddEventHandler(instance, handler);
                 subscriptions.Add((evt, handler));
                 monitoredEventNames.Add(evt.Name);
+                unmonitoredEvents.Remove(evt.Name);
             }
             catch (Exception)
             {
                 // MakeGenericMethod over a value type can throw under Native AOT; an incompatible
                 // delegate shape can make CreateDelegate throw. Either way the event is unsupported.
-                unmonitoredEvents.Add(evt.Name);
+                if (!unmonitoredEvents.Contains(evt.Name)) unmonitoredEvents.Add(evt.Name);
             }
         }
     }
@@ -92,6 +149,45 @@ public sealed class EventMonitor<[DynamicallyAccessedMembers(DynamicallyAccessed
 
     /// <summary>Public events on <typeparamref name="T"/> whose delegate shape is not supported and which are therefore not recorded.</summary>
     public IReadOnlyList<string> UnmonitoredEvents => unmonitoredEvents;
+
+    /// <summary>
+    /// The names of the events actually being recorded.
+    /// </summary>
+    /// <remarks>
+    /// The other half of <see cref="UnmonitoredEvents"/>, and the one a test reaches for when an
+    /// event it expected simply is not there: "never raised" and "never watched" produce the same
+    /// failure and mean opposite things.
+    /// </remarks>
+    public IReadOnlyCollection<string> MonitoredEvents => monitoredEventNames;
+
+    /// <summary>
+    /// The occurrences recorded for <paramref name="eventName"/>, without asserting anything.
+    /// </summary>
+    /// <remarks>
+    /// For the assertions <see cref="Raise"/> cannot express — an exact ordering across two
+    /// different events, a count computed from the arguments. Returns an empty list for an event
+    /// that was never raised, and still refuses an event that is not being monitored, because
+    /// silently answering "none" there is how a test comes to assert nothing at all.
+    /// </remarks>
+    public IReadOnlyList<RecordedEvent> GetRecordingFor(string eventName)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(eventName);
+        EnsureMonitored(eventName);
+        return GetOccurrences(eventName);
+    }
+
+    /// <summary>
+    /// Returns this monitor, so <c>monitor.Should().Raise(...)</c> compiles alongside the terse
+    /// <c>monitor.Raise(...)</c>.
+    /// </summary>
+    /// <remarks>
+    /// PRD §13's fifth open question, answered with "both". The terse form stays the one this
+    /// library's own tests and README use, because the monitor <em>is</em> the subject and a
+    /// <c>Should()</c> that returns itself adds a word and no meaning. But FluentAssertions spells it
+    /// the other way, code gets ported, and refusing the spelling buys nothing — so it is an alias,
+    /// not a second implementation, and cannot drift from what it aliases.
+    /// </remarks>
+    public EventMonitor<T> Should() => this;
 
     /// <summary>Discards all recorded occurrences (subscriptions stay active).</summary>
     public void Clear()
@@ -120,6 +216,30 @@ public sealed class EventMonitor<[DynamicallyAccessedMembers(DynamicallyAccessed
         var occurrences = GetOccurrences(eventName);
         Assertion.For(subjectExpression).ForCondition(occurrences.Count == 0).BecauseOf(because, becauseArgs)
             .FailWith("Did not expect {subject} to raise event {0}{reason}, but it was raised {1} time(s).", eventName, occurrences.Count);
+    }
+
+    /// <summary>Asserts no monitored event was raised at all.</summary>
+    /// <remarks>
+    /// Cheaper to write and far better to read than one <see cref="NotRaise"/> per event, and it
+    /// does not go stale: an event added to the type later is covered automatically, where a list of
+    /// <c>NotRaise</c> calls quietly stops covering everything the moment the type grows.
+    /// </remarks>
+    public void NotRaiseAnyEvents(string? because = null, params object?[] becauseArgs)
+    {
+        var occurrences = OccurredEvents;
+        Assertion.For(subjectExpression).ForCondition(occurrences.Count == 0).BecauseOf(because, becauseArgs)
+            .FailWith("Did not expect {subject} to raise any events{reason}, but it raised {0}.", Describe(occurrences));
+    }
+
+    private static string Describe(IReadOnlyList<RecordedEvent> occurrences)
+    {
+        var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var i = 0; i < occurrences.Count; i++)
+        {
+            var name = occurrences[i].EventName;
+            counts[name] = counts.TryGetValue(name, out var n) ? n + 1 : 1;
+        }
+        return string.Join(", ", counts.Select(pair => $"{pair.Key} ({pair.Value}x)"));
     }
 
     /// <summary>
@@ -154,10 +274,16 @@ public sealed class EventMonitor<[DynamicallyAccessedMembers(DynamicallyAccessed
     {
         if (disposed) return;
         disposed = true;
-        foreach (var (evt, handler) in subscriptions)
+
+        // A collected subject has already taken every handler with it, so there is nothing to
+        // unsubscribe from — and resurrecting it to say so would be worse than doing nothing.
+        if (subject.TryGetTarget(out var instance))
         {
-            try { evt.RemoveEventHandler(subject, handler); }
-            catch { /* a throwing remove accessor must not prevent unsubscribing the rest */ }
+            foreach (var (evt, handler) in subscriptions)
+            {
+                try { evt.RemoveEventHandler(instance, handler); }
+                catch { /* a throwing remove accessor must not prevent unsubscribing the rest */ }
+            }
         }
         subscriptions.Clear();
     }

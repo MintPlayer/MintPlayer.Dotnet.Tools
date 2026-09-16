@@ -114,12 +114,12 @@ Each has a naive implementation that breaches the boundary. Use the named mechan
 
 ## Status — where this stands
 
-**Done: M0, M1, M2. Mostly done: M3, M4.** 965 assertion tests pass, full Release build clean,
-MPA0005 reports zero across the solution. Every milestone was verified by a full-solution Release
-build and the complete assertions suite before pushing, after a single-project build once let a
-rename break a consumer in another project.
+**Done: M0–M8.** Every milestone was verified by a full-solution Release build and the complete
+assertions suite before pushing, after a single-project build once let a rename break a consumer in
+another project.
 
-**Remaining: the four unbuilt items below, then M5 (equivalency options — the largest), M6, M7, M8.**
+The four items listed below as unbuilt were subsequently built; the section is kept because *how they
+came to be marked done while absent* is the part worth remembering.
 
 ### After M4: the subject is iterated as a span
 
@@ -143,10 +143,11 @@ the compiler could not see — once renaming a local that held a *value* rather 
 dictionary failure stopped reporting what was actually found. The test suite caught both. Prefer
 compiler- or analyzer-verified transformations over pattern rewrites here.
 
-### Planned but NOT built — verified absent from the source
+### Planned but NOT built — verified absent from the source *(since built)*
 
-Checked by grep, not by memory. These are listed in the milestone bodies above as if done; they are
-not:
+Checked by grep, not by memory. These were listed in the milestone bodies above as if done and were
+not. All four have since been built — the table stays as the record of the discrepancy, not as
+outstanding work:
 
 | Item | Milestone | Note |
 |---|---|---|
@@ -155,8 +156,22 @@ not:
 | Comparer-lambda overloads on `Equal` / `StartWith` / `EndWith` | M3 collections | The `Func<T, TExpectation, bool>` forms that let two differently-typed sequences be compared |
 | String `config` overloads (`IgnoringCase`, whitespace, newline style) | M4 | Intended as a `StringComparison`/flags parameter rather than FA's per-call options object |
 
-None is blocked; all four are ordinary additions. They were simply missed, and the milestones were
-marked complete before this was checked.
+None was blocked; all four were ordinary additions. They were simply missed, and the milestones were
+marked complete before this was checked. The lesson generalises: **a milestone is done when a grep
+says the symbols exist, not when the work feels finished.**
+
+Two of the four needed a design decision rather than just typing:
+
+- The **comparer-lambda overloads** carry their own expectation type parameter
+  (`Equal<TExpectation>(IEnumerable<TExpectation>, Func<T, TExpectation, bool>)`), which is the whole
+  point — two differently shaped sequences compare without projecting one into the other first, which
+  would allocate a whole sequence just to compare it. There is a test asserting the ordinal overloads
+  still bind, because a second parameter of a different type is the only thing keeping them apart.
+- The **string options** are a `[Flags]` enum, not FluentAssertions' per-call options object. FA's
+  shape allocates a builder and runs a delegate on the passing path of every call that uses it; a
+  flags enum is a compile-time constant at the call site. Only `IgnoringCase` is genuinely free (it
+  maps onto `OrdinalIgnoreCase`); the rest rewrite both sides and allocate, which is inherent to the
+  question rather than an implementation choice, and is documented as such.
 
 ### What was done differently from the plan above
 
@@ -190,13 +205,23 @@ than the instruction:
   would pass unnoticed.
 - **The baseline table below is unfilled.** The benchmarks were never run to completion in this
   environment; the v1 figures are carried forward as the reference point, not re-measured.
-- **PRD §13's open questions are all still open** — test-framework exceptions, whether to build the
-  Types/Assembly/selector family and whether to spike the generated variant, XML scope, permanently
-  rejecting `IEquivalencyStep`, and the `monitor.Raise` shape. M6 and M7 depend on answers.
+- **PRD §13's open questions are all answered** — see the PRD, where each answer carries its
+  reasoning. In short: a registration seam rather than test-framework detection; the
+  Types/Assembly/selector family built on runtime reflection because a generated variant is not
+  possible even in principle; XML in scope; `IEquivalencyStep` rejected permanently and documented as
+  a boundary; `monitor.Should().Raise(...)` accepted as an alias of `monitor.Raise(...)`.
+- **The assertions suite no longer runs in parallel.** Phase 2 added process-wide configuration
+  (`Formatter.Options`, the global formatter registry, `AssertionConfiguration.ExceptionFactory`), and
+  a handful of tests necessarily mutate it and put it back. Under xUnit's default parallelism those
+  ran beside every other test, so an unrelated assertion failed with whatever renderer or exception
+  type the mutating test had installed at that instant — which is not a flake to retry, it is two
+  tests sharing one process-wide setting. The alternative was making the configuration async-local,
+  which would defeat its purpose (a failing assertion usually has no scope). The suite runs in a few
+  seconds, so serialising it costs almost nothing.
 
 ---
 
-## Milestone 5 — Equivalency options (PRD §6.1) ⏳
+## Milestone 5 — Equivalency options (PRD §6.1) ✅
 
 The largest single gap: 12 options against FA's ~60, and the v1 PRD claims no deferred tier. Close it
 to the compile-time-decidable boundary.
@@ -222,7 +247,32 @@ Then document §6.2 — runtime types not visible to the compilation, anonymous 
 plug-in steps — in the README as the **deliberate ceiling** of a generator-first design, so it stops
 reading as unfinished work.
 
-## Milestone 6 — Failure-path features (PRD §5) ⏳
+### What M5 actually did
+
+All of the above, plus three things the plan did not foresee:
+
+1. **The reflection fallback had to change too.** The plan only mentions the scanner, but a trait the
+   generator emits and the reflection provider does not is worse than no trait at all: the same option
+   would mean two different things depending on whether a type happened to be scanned. The provider
+   now collects public *and* internal members and explicit interface properties, and deliberately
+   **not** `private`/`protected` — which reflection could reach and generated code cannot. That
+   asymmetry is the reason `IncludingInternalMembers` is one option rather than FA's
+   `IncludingInternalFields` + `IncludingInternalProperties`.
+2. **The generic-dictionary fix was a second silent pass, not a nicety.** A type implementing only
+   `IReadOnlyDictionary<K,V>` — frozen, immutable, hand-rolled — fell through to the *collection*
+   path, so a wrong value under a matching key was reported as "no equivalent item was found". The
+   non-generic `IDictionary` path was **kept** rather than folded into the new one, and that is
+   load-bearing: `IDictionary.Contains` goes through the dictionary's own key comparer, so a
+   `Dictionary<string, T>(OrdinalIgnoreCase)` still matches keys the way it does everywhere else.
+3. **The hash-based multiset shortcut had to be guarded.** Any option that changes what "equal" means
+   for a value — string options, enum-by-name, null-as-empty — also changes what belongs in the same
+   hash bucket. Those comparisons fall back to a pairwise match.
+
+Three existing tests asserted the old silent-pass behaviour *by name*
+(`WithMaxDepth_TreatsDeeperNodesAsEqual`), and one asserted that the generator emits no internal
+members. Both were the old contract, and both were updated rather than worked around.
+
+## Milestone 6 — Failure-path features (PRD §5) ✅
 
 Free by construction: reached only after an assertion has already failed.
 
@@ -235,10 +285,28 @@ Free by construction: reached only after an assertion has already failed.
   currently blocks a `BeEquivalentTo`-style full-diff block.
 - Native test-framework exceptions **only if open question 1 is answered yes**.
 
-## Milestone 7 — Scope-gated families (PRD §7, §9) ⏳
+### What M6 actually did
 
-Only after open questions 2, 3 and 5 are answered. Nothing here may touch `Assertion`,
-`AssertionScope`, `Formatter` or the equivalency path.
+All of it. `IValueFormatter` with scope-first-then-global resolution; `FormattingOptions` as a record
+so a scope can change one field with `with`; `Formatter.Options` globally and
+`AssertionScope.WithFormatting(...)` per block; `MaxDepth` / `MaxStringLength` /
+`MaxEnumerableItems` / `MaxLines` / `UseLineBreaks`; `Discard()`, `AddPreFormattedFailure`, eager and
+lazy reportables. The depth elision now reads
+`Name {… depth 3 reached; raise FormattingOptions.MaxDepth}` instead of `Name {…}`, because the depth
+limit is the most common reason a message does not show the member that actually differs.
+
+Two things are defensive rather than featureful, and both are the same principle: **the caller is
+already looking at a failure, and that is the worst possible moment to lose the explanation.** A
+formatter that throws is skipped and the next one tried, falling through to the built-in rendering; a
+reportable that throws renders as `<threw …>` beside the failure instead of replacing it. The same
+reasoning governs `AssertionConfiguration.BuildException`.
+
+Open question 1 was answered "a registration seam, never detection" — see the PRD. Reportables travel
+from a nested scope to its parent, because the outermost scope is where the message is built.
+
+## Milestone 7 — Scope-gated families (PRD §7, §9) ✅
+
+Nothing here touches `Assertion`, `AssertionScope`, `Formatter` or the equivalency path.
 
 - `Stream` / `BufferedStream` assertions — reflection-free, purely additive, cheapest item here.
 - Types/MemberInfo/Assembly/selector family — hot-path reflection by nature, admissible only because
@@ -249,7 +317,37 @@ Only after open questions 2, 3 and 5 are answered. Nothing here may touch `Asser
   `GetRecordingFor`, multi-predicate `WithArgs`, interface-declared events, weak subject reference,
   no-events guard. `Reflection.Emit` itself is rejected — it costs AOT.
 
-## Milestone 8 — Verify ⏳
+### What M7 actually did
+
+All four, including XML (open question 3: in scope). The spike in bullet two resolved negatively and
+that is worth keeping: a source-generated Types/Assembly family is not possible even in principle,
+because a generator needs a compile-time target and this family's whole point is a `Type` chosen at
+run time, usually from an assembly scan.
+
+Additions the plan did not list, each because writing the family exposed the need:
+
+- **`TypeSelectorAssertions.NotBeEmpty()`.** Every rule over an empty set holds vacuously, so a
+  selector whose filter stopped matching passes the whole suite while checking nothing. The
+  equivalency engine's vacuity guard, one level up.
+- **Every selector assertion names *all* the offenders**, not the first. That is the difference
+  between a rule fixed in one pass and a rule fixed one recompile at a time, and it costs nothing —
+  the list is built only once the assertion has already failed.
+- **`HaveMethod` requires the parameter types.** `GetMethod(name)` throws `AmbiguousMatchException`
+  for an overloaded method, which turns an assertion into a crash.
+- **Stream assertions check `CanSeek` before reading `Length`/`Position`**, which throw
+  `NotSupportedException` on a network stream or a pipe. An assertion that lets that escape reports a
+  crash where the honest answer is a failure with a reason.
+- **`XElement.HaveAttributeWithValue` is spelled out**, not a second `HaveAttribute` overload.
+  `HaveAttribute(name, value)` and `HaveAttribute(name, because)` have identical parameter types; the
+  compiler picked one and the test got the other. **This is the third time in Phase 2 that a trailing
+  `because` parameter silently absorbed a meaningful argument** — after `Contain`/`ContainAll` and the
+  `WithArgs` reordering. A distinct name is the only spelling that cannot be misread.
+
+Two suppressions were written with the wrong diagnostic id (`IL2070` where the build wanted `IL2090`
+and `IL2075`) and the build caught it — which is exactly the failure M8 item 4 exists to prevent, and
+evidence that checking ids against a build rather than guessing them is not a formality.
+
+## Milestone 8 — Verify ✅
 
 First and only full test run (repo policy). Then:
 
@@ -266,6 +364,19 @@ First and only full test run (repo policy). Then:
    a real freshly-packed nupkg only because `PackedFeed` now evicts its constant version from the
    global packages folder.
 6. README updated: the §6.2 ceiling, the deliberate divergences from §8, and the new options surface.
+
+### M8 results
+
+| Gate | Result |
+|---|---|
+| Full solution Release build | ✅ 0 errors |
+| Full `dotnet test` sweep | ✅ every project green |
+| Assertions suite, `net10.0` and `net11.0` | ✅ 1075 tests each |
+| Trim warnings from `MintPlayer.Assertions` | ✅ zero; the solution's other IL warnings are pre-existing and in other projects |
+| New `[RequiresUnreferencedCode]` / suppression ids | ✅ checked against the build, not guessed — two were wrong (item 4's exact failure) and the build caught them |
+| `PassingPathAllocationTests` | ✅ passing; the analyzer (MPA0005) reports zero |
+| Packaging | ✅ `PackagingTests` green in the sweep |
+| Equivalency benchmark | ⚠️ still not gated — see the deliberate gaps above |
 
 ---
 

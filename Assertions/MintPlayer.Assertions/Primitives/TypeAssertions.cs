@@ -4,7 +4,7 @@ namespace MintPlayer.Assertions.Primitives;
 /// Assertions on <see cref="Type"/> subjects: identity, inheritance, interface implementation,
 /// attribute decoration and type-kind checks (abstract/sealed/static/interface/class).
 /// </summary>
-public class TypeAssertions : ReferenceTypeAssertions<Type, TypeAssertions>
+public partial class TypeAssertions : ReferenceTypeAssertions<Type, TypeAssertions>
 {
     public TypeAssertions(Type? subject, string? subjectExpression) : base(subject, subjectExpression) { }
 

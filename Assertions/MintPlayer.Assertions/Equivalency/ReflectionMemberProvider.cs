@@ -106,6 +106,8 @@ internal sealed class ReflectionMemberProvider : IMemberProvider
     /// implicitly-implemented interface property has already been collected above.
     /// </remarks>
     [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = "Reflection fallback; see BuildMembers.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "Reflection fallback; see BuildMembers. An interface whose properties were trimmed simply contributes none, and explicit interface members are excluded from comparison by default anyway.")]
     private static void AddExplicitInterfaceMembers(Type type, List<MemberAccessor> members, HashSet<string> names)
     {
         foreach (var contract in type.GetInterfaces())

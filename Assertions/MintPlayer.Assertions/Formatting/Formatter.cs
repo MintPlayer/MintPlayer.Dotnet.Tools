@@ -13,28 +13,94 @@ namespace MintPlayer.Assertions.Formatting;
 /// <see cref="EquivalencyRegistry"/> (AOT-safe); reflection is a best-effort fallback whose
 /// absence under trimming only reduces message detail, never correctness.
 /// </summary>
+/// <remarks>
+/// Everything here runs on the failure path only — <c>FailWith</c> returns before calling it when
+/// the condition holds — which is what makes custom formatters and richer output free under §0 of
+/// the Phase 2 PRD.
+/// </remarks>
 public static class Formatter
 {
-    private const int MaxStringLength = 512;
-    private const int MaxEnumerableItems = 32;
-    private const int MaxDepth = 3;
+    private static readonly List<IValueFormatter> globalFormatters = [];
+    private static readonly Lock registrationLock = new();
 
-    public static string Format(object? value)
+    /// <summary>
+    /// The options every assertion formats with, unless a scope overrides them.
+    /// </summary>
+    /// <remarks>
+    /// Settable so a test project can widen the defaults once in a fixture rather than at every call
+    /// site. A scope's own options take precedence; see <see cref="AssertionScope.FormattingOptions"/>.
+    /// </remarks>
+    public static FormattingOptions Options { get; set; } = FormattingOptions.Default;
+
+    /// <summary>Adds a formatter consulted for every assertion, after any scope-registered ones.</summary>
+    public static void Register(IValueFormatter formatter)
     {
-        var sb = new StringBuilder();
-        FormatInto(sb, value, 0, []);
-        return sb.ToString();
+        ArgumentNullException.ThrowIfNull(formatter);
+        lock (registrationLock) globalFormatters.Add(formatter);
     }
 
-    private static void FormatInto(StringBuilder sb, object? value, int depth, HashSet<object> seen)
+    /// <summary>Removes a previously registered global formatter. Returns false when it was not registered.</summary>
+    public static bool Unregister(IValueFormatter formatter)
     {
+        ArgumentNullException.ThrowIfNull(formatter);
+        lock (registrationLock) return globalFormatters.Remove(formatter);
+    }
+
+    /// <summary>Removes every global formatter. For a test fixture's teardown.</summary>
+    public static void ClearFormatters()
+    {
+        lock (registrationLock) globalFormatters.Clear();
+    }
+
+    /// <summary>Renders <paramref name="value"/> using the ambient options.</summary>
+    public static string Format(object? value) => Format(value, AssertionScope.Current?.FormattingOptions ?? Options);
+
+    /// <summary>Renders <paramref name="value"/> using the given options.</summary>
+    public static string Format(object? value, FormattingOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var sb = new StringBuilder();
+        FormatInto(sb, value, 0, [], options);
+        return Truncate(sb.ToString(), options);
+    }
+
+    /// <summary>Cuts the rendered text at <see cref="FormattingOptions.MaxLines"/>, saying how much was cut.</summary>
+    private static string Truncate(string text, FormattingOptions options)
+    {
+        if (options.MaxLines <= 0) return text;
+
+        var lines = 0;
+        var index = 0;
+        while (index < text.Length)
+        {
+            var next = text.IndexOf('\n', index);
+            if (next < 0) break;
+            lines++;
+            index = next + 1;
+            if (lines == options.MaxLines)
+            {
+                var remaining = 1;
+                for (var i = index; i < text.Length; i++)
+                {
+                    if (text[i] == '\n') remaining++;
+                }
+                return text[..next] + $"{Environment.NewLine}… ({remaining} more line(s); raise FormattingOptions.MaxLines)";
+            }
+        }
+        return text;
+    }
+
+    private static void FormatInto(StringBuilder sb, object? value, int depth, HashSet<object> seen, FormattingOptions options)
+    {
+        if (value is not null && TryCustomFormat(sb, value, depth, seen, options)) return;
+
         switch (value)
         {
             case null:
                 sb.Append("<null>");
                 return;
             case string s:
-                AppendQuoted(sb, s);
+                AppendQuoted(sb, s, options);
                 return;
             case char c:
                 sb.Append('\'').Append(c).Append('\'');
@@ -81,9 +147,14 @@ public static class Formatter
                 sb.Append("{Cyclic reference to ").Append(runtimeType.Name).Append('}');
                 return;
             }
-            if (depth > MaxDepth)
+            if (depth > options.MaxDepth)
             {
-                sb.Append(runtimeType.Name).Append(" {…}");
+                // Names the knob: "Name {…}" told the reader something was elided but not what to
+                // do about it, and the depth limit is the single most common reason a failure
+                // message does not show the member that actually differs.
+                sb.Append(runtimeType.Name)
+                  .Append(" {… depth ").Append(options.MaxDepth)
+                  .Append(" reached; raise FormattingOptions.MaxDepth}");
                 seen.Remove(value);
                 return;
             }
@@ -93,11 +164,11 @@ public static class Formatter
         {
             if (value is IDictionary dictionary)
             {
-                FormatDictionary(sb, dictionary, depth, seen);
+                FormatDictionary(sb, dictionary, depth, seen, options);
             }
             else if (value is IEnumerable enumerable)
             {
-                FormatEnumerable(sb, enumerable, depth, seen);
+                FormatEnumerable(sb, enumerable, depth, seen, options);
             }
             else if (OverridesToString(runtimeType))
             {
@@ -105,7 +176,7 @@ public static class Formatter
             }
             else
             {
-                FormatMembers(sb, value, runtimeType, depth, seen);
+                FormatMembers(sb, value, runtimeType, depth, seen, options);
             }
         }
         finally
@@ -115,63 +186,138 @@ public static class Formatter
         }
     }
 
-    private static void AppendQuoted(StringBuilder sb, string s)
+    /// <summary>
+    /// Offers the value to the scope's formatters, then the global ones. First match wins.
+    /// </summary>
+    /// <remarks>
+    /// A formatter that throws is skipped rather than allowed to replace the assertion's failure
+    /// with its own: the caller is already looking at a failing assertion, and losing the message
+    /// that explains it to a bug in a renderer would be the worst possible moment.
+    /// </remarks>
+    private static bool TryCustomFormat(StringBuilder sb, object value, int depth, HashSet<object> seen, FormattingOptions options)
+    {
+        var scoped = AssertionScope.Current?.ValueFormatters;
+        if (scoped is not null && TryFormatWith(scoped, sb, value, depth, seen, options)) return true;
+
+        if (globalFormatters.Count == 0) return false;
+
+        IValueFormatter[] snapshot;
+        lock (registrationLock) snapshot = [.. globalFormatters];
+        return TryFormatWith(snapshot, sb, value, depth, seen, options);
+    }
+
+    private static bool TryFormatWith(IReadOnlyList<IValueFormatter> formatters, StringBuilder sb,
+        object value, int depth, HashSet<object> seen, FormattingOptions options)
+    {
+        for (var i = 0; i < formatters.Count; i++)
+        {
+            var formatter = formatters[i];
+            try
+            {
+                if (!formatter.CanFormat(value)) continue;
+                sb.Append(formatter.Format(value, child =>
+                {
+                    var nested = new StringBuilder();
+                    FormatInto(nested, child, depth + 1, seen, options);
+                    return nested.ToString();
+                }));
+                return true;
+            }
+            catch
+            {
+                // Fall through to the next formatter, and ultimately to the built-in rendering.
+            }
+        }
+        return false;
+    }
+
+    private static void AppendQuoted(StringBuilder sb, string s, FormattingOptions options)
     {
         sb.Append('"');
-        var truncated = s.Length > MaxStringLength;
-        var text = truncated ? s[..MaxStringLength] : s;
+        var truncated = s.Length > options.MaxStringLength;
+        var text = truncated ? s[..options.MaxStringLength] : s;
         sb.Append(text.Replace("\r", "\\r").Replace("\n", "\\n").Replace("\t", "\\t"));
         sb.Append('"');
         if (truncated)
-            sb.Append("… (").Append(s.Length - MaxStringLength).Append(" more chars)");
+            sb.Append("… (").Append(s.Length - options.MaxStringLength).Append(" more chars)");
     }
 
-    private static void FormatDictionary(StringBuilder sb, IDictionary dictionary, int depth, HashSet<object> seen)
+    /// <summary>The separator between members or items, and the indent that follows it.</summary>
+    private static void AppendSeparator(StringBuilder sb, int depth, FormattingOptions options, bool first)
+    {
+        if (!options.UseLineBreaks)
+        {
+            if (!first) sb.Append(", ");
+            return;
+        }
+
+        if (!first) sb.Append(',');
+        sb.Append(Environment.NewLine);
+        sb.Append(' ', (depth + 1) * 2);
+    }
+
+    private static void AppendClosingIndent(StringBuilder sb, int depth, FormattingOptions options, bool any)
+    {
+        if (!options.UseLineBreaks || !any) return;
+        sb.Append(Environment.NewLine).Append(' ', depth * 2);
+    }
+
+    private static void FormatDictionary(StringBuilder sb, IDictionary dictionary, int depth, HashSet<object> seen, FormattingOptions options)
     {
         sb.Append('{');
         var count = 0;
         foreach (DictionaryEntry entry in dictionary)
         {
-            if (count > 0) sb.Append(", ");
-            if (count >= MaxEnumerableItems) { sb.Append("… (").Append(dictionary.Count - count).Append(" more)"); break; }
+            if (count >= options.MaxEnumerableItems)
+            {
+                AppendSeparator(sb, depth, options, first: false);
+                sb.Append("… (").Append(dictionary.Count - count).Append(" more)");
+                break;
+            }
+            AppendSeparator(sb, depth, options, first: count == 0);
             sb.Append('[');
-            FormatInto(sb, entry.Key, depth + 1, seen);
+            FormatInto(sb, entry.Key, depth + 1, seen, options);
             sb.Append("] = ");
-            FormatInto(sb, entry.Value, depth + 1, seen);
+            FormatInto(sb, entry.Value, depth + 1, seen, options);
             count++;
         }
         if (count == 0) sb.Append("empty");
+        AppendClosingIndent(sb, depth, options, any: count > 0);
         sb.Append('}');
     }
 
-    private static void FormatEnumerable(StringBuilder sb, IEnumerable enumerable, int depth, HashSet<object> seen)
+    private static void FormatEnumerable(StringBuilder sb, IEnumerable enumerable, int depth, HashSet<object> seen, FormattingOptions options)
     {
         sb.Append('{');
         var count = 0;
         var truncated = false;
         foreach (var item in enumerable)
         {
-            if (count > 0) sb.Append(", ");
-            if (count >= MaxEnumerableItems) { truncated = true; break; }
-            FormatInto(sb, item, depth + 1, seen);
+            if (count >= options.MaxEnumerableItems) { truncated = true; break; }
+            AppendSeparator(sb, depth, options, first: count == 0);
+            FormatInto(sb, item, depth + 1, seen, options);
             count++;
         }
         if (count == 0) sb.Append("empty");
         if (truncated) sb.Append('…');
+        AppendClosingIndent(sb, depth, options, any: count > 0);
         sb.Append('}');
     }
 
-    private static void FormatMembers(StringBuilder sb, object value, Type type, int depth, HashSet<object> seen)
+    private static void FormatMembers(StringBuilder sb, object value, Type type, int depth, HashSet<object> seen, FormattingOptions options)
     {
-        sb.Append(type.Name).Append(" { ");
+        sb.Append(type.Name).Append(" {");
+        if (!options.UseLineBreaks) sb.Append(' ');
 
+        var written = 0;
         if (EquivalencyRegistry.TryGetAccessors(type, out var accessors))
         {
             for (var i = 0; i < accessors.Count; i++)
             {
-                if (i > 0) sb.Append(", ");
+                AppendSeparator(sb, depth, options, first: written == 0);
                 sb.Append(accessors[i].Name).Append(" = ");
-                FormatInto(sb, GetSafe(() => accessors[i].Getter(value)), depth + 1, seen);
+                FormatInto(sb, GetSafe(() => accessors[i].Getter(value)), depth + 1, seen, options);
+                written++;
             }
         }
         else
@@ -179,13 +325,16 @@ public static class Formatter
             var properties = GetPropertiesBestEffort(type);
             for (var i = 0; i < properties.Length; i++)
             {
-                if (i > 0) sb.Append(", ");
+                AppendSeparator(sb, depth, options, first: written == 0);
                 sb.Append(properties[i].Name).Append(" = ");
-                FormatInto(sb, GetSafe(() => properties[i].GetValue(value)), depth + 1, seen);
+                FormatInto(sb, GetSafe(() => properties[i].GetValue(value)), depth + 1, seen, options);
+                written++;
             }
         }
 
-        sb.Append(" }");
+        AppendClosingIndent(sb, depth, options, any: written > 0);
+        if (!options.UseLineBreaks) sb.Append(' ');
+        sb.Append('}');
     }
 
     private static object? GetSafe(Func<object?> getter)

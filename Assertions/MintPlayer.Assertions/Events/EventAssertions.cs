@@ -52,4 +52,55 @@ public sealed class EventAssertions
                 eventName, string.IsNullOrWhiteSpace(predicateExpression) ? "the given predicate" : predicateExpression);
         return new(eventName, matches, subjectExpression);
     }
+
+    /// <summary>
+    /// Asserts at least one occurrence satisfies <em>every</em> predicate — each against some
+    /// argument of its own type.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The point is that the predicates must hold for the <b>same</b> occurrence. Chaining two
+    /// <see cref="WithArgs{TArgs}(Func{TArgs, bool}, string, object[], string)"/> calls does not say
+    /// that: the first narrows to the occurrences it matched and the second runs against that
+    /// narrowed set, which is nearly the same thing — but it passes when a single occurrence matched
+    /// only the first predicate and a later one in the narrowed set matched the second, which is not
+    /// what a reader takes a chain to mean when the predicates are about different arguments.
+    /// </para>
+    /// <para>
+    /// The predicates are all over the same <typeparamref name="TArgs"/> and are matched
+    /// independently, not positionally — an event's arguments arrive as a bag, and pinning a
+    /// predicate to a position would break the moment a delegate's parameters are reordered without
+    /// changing what the event means.
+    /// </para>
+    /// </remarks>
+    public EventAssertions WithArgs<TArgs>(params Func<TArgs, bool>[] predicates)
+    {
+        ArgumentNullException.ThrowIfNull(predicates);
+        if (predicates.Length == 0)
+            throw new ArgumentException("At least one predicate is required; matching against none would pass for any occurrence.", nameof(predicates));
+
+        var matches = Occurrences.Where(o =>
+        {
+            foreach (var predicate in predicates)
+            {
+                if (!o.Parameters.OfType<TArgs>().Any(a => predicate(a))) return false;
+            }
+            return true;
+        }).ToArray();
+
+        Assertion.For(subjectExpression).ForCondition(matches.Length > 0).BecauseOf(null, null)
+            .FailWith("Expected {subject} to raise event {0} with a single occurrence satisfying all {1} argument predicate(s), but none did.",
+                eventName, predicates.Length);
+        return new(eventName, matches, subjectExpression);
+    }
+
+    /// <summary>Asserts the event was raised exactly <paramref name="expected"/> times.</summary>
+    public EventAssertions Times(int expected, string? because = null, params object?[] becauseArgs)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(expected);
+        Assertion.For(subjectExpression).ForCondition(Occurrences.Count == expected).BecauseOf(because, becauseArgs)
+            .FailWith("Expected {subject} to raise event {0} {1} time(s){reason}, but it was raised {2} time(s).",
+                eventName, expected, Occurrences.Count);
+        return this;
+    }
 }

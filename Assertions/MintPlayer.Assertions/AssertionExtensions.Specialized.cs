@@ -58,6 +58,20 @@ public static partial class AssertionExtensions
         [CallerArgumentExpression(nameof(subject))] string? subjectExpression = null)
         => new(subject is null ? null : () => subject().AsTask(), subjectExpression);
 
+    /// <summary>Asserts on a <see cref="Stream"/>: its capabilities, length and position.</summary>
+    public static StreamAssertions Should(this Stream? subject,
+        [CallerArgumentExpression(nameof(subject))] string? subjectExpression = null)
+        => new(subject, subjectExpression);
+
+    /// <summary>
+    /// Asserts on a <see cref="BufferedStream"/>. A separate overload so <c>HaveBufferSize</c> is
+    /// reachable without a cast; a <c>BufferedStream</c> would otherwise bind to the
+    /// <see cref="Stream"/> overload above and lose it.
+    /// </summary>
+    public static BufferedStreamAssertions Should(this BufferedStream? subject,
+        [CallerArgumentExpression(nameof(subject))] string? subjectExpression = null)
+        => new(subject, subjectExpression);
+
     /// <summary>Asserts on a <see cref="TaskCompletionSource"/>: whether something completes it in time.</summary>
     public static TaskCompletionSourceAssertions Should(this TaskCompletionSource? subject,
         [CallerArgumentExpression(nameof(subject))] string? subjectExpression = null)
