@@ -162,16 +162,22 @@ internal static class EquivalencyValidator
                 else
                     differences.Add(new(path, $"expected a dictionary {Formatter.Format(expectation)}, but found {Formatter.Format(subject)}"));
             }
-            else if (TryGetPairs(expectation, out var expectationPairs))
-            {
-                if (TryGetPairs(subject, out var subjectPairs))
-                    ComparePairs(context, differences, path, subjectPairs, expectationPairs, depth);
-                else
-                    differences.Add(new(path, $"expected a dictionary {Formatter.Format(expectation)}, but found {Formatter.Format(subject)}"));
-            }
             else if (expectation is IEnumerable expectationEnumerable and not string)
             {
-                if (subject is IEnumerable subjectEnumerable and not string)
+                // The generic-dictionary test is nested INSIDE the enumerable test, not beside it.
+                // A dictionary that implements only IReadOnlyDictionary<K,V> is an IEnumerable of
+                // KeyValuePair, so this branch is the only place it can be, and putting the test
+                // ahead of the enumerable check made every ordinary object node pay two extra
+                // isinst checks on the passing path to answer a question that could only ever be
+                // about a collection.
+                if (TryGetPairs(expectation, out var expectationPairs))
+                {
+                    if (TryGetPairs(subject, out var subjectPairs))
+                        ComparePairs(context, differences, path, subjectPairs, expectationPairs, depth);
+                    else
+                        differences.Add(new(path, $"expected a dictionary {Formatter.Format(expectation)}, but found {Formatter.Format(subject)}"));
+                }
+                else if (subject is IEnumerable subjectEnumerable and not string)
                     CompareCollections(context, differences, path, subjectEnumerable, expectationEnumerable, declaredType, depth);
                 else
                     differences.Add(new(path, $"expected a collection {Formatter.Format(expectation)}, but found {Formatter.Format(subject)}"));
@@ -783,6 +789,13 @@ internal static class EquivalencyValidator
     /// collection path and be compared as an unordered bag of pairs. Same verdict most of the time,
     /// but the messages named pairs instead of keys, and a value difference on a matching key was
     /// reported as "no equivalent item was found".
+    /// </remarks>
+    /// <remarks>
+    /// ⚠️ Only call this for a value already known to be a non-string <see cref="IEnumerable"/>. The
+    /// <see cref="IDictionary"/> arm is here for the SUBJECT side, which may be a plain dictionary
+    /// while the expectation is a generic-only one; the expectation side has already been narrowed
+    /// by the caller. Calling it before the enumerable test puts two type checks on the passing path
+    /// of every object node.
     /// </remarks>
     private static bool TryGetPairs(object value, out List<KeyValuePair<object?, object?>> pairs)
     {
