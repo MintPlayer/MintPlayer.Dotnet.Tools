@@ -162,13 +162,23 @@ public class EquivalencyOptionsTests
         Assert.Contains("Label", ex!.Message);
     }
 
+    /// <summary>
+    /// Phase 2 (PRD §6.3) changed this: a node below the depth limit used to be treated as
+    /// <em>equal</em> and reported nothing, so a graph deeper than the cut passed silently while the
+    /// difference at the bottom went unexamined. The limit now reports that it stopped, and names
+    /// the two knobs that let the walk continue.
+    /// </summary>
     [Fact]
-    public void WithMaxDepth_TreatsDeeperNodesAsEqual()
+    public void WithMaxDepth_ReportsThatItStoppedInsteadOfPassing()
     {
         var subject = Chain.Build(4, leafValue: 1);
         var expectation = Chain.Build(4, leafValue: 2);
 
-        subject.Should().BeEquivalentTo(expectation, o => o.WithMaxDepth(2));
+        var ex = Record.Exception(() => subject.Should().BeEquivalentTo(expectation, o => o.WithMaxDepth(2)));
+
+        Assert.IsType<AssertionFailedException>(ex);
+        Assert.Contains("deeper than the configured maximum depth of 2", ex!.Message);
+        Assert.Contains("WithMaxDepth", ex.Message);
     }
 
     [Fact]
@@ -189,10 +199,12 @@ public class EquivalencyOptionsTests
         var subject = Chain.Build(15, leafValue: 1);
         var expectation = Chain.Build(15, leafValue: 2);
 
-        // The default depth of 10 hides the difference at level 15...
-        subject.Should().BeEquivalentTo(expectation);
+        // The default depth of 10 stops before the difference at level 15 — and says so, rather
+        // than passing silently as it used to.
+        var stopped = Record.Exception(() => subject.Should().BeEquivalentTo(expectation));
+        Assert.Contains("deeper than the configured maximum depth", stopped!.Message);
 
-        // ...but without the limit it is found.
+        // Without the limit the difference itself is found.
         var ex = Record.Exception(() => subject.Should().BeEquivalentTo(expectation, o => o.AllowingInfiniteRecursion()));
 
         Assert.IsType<AssertionFailedException>(ex);

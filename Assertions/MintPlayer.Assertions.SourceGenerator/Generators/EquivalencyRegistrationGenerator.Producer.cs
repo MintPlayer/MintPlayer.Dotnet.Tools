@@ -8,6 +8,7 @@ internal sealed class EquivalencyRegistrationProducer : Producer
 {
     private const string RegistryType = "global::MintPlayer.Assertions.Equivalency.EquivalencyRegistry";
     private const string AccessorType = "global::MintPlayer.Assertions.Equivalency.MemberAccessor";
+    private const string TraitsType = "global::MintPlayer.Assertions.Equivalency.MemberTraits";
 
     private readonly EquatableArray<EquivalencyTypeDeclaration> types;
     private readonly bool hasRuntimeReference;
@@ -61,11 +62,31 @@ internal sealed class EquivalencyRegistrationProducer : Producer
         writer.Indent++;
         foreach (var member in type.Members)
         {
-            writer.WriteLine($"new {AccessorType}(\"{member.Name}\", typeof({member.TypeFullName}), static o => (({type.TypeFullName})o).{Escape(member.Name)}, {(member.IsProperty ? "true" : "false")}),");
+            // An explicit interface implementation is unreachable through the concrete type, so the
+            // getter casts to the interface that declares it.
+            var castTo = member.DeclaringInterfaceFullName ?? type.TypeFullName;
+            writer.WriteLine($"new {AccessorType}(\"{member.Name}\", typeof({member.TypeFullName}), static o => (({castTo})o).{Escape(member.Name)}, {TraitsExpression(member.Traits)}),");
         }
         writer.Indent--;
         writer.WriteLine("});");
         writer.WriteLine();
+    }
+
+    /// <summary>
+    /// Writes the traits as an or-ed list of named enum values rather than a cast integer, so the
+    /// generated file says what it means and a mismatch with the runtime enum is a compile error
+    /// instead of a silently wrong flag.
+    /// </summary>
+    private static string TraitsExpression(MemberTraitsValue traits)
+    {
+        if (traits == MemberTraitsValue.None) return $"{TraitsType}.None";
+
+        var parts = new List<string>(4);
+        if ((traits & MemberTraitsValue.Field) != 0) parts.Add($"{TraitsType}.Field");
+        if ((traits & MemberTraitsValue.NonPublic) != 0) parts.Add($"{TraitsType}.NonPublic");
+        if ((traits & MemberTraitsValue.NonBrowsable) != 0) parts.Add($"{TraitsType}.NonBrowsable");
+        if ((traits & MemberTraitsValue.ExplicitInterface) != 0) parts.Add($"{TraitsType}.ExplicitInterface");
+        return string.Join(" | ", parts);
     }
 
     /// <summary>Member names are raw identifiers; a name that happens to be a keyword needs the verbatim prefix.</summary>

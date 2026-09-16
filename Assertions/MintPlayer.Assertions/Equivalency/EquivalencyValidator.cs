@@ -1,7 +1,11 @@
 using System.Collections;
+using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using MintPlayer.Assertions.Formatting;
+using MintPlayer.Assertions.Primitives;
 
 namespace MintPlayer.Assertions.Equivalency;
 
@@ -15,13 +19,15 @@ namespace MintPlayer.Assertions.Equivalency;
 /// <remarks>
 /// Behavioral notes:
 /// <list type="bullet">
-/// <item>Cycles are safe: a (subject, expectation) reference pair already on the current descent
-/// stack is treated as equal instead of recursing.</item>
-/// <item>Nodes deeper than <see cref="IEquivalencyOptions.MaxDepth"/> are silently treated as
-/// equal; no difference and no warning is produced for them.</item>
-/// <item>Unordered collection matching is greedy: each expectation item claims the first
-/// unmatched subject item it is fully equivalent to. When every item on both sides is
-/// value-like, a hash-based multiset comparison is used instead of the O(n²) matching.</item>
+/// <item>A (subject, expectation) reference pair already on the current descent stack is treated as
+/// equal, or reported, per <see cref="IEquivalencyOptions.CyclicReferenceHandling"/>.</item>
+/// <item>A node deeper than <see cref="IEquivalencyOptions.MaxDepth"/> is reported as a difference.
+/// It used to be treated as equal and not reported, which made a too-deep graph pass silently.</item>
+/// <item>Unordered collection matching is a maximum bipartite matching, not greedy first-fit. When
+/// every item on both sides is value-like, a hash-based multiset comparison is used instead of the
+/// O(n²) matching.</item>
+/// <item>Every option below is tested for emptiness before it is consulted, so a default comparison
+/// walks the same code it did before the options existed.</item>
 /// </list>
 /// </remarks>
 internal static class EquivalencyValidator
@@ -78,6 +84,7 @@ internal static class EquivalencyValidator
         object? subject, object? expectation, Type? declaredType, int depth)
     {
         if (IsExcluded(context.Options, path)) return;
+        if (!IsWithinInclusions(context.Options, path)) return;
 
         var comparerType = declaredType ?? expectation?.GetType() ?? subject?.GetType();
         if (comparerType is not null && TryGetCustomComparer(context.Options, comparerType, out var comparer))
@@ -94,6 +101,11 @@ internal static class EquivalencyValidator
         }
 
         if (subject is null && expectation is null) return;
+
+        // Null-as-empty is decided before the null branches below, because that is exactly the pair
+        // it is about: one side null, the other an empty string.
+        if (context.Options.TreatNullAsEmptyString && IsNullOrEmptyString(subject) && IsNullOrEmptyString(expectation)) return;
+
         if (expectation is null)
         {
             differences.Add(new(path, $"expected <null>, but found {Formatter.Format(subject)}"));
@@ -107,23 +119,53 @@ internal static class EquivalencyValidator
 
         if (IsValueLike(expectation.GetType(), context.Options))
         {
+            if (!ValuesEqual(context.Options, subject, expectation))
+                differences.Add(new(path, $"expected {Formatter.Format(expectation)}, but found {Formatter.Format(subject)}"));
+            return;
+        }
+
+        if (context.Options.RecordComparison == RecordComparison.ByValue && IsRecord(expectation.GetType()))
+        {
             if (!Equals(subject, expectation))
                 differences.Add(new(path, $"expected {Formatter.Format(expectation)}, but found {Formatter.Format(subject)}"));
             return;
         }
 
-        // Depth limit: silently treat deeper structural nodes as equal (documented behavior).
-        if (depth > context.Options.MaxDepth) return;
+        // Depth limit. Reported rather than silently treated as equal: a graph one level deeper
+        // than the limit used to pass without comparing anything below the cut, and say nothing.
+        if (depth > context.Options.MaxDepth)
+        {
+            differences.Add(new(path,
+                $"the graph is deeper than the configured maximum depth of {context.Options.MaxDepth}, so nothing below this point was compared — raise WithMaxDepth(...) or call AllowingInfiniteRecursion()"));
+            return;
+        }
 
-        // Cycle guard: a pair already on the descent stack is being compared higher up; treat it
-        // as equal here to terminate the recursion.
-        if (!context.TryPush(subject, expectation)) return;
+        // Cycle guard: a pair already on the descent stack is being compared higher up.
+        if (!context.TryPush(subject, expectation))
+        {
+            if (context.Options.CyclicReferenceHandling == CyclicReferenceHandling.ThrowException)
+                differences.Add(new(path, "expected an acyclic graph, but this node refers back to one already being compared"));
+            return;
+        }
+
         try
         {
             if (expectation is IDictionary expectationDictionary)
             {
+                // Kept as the primary path even though the pair-based one below could serve it:
+                // IDictionary.Contains and the indexer go through the subject's OWN key comparer, so
+                // a Dictionary<string, T>(StringComparer.OrdinalIgnoreCase) still matches its keys
+                // the way it would anywhere else. Rebuilding the lookup with default equality would
+                // silently take that away.
                 if (subject is IDictionary subjectDictionary)
                     CompareDictionaries(context, differences, path, subjectDictionary, expectationDictionary, depth);
+                else
+                    differences.Add(new(path, $"expected a dictionary {Formatter.Format(expectation)}, but found {Formatter.Format(subject)}"));
+            }
+            else if (TryGetPairs(expectation, out var expectationPairs))
+            {
+                if (TryGetPairs(subject, out var subjectPairs))
+                    ComparePairs(context, differences, path, subjectPairs, expectationPairs, depth);
                 else
                     differences.Add(new(path, $"expected a dictionary {Formatter.Format(expectation)}, but found {Formatter.Format(subject)}"));
             }
@@ -148,28 +190,36 @@ internal static class EquivalencyValidator
     private static void CompareMembers(Context context, List<Difference> differences, string path,
         object subject, object expectation, Type? declaredType, int depth)
     {
-        var expectationType = ResolveNodeType(context.Options, declaredType, expectation);
+        var options = context.Options;
+        var expectationType = ResolveNodeType(options, declaredType, expectation);
         var expectationMembers = context.MemberProvider.GetMembers(expectationType);
         var subjectMembers = context.MemberProvider.GetMembers(subject.GetType());
-        var excludedNames = GetNestedExclusions(context.Options, expectationType, subject.GetType());
+        var excludedNames = GetNestedExclusions(options, expectationType, subject.GetType());
 
         // Counts the members that actually took part in the comparison. Zero of them means this
         // node asserted nothing and therefore cannot fail — see the ValidationResult docs.
         var comparedMembers = 0;
+        var visibleSubjectMembers = 0;
+
+        for (var i = 0; i < subjectMembers.Count; i++)
+        {
+            if (IsMemberVisible(options, subjectMembers[i])) visibleSubjectMembers++;
+        }
 
         for (var i = 0; i < expectationMembers.Count; i++)
         {
             var expectationMember = expectationMembers[i];
+            if (!IsMemberVisible(options, expectationMember)) continue;
             if (excludedNames is not null && excludedNames.Contains(expectationMember.Name)) continue;
-            if (path.Length == 0 && context.Options.IncludedMembers.Count > 0
-                && !context.Options.IncludedMembers.Contains(expectationMember.Name)) continue;
+            if (options.ExcludedMemberNames.Count > 0 && options.ExcludedMemberNames.Contains(expectationMember.Name)) continue;
+            if (options.ExcludedMemberTypes.Count > 0 && options.ExcludedMemberTypes.Contains(expectationMember.Type)) continue;
 
             var childPath = path.Length == 0 ? expectationMember.Name : $"{path}.{expectationMember.Name}";
 
-            var subjectMember = FindByName(subjectMembers, expectationMember.Name);
+            var subjectMember = FindByName(options, subjectMembers, MapToSubjectName(options, expectationMember.Name));
             if (subjectMember is null)
             {
-                if (!IsExcluded(context.Options, childPath))
+                if (!options.IgnoreMissingMembers && !IsExcluded(options, childPath) && IsWithinInclusions(options, childPath))
                 {
                     differences.Add(new(childPath, $"expectation has member {expectationMember.Name} but subject does not"));
                     comparedMembers++;
@@ -177,7 +227,8 @@ internal static class EquivalencyValidator
                 continue;
             }
 
-            if (IsExcluded(context.Options, childPath)) continue;
+            if (IsExcluded(options, childPath)) continue;
+            if (!IsWithinInclusions(options, childPath)) continue;
             comparedMembers++;
 
             CompareNode(context, differences, childPath,
@@ -187,7 +238,7 @@ internal static class EquivalencyValidator
 
         // A structural node that compared nothing can never fail. Two memberless values really
         // are equivalent, so the subject must have members for this to count as vacuous at all.
-        if (comparedMembers > 0 || subjectMembers.Count == 0) return;
+        if (comparedMembers > 0 || visibleSubjectMembers == 0) return;
 
         // Which of the two causes it is decides where it counts as a mistake.
         //
@@ -201,10 +252,16 @@ internal static class EquivalencyValidator
         // of a subtree is the normal way to say "do not compare this subtree" —
         // ExcludingNested<AuditInfo>(a => a.ModifiedOn) on a type whose only member is
         // ModifiedOn means exactly that, and refusing it would reject correct, idiomatic use.
-        if (expectationMembers.Count == 0 || path.Length == 0)
+        var visibleExpectationMembers = 0;
+        for (var i = 0; i < expectationMembers.Count; i++)
+        {
+            if (IsMemberVisible(options, expectationMembers[i])) visibleExpectationMembers++;
+        }
+
+        if (visibleExpectationMembers == 0 || path.Length == 0)
         {
             context.ReportVacuous(new(path, expectationType, subject.GetType(),
-                ExpectationHasNoMembers: expectationMembers.Count == 0));
+                ExpectationHasNoMembers: visibleExpectationMembers == 0));
         }
     }
 
@@ -233,6 +290,71 @@ internal static class EquivalencyValidator
             differences.Add(new(path, $"found unexpected key(s) {Formatter.Format(extraKeys)}"));
     }
 
+    /// <summary>
+    /// The same key-based comparison for a dictionary that only implements the generic interfaces,
+    /// where there is no untyped <see cref="IDictionary.Contains"/> to lean on.
+    /// </summary>
+    /// <remarks>
+    /// Keys are matched with default equality here, not the source dictionary's comparer — there is
+    /// no way to reach it through <c>IReadOnlyDictionary&lt;K,V&gt;</c>. That is still strictly
+    /// better than what these types used to get, which was the collection path: a bag of pairs, and
+    /// a value difference on a matching key reported as "no equivalent item was found".
+    /// </remarks>
+    private static void ComparePairs(Context context, List<Difference> differences, string path,
+        List<KeyValuePair<object?, object?>> subject, List<KeyValuePair<object?, object?>> expectation, int depth)
+    {
+        var subjectByKey = new Dictionary<object, KeyValuePair<object?, object?>>();
+        KeyValuePair<object?, object?>? subjectNullKey = null;
+        foreach (var pair in subject)
+        {
+            if (pair.Key is null) subjectNullKey = pair;
+            else subjectByKey[pair.Key] = pair;
+        }
+
+        var matchedKeys = new HashSet<object>();
+        var matchedNullKey = false;
+
+        foreach (var pair in expectation)
+        {
+            var keyText = Convert.ToString(pair.Key, CultureInfo.InvariantCulture);
+            var childPath = $"{path}[{keyText}]";
+
+            KeyValuePair<object?, object?> found;
+            if (pair.Key is null)
+            {
+                if (subjectNullKey is null)
+                {
+                    if (!IsExcluded(context.Options, childPath))
+                        differences.Add(new(path, "expected dictionary to contain key <null>, but it was not found"));
+                    continue;
+                }
+                found = subjectNullKey.Value;
+                matchedNullKey = true;
+            }
+            else if (!subjectByKey.TryGetValue(pair.Key, out found))
+            {
+                if (!IsExcluded(context.Options, childPath))
+                    differences.Add(new(path, $"expected dictionary to contain key {Formatter.Format(pair.Key)}, but it was not found"));
+                continue;
+            }
+            else
+            {
+                matchedKeys.Add(pair.Key);
+            }
+
+            CompareNode(context, differences, childPath, found.Value, pair.Value, null, depth + 1);
+        }
+
+        var extraKeys = new List<object?>();
+        if (subjectNullKey is not null && !matchedNullKey) extraKeys.Add(null);
+        foreach (var key in subjectByKey.Keys)
+        {
+            if (!matchedKeys.Contains(key)) extraKeys.Add(key);
+        }
+        if (extraKeys.Count > 0)
+            differences.Add(new(path, $"found unexpected key(s) {Formatter.Format(extraKeys)}"));
+    }
+
     private static void CompareCollections(Context context, List<Difference> differences, string path,
         IEnumerable subject, IEnumerable expectation, Type? declaredType, int depth)
     {
@@ -243,7 +365,7 @@ internal static class EquivalencyValidator
         if (subjectItems.Count != expectationItems.Count)
             differences.Add(new(path, $"expected {expectationItems.Count} item(s), but found {subjectItems.Count}"));
 
-        if (context.Options.UseStrictOrdering)
+        if (UseStrictOrderingAt(context.Options, path))
         {
             var count = Math.Min(subjectItems.Count, expectationItems.Count);
             for (var i = 0; i < count; i++)
@@ -255,7 +377,7 @@ internal static class EquivalencyValidator
 
         if (AllItemsValueLike(context.Options, subjectItems) && AllItemsValueLike(context.Options, expectationItems))
         {
-            CompareMultisets(differences, path, subjectItems, expectationItems);
+            CompareMultisets(context.Options, differences, path, subjectItems, expectationItems);
             return;
         }
 
@@ -347,9 +469,17 @@ internal static class EquivalencyValidator
     }
 
     /// <summary>Hash-based multiset comparison for collections of value-like items (avoids O(n²)).</summary>
-    private static void CompareMultisets(List<Difference> differences, string path,
+    private static void CompareMultisets(IEquivalencyOptions options, List<Difference> differences, string path,
         List<object?> subjectItems, List<object?> expectationItems)
     {
+        // Any option that changes what "equal" means for a value also changes what belongs in the
+        // same hash bucket, so the shortcut is only sound while values compare by Equals.
+        if (NeedsCustomValueEquality(options))
+        {
+            CompareMultisetsPairwise(options, differences, path, subjectItems, expectationItems);
+            return;
+        }
+
         var counts = new Dictionary<object, int>();
         var nullBalance = 0;
         foreach (var item in subjectItems)
@@ -381,6 +511,78 @@ internal static class EquivalencyValidator
             differences.Add(new(path, $"found unexpected item(s) {Formatter.Format(extras)}"));
     }
 
+    /// <summary>
+    /// The multiset comparison without the hash shortcut, for when equality is the options' notion
+    /// rather than <see cref="object.Equals(object?, object?)"/>.
+    /// </summary>
+    private static void CompareMultisetsPairwise(IEquivalencyOptions options, List<Difference> differences, string path,
+        List<object?> subjectItems, List<object?> expectationItems)
+    {
+        var claimed = new bool[subjectItems.Count];
+        foreach (var expected in expectationItems)
+        {
+            var matched = false;
+            for (var s = 0; s < subjectItems.Count; s++)
+            {
+                if (claimed[s]) continue;
+                var candidate = subjectItems[s];
+                if (candidate is null || expected is null)
+                {
+                    if (candidate is null && expected is null) { claimed[s] = matched = true; break; }
+                    if (options.TreatNullAsEmptyString && IsNullOrEmptyString(candidate) && IsNullOrEmptyString(expected))
+                    {
+                        claimed[s] = matched = true;
+                        break;
+                    }
+                    continue;
+                }
+                if (ValuesEqual(options, candidate, expected)) { claimed[s] = matched = true; break; }
+            }
+
+            if (!matched)
+            {
+                differences.Add(new(path, expected is null
+                    ? "expected collection to contain <null>, but no equivalent item was found"
+                    : $"expected collection to contain {Formatter.Format(expected)}, but no equivalent item was found"));
+            }
+        }
+
+        var extras = new List<object?>();
+        for (var s = 0; s < subjectItems.Count; s++)
+        {
+            if (!claimed[s]) extras.Add(subjectItems[s]);
+        }
+        if (extras.Count > 0)
+            differences.Add(new(path, $"found unexpected item(s) {Formatter.Format(extras)}"));
+    }
+
+    private static bool NeedsCustomValueEquality(IEquivalencyOptions options)
+        => options.StringOptions != StringMatchOptions.None
+            || options.EnumComparison != EnumComparison.ByValue
+            || options.TreatNullAsEmptyString;
+
+    /// <summary>Equality for a value-like pair, under the options' notion of equal.</summary>
+    private static bool ValuesEqual(IEquivalencyOptions options, object subject, object expectation)
+    {
+        if (options.StringOptions != StringMatchOptions.None && subject is string subjectText && expectation is string expectedText)
+        {
+            return string.Equals(
+                StringMatch.Normalize(subjectText, options.StringOptions),
+                StringMatch.Normalize(expectedText, options.StringOptions),
+                StringMatch.Comparison(options.StringOptions));
+        }
+
+        if (options.EnumComparison == EnumComparison.ByName && subject is Enum && expectation is Enum)
+        {
+            return string.Equals(subject.ToString(), expectation.ToString(), StringComparison.Ordinal);
+        }
+
+        return Equals(subject, expectation);
+    }
+
+    private static bool IsNullOrEmptyString(object? value)
+        => value is null || (value is string text && text.Length == 0);
+
     private static bool AllItemsValueLike(IEquivalencyOptions options, List<object?> items)
     {
         foreach (var item in items)
@@ -401,11 +603,92 @@ internal static class EquivalencyValidator
     {
         if (path.Length == 0) return false;
         if (options.ExcludedPaths.Contains(path)) return true;
+        if (options.ExcludedWildcardPaths.Count == 0) return false;
         foreach (var pattern in options.ExcludedWildcardPaths)
         {
             if (WildcardPattern.IsMatch(path, pattern)) return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// Whether a node at <paramref name="path"/> may be compared or descended into, given the
+    /// <c>Including</c> patterns.
+    /// </summary>
+    /// <remarks>
+    /// Three ways to qualify, and all three are needed: the path matches a pattern; the path sits
+    /// <em>under</em> a matched pattern (<c>Including(x =&gt; x.Address)</c> must compare
+    /// <c>Address.City</c>); or the path is a segment prefix of a pattern, so the walk can reach the
+    /// leaf the caller actually named. The last one is what makes a nested <c>Including</c> mean the
+    /// leaf rather than its whole parent — the bug this replaced, where inclusions were matched at
+    /// the root only.
+    /// </remarks>
+    private static bool IsWithinInclusions(IEquivalencyOptions options, string path)
+    {
+        if (options.IncludedPaths.Count == 0 || path.Length == 0) return true;
+
+        foreach (var pattern in options.IncludedPaths)
+        {
+            if (WildcardPattern.IsMatch(path, pattern)) return true;
+            if (WildcardPattern.IsMatch(path, pattern + ".*")) return true;
+            if (WildcardPattern.IsMatch(path, pattern + "[*")) return true;
+            if (IsSegmentPrefixOf(path, pattern)) return true;
+        }
+        return false;
+    }
+
+    /// <summary>True when <paramref name="path"/> matches some leading segment of <paramref name="pattern"/>.</summary>
+    private static bool IsSegmentPrefixOf(string path, string pattern)
+    {
+        for (var i = 1; i < pattern.Length; i++)
+        {
+            if (pattern[i] is not ('.' or '[')) continue;
+            if (WildcardPattern.IsMatch(path, pattern[..i])) return true;
+        }
+        return false;
+    }
+
+    /// <summary>Whether this member's kind takes part in the comparison at all.</summary>
+    private static bool IsMemberVisible(IEquivalencyOptions options, MemberAccessor member)
+    {
+        var traits = member.Traits;
+        var inclusion = options.Inclusion;
+
+        if ((traits & MemberTraits.Field) != 0)
+        {
+            if ((inclusion & MemberInclusion.Fields) == 0) return false;
+        }
+        else if ((inclusion & MemberInclusion.Properties) == 0) return false;
+
+        if ((traits & MemberTraits.NonPublic) != 0 && (inclusion & MemberInclusion.Internal) == 0) return false;
+        if ((traits & MemberTraits.NonBrowsable) != 0 && (inclusion & MemberInclusion.NonBrowsable) == 0) return false;
+        if ((traits & MemberTraits.ExplicitInterface) != 0 && (inclusion & MemberInclusion.ExplicitInterface) == 0) return false;
+
+        return true;
+    }
+
+    private static string MapToSubjectName(IEquivalencyOptions options, string expectationName)
+        => options.MemberNameMappings.Count > 0 && options.MemberNameMappings.TryGetValue(expectationName, out var mapped)
+            ? mapped
+            : expectationName;
+
+    private static bool UseStrictOrderingAt(IEquivalencyOptions options, string path)
+    {
+        if (options.StrictOrderingPaths.Count > 0)
+        {
+            foreach (var pattern in options.StrictOrderingPaths)
+            {
+                if (WildcardPattern.IsMatch(path, pattern)) return true;
+            }
+        }
+        if (options.LooseOrderingPaths.Count > 0)
+        {
+            foreach (var pattern in options.LooseOrderingPaths)
+            {
+                if (WildcardPattern.IsMatch(path, pattern)) return false;
+            }
+        }
+        return options.UseStrictOrdering;
     }
 
     private static bool TryGetCustomComparer(IEquivalencyOptions options, Type type, out Action<object?, object?> comparer)
@@ -475,12 +758,84 @@ internal static class EquivalencyValidator
             || typeof(Type).IsAssignableFrom(type);
     }
 
-    private static MemberAccessor? FindByName(IReadOnlyList<MemberAccessor> members, string name)
+    /// <summary>
+    /// Whether a type is a C# <c>record</c>.
+    /// </summary>
+    /// <remarks>
+    /// There is no metadata flag for it. The compiler emits a synthetic <c>&lt;Clone&gt;$</c> method
+    /// on every record and on nothing else, which is the check every tool in the ecosystem uses.
+    /// Cached, and only ever reached when <see cref="RecordComparison.ByValue"/> was asked for.
+    /// </remarks>
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Only reached when ComparingRecordsByValue() was called. A trimmed-away clone method means the type is compared member by member instead, which is the default behaviour.")]
+    private static bool IsRecord(Type type) => RecordCache.GetOrAdd(type,
+        static t => t.GetMethod("<Clone>$", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance) is not null);
+
+    private static readonly ConcurrentDictionary<Type, bool> RecordCache = new();
+
+    /// <summary>
+    /// Views a value as a key/value sequence, for the dictionary comparison.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="IDictionary"/> covers <c>Dictionary&lt;K,V&gt;</c> and most of the BCL. It does not
+    /// cover a type that implements only <c>IReadOnlyDictionary&lt;K,V&gt;</c> — an immutable or
+    /// frozen dictionary, or a hand-rolled read-only wrapper — which used to fall through to the
+    /// collection path and be compared as an unordered bag of pairs. Same verdict most of the time,
+    /// but the messages named pairs instead of keys, and a value difference on a matching key was
+    /// reported as "no equivalent item was found".
+    /// </remarks>
+    private static bool TryGetPairs(object value, out List<KeyValuePair<object?, object?>> pairs)
+    {
+        if (value is IDictionary dictionary)
+        {
+            pairs = new(dictionary.Count);
+            foreach (DictionaryEntry entry in dictionary) pairs.Add(new(entry.Key, entry.Value));
+            return true;
+        }
+
+        if (value is IEnumerable sequence and not string && IsGenericDictionary(value.GetType()))
+        {
+            pairs = [];
+            foreach (var item in sequence)
+            {
+                if (item is null) continue;
+                var accessors = RegistryMemberProvider.Instance.GetMembers(item.GetType());
+                object? key = null, itemValue = null;
+                for (var i = 0; i < accessors.Count; i++)
+                {
+                    if (accessors[i].Name == "Key") key = accessors[i].Getter(item);
+                    else if (accessors[i].Name == "Value") itemValue = accessors[i].Getter(item);
+                }
+                pairs.Add(new(key, itemValue));
+            }
+            return true;
+        }
+
+        pairs = null!;
+        return false;
+    }
+
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Interface list only; a trimmed-away IReadOnlyDictionary interface means the value is compared as a collection of pairs, which is the previous behaviour.")]
+    private static bool IsGenericDictionary(Type type) => GenericDictionaryCache.GetOrAdd(type, static t =>
+    {
+        foreach (var contract in t.GetInterfaces())
+        {
+            if (!contract.IsGenericType) continue;
+            var definition = contract.GetGenericTypeDefinition();
+            if (definition == typeof(IReadOnlyDictionary<,>) || definition == typeof(IDictionary<,>)) return true;
+        }
+        return false;
+    });
+
+    private static readonly ConcurrentDictionary<Type, bool> GenericDictionaryCache = new();
+
+    private static MemberAccessor? FindByName(IEquivalencyOptions options, IReadOnlyList<MemberAccessor> members, string name)
     {
         for (var i = 0; i < members.Count; i++)
         {
             var member = members[i];
-            if (string.Equals(member.Name, name, StringComparison.Ordinal)) return member;
+            if (string.Equals(member.Name, name, StringComparison.Ordinal) && IsMemberVisible(options, member)) return member;
         }
         return null;
     }

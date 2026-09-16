@@ -108,29 +108,111 @@ internal static class EquivalencyScanner
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (member.IsStatic || member.IsImplicitlyDeclared) continue;
-                if (member.DeclaredAccessibility != Accessibility.Public) continue;
+                if (!TryVisibility(member.DeclaredAccessibility, out var visibility)) continue;
 
                 switch (member)
                 {
-                    case IPropertySymbol { IsIndexer: false, ReturnsByRef: false, ReturnsByRefReadonly: false, GetMethod: { DeclaredAccessibility: Accessibility.Public } } property
-                        when IsUsableMemberType(compilation, property.Type):
+                    case IPropertySymbol { IsIndexer: false, ReturnsByRef: false, ReturnsByRefReadonly: false, GetMethod: { } getter } property
+                        when TryVisibility(getter.DeclaredAccessibility, out _) && IsUsableMemberType(compilation, property.Type):
                         if (!seenNames.Add(property.Name)) continue;
-                        members.Add(new MemberDeclaration(property.Name, DisplayForTypeof(property.Type), true));
+                        members.Add(new MemberDeclaration(property.Name, DisplayForTypeof(property.Type),
+                            visibility | Browsability(property)));
                         memberTypes.Add(property.Type);
                         break;
                     case IFieldSymbol { IsConst: false } field when IsUsableMemberType(compilation, field.Type):
                         if (!seenNames.Add(field.Name)) continue;
-                        members.Add(new MemberDeclaration(field.Name, DisplayForTypeof(field.Type), false));
+                        members.Add(new MemberDeclaration(field.Name, DisplayForTypeof(field.Type),
+                            visibility | MemberTraitsValue.Field | Browsability(field)));
                         memberTypes.Add(field.Type);
                         break;
                 }
             }
         }
 
+        CollectExplicitInterfaceMembers(compilation, named, members, memberTypes, seenNames, cancellationToken);
+
         result.Add(new EquivalencyTypeDeclaration(typeFullName, members.OrderBy(m => m.Name, StringComparer.Ordinal).ToArray()));
 
         foreach (var memberType in memberTypes)
             Collect(memberType, compilation, visited, result, depth + 1, cancellationToken);
+    }
+
+    /// <summary>
+    /// Maps a symbol's accessibility onto traits, rejecting what generated code cannot reach.
+    /// </summary>
+    /// <remarks>
+    /// The generated registration file lives in the same assembly as the scanned type, so
+    /// <c>internal</c> and <c>protected internal</c> are reachable and <c>private</c> and
+    /// <c>protected</c> are not. The runtime reflection fallback applies the same rule, so the same
+    /// option means the same thing whether or not a type happened to be scanned.
+    /// </remarks>
+    private static bool TryVisibility(Accessibility accessibility, out MemberTraitsValue traits)
+    {
+        switch (accessibility)
+        {
+            case Accessibility.Public:
+                traits = MemberTraitsValue.None;
+                return true;
+            case Accessibility.Internal:
+            case Accessibility.ProtectedOrInternal:
+                traits = MemberTraitsValue.NonPublic;
+                return true;
+            default:
+                traits = MemberTraitsValue.None;
+                return false;
+        }
+    }
+
+    private static MemberTraitsValue Browsability(ISymbol symbol)
+    {
+        foreach (var attribute in symbol.GetAttributes())
+        {
+            if (attribute.AttributeClass?.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat)
+                != "System.ComponentModel.EditorBrowsableAttribute") continue;
+
+            // EditorBrowsableState.Never == 1.
+            if (attribute.ConstructorArguments.Length == 1
+                && attribute.ConstructorArguments[0].Value is int state && state == 1)
+            {
+                return MemberTraitsValue.NonBrowsable;
+            }
+        }
+        return MemberTraitsValue.None;
+    }
+
+    /// <summary>
+    /// Adds properties that this type implements explicitly, so they are reachable only through the
+    /// interface — which is exactly how the emitted accessor casts to read them.
+    /// </summary>
+    /// <remarks>
+    /// A name already claimed by an ordinary member wins, which keeps this to genuinely explicit
+    /// implementations: an implicitly-implemented interface property was already collected above,
+    /// under the same name.
+    /// </remarks>
+    private static void CollectExplicitInterfaceMembers(Compilation compilation, INamedTypeSymbol named,
+        List<MemberDeclaration> members, List<ITypeSymbol> memberTypes, HashSet<string> seenNames,
+        CancellationToken cancellationToken)
+    {
+        foreach (var contract in named.AllInterfaces)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsReferenceableFromGeneratedCode(compilation, contract)) continue;
+
+            foreach (var member in contract.GetMembers())
+            {
+                if (member is not IPropertySymbol { IsIndexer: false, ReturnsByRef: false, ReturnsByRefReadonly: false, GetMethod: not null } property) continue;
+                if (!IsUsableMemberType(compilation, property.Type)) continue;
+
+                if (named.FindImplementationForInterfaceMember(property) is not IPropertySymbol implementation) continue;
+                if (implementation.ExplicitInterfaceImplementations.Length == 0) continue;
+
+                if (!seenNames.Add(property.Name)) continue;
+                members.Add(new MemberDeclaration(property.Name, DisplayForTypeof(property.Type),
+                    MemberTraitsValue.ExplicitInterface | Browsability(property),
+                    contract.ToDisplayString(FullyQualified)));
+                memberTypes.Add(property.Type);
+            }
+        }
     }
 
     private static bool IsUsableMemberType(Compilation compilation, ITypeSymbol type)
