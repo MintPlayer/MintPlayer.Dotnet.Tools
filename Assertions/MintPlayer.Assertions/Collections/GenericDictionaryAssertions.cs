@@ -166,13 +166,13 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
         var expectedKeys = expected as IReadOnlyList<TKey> ?? [.. expected];
         if (Subject is null) return FailNull($"to contain keys {Formatting.Formatter.Format(expectedKeys)}", because, becauseArgs);
 
-        var missingKeys = new List<TKey>();
+        List<TKey>? missingKeys = null;  // allocated only when the assertion is going to fail
         foreach (var key in expectedKeys)
         {
-            if (!TryGetValueForKey(key, out _)) missingKeys.Add(key);
+            if (!TryGetValueForKey(key, out _)) (missingKeys ??= []).Add(key);
         }
 
-        Assert().ForCondition(missingKeys.Count == 0).BecauseOf(because, becauseArgs)
+        Assert().ForCondition(missingKeys is null).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to contain keys {0}{reason}, but could not find key(s) {1}.", expectedKeys, missingKeys);
         return new(this);
     }
@@ -215,13 +215,13 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
         var unexpectedKeys = unexpected as IReadOnlyList<TKey> ?? [.. unexpected];
         if (Subject is null) return FailNull($"not to contain keys {Formatting.Formatter.Format(unexpectedKeys)}", because, becauseArgs);
 
-        var presentKeys = new List<TKey>();
+        List<TKey>? presentKeys = null;  // allocated only when the assertion is going to fail
         foreach (var key in unexpectedKeys)
         {
-            if (TryGetValueForKey(key, out _)) presentKeys.Add(key);
+            if (TryGetValueForKey(key, out _)) (presentKeys ??= []).Add(key);
         }
 
-        Assert().ForCondition(presentKeys.Count == 0).BecauseOf(because, becauseArgs)
+        Assert().ForCondition(presentKeys is null).BecauseOf(because, becauseArgs)
             .FailWith("Did not expect {subject} to contain keys {0}{reason}, but found key(s) {1}.", unexpectedKeys, presentKeys);
         return new(this);
     }
@@ -262,13 +262,13 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
             presentValues.Add(pair.Value);
         }
 
-        var missingValues = new List<TValue>();
+        List<TValue>? missingValues = null;  // allocated only when the assertion is going to fail
         foreach (var value in expectedValues)
         {
-            if (!presentValues.Contains(value)) missingValues.Add(value);
+            if (!presentValues.Contains(value)) (missingValues ??= []).Add(value);
         }
 
-        Assert().ForCondition(missingValues.Count == 0).BecauseOf(because, becauseArgs)
+        Assert().ForCondition(missingValues is null).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to contain values {0}{reason}, but could not find value(s) {1}.", expectedValues, missingValues);
         return new(this);
     }
@@ -312,16 +312,16 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
         if (Subject is null) return FailNull($"not to contain values {Formatting.Formatter.Format(unexpectedValues)}", because, becauseArgs);
 
         var comparer = EqualityComparer<TValue>.Default;
-        var presentValues = new List<TValue>();
+        List<TValue>? presentValues = null;  // allocated only when the assertion is going to fail
         foreach (var value in unexpectedValues)
         {
             foreach (var pair in pairs)
             {
-                if (comparer.Equals(pair.Value, value)) { presentValues.Add(value); break; }
+                if (comparer.Equals(pair.Value, value)) { (presentValues ??= []).Add(value); break; }
             }
         }
 
-        Assert().ForCondition(presentValues.Count == 0).BecauseOf(because, becauseArgs)
+        Assert().ForCondition(presentValues is null).BecauseOf(because, becauseArgs)
             .FailWith("Did not expect {subject} to contain values {0}{reason}, but found value(s) {1}.", unexpectedValues, presentValues);
         return new(this);
     }

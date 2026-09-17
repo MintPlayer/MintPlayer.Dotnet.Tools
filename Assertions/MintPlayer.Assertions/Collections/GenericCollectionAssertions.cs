@@ -252,15 +252,33 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
             return new(this, default!);
         }
 
-        var matches = new List<T>();
-        foreach (var item in items)
+        // Counted rather than collected. The sibling assertions make their failure-detail list lazy
+        // and test `is null`, but that does not work here: this one PASSES on exactly one match, so
+        // a lazy list would be allocated on the successful path every time. Tracking the count and
+        // the first match keeps the passing path allocation-free, and the list is built only in the
+        // branch that is already about to fail.
+        var matchCount = 0;
+        var first = default(T);
+        for (var i = 0; i < items.Length; i++)
         {
-            if (predicate(item)) matches.Add(item);
+            if (!predicate(items[i])) continue;
+            if (matchCount == 0) first = items[i];
+            matchCount++;
         }
 
-        Assert().ForCondition(matches.Count == 1).BecauseOf(because, becauseArgs)
-            .FailWith("Expected {subject} to contain a single item matching the given predicate{reason}, but found {0}: {1}.", matches.Count, matches);
-        return new(this, matches.Count >= 1 ? matches[0] : default!);
+        if (matchCount != 1)
+        {
+            var matches = new List<T>();
+            for (var i = 0; i < items.Length; i++)
+            {
+                if (predicate(items[i])) matches.Add(items[i]);
+            }
+
+            Assert().ForCondition(false).BecauseOf(because, becauseArgs)
+                .FailWith("Expected {subject} to contain a single item matching the given predicate{reason}, but found {0}: {1}.", matchCount, matches);
+        }
+
+        return new(this, matchCount >= 1 ? first! : default!);
     }
 
     /// <summary>
@@ -293,14 +311,29 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         var items = Items;
         if (Subject is null) return FailNull("not to contain a single item matching the given predicate", because, becauseArgs);
 
-        var matches = new List<T>();
-        foreach (var item in items)
+        // Counted, not collected — and for a subtler reason than its positive counterpart. This
+        // assertion passes when the count is anything other than one, INCLUDING two or more. A lazy
+        // list would therefore still be allocated, and populated, on a perfectly successful call
+        // over a collection where several items match. Only the count decides the outcome, so only
+        // the count is computed; the single matching item is collected in the failing branch.
+        var matchCount = 0;
+        for (var i = 0; i < items.Length; i++)
         {
-            if (predicate(item)) matches.Add(item);
+            if (predicate(items[i])) matchCount++;
         }
 
-        Assert().ForCondition(matches.Count != 1).BecauseOf(because, becauseArgs)
-            .FailWith("Did not expect {subject} to contain a single item matching the given predicate{reason}, but found {0}.", matches);
+        if (matchCount == 1)
+        {
+            var matches = new List<T>();
+            for (var i = 0; i < items.Length; i++)
+            {
+                if (predicate(items[i])) matches.Add(items[i]);
+            }
+
+            Assert().ForCondition(false).BecauseOf(because, becauseArgs)
+                .FailWith("Did not expect {subject} to contain a single item matching the given predicate{reason}, but found {0}.", matches);
+        }
+
         return new(this);
     }
 
@@ -370,13 +403,13 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         var items = Items;
         if (Subject is null) return FailNull("not to contain an item matching the given predicate", because, becauseArgs);
 
-        var matches = new List<T>();
+        List<T>? matches = null;  // allocated only when the assertion is going to fail
         foreach (var item in items)
         {
-            if (predicate(item)) matches.Add(item);
+            if (predicate(item)) (matches ??= []).Add(item);
         }
 
-        Assert().ForCondition(matches.Count == 0).BecauseOf(because, becauseArgs)
+        Assert().ForCondition(matches is null).BecauseOf(because, becauseArgs)
             .FailWith("Did not expect {subject} to contain an item matching the given predicate{reason}, but found {0}.", matches);
         return new(this);
     }
@@ -460,13 +493,13 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         var items = Items;
         if (Subject is null) return FailNull("to only contain items matching the given predicate", because, becauseArgs);
 
-        var mismatches = new List<T>();
+        List<T>? mismatches = null;  // allocated only when the assertion is going to fail
         foreach (var item in items)
         {
-            if (!predicate(item)) mismatches.Add(item);
+            if (!predicate(item)) (mismatches ??= []).Add(item);
         }
 
-        Assert().ForCondition(mismatches.Count == 0).BecauseOf(because, becauseArgs)
+        Assert().ForCondition(mismatches is null).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to only contain items matching the given predicate{reason}, but {0} did not.", mismatches);
         return new(this);
     }
@@ -513,14 +546,14 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
 
         var seen = new HashSet<T>();
         var duplicates = new HashSet<T>();
-        var duplicatesInOrder = new List<T>();
+        List<T>? duplicatesInOrder = null;  // allocated only when the assertion is going to fail
         foreach (var item in items)
         {
             if (!seen.Add(item) && duplicates.Add(item))
-                duplicatesInOrder.Add(item);
+                (duplicatesInOrder ??= []).Add(item);
         }
 
-        Assert().ForCondition(duplicatesInOrder.Count == 0).BecauseOf(because, becauseArgs)
+        Assert().ForCondition(duplicatesInOrder is null).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to only have unique items{reason}, but found duplicate(s) {0}.", duplicatesInOrder);
         return new(this);
     }
@@ -958,14 +991,14 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         if (Subject is null) return FailNull("to be a subset of the given superset", because, becauseArgs);
 
         var missing = new HashSet<T>();
-        var missingInOrder = new List<T>();
+        List<T>? missingInOrder = null;  // allocated only when the assertion is going to fail
         foreach (var item in items)
         {
             if (!superset.Contains(item) && missing.Add(item))
-                missingInOrder.Add(item);
+                (missingInOrder ??= []).Add(item);
         }
 
-        Assert().ForCondition(missingInOrder.Count == 0).BecauseOf(because, becauseArgs)
+        Assert().ForCondition(missingInOrder is null).BecauseOf(because, becauseArgs)
             .FailWith("Expected {subject} to be a subset of {0}{reason}, but item(s) {1} are not part of the superset.", superset, missingInOrder);
         return new(this);
     }
@@ -1017,14 +1050,14 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         if (Subject is null) return FailNull("not to intersect with the other collection", because, becauseArgs);
 
         var shared = new HashSet<T>();
-        var sharedInOrder = new List<T>();
+        List<T>? sharedInOrder = null;  // allocated only when the assertion is going to fail
         foreach (var item in items)
         {
             if (other.Contains(item) && shared.Add(item))
-                sharedInOrder.Add(item);
+                (sharedInOrder ??= []).Add(item);
         }
 
-        Assert().ForCondition(sharedInOrder.Count == 0).BecauseOf(because, becauseArgs)
+        Assert().ForCondition(sharedInOrder is null).BecauseOf(because, becauseArgs)
             .FailWith("Did not expect {subject} to intersect with {0}{reason}, but found shared item(s) {1}.", other, sharedInOrder);
         return new(this);
     }
@@ -1090,6 +1123,14 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
     /// </summary>
     private static List<string> InspectItems(ReadOnlySpan<T> items, Func<int, Action<T>> inspectorFor)
     {
+        // NOT made lazy, unlike the failure-detail lists elsewhere in this file, and the reason is
+        // worth stating so nobody "finishes the job": this list is the RETURN VALUE, not a detail
+        // collected for a message. Its allocation is the method's purpose.
+        //
+        // It would also be pointless. The loop below allocates an AssertionScope and an interpolated
+        // string PER ITEM, and relies on exception-based control flow for each failing one — costs
+        // that dwarf a single List by orders of magnitude. If this path is ever worth optimising,
+        // the scope-per-item is the thing to attack, not this.
         var failures = new List<string>();
         for (var i = 0; i < items.Length; i++)
         {

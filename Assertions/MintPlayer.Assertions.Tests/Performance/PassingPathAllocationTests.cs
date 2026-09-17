@@ -158,6 +158,51 @@ public class PassingPathAllocationTests
         AssertNoExtraAllocation("NotBeEmpty() over T[]", () => subject.Should(), () => subject.Should().NotBeEmpty());
     }
 
+    /// <summary>
+    /// The predicate assertions whose failure-detail list is collected lazily.
+    /// </summary>
+    [Fact]
+    public void PredicateAssertionsAllocateNothingWhenNothingMatches()
+    {
+        int[] subject = [1, 2, 3, 4, 5, 6, 7, 8];
+        AssertNoExtraAllocation("NotContain(predicate)",
+            () => subject.Should(), () => subject.Should().NotContain(x => x > 100));
+        AssertNoExtraAllocation("OnlyContain(predicate)",
+            () => subject.Should(), () => subject.Should().OnlyContain(x => x > 0));
+    }
+
+    /// <summary>
+    /// <c>ContainSingle</c> passes on exactly ONE match, so it cannot use the lazy-list trick its
+    /// siblings do — a lazy list would still be allocated on every successful call. It counts
+    /// instead, and collects only in the failing branch.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ This test exists because the obvious "simplification" — collecting matches into a list and
+    /// testing <c>Count == 1</c> — passes every behavioural test in the suite while allocating on
+    /// the passing path. Only a byte count can tell the two apart.
+    /// </remarks>
+    [Fact]
+    public void ContainSingleAllocatesNothingWhenItSucceeds()
+    {
+        int[] subject = [1, 2, 3, 4, 5, 6, 7, 8];
+        AssertNoExtraAllocation("ContainSingle(predicate)",
+            () => subject.Should(), () => subject.Should().ContainSingle(x => x == 5));
+    }
+
+    /// <summary>
+    /// <c>NotContainSingle</c> is the subtler one: it passes when the count is anything other than
+    /// one, <b>including two or more</b>. A lazy list would therefore be allocated AND populated on
+    /// a successful call over a collection where several items match — which is the case asserted
+    /// here deliberately.
+    /// </summary>
+    [Fact]
+    public void NotContainSingleAllocatesNothingEvenWhenManyMatch()
+    {
+        int[] subject = [1, 2, 3, 4, 5, 6, 7, 8];
+        AssertNoExtraAllocation("NotContainSingle(predicate), many matches",
+            () => subject.Should(), () => subject.Should().NotContainSingle(x => x > 2));
+    }
+
     #endregion
 
     #region Scopes
