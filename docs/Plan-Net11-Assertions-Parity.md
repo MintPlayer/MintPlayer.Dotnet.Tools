@@ -23,7 +23,10 @@ running it is how the change is verified at all.
 
 ## STATUS — as of 2026-09-17, branch `net11-assertions-parity`, 9 commits
 
-**Done: M0, M1, M2 (all four layers), M3, M4, M5a, M6, S1, S3, S4. Partial: M5b, M5c. Outstanding: S2(kept).**
+**Done: M0, M1, M2 (all four layers), M3, M4, M5a, M6, S1, S3, S4. Partial: M5b, M5c. Outstanding: S2 (resolved in favour of keeping the counters).**
+
+991 assertion tests pass on net10.0 and net11.0; 24 test projects across the solution, 0 failures,
+Release. The walk allocates **6,808 B/op**, down from 20,340 when this branch started.
 891 assertion tests pass on net10.0 and net11.0; full solution builds clean.
 
 ### The hard boundary: improved, not merely held
@@ -90,6 +93,13 @@ Every item below has a ⚠️ comment at the code it concerns, so none depends o
 | Item | Location of the note |
 |---|---|
 | M4 ✅ fixed — why the two phases must stay two phases | `EquivalencyValidator.CompareCollections` and `MaximumMatcher` |
+| Why the walk's position is a stack and not a string (49% of a comparison) | `PathStack`, and the push/try/finally in `CompareNode` |
+| No initial capacity on the path stack — it measured worse | `PathStack`, on the segment list |
+| Why traits filter in the PROVIDER and never in `CompareMembers` | `MemberSelection`, and `Context.MemberSelection` |
+| The vacuity check must count the type's OWN members, not the selected ones | `EquivalencyValidator`, above the vacuity return |
+| `FormattingOptions` is process-wide; `With(...)` is the thread-local form | `FormattingOptions`, class remark |
+| Formatters are registered, never discovered by scanning | `Formatter.customFormatters` |
+| `FailWith`: arguments are formatted, and an index is not substituted twice | `GenericCollectionAssertions.HaveNeighbour` |
 | S1 ✅ — why traits are two tables and not a mask | `MemberTraits`, `EquivalencyRegistry.extended`, and the emitter's `WriteRegistration` |
 | No capturing lambda in a hot method, however cold its branch | `EquivalencyRegistry.TryGetAccessors`, above the `GetOrAdd` |
 | The generator and the reflection fallback are one rule in two projects | `EquivalencyScanner.TryClassify` and `ReflectionMemberProvider`, both pointing at `MemberTraitTests` |
