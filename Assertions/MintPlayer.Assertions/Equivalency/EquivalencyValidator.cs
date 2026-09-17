@@ -346,10 +346,30 @@ internal static class EquivalencyValidator
         return items;
     }
 
+    /// <summary>Whether this path was excluded by an option.</summary>
+    /// <remarks>
+    /// Called roughly twice per member per node, so it is on the hottest path in the walker and
+    /// every line here is paid for by comparisons that configure nothing.
+    /// <para>
+    /// ⚠️ The <c>Count == 0</c> guard is load-bearing, not defensive. <c>ExcludedWildcardPaths</c> is
+    /// an <c>IReadOnlyCollection&lt;string&gt;</c>, so the <c>foreach</c> below boxes a
+    /// <c>HashSet&lt;string&gt;.Enumerator</c> — and without the guard it did so on every call even
+    /// though almost no comparison configures a wildcard exclusion. The guard skips the loop, and
+    /// the box with it, for the overwhelmingly common case. MPA0005 still reports the loop; that is
+    /// correct and deliberate — it is only unreachable when the set is empty.
+    /// </para>
+    /// <para>
+    /// <c>Contains</c> above does NOT box: <c>Enumerable.Contains</c> has an
+    /// <c>ICollection&lt;T&gt;</c> fast path, so it stays O(1) and allocation-free despite the
+    /// interface type. Only the <c>foreach</c> is the problem.
+    /// </para>
+    /// </remarks>
     private static bool IsExcluded(IEquivalencyOptions options, string path)
     {
         if (path.Length == 0) return false;
         if (options.ExcludedPaths.Contains(path)) return true;
+        if (options.ExcludedWildcardPaths.Count == 0) return false;
+
         foreach (var pattern in options.ExcludedWildcardPaths)
         {
             if (WildcardPattern.IsMatch(path, pattern)) return true;
