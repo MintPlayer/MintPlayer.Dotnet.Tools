@@ -71,6 +71,21 @@ public partial class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IE
         }
     }
 
+    /// <summary>The subject as a span, for assertions that live outside this class.</summary>
+    /// <remarks>
+    /// ⚠️ Internal on purpose: it hands out <see cref="Items"/>, which is a view over the subject's
+    /// own storage. The extension assertions in <c>StringCollectionAssertions</c> need it because
+    /// enumerating <c>Subject</c> instead boxes a struct enumerator on every call — the same cost
+    /// MPA0005 exists to catch, which that rule does NOT report here because
+    /// <c>IEnumerable&lt;T&gt;</c> is not indexable and so is outside its scope. An unreported cost
+    /// is still a cost.
+    /// </remarks>
+    internal ReadOnlySpan<T> SubjectSpan => Items;
+
+    /// <summary>Reports a null subject from an assertion defined outside this class.</summary>
+    internal AndConstraint<GenericCollectionAssertions<T>> FailNullExternally(string expectation, string? because, object?[] becauseArgs)
+        => FailNull(expectation, because, becauseArgs);
+
     private AndConstraint<GenericCollectionAssertions<T>> FailNull(string expectation, string? because, object?[] becauseArgs)
     {
         Assert().ForCondition(false).BecauseOf(because, becauseArgs)

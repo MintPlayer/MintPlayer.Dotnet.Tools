@@ -242,6 +242,95 @@ public class PassingPathAllocationTests
 
     #endregion
 
+    #region The M5b/M5c families
+
+    /// <summary>
+    /// An occurrence constraint is a readonly struct built at the call site. As a class it would be
+    /// one allocation on every assertion that takes one.
+    /// </summary>
+    [Fact]
+    public void AnOccurrenceConstraintAllocatesNothing()
+    {
+        int[] subject = [1, 2, 2, 3];
+        AssertNoExtraAllocation("Contain(item, Exactly.Twice())",
+            () => subject.Should(), () => subject.Should().Contain(2, Exactly.Twice()));
+    }
+
+    [Fact]
+    public void CountingWithAnOccurrenceConstraintAllocatesNothing()
+    {
+        int[] subject = [1, 2, 3];
+        AssertNoExtraAllocation("HaveCount(AtLeast.Times(3))",
+            () => subject.Should(), () => subject.Should().HaveCount(AtLeast.Times(3)));
+    }
+
+    /// <summary>
+    /// The string-collection assertions live OUTSIDE GenericCollectionAssertions, so they cannot
+    /// reach <c>Items</c> the way an instance assertion does. Enumerating <c>Subject</c> instead
+    /// boxes a struct enumerator per call, and MPA0005 does not report it — IEnumerable&lt;T&gt; is
+    /// not indexable, so it is outside that rule's scope. This test is the only thing that notices.
+    /// </summary>
+    [Fact]
+    public void TheStringCollectionSurfaceAllocatesNothing()
+    {
+        string[] subject = ["alpha", "beta", "gamma"];
+        AssertNoExtraAllocation("ContainMatch() over string[]",
+            () => subject.Should(), () => subject.Should().ContainMatch("al*"));
+    }
+
+    [Fact]
+    public void ScanningStringsForBlanksAllocatesNothing()
+    {
+        string[] subject = ["a", "b", "c"];
+        AssertNoExtraAllocation("NotContainNullsOrWhiteSpace() over string[]",
+            () => subject.Should(), () => subject.Should().NotContainNullsOrWhiteSpace());
+    }
+
+    [Fact]
+    public void TheNumericMirrorsAllocateNothing()
+    {
+        var value = 5;
+        AssertNoExtraAllocation("NotBeGreaterThan(int)",
+            () => value.Should(), () => value.Should().NotBeGreaterThan(5));
+    }
+
+    /// <summary>
+    /// The capability checks pass non-capturing lambdas, which the compiler caches as statics. A
+    /// lambda that captured anything would allocate a display class per call — see PRD §9.15.
+    /// </summary>
+    [Fact]
+    public void StreamCapabilityChecksAllocateNothing()
+    {
+        using var stream = new MemoryStream([1, 2, 3]);
+        AssertNoExtraAllocation("BeReadable() over MemoryStream",
+            () => stream.Should(), () => stream.Should().BeReadable());
+    }
+
+    [Fact]
+    public void StreamLengthChecksAllocateNothing()
+    {
+        using var stream = new MemoryStream([1, 2, 3]);
+        AssertNoExtraAllocation("HaveLength() over MemoryStream",
+            () => stream.Should(), () => stream.Should().HaveLength(3));
+    }
+
+    /// <summary>
+    /// Excluding a member kind must not cost anything per comparison: the filtered table is built
+    /// once per (type, selection) and cached, so the second and later calls do no work at all.
+    /// </summary>
+    [Fact]
+    public void AMemberKindOptionIsFreeAfterTheFirstComparison()
+    {
+        var subject = new KindedPoco { Property = 1, Field = 1 };
+        var expectation = new KindedPoco { Property = 1, Field = 1 };
+
+        AssertNoExtraAllocation("BeEquivalentTo(ExcludingFields) vs unfiltered",
+            () => subject.Should().BeEquivalentTo(expectation),
+            () => subject.Should().BeEquivalentTo(expectation, o => o.ExcludingFields()));
+    }
+
+    #endregion
+
     #region Scopes
 
     /// <summary>

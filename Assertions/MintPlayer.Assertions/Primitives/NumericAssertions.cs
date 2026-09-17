@@ -8,7 +8,7 @@ namespace MintPlayer.Assertions.Primitives;
 /// set membership and approximate equality. Equality goes through
 /// <see cref="EqualityComparer{T}.Default"/>, so <c>double.NaN.Should().Be(double.NaN)</c> passes.
 /// </summary>
-public class NumericAssertions<T>
+public partial class NumericAssertions<T>
     where T : struct, INumber<T>
 {
     public NumericAssertions(T? subject, string? subjectExpression)

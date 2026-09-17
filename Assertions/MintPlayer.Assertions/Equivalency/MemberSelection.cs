@@ -13,11 +13,12 @@ namespace MintPlayer.Assertions.Equivalency;
 /// call site guess which direction a bit means.
 /// </para>
 /// <para>
-/// ⚠️ <b>A readonly struct used as a dictionary key, so it needs value equality — which the compiler
-/// gives it here only because both fields are enums.</b> If this ever gains a field that is not a
-/// value type, the generated <c>Equals</c>/<c>GetHashCode</c> stop being cheap and the accessor
-/// caches in <c>EquivalencyRegistry</c> and <c>ReflectionMemberProvider</c> quietly become slower
-/// than the work they are caching.
+/// ⚠️ <b>A dictionary key, so it implements <see cref="IEquatable{T}"/> by hand — and that is not
+/// ceremony.</b> A struct without it falls back to <c>ObjectEqualityComparer</c>, which BOXES on
+/// every lookup: measured as <b>96 B/op</b> on a comparison using <c>ExcludingFields</c>, on what is
+/// supposed to be a cached fast path. The compiler's structural equality is correct but not free,
+/// and nothing warns about the difference. If a field is ever added here, add it to
+/// <see cref="Equals(MemberSelection)"/> and <see cref="GetHashCode"/> too.
 /// </para>
 /// <para>
 /// ⚠️ <b><see cref="Default"/> must remain the zero value.</b> Both providers short-circuit on
@@ -28,6 +29,7 @@ namespace MintPlayer.Assertions.Equivalency;
 /// </para>
 /// </remarks>
 internal readonly struct MemberSelection(MemberTraits wanted, MemberTraits excludedKinds)
+    : IEquatable<MemberSelection>
 {
     /// <summary>Everything on by default, nothing more: what essentially every comparison uses.</summary>
     public static MemberSelection Default => default;
@@ -52,4 +54,10 @@ internal readonly struct MemberSelection(MemberTraits wanted, MemberTraits exclu
         if ((traits & ExcludedKinds) != MemberTraits.None) return false;
         return (traits & EquivalencyRegistry.ExcludedByDefault & ~Wanted) == MemberTraits.None;
     }
+
+    public bool Equals(MemberSelection other) => Wanted == other.Wanted && ExcludedKinds == other.ExcludedKinds;
+
+    public override bool Equals(object? obj) => obj is MemberSelection other && Equals(other);
+
+    public override int GetHashCode() => ((int)Wanted * 397) ^ (int)ExcludedKinds;
 }
