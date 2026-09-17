@@ -27,9 +27,13 @@ detection and no adapter package to install.
 dotnet add package MintPlayer.Assertions
 ```
 
-One package reference brings three things: the assertion library (`net8.0`, `net9.0`,
-`net10.0`), the source generator that makes object-graph comparison reflection-free, and the
-analyzers that catch assertions which cannot fail.
+One package reference brings three things: the assertion library (`net10.0`, `net11.0`), the source
+generator that makes object-graph comparison reflection-free, and the analyzers that catch
+assertions which cannot fail.
+
+> **Upgrading from 1.x?** This version drops `net8.0` and `net9.0`. NuGet does not roll *forward*
+> across target frameworks, so a `net8.0` or `net9.0` test project will report `NU1202` rather than
+> silently resolving something older — stay on `1.1.0` until you move the test project up.
 
 And one using covers everything you write in a test:
 
@@ -235,12 +239,19 @@ substantially cheaper. On a 4-level graph of 5 types containing a 20-item collec
 
 | | Mean | Allocated |
 |---|---:|---:|
-| FluentAssertions 7.2.2 | 201.08 µs | 409.14 KB |
-| MintPlayer.Assertions | **13.08 µs** | **20.34 KB** |
+| FluentAssertions 7.2.2 | 221.26 µs | 397.04 KB |
+| MintPlayer.Assertions | **12.60 µs** | **14.84 KB** |
 
-<sub>BenchmarkDotNet 0.14.0, .NET 10.0.11, X64 RyuJIT AVX-512, Windows 11. Reproduce with
+<sub>BenchmarkDotNet 0.14.0, .NET 11.0.0, X64 RyuJIT AVX-512, Windows 11. Reproduce with
 `dotnet run -c Release --project Assertions/MintPlayer.Assertions.Benchmarks -- --filter '*'`.
-The benchmark verifies both libraries traverse the entire graph before it will report.</sub>
+The benchmark verifies both libraries traverse the entire graph, and that the generated accessors
+are actually active, before it will report — otherwise it would happily measure the reflection
+fallback and call it a result.</sub>
+
+Treat the allocation figures as exact and the timings as approximate. Bytes are a property of the
+emitted IL and reproduce to the decimal across runs; wall-clock moved ±15% for FluentAssertions
+between runs on an *idle* machine, and far more on a busy one. That asymmetry is why the regression
+gates in this repo assert bytes and operation counts rather than milliseconds.
 
 ### Strings
 
