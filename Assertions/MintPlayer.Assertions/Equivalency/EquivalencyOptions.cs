@@ -48,6 +48,7 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     private bool compareEnumsByValue;
     private bool ignoreStringCase;
     private bool useStrictTyping;
+    private bool useAutoConversion;
 
     IReadOnlyCollection<string> IEquivalencyOptions.ExcludedPaths => excludedPaths ?? (IReadOnlyCollection<string>)NoStrings;
     IReadOnlyDictionary<Type, IReadOnlyCollection<string>> IEquivalencyOptions.NestedExclusions => nestedExclusions ?? NoMembersByType;
@@ -70,6 +71,7 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     bool IEquivalencyOptions.CompareEnumsByValue => compareEnumsByValue;
     bool IEquivalencyOptions.IgnoreStringCase => ignoreStringCase;
     bool IEquivalencyOptions.UseStrictTyping => useStrictTyping;
+    bool IEquivalencyOptions.UseAutoConversion => useAutoConversion;
 
     /// <summary>
     /// Excludes the member selected by <paramref name="selector"/> from the comparison. Chained
@@ -408,6 +410,43 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     public EquivalencyOptions<TExpectation> WithStrictTyping()
     {
         useStrictTyping = true;
+        return this;
+    }
+
+    /// <summary>
+    /// Converts a value-like subject to the expectation's type before comparing, so <c>"1"</c>
+    /// matches <c>1</c> and <c>1</c> matches <c>1.0m</c>.
+    /// </summary>
+    /// <remarks>
+    /// For data that arrived untyped — a CSV row, a JSON document read as strings, a database
+    /// reader — where insisting on the type is asserting something about the transport rather than
+    /// about the value.
+    /// <para>
+    /// ⚠️ <b>It converts the SUBJECT to the expectation's type, never the other way round, and it
+    /// never converts anything structural.</b> A conversion that throws or returns something unequal
+    /// is simply a failed comparison, so this can only ever make a comparison pass that would
+    /// otherwise fail on a representation difference — it cannot make one fail that would have
+    /// passed. That one-directional guarantee is what makes it safe to reach for; losing it would
+    /// turn a convenience into a source of false greens.
+    /// </para>
+    /// <para>
+    /// It is also the exact opposite of <see cref="WithStrictTyping"/>. Setting both is a
+    /// contradiction the engine does not police: strict typing is checked at structural nodes and
+    /// conversion at value-like ones, so they mostly do not meet — but a call site asking for both is
+    /// saying two things and should pick one.
+    /// </para>
+    /// </remarks>
+    public EquivalencyOptions<TExpectation> WithAutoConversion()
+    {
+        useAutoConversion = true;
+        return this;
+    }
+
+    /// <summary>Compares values without converting them. This is the default.</summary>
+    /// <remarks>Here so a shared options builder can be overridden, and so a call site can say so.</remarks>
+    public EquivalencyOptions<TExpectation> WithoutAutoConversion()
+    {
+        useAutoConversion = false;
         return this;
     }
 

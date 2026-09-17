@@ -89,6 +89,8 @@ internal static class EquivalencyValidator
 
         public bool UseStrictTyping { get; } = options.UseStrictTyping;
 
+        public bool UseAutoConversion { get; } = options.UseAutoConversion;
+
         public bool HasNestedInclusions { get; } = options.NestedInclusions.Count > 0;
 
         public bool HasStrictOrderingPaths { get; } = options.StrictOrderingPaths.Count > 0;
@@ -763,7 +765,39 @@ internal static class EquivalencyValidator
         if (context.IgnoreStringCase && subject is string subjectText && expectation is string expectationText)
             return string.Equals(subjectText, expectationText, StringComparison.OrdinalIgnoreCase);
 
-        return Equals(subject, expectation);
+        if (Equals(subject, expectation)) return true;
+
+        // Auto-conversion is tried ONLY after ordinary equality has already failed, so it can never
+        // change the answer for a comparison that was going to pass. It converts the subject to the
+        // expectation's type and never the reverse, and a conversion that throws is simply not a
+        // match -- which keeps this one-directional: it can rescue a representation difference, and
+        // it cannot manufacture a failure.
+        return context.UseAutoConversion && ConvertsEqual(subject, expectation);
+    }
+
+    /// <summary>Whether the subject converts to the expectation's type and compares equal.</summary>
+    /// <remarks>
+    /// <see cref="IConvertible"/> only, which is every primitive, string, decimal and DateTime and
+    /// nothing structural. That is deliberate: <c>Convert.ChangeType</c> on an arbitrary object
+    /// reaches for a <c>TypeConverter</c> and is neither predictable nor trimming-safe, and this
+    /// library does not do things it cannot explain.
+    /// </remarks>
+    private static bool ConvertsEqual(object? subject, object? expectation)
+    {
+        if (subject is not IConvertible || expectation is null) return false;
+
+        var target = Nullable.GetUnderlyingType(expectation.GetType()) ?? expectation.GetType();
+        if (!typeof(IConvertible).IsAssignableFrom(target)) return false;
+
+        try
+        {
+            return Equals(Convert.ChangeType(subject, target, CultureInfo.InvariantCulture), expectation);
+        }
+        catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException or ArgumentException)
+        {
+            // A value that does not convert is simply not equal. Anything else is a bug worth seeing.
+            return false;
+        }
     }
 
     /// <summary>Whether the collection at the current position was asked to compare in order.</summary>

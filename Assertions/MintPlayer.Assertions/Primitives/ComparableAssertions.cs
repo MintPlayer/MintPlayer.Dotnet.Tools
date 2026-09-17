@@ -6,7 +6,7 @@ namespace MintPlayer.Assertions.Primitives;
 /// Assertions on any <see cref="IComparable{T}"/> subject — reference or value type — using
 /// <see cref="IComparable{T}.CompareTo"/> semantics: equality means CompareTo returns 0.
 /// </summary>
-public class ComparableAssertions<T>
+public partial class ComparableAssertions<T>
     where T : IComparable<T>
 {
     // T is unconstrained struct-vs-class, so a null subject is tracked explicitly:

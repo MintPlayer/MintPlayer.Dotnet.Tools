@@ -7,7 +7,7 @@ namespace MintPlayer.Assertions.Primitives;
 /// equality, proximity, ordering, calendar/clock components, offset and null checks.
 /// Positive assertions fail on a null subject; negative ones treat null as passing.
 /// </summary>
-public class DateTimeOffsetAssertions
+public partial class DateTimeOffsetAssertions
 {
     public DateTimeOffsetAssertions(DateTimeOffset? subject, string? subjectExpression)
     {

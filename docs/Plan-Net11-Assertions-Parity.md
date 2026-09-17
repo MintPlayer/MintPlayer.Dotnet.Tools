@@ -424,10 +424,12 @@ cached and only runs when nothing was compared, so a normal comparison pays noth
 as a shape: **a filter added upstream of a "did we assert anything?" check can make "nothing to do"
 indistinguishable from "nothing was asked for".**
 
-### Still outstanding in M5c
+### M5c: see the coverage table
 
-The remaining ~43 equivalency options, including the ~14 that genuinely need runtime reflection and
-must therefore go behind an explicit opt-in so they never cost a test that does not use them.
+29 options now. The one real remaining gap is `ComparingRecordsByValue`/`ByMembers`, which needs a
+generator-emitted TYPE trait to stay reflection-free; `ComparingByValue<TRecord>()` is the equivalent
+today. Everything else FluentAssertions offers is either present, present under a clearer name, the
+default, or deliberately out of scope — the table above says which, for each.
 
 ---
 
@@ -504,6 +506,44 @@ reflection-free, and admitting it would undo the property the rest of this libra
 
 ---
 
+## Option coverage against FluentAssertions, stated honestly
+
+29 options. The point of this table is that "what is missing" should be answerable without reading
+the source, and that the answer should distinguish *not built* from *built under another name* from
+*deliberately out*.
+
+| FluentAssertions option | Here |
+|---|---|
+| `Excluding`, `ExcludingNested`, `Including` | same names |
+| `WithStrictOrdering`, `WithoutStrictOrdering`, `WithStrictOrderingFor` | same names |
+| `WithAutoConversion`, `WithoutAutoConversion` | same names |
+| `ComparingEnumsByName`, `ComparingEnumsByValue` | same names |
+| `ComparingByValue<T>`, `ComparingByMembers<T>` | same names |
+| `ExcludingMissingMembers` | same name |
+| `AllowingInfiniteRecursion`, `WithMaxDepth` | same names |
+| `IncludingInternalMembers` | same name, answered from a generator-emitted flag rather than reflection |
+| `Using<T>` (action or comparer) | same name, both forms |
+| `WithTracing` | **`WithDiagnostics()`** — same thing, named for what it reports |
+| `PreferringRuntimeType`, `IncludingAllRuntimeProperties` | **`RespectingRuntimeTypes()`** |
+| `PreferringDeclaredType`, `IncludingAllDeclaredProperties` | the **default**; call nothing |
+| `ExcludingNonBrowsable` | the **default**. The opt-in is the other direction: `IncludingNonBrowsableMembers()` |
+| `IgnoringCyclicReferences` | **unnecessary**. A reference pair already on the descent stack is treated as equal rather than throwing, so cycles are always safe. An option to permit what already happens would be a no-op with a name. |
+| `ComparingRecordsByValue`, `ComparingRecordsByMembers` | **not built, and this is the one real gap.** Detecting "is a record" needs `Type.GetMethod("<Clone>$")` or the `EqualityContract` property — type reflection, which is the entry condition this milestone is held to. `ComparingByValue<TRecord>()` is the reflection-free equivalent and is explicit about which type it means. Closing it properly means a generator-emitted TYPE trait beside the member traits S1 added; that is a real piece of work, not an oversight. |
+
+Options with no FluentAssertions counterpart, added here: `ExcludingFields`, `ExcludingProperties`,
+`IncludingNested<T>`, `ComparingStringsIgnoringCase`, `WithStrictTyping`, `WithoutRecursing`,
+`AllowingVacuousComparison`, `ExcludingPath`.
+
+### And what is out of scope entirely
+
+The Types/MemberInfo/Assembly/selector family, per PRD §5. Anything that answers an assertion through
+`Type.GetProperty`, `GetMethod`, `GetInterfaces`, `GetTypes` or `GetCustomAttribute` belongs with it.
+That is a boundary rather than a gap: it is the one part of the FluentAssertions surface that cannot
+be made reflection-free, and admitting it would undo the property the rest of this library is built
+on.
+
+---
+
 ## M2 layer 4 — the nightly benchmark ✅ done
 
 `.github/workflows/assertions-benchmark.yml`. Nightly at 03:00 UTC plus `workflow_dispatch`.
@@ -563,11 +603,25 @@ Formatter, so passing the word "preceding" as an argument quoted it; and a templ
 twice does not substitute it twice. Both are now commented at the method, because the failure looked
 like a wrong assertion rather than a wrong message.
 
-### Still outstanding in M5b
+### M5b is complete
 
-Streams, XML (LINQ-to-XML and the DOM), `TaskCompletionSource`, ValueTask, `ExecutionTimeOf`,
-`OccurrenceConstraint`, `StringCollectionAssertions`, the per-primitive `Not*`/`BeNull` gaps, and the
-comparer-lambda overloads. All still in scope and all still reflection-free; none started.
+The remaining items — the per-primitive `Not*` mirrors and the collection comparer overloads — landed
+after an audit found I had called the milestone done while only the numeric mirrors existed.
+
+`NotBeGreaterThan`/`NotBeLessThan` and their OrEqualTo forms on TimeSpan and `IComparable<T>`;
+`NotBeBefore`/`NotBeOnOrBefore`/`NotBeAfter`/`NotBeOnOrAfter` on DateTime, DateTimeOffset, DateOnly and
+TimeOnly; `NotBeTrue`/`NotBeFalse` on Boolean; and `Contain`/`NotContain`/`Equal`/`BeSubsetOf`/
+`OnlyHaveUniqueItems` overloads taking an `IEqualityComparer<T>`.
+
+⚠️ **None of the mirrors is an alias of its counterpart, and the null subject is why.** A positive
+comparison fails on null — a value that does not exist is not less than anything. A negative one
+passes — it is not greater than anything either. Writing one as a call to the other silently flips
+that for every nullable subject in a suite, so every mirror has a null-subject test and the reason is
+commented at the code.
+
+⚠️ The comparer overloads take an `IEqualityComparer<T>`, **never a comparison lambda**. A lambda
+parameter beside the `because`/`becauseArgs` tail is the naming trap waiting for the next overload
+someone adds next to it.
 
 ---
 

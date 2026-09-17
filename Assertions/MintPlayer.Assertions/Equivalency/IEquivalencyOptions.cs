@@ -92,6 +92,9 @@ public interface IEquivalencyOptions
     /// <summary>True to require the subject's runtime type to match the expectation's.</summary>
     bool UseStrictTyping { get; }
 
+    /// <summary>True to convert a value-like subject to the expectation's type before comparing.</summary>
+    bool UseAutoConversion { get; }
+
     /// <summary>
     /// True to append a summary of the work the walk did — nodes visited, members looked up, match
     /// probes — to the failure message. Off by default and free when off.
