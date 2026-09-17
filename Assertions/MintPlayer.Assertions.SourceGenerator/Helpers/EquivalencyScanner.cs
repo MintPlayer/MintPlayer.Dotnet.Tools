@@ -102,35 +102,130 @@ internal static class EquivalencyScanner
         var memberTypes = new List<ITypeSymbol>();
         var seenNames = new HashSet<string>(StringComparer.Ordinal);
 
+        // False once a non-default member had to be skipped because the generated file cannot name
+        // it. The runtime uses this to refuse the generated table for options that want those
+        // members, rather than compare a different set of them than it would for a local type.
+        var extendedComplete = true;
+
         for (INamedTypeSymbol? current = named; current is { SpecialType: not SpecialType.System_Object }; current = current.BaseType)
         {
             foreach (var member in current.GetMembers())
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (member.IsStatic || member.IsImplicitlyDeclared) continue;
-                if (member.DeclaredAccessibility != Accessibility.Public) continue;
 
                 switch (member)
                 {
-                    case IPropertySymbol { IsIndexer: false, ReturnsByRef: false, ReturnsByRefReadonly: false, GetMethod: { DeclaredAccessibility: Accessibility.Public } } property
+                    case IPropertySymbol { IsIndexer: false, ReturnsByRef: false, ReturnsByRefReadonly: false, GetMethod: not null } property
                         when IsUsableMemberType(compilation, property.Type):
+                    {
+                        // The getter's accessibility is what decides, not the property's: a public
+                        // property with an internal getter cannot be read from generated code.
+                        if (!TryClassify(compilation, property.GetMethod!.DeclaredAccessibility, property, MemberTraitFlags.Property, out var traits, ref extendedComplete)) continue;
                         if (!seenNames.Add(property.Name)) continue;
-                        members.Add(new MemberDeclaration(property.Name, DisplayForTypeof(property.Type), true));
+                        members.Add(new MemberDeclaration(property.Name, DisplayForTypeof(property.Type), traits));
                         memberTypes.Add(property.Type);
                         break;
+                    }
                     case IFieldSymbol { IsConst: false } field when IsUsableMemberType(compilation, field.Type):
+                    {
+                        if (!TryClassify(compilation, field.DeclaredAccessibility, field, MemberTraitFlags.Field, out var traits, ref extendedComplete)) continue;
                         if (!seenNames.Add(field.Name)) continue;
-                        members.Add(new MemberDeclaration(field.Name, DisplayForTypeof(field.Type), false));
+                        members.Add(new MemberDeclaration(field.Name, DisplayForTypeof(field.Type), traits));
                         memberTypes.Add(field.Type);
                         break;
+                    }
                 }
             }
         }
 
-        result.Add(new EquivalencyTypeDeclaration(typeFullName, members.OrderBy(m => m.Name, StringComparer.Ordinal).ToArray()));
+        result.Add(new EquivalencyTypeDeclaration(typeFullName, members.OrderBy(m => m.Name, StringComparer.Ordinal).ToArray(), extendedComplete));
 
         foreach (var memberType in memberTypes)
             Collect(memberType, compilation, visited, result, depth + 1, cancellationToken);
+    }
+
+    /// <summary>
+    /// Decides whether a member is emitted at all and what traits it carries.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>This must agree with <c>ReflectionMemberProvider</c> in the assertions assembly.</b> The
+    /// two are independent implementations of one rule, in two projects, with no compiler check
+    /// between them; a member one returns and the other does not makes the same option compare
+    /// different things depending on whether a type happened to be scanned — visible only in a
+    /// consumer's build. The rules, and why each is what it is:
+    /// <list type="bullet">
+    /// <item><c>private</c> and <c>private protected</c> are dropped. Not a policy choice: generated
+    /// code physically cannot read them, so including them on the reflection side would create a
+    /// difference the generator could never close.</item>
+    /// <item>Explicit interface implementations are dropped. They are reachable only through a cast
+    /// to the interface, so they need an accessor shape neither side emits yet. Both sides return
+    /// nothing, which keeps them in agreement — see <c>MemberTraits.ExplicitInterface</c>.</item>
+    /// <item><c>internal</c>/<c>protected</c> are emitted with the NonPublic trait when the
+    /// generated file can reference them, and otherwise set <paramref name="extendedComplete"/> to
+    /// false so the runtime falls back to reflection instead of comparing a smaller set.</item>
+    /// <item><c>[EditorBrowsable(Never)]</c> is a trait, not an exclusion.</item>
+    /// </list>
+    /// </remarks>
+    private static bool TryClassify(Compilation compilation, Accessibility accessibility, ISymbol member,
+        MemberTraitFlags kind, out MemberTraitFlags traits, ref bool extendedComplete)
+    {
+        traits = kind;
+
+        if (member is IPropertySymbol { ExplicitInterfaceImplementations.IsEmpty: false }
+            or IFieldSymbol { AssociatedSymbol: IPropertySymbol { ExplicitInterfaceImplementations.IsEmpty: false } })
+        {
+            return false;
+        }
+
+        switch (accessibility)
+        {
+            case Accessibility.Public:
+                break;
+            case Accessibility.Internal:
+            case Accessibility.Protected:
+            case Accessibility.ProtectedOrInternal:
+                traits |= MemberTraitFlags.NonPublic;
+                // Accessible from the generated file? Internal members of another assembly are not,
+                // unless it granted InternalsVisibleTo. Protected members are not either: the
+                // generated registration is a namespace-level static class, not a derived type.
+                if (!compilation.IsSymbolAccessibleWithin(member, compilation.Assembly))
+                {
+                    extendedComplete = false;
+                    return false;
+                }
+                if (accessibility is Accessibility.Protected or Accessibility.ProtectedOrInternal)
+                {
+                    extendedComplete = false;
+                    return false;
+                }
+                break;
+            default:
+                // private / private protected: never emitted, and never returned by reflection
+                // either, so this is not a gap the completeness flag needs to record.
+                return false;
+        }
+
+        if (IsNonBrowsable(member)) traits |= MemberTraitFlags.NonBrowsable;
+        return true;
+    }
+
+    private static bool IsNonBrowsable(ISymbol member)
+    {
+        foreach (var attribute in member.GetAttributes())
+        {
+            if (attribute.AttributeClass?.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat)
+                != "System.ComponentModel.EditorBrowsableAttribute")
+            {
+                continue;
+            }
+
+            // EditorBrowsableState.Never == 1.
+            if (attribute.ConstructorArguments.Length == 1 && attribute.ConstructorArguments[0].Value is int state && state == 1)
+                return true;
+        }
+
+        return false;
     }
 
     private static bool IsUsableMemberType(Compilation compilation, ITypeSymbol type)

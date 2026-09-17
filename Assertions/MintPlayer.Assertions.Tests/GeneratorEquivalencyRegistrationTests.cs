@@ -13,7 +13,8 @@ public class AttributedAccessorPoco
     public int Age { get; set; }
     public string Nickname = string.Empty;
 
-    // Not eligible: non-public, static and write-only members are never accessors.
+    // Not in the DEFAULT table: static and write-only members are never accessors, and an internal
+    // member is only compared when IncludingInternalMembers asks for it (see MemberTraitTests).
     internal string Secret { get; set; } = string.Empty;
     public static string Shared { get; set; } = string.Empty;
 }

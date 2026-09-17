@@ -49,6 +49,18 @@ internal static class EquivalencyValidator
         public IMemberProvider MemberProvider { get; } = RegistryMemberProvider.Instance;
 
         /// <summary>
+        /// Which normally-excluded members this comparison asked for, read once instead of per node.
+        /// </summary>
+        /// <remarks>
+        /// ⚠️ Read from the options HERE and nowhere else. It is <see cref="MemberTraits.None"/> for
+        /// essentially every comparison, and on that path the provider hands back the very same
+        /// array it did before traits existed — so the walk does no filtering and <c>FindByName</c>
+        /// has no extra members to scan past. Moving this test into <c>CompareMembers</c> would put
+        /// it on the hottest loop in the library to serve an option that is off by default.
+        /// </remarks>
+        public MemberTraits WantedMemberTraits { get; } = options.IncludedMemberTraits;
+
+        /// <summary>
         /// The first structural node at which nothing was compared, or null when every structural
         /// node asserted something. Only the first is kept: it is enough to explain the mistake,
         /// and reporting every node would bury the cause under its consequences.
@@ -156,8 +168,8 @@ internal static class EquivalencyValidator
         // Both are MemberAccessor[], and `var` is load-bearing here: widening either to
         // IReadOnlyList<MemberAccessor> puts a boxed enumerator on the foreach below, once per
         // structural node. See IMemberProvider.GetMembers.
-        var expectationMembers = context.MemberProvider.GetMembers(expectationType);
-        var subjectMembers = context.MemberProvider.GetMembers(subject.GetType());
+        var expectationMembers = context.MemberProvider.GetMembers(expectationType, context.WantedMemberTraits);
+        var subjectMembers = context.MemberProvider.GetMembers(subject.GetType(), context.WantedMemberTraits);
         var excludedNames = GetNestedExclusions(context.Options, expectationType, subject.GetType());
 
         // Counts the members that actually took part in the comparison. Zero of them means this

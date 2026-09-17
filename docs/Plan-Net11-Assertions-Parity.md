@@ -23,7 +23,7 @@ running it is how the change is verified at all.
 
 ## STATUS — as of 2026-09-17, branch `net11-assertions-parity`, 9 commits
 
-**Done: M0, M1, M2, M3, M4, S3, S4. Outstanding: S1, S2(kept), M5, M6.**
+**Done: M0, M1, M2, M3, M4, S1, S3, S4. Outstanding: S2(kept), M5, M6.**
 891 assertion tests pass on net10.0 and net11.0; full solution builds clean.
 
 ### The hard boundary: improved, not merely held
@@ -33,9 +33,9 @@ Measured net11-vs-net11 on an idle machine, `Fairness checks passed`:
 | | Mean | Allocated | vs FluentAssertions |
 |---|---:|---:|---|
 | README claimed (net10) | 13.08 µs | 20.34 KB | 15.4× / 20.1× |
-| **Now (net11, after M4)** | **11.04 µs** | **14.81 KB** | **17.3× / 26.8×** |
+| **Now (net11, after M4+S1)** | **9.29 µs** | **14.83 KB** | **16.2× / 26.8×** |
 
-Allocation reproduced to the decimal across two independent runs (14.81 KB both times) while
+Allocation reproduced to the decimal across every run (14.83 KB after S1, 14.81 before its +16 B) while
 FluentAssertions' did not (404.26 then 397.04 KB) — the byte-exact gate works because nothing on this
 library's passing path allocates conditionally, which is a property the code earned rather than a
 property of benchmarking. README updated, quoting the less flattering of the two runs whole.
@@ -64,6 +64,25 @@ subjects that were already arrays), boxed enumerators 28 → 6 sites, and twelve
 failure-detail lists analysed individually — nine made lazy, two restructured because lazy would have
 been *wrong*, one left alone with a comment.
 
+### Gate thresholds, and why they are where they are
+
+Tightened once every site under them read zero, because a bound nothing currently exceeds is not a
+bound — §9.15 slipped a 20% regression past a 100 KB alarm.
+
+| Gate | Was | Now | Measured | Why that number |
+|---|---:|---:|---:|---|
+| PassingPathAllocationTests.AllowanceBytesPerOp | 16 B | **0 B** | 0 B everywhere | The actual rule. 16 was scaffolding from while sites were still being fixed, and would have hidden a future box. |
+| TheDefaultWalkStaysUnderItsMeasuredByteCost | — (new) | **14,100 B** | 13,992 B | Under 1% headroom — less than one allocation per node on this graph, so it cannot hide a per-node cost. |
+| TheWalkStaysFarUnderAReflectionWalkersCost | 100 KB | **32 KB** | 13,992 B | Kept deliberately loose and kept separate: it answers "is this still the same algorithm", which the tight bound cannot. 2.3× the measurement, 12× under a reflection walk. |
+| UnorderedMatchingOfAnAlreadyOrderedCollection… | 3× strict | **1.15×** | 1.04× | 3× would accept a matcher three times more expensive than the algorithm it mirrors. |
+
+**There is no wall-clock gate, and that is not an omission.** Duration is gated by the exact
+operation counts — 133 nodes, 112 member lookups, 20 match probes, 0 probes under strict ordering —
+which are asserted for equality, not bounded. An exact count cannot be tightened further, and it
+survives a loaded CI runner where a millisecond threshold is either flaky or too loose to catch
+anything (PRD §2: the same benchmark measured FluentAssertions at 150 µs and 216 µs on the same
+machine).
+
 ### Outstanding, and where each is written down in code
 
 Every item below has a ⚠️ comment at the code it concerns, so none depends on this document:
@@ -71,6 +90,9 @@ Every item below has a ⚠️ comment at the code it concerns, so none depends o
 | Item | Location of the note |
 |---|---|
 | M4 ✅ fixed — why the two phases must stay two phases | `EquivalencyValidator.CompareCollections` and `MaximumMatcher` |
+| S1 ✅ — why traits are two tables and not a mask | `MemberTraits`, `EquivalencyRegistry.extended`, and the emitter's `WriteRegistration` |
+| No capturing lambda in a hot method, however cold its branch | `EquivalencyRegistry.TryGetAccessors`, above the `GetOrAdd` |
+| The generator and the reflection fallback are one rule in two projects | `EquivalencyScanner.TryClassify` and `ReflectionMemberProvider`, both pointing at `MemberTraitTests` |
 | `CompareMultisets`' O(n)→O(n²) cliff if any option changes value equality | `EquivalencyValidator.CompareMultisets` |
 | `FindByName` is O(members²) per node | `EquivalencyValidator.FindByName` |
 | `GetNestedExclusions` allocates a HashSet per node when configured | `EquivalencyValidator.GetNestedExclusions` |
@@ -86,7 +108,12 @@ Every item below has a ⚠️ comment at the code it concerns, so none depends o
 - **M4 ✅** — maximum matching landed. The gate that made it safe to attempt
   (`AnAlignedCollectionCostsOneProbePerItem`, pinned at exactly 20 probes) was written first, on
   purpose, and the probe count is unchanged by the fix.
-- **S1** — generator-emitted member flags. Blocks the ~30 compile-time-decidable equivalency options.
+- **S1 ✅** — generator-emitted member flags landed: `MemberTraits` on every accessor, mirrored in
+  the reflection fallback, with `IncludingInternalMembers` wired end to end. Members excluded by
+  default live in a SECOND table rather than being masked out of the first, so the default walk is
+  handed the same array as before. Cost with the option unset: **+16 B per comparison** (two object
+  size roundings), no per-node cost, node/lookup counts unchanged. It cost 2,768 B/op before the
+  closure in `EquivalencyRegistry.TryGetAccessors` was removed — PRD §9.15.
 - **S2** — resolved in favour of keeping the counters; they cost nothing measurable and caught a real
   bug within minutes. Open question for review: they do add a static-bool read per node to shipped
   code. If that is unacceptable, compile them out behind a symbol.
@@ -265,7 +292,7 @@ The Types/MemberInfo/Assembly/selector family is **out of scope** (PRD §5). Any
 `Type.GetProperty`, `GetMethod`, `GetInterfaces`, `GetTypes` or `GetCustomAttribute` to answer an
 assertion belongs with it and does not land here.
 
-**M5c — hot-path (63 items), gated on S1.** Chiefly the ~46 missing equivalency options. The ~30
+**M5c — hot-path (63 items), unblocked by S1 ✅.** Chiefly the ~46 missing equivalency options. The ~30
 compile-time-decidable ones ride on generator-emitted flags; the ~14 needing runtime reflection go
 behind an explicit opt-in so they never cost a test that does not use them.
 
@@ -326,5 +353,5 @@ recall it.
 | The release silently publishes nothing | M1 step 3, and a CI guard |
 | A "correctness fix" goes quadratic | S4's rule, and Layer 2's strict-vs-unordered assertion |
 | A type silently falls onto the reflection fallback, costing 15× with no signal | Extend `GeneratedAccessorInvariantTests`; consider raising MPA0004 to Warning |
-| The generator and the reflection fallback disagree about a new trait | S1's explicit warning: mirror every scanner change in `ReflectionMemberProvider` |
+| The generator and the reflection fallback disagree about a new trait | Now enforced, not merely warned about: `MemberTraitTests` compares the two member-for-member on a type the generator actually scans |
 | Container crashes on start after a green CI run | M1 step 4 — Dockerfile and csproj move together |

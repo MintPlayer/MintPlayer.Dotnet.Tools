@@ -40,18 +40,18 @@ Measured on this branch, on an idle machine, before any change:
 **15.6× faster, 20.0× less memory.** BenchmarkDotNet 0.14.0, .NET 10 host, SDK 11.0.100-rc.1,
 `Fairness checks passed: generated accessors active`.
 
-> **Status 2026-09-17 — the boundary was not merely held, it moved.** After M1–M4 the same
-> benchmark, re-run net11-vs-net11 on an idle machine, measures **11.04 µs / 14.81 KB** against
-> FluentAssertions' 191.53 µs / 397.04 KB — **17.3× faster, 26.8× less memory**. The README table has
+> **Status 2026-09-17 — the boundary was not merely held, it moved.** After M1–M4 and S1 the same
+> benchmark, re-run net11-vs-net11 on an idle machine, measures **9.29 µs / 14.83 KB** against
+> FluentAssertions' 150.55 µs / 397.04 KB — **16.2× faster, 26.8× less memory**. The README table has
 > been updated to these numbers, which means **the gate is now set against the improved figure, not
 > the original one**: a change that returns the library to 20.34 KB/op is now a regression. That is
 > deliberate. Per-milestone detail is in `Plan-Net11-Assertions-Parity.md` § STATUS.
 >
-> **An unplanned confirmation of §2's premise.** Across two runs this library allocated 14.81 KB
-> both times, to the decimal, while FluentAssertions allocated 404.26 KB and then 397.04 KB. Bytes
+> **An unplanned confirmation of §2's premise.** Across four runs this library allocated the same figure
+> to the hundredth of a KB every time, while FluentAssertions allocated 404.26 KB and then 397.04 KB. Bytes
 > reproduce exactly *here* because nothing on the passing path allocates conditionally — that is a
 > property this code earned, not one every library has, and it is the reason a byte-exact gate works
-> at all. The timings in the same two runs were 9.36 / 11.04 µs and 216.45 / 191.53 µs; the README
+> at all. The timings across those runs spanned 9.29–11.04 µs and 150.55–216.45 µs; the README
 > quotes the less flattering run whole rather than the best figure from each.
 
 Two facts make this usable as a gate:
@@ -271,7 +271,51 @@ an option check and one ran per collection node. **Watch the walker, not the fol
 
 Each is timeboxed, produces a measurement or a decision, and blocks the milestone that depends on it.
 
-### S1 — Generator-emitted member flags (blocks the equivalency options work)
+### S1 — Generator-emitted member flags (blocks the equivalency options work) ✅ RESOLVED
+
+**✅ RESOLVED — implemented, with the pass condition met in substance but not to the letter.**
+
+`MemberTraits` (Property, Field, NonPublic, NonBrowsable, ExplicitInterface) is emitted by
+`EquivalencyScanner` onto every `MemberAccessor`, mirrored in `ReflectionMemberProvider`, and
+`IncludingInternalMembers` is wired end to end.
+
+**The design that made it cheap: two tables, not one mask.** Members excluded by default live in a
+second registration (`RegisterExtendedAccessors`) and are concatenated on demand, cached per
+(type, traits). The default walk is handed the *same array* it was handed before traits existed, so
+`CompareMembers` does no filtering and `FindByName` — O(members²) per node — does not grow because a
+type happens to have internal members nobody asked about. The obvious alternative, one table plus a
+`(traits & mask)` test in `CompareMembers`, puts that cost on every comparison in every suite to
+serve options that are off by default. `TraitsDoNotChangeTheDefaultWalk` pins this.
+
+**Measured: 13,976 → 13,992 B/op with the option unset. +16 bytes per comparison, not per node.**
+That is two object-size roundings — one field on `EquivalencyOptions`, one on the walker's `Context`
+— and it is the honest cost of the option existing at all. The spike said "byte-identical"; this is
+0.11%, and no per-node cost, so it is being taken as a pass. Node and member-lookup counts are
+unchanged at 133/112.
+
+**It did not start there.** The first working version cost **2,768 B/op — a 20% regression** from a
+capturing lambda sitting below an early return; see §9.15, which is the more useful half of this
+spike. Getting from 16,744 to 13,992 is what produced the tight byte gate that now sits beside the
+100 KB smoke alarm.
+
+**Completeness, and why it matters.** The generator cannot emit an accessor for a member it may not
+reference — an `internal` member of another assembly without `InternalsVisibleTo`, or any `protected`
+member, since the generated registration is a namespace-level static class. Rather than compare a
+smaller set for those types, the type's extended table is marked incomplete and the runtime falls
+back to reflection for any request that wants those traits. Correct, ~15× slower, and charged only to
+comparisons that opt in.
+
+**The ⚠️ in the original spike was the right warning and is now enforced by a test.**
+`MemberTraitTests` compares the generated table against the reflection table member-for-member and
+trait-for-trait, on a type the generator actually scans — `TheGeneratorRegisteredThisTypeAtAll` is a
+separate test precisely so that a registration failure cannot quietly turn the parity tests into
+reflection-against-itself. The agreed rules: `private`/`private protected` are returned by neither
+(the generator physically cannot), explicit interface implementations are returned by neither yet,
+and `[EditorBrowsable(Never)]` is a trait rather than an exclusion.
+
+**Open for M5c:** the remaining ~29 compile-time-decidable options now have the mechanism they were
+blocked on. `ExplicitInterface` is defined but unemitted on both sides — deliberately, so the two
+stay in agreement — and emitting it needs a second accessor shape (a cast to the interface).
 
 **Question.** Can the ~30 compile-time-decidable options be driven from flags emitted onto
 `MemberAccessor`, selected with a bitwise test, without moving the benchmark?
@@ -569,3 +613,42 @@ It survived review because it reads as setup, and because every other method in 
 starts the same way. The general shape: **a property whose name is a noun can still be the most
 expensive line in the method.** When a property materialises, say so in its own doc comment — nobody
 reads the getter before using it.
+
+
+### 9.15 A capturing lambda allocates on paths that never reach it
+
+`EquivalencyRegistry.TryGetAccessors(type, wanted, out members)` returns on its **first line** for the
+default case. Far below that early return sat a `GetOrAdd(key, k => …)` whose lambda captured two
+locals. That cost **2,768 B/op** on the benchmark graph — 13,976 → 16,744, a 20% regression — because
+the compiler allocates the closure's display class at **method entry**, for the whole enclosing
+scope, on every call, including the ones that return before the lambda exists.
+
+Three things make this worth writing down:
+
+1. **The operation counters were identical before and after** — 133 nodes, 112 member lookups, both
+   times. No extra work was done. The walk simply allocated an object it never used, twice per
+   structural node. An operation-count gate is structurally blind to this, which is precisely the
+   complement of the case S2 was built for.
+2. **The 100 KB smoke alarm shrugged at it.** A 20% regression passed every gate in the repo. There
+   is now a tight byte bound (`TheDefaultWalkStaysUnderItsMeasuredByteCost`) alongside it; a loose
+   bound and a tight bound catch different things and the loose one alone is not enough.
+3. **The fix is mechanical**: `static` lambda plus the `GetOrAdd(key, factory, state)` overload, or
+   move the body to its own method. The rule for this codebase: **no capturing lambda in a method on
+   the equivalency hot path**, however cold the branch it sits in looks.
+
+### 9.16 A bisect edit that survives into the "restored" state
+
+Finding 9.15 took a bisect: revert to HEAD, re-apply one file at a time, measure each step. One of
+those steps `sed`-ed the two `GetMembers` call sites to a literal `MemberTraits.None` to isolate the
+option, and the backup used to restore the full change was taken **after** that edit. The restore
+therefore brought back a version with the feature disconnected — and the next measurement, 13,992
+B/op, was of code where the option did nothing.
+
+The tests caught it (`IncludingInternalMembersTests` failed immediately), which is the only reason
+the number was not reported as the feature's cost. **A measurement taken during or after a bisect is
+worthless until the functional tests pass on the same build.** Measure only after green, never
+between.
+
+Corollary: back up the working tree **before** the first bisect edit, not part-way through, and
+prefer `git stash` over `cp -r` — a stash cannot silently contain a debugging edit made after it was
+taken.

@@ -28,8 +28,10 @@ public class PassingPathAllocationTests
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 16 bytes is not "a bit of slack" — it is below one small object header, so nothing can hide
-    /// under it. Every assertion covered here measures at or below the baseline.
+    /// <b>Zero.</b> Not a tolerance that nothing currently exceeds — the actual rule. Every assertion
+    /// covered here measures at or below its bare <c>Should()</c> baseline, so there is no slack to
+    /// give and none is given. It was 16 while sites were still being fixed; once they all read zero,
+    /// leaving the allowance up would have meant a future 16-byte box could land unnoticed.
     /// </para>
     /// <para>
     /// It took three fixes to get here, and the numbers are recorded because each was found by this
@@ -50,7 +52,7 @@ public class PassingPathAllocationTests
     /// the three causes that actually occur.
     /// </para>
     /// </remarks>
-    private const long AllowanceBytesPerOp = 16;
+    private const long AllowanceBytesPerOp = 0;
 
     /* KNOWN GAP, deliberately recorded rather than silently left.
      *

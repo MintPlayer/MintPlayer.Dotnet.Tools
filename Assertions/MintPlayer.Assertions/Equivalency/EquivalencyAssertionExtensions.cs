@@ -187,7 +187,7 @@ public static class EquivalencyAssertionExtensions
     }
 
     private static int CountMembers(Type type)
-        => RegistryMemberProvider.Instance.GetMembers(type).Length;
+        => RegistryMemberProvider.Instance.GetMembers(type, MemberTraits.None).Length;
 
     /// <summary>
     /// Builds the failure template with the difference block pre-rendered into it. The block is

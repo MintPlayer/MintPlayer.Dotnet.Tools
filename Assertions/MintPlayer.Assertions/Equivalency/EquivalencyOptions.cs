@@ -33,6 +33,7 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     private int maxDepth = 10;
     private bool useRuntimeTypes;
     private bool allowVacuousComparison;
+    private MemberTraits includedMemberTraits;
 
     IReadOnlyCollection<string> IEquivalencyOptions.ExcludedPaths => excludedPaths;
     IReadOnlyDictionary<Type, IReadOnlyCollection<string>> IEquivalencyOptions.NestedExclusions => nestedExclusions;
@@ -45,6 +46,7 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     int IEquivalencyOptions.MaxDepth => maxDepth;
     bool IEquivalencyOptions.UseRuntimeTypes => useRuntimeTypes;
     bool IEquivalencyOptions.AllowVacuousComparison => allowVacuousComparison;
+    MemberTraits IEquivalencyOptions.IncludedMemberTraits => includedMemberTraits;
 
     /// <summary>
     /// Excludes the member selected by <paramref name="selector"/> from the comparison. Chained
@@ -183,6 +185,24 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     public EquivalencyOptions<TExpectation> AllowingVacuousComparison()
     {
         allowVacuousComparison = true;
+        return this;
+    }
+
+    /// <summary>
+    /// Also compares <c>internal</c>, <c>protected</c> and <c>protected internal</c> members, which
+    /// are skipped by default. <c>private</c> members are never compared.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>This option can cost more than a branch.</b> Non-default members live in a separate
+    /// generated table, and the generator can only emit one for a member it is allowed to reference
+    /// — an <c>internal</c> member of a type in another assembly, with no <c>InternalsVisibleTo</c>,
+    /// is not. For such a type the comparison falls back to reflection, which can see everything, so
+    /// the answer stays right and the walk gets roughly 15× slower. That is charged only to
+    /// comparisons that ask for it; a suite that never calls this is unaffected, byte for byte.
+    /// </remarks>
+    public EquivalencyOptions<TExpectation> IncludingInternalMembers()
+    {
+        includedMemberTraits |= MemberTraits.NonPublic;
         return this;
     }
 

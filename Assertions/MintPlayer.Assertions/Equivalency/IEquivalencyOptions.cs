@@ -49,4 +49,16 @@ public interface IEquivalencyOptions
     /// that cannot fail. Rejected by default, because it is nearly always a mistake.
     /// </summary>
     bool AllowVacuousComparison { get; }
+
+    /// <summary>
+    /// Members that are excluded from comparison by default but have been asked for — currently
+    /// <see cref="MemberTraits.NonPublic"/>. <see cref="MemberTraits.None"/> for the default walk.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Anything other than <see cref="MemberTraits.None"/> changes which member table the engine
+    /// is handed, and can force a type off the generated accessors onto reflection — see
+    /// <see cref="EquivalencyRegistry.RegisterExtendedAccessors"/>. That is the price of the option,
+    /// and it is charged only to the comparison that sets it.
+    /// </remarks>
+    MemberTraits IncludedMemberTraits { get; }
 }
