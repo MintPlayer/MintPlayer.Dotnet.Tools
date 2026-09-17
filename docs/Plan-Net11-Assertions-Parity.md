@@ -23,11 +23,10 @@ running it is how the change is verified at all.
 
 ## STATUS — as of 2026-09-17, branch `net11-assertions-parity`, 9 commits
 
-**Done: M0, M1, M2 (all four layers), M3, M4, M5a, M6, S1, S3, S4. Partial: M5b, M5c. Outstanding: S2 (resolved in favour of keeping the counters).**
+**Done: M0, M1, M2 (all four layers), M3, M4, M5 (a, b, c), M6, S1, S2, S3, S4. Nothing outstanding.**
 
-991 assertion tests pass on net10.0 and net11.0; 24 test projects across the solution, 0 failures,
-Release. The walk allocates **6,808 B/op**, down from 20,340 when this branch started.
-891 assertion tests pass on net10.0 and net11.0; full solution builds clean.
+1,056 assertion tests pass on net10.0 and net11.0; 24 test projects across the solution, 0 failures,
+Release. The walk allocates **6,360 B/op**, down from 20,340 when this branch started.
 
 ### The hard boundary: improved, not merely held
 
@@ -36,9 +35,9 @@ Measured net11-vs-net11 on an idle machine, `Fairness checks passed`:
 | | Mean | Allocated | vs FluentAssertions |
 |---|---:|---:|---|
 | README claimed (net10) | 13.08 µs | 20.34 KB | 15.4× / 20.1× |
-| **Now (net11, after M5a)** | **9.58 µs** | **6.59 KB** | **17.5× / 60×** |
+| **Now (net11, after M5)** | **15.25 µs** | **6.16 KB** | **18× / 64×** |
 
-Allocation reproduced to the decimal across every run (6.59 KB after M5a; 14.83 before the path work) while
+Allocation reproduced to the decimal across every run (6.16 KB after M5; 14.83 before the path work) while
 FluentAssertions' did not (404.26 then 397.04 KB) — the byte-exact gate works because nothing on this
 library's passing path allocates conditionally, which is a property the code earned rather than a
 property of benchmarking. README updated, quoting the less flattering of the two runs whole.
@@ -414,6 +413,79 @@ indistinguishable from "nothing was asked for".**
 
 The remaining ~43 equivalency options, including the ~14 that genuinely need runtime reflection and
 must therefore go behind an explicit opt-in so they never cost a test that does not use them.
+
+---
+
+## M5b / M5c — completed
+
+### M5b, second tranche
+
+| Added | Note |
+|---|---|
+| `OccurrenceConstraint` + `Exactly`/`AtLeast`/`AtMost`/`MoreThan`/`LessThan` | taken by collection `Contain`/`HaveCount`, string `Contain`/`ContainEquivalentOf`, XML `HaveElement`. A dedicated struct rather than an int plus a comparison word — the word would be a string, and the `because` tail swallows anything string-shaped. |
+| String collections | `ContainMatch`, `NotContainMatch`, `ContainEquivalentOf`, `NotContainNullsOrWhiteSpace`, `AllStartWith` |
+| Streams | capabilities, length, position, ends, emptiness |
+| XML | `XDocument`/`XElement`, with the `XmlDocument` DOM routed through the same implementation |
+| ValueTask, `TaskCompletionSource`, `ExecutionTimeOf` | |
+| Numeric `NotBeGreaterThan` family | |
+
+**Why the string-collection surface is extension methods.** A `Should(this IEnumerable<string>)`
+overload does NOT capture `string[]` — the existing `Should<T>(this T[])` is the better match for an
+array — so a subclass approach would silently differ between `string[]` and `List<string>`. And `.And`
+after a base assertion would need a self-typed generic to keep the string methods, which is a
+breaking rewrite of a shipped type. They live in the ROOT namespace, because an extension is
+invisible until its namespace is imported and the README promises one using covers everything.
+
+**Why nothing reads a stream's contents.** Reading consumes a forward-only stream and moves a
+seekable one, so the assertion would change the thing it is asserting about — and the damage would
+surface in whatever ran next.
+
+**Why the ValueTask subject is a delegate.** A `ValueTask` may be awaited only once; an assertion
+surface taking the value would hand the caller undefined behaviour, in a library whose point is
+catching that class of mistake.
+
+### M5c, second tranche
+
+`WithoutStrictOrdering`, `WithStrictOrderingFor(path)`, `ExcludingMissingMembers`,
+`WithoutRecursing`, `IncludingNested<T>`, `ComparingEnumsByName`, `ComparingEnumsByValue`,
+`ComparingStringsIgnoringCase`, `WithStrictTyping`, `Using<T>(IEqualityComparer<T>)` — 27 options now,
+none of them reflective.
+
+Each flag is read ONCE into the walker's `Context` rather than through the interface per node, and
+each is tested before anything expensive: the enum and string options before any conversion, the
+ordering paths before the path is rendered.
+
+### The gates earned their keep, five times
+
+Every one of these was allocating on the passing path when first written, and none was visible to
+review:
+
+| Cost | Cause |
+|---|---|
+| **288 B/op** `Contain(item, Exactly.Twice())` | an interpolated `FailWith` TEMPLATE is built at the call site, before `FailWith` can decide it has nothing to report |
+| **272 B/op** `HaveCount(AtLeast…)` | same |
+| **136 B/op** `BeReadable()` | same |
+| **96 B/op** `BeEquivalentTo(… ExcludingFields)` | `MemberSelection` is a dictionary key, and a struct without `IEquatable<T>` falls back to `ObjectEqualityComparer`, which boxes on every lookup — on a path that exists to be a cache hit |
+| **+176 B/op** on the whole walk | the two new option collections, built eagerly per call like the seven before them |
+
+The last one is the interesting one. Fixing it properly — making **all nine** option collections
+lazily created — took the walk to **6,360 B/op**, BELOW where it started, and the per-comparison fixed
+cost from 1,168 to 720. Adding the M5c options made the library cheaper.
+
+Also removed: a boxed enumerator the analyzer could not see. The string-collection extensions
+enumerated `Subject` rather than the span, and MPA0005 does not report it because
+`IEnumerable<T>` is not indexable and so falls outside that rule's scope. **An unreported cost is
+still a cost.**
+
+Gates re-tightened to the new floor: walk bound 6,900 → **6,450**, loose alarm 2.6× the measurement,
+and eight new per-family allocation gates.
+
+### What is deliberately NOT ported
+
+The Types/MemberInfo/Assembly/selector family, per PRD §5 — anything answering an assertion through
+`Type.GetProperty`, `GetMethod`, `GetInterfaces`, `GetTypes` or `GetCustomAttribute`. That is a
+boundary, not a gap: it is the one part of the FluentAssertions surface that cannot be made
+reflection-free, and admitting it would undo the property the rest of this library is built on.
 
 ---
 

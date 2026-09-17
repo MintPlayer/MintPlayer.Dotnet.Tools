@@ -205,6 +205,14 @@ Options (`NotBeEquivalentTo` takes the same):
 | `IncludingInternalMembers()` | Also compare `internal`/`protected` members (never `private`) |
 | `IncludingNonBrowsableMembers()` | Also compare members marked `[EditorBrowsable(Never)]` |
 | `WithDiagnostics()` | Append what the walk actually did to the failure message |
+| `WithoutStrictOrdering()` / `WithStrictOrderingFor(path)` | Unordered (the default), or ordered only where it matters |
+| `ExcludingMissingMembers()` | Ignore expectation members the subject lacks |
+| `WithoutRecursing()` | Compare the top level only |
+| `IncludingNested<T>(x => x.M)` | Restrict type `T` anywhere in the graph to the named members |
+| `ComparingEnumsByName()` / `ComparingEnumsByValue()` | How to compare enums of different types |
+| `ComparingStringsIgnoringCase()` | Case-insensitive string members |
+| `WithStrictTyping()` | Require the same runtime type at every node |
+| `Using<T>(IEqualityComparer<T>)` | Compare members of type `T` with an existing comparer |
 | `ComparingByValue<T>()` / `ComparingByMembers<T>()` | Force `Equals` or member-wise comparison for a type |
 | `WithMaxDepth(n)` / `AllowingInfiniteRecursion()` | Bound or unbound recursion (default depth 10) |
 | `RespectingRuntimeTypes()` | Resolve members from runtime types instead of declared ones |
@@ -261,8 +269,8 @@ substantially cheaper. On a 4-level graph of 5 types containing a 20-item collec
 
 | | Mean | Allocated |
 |---|---:|---:|
-| FluentAssertions 7.2.2 | 167.82 µs | 397.04 KB |
-| MintPlayer.Assertions | **9.58 µs** | **6.59 KB** |
+| FluentAssertions 7.2.2 | 276.91 µs | 397.04 KB |
+| MintPlayer.Assertions | **15.25 µs** | **6.16 KB** |
 
 <sub>BenchmarkDotNet 0.14.0, .NET 11.0.0, X64 RyuJIT AVX-512, Windows 11. Reproduce with
 `dotnet run -c Release --project Assertions/MintPlayer.Assertions.Benchmarks -- --filter '*'`.
@@ -270,13 +278,18 @@ The benchmark verifies both libraries traverse the entire graph, and that the ge
 are actually active, before it will report — otherwise it would happily measure the reflection
 fallback and call it a result.</sub>
 
-That is **17.5× faster and 60× less memory**. Treat the allocation figures as exact and the timings
-as approximate: this library's bytes are a property of the emitted IL and reproduce to the hundredth
-of a KB in every run, while wall-clock does not — across four runs on a nominally idle machine this
-library measured 9.29–11.04 µs and FluentAssertions measured 150.55–216.45 µs, a 44% spread on
-identical code. The row above is one run quoted whole rather than a best figure assembled from
-several. That asymmetry is why the regression gates in this repo assert bytes and operation counts
-rather than milliseconds.
+That is **18× faster and 64× less memory**.
+
+**Trust the allocation column; treat the timings as an order of magnitude.** This library's bytes are
+a property of the emitted IL and reproduce to the hundredth of a KB in every run — 6.16 KB in both
+runs behind this table. Wall-clock does not: across six runs this library measured **9.29–15.25 µs**
+and FluentAssertions **150.55–276.91 µs**, on a machine that was supposed to be idle each time. The
+row above is one run quoted whole rather than a best figure assembled from several, which is why the
+µs column is at the slow end of that range and the ratio is still conservative.
+
+That asymmetry is the whole reason the regression gates in this repo assert **bytes and operation
+counts** rather than milliseconds — a 6,450-byte bound and an exact 133 nodes / 112 member lookups /
+20 match probes hold identically on a loaded CI runner, and a millisecond threshold would not.
 
 ### Strings
 
@@ -337,6 +350,9 @@ ratio.Should().BeInRange(0, 1);
 `ContainInConsecutiveOrder` `NotContainInConsecutiveOrder` `BeOrderedBy` `BeOrderedByDescending`
 `AllSatisfy` `SatisfyRespectively` `AllBeOfType<T>` `AllBeAssignableTo<T>` `BeEquivalentTo`
 `NotBeEquivalentTo`
+
+On a collection of strings, additionally: `ContainMatch` `NotContainMatch` `ContainEquivalentOf`
+`NotContainNullsOrWhiteSpace` `AllStartWith`.
 
 ```csharp
 orders.Should().BeInAscendingOrder(o => o.PlacedOn);
@@ -514,6 +530,39 @@ Comparison is property-order-insensitive, order-sensitive for arrays, and numeri
 ```
 $.tags[1]: expected "b", but found "c"
 $.name: property is missing
+```
+
+### Streams
+
+`BeReadable` `NotBeReadable` `BeWritable` `NotBeWritable` `BeSeekable` `NotBeSeekable` `HaveLength`
+`HavePosition` `BeAtStart` `BeAtEnd` `BeEmpty` `NotBeEmpty`
+
+Nothing here reads the stream's contents — reading consumes a forward-only stream and moves a
+seekable one, so the assertion would change what it is asserting about. Read it yourself and assert
+on the bytes.
+
+### XML
+
+`XDocument` — `HaveRoot` `BeEquivalentTo`.
+`XElement` — `HaveName` `HaveValue` `HaveAttribute` `NotHaveAttribute` `HaveElement` (optionally with
+an occurrence) `NotHaveElement` `BeEmpty` `BeEquivalentTo`.
+
+An `XmlDocument`/`XmlElement` from the DOM gets the same assertions, converted once, rather than a
+second implementation that can drift. Names compare **with their namespace**: XML whose namespace is
+wrong looks identical in a diff.
+
+```csharp
+doc.Should().HaveRoot("order").Which!.Should().HaveElement("line", Exactly.Twice());
+```
+
+### How often — occurrence constraints
+
+`Exactly` `AtLeast` `AtMost` `MoreThan` `LessThan`, each with `Times(n)`/`Once()`/`Twice()`/`Thrice()`:
+
+```csharp
+items.Should().Contain(x, Exactly.Twice());
+text.Should().Contain("ab", AtLeast.Once());
+names.Should().ContainMatch("a*", Exactly.Twice());
 ```
 
 ### Types

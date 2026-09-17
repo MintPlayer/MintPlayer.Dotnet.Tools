@@ -40,9 +40,9 @@ Measured on this branch, on an idle machine, before any change:
 **15.6× faster, 20.0× less memory.** BenchmarkDotNet 0.14.0, .NET 10 host, SDK 11.0.100-rc.1,
 `Fairness checks passed: generated accessors active`.
 
-> **Status 2026-09-17 — the boundary was not merely held, it moved.** After M1–M4, S1 and M5a the same
-> benchmark, re-run net11-vs-net11 on an idle machine, measures **9.58 µs / 6.59 KB** against
-> FluentAssertions' 167.82 µs / 397.04 KB — **17.5× faster, 60× less memory**. The README table has
+> **Status 2026-09-17 — the boundary was not merely held, it moved.** After every milestone the same
+> benchmark, re-run net11-vs-net11, measures **15.25 µs / 6.16 KB** against
+> FluentAssertions' 276.91 µs / 397.04 KB — **18× faster, 64× less memory**. The README table has
 > been updated to these numbers, which means **the gate is now set against the improved figure, not
 > the original one**: a change that returns the library to 14.83 KB/op, let alone the original 20.34, is now a regression. That is
 > deliberate. Per-milestone detail is in `Plan-Net11-Assertions-Parity.md` § STATUS.
@@ -51,7 +51,7 @@ Measured on this branch, on an idle machine, before any change:
 > to the hundredth of a KB every time, while FluentAssertions allocated 404.26 KB and then 397.04 KB. Bytes
 > reproduce exactly *here* because nothing on the passing path allocates conditionally — that is a
 > property this code earned, not one every library has, and it is the reason a byte-exact gate works
-> at all. The timings across those runs spanned 9.29–11.04 µs and 150.55–216.45 µs; the README
+> at all. The timings across six runs spanned 9.29–15.25 µs and 150.55–276.91 µs; the README
 > quotes the less flattering run whole rather than the best figure from each.
 
 Two facts make this usable as a gate:

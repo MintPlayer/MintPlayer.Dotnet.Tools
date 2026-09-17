@@ -70,6 +70,30 @@ internal static class EquivalencyValidator
         public PathStack Path { get; } = new();
 
         /// <summary>
+        /// The comparison-shaping options, read once here rather than through the interface per node.
+        /// </summary>
+        /// <remarks>
+        /// ⚠️ Every one of these is FALSE or EMPTY for essentially every comparison, and each is
+        /// tested before anything expensive happens — the enum and string options before any
+        /// conversion, the ordering paths before the path is rendered. A default comparison therefore
+        /// pays a handful of not-taken branches on cached fields and nothing else, which is what the
+        /// 6,808 B/op gate and the exact 133/112/20 operation counts are there to keep true.
+        /// </remarks>
+        public bool IgnoreMissingMembers { get; } = options.IgnoreMissingMembers;
+
+        public bool CompareEnumsByName { get; } = options.CompareEnumsByName;
+
+        public bool CompareEnumsByValue { get; } = options.CompareEnumsByValue;
+
+        public bool IgnoreStringCase { get; } = options.IgnoreStringCase;
+
+        public bool UseStrictTyping { get; } = options.UseStrictTyping;
+
+        public bool HasNestedInclusions { get; } = options.NestedInclusions.Count > 0;
+
+        public bool HasStrictOrderingPaths { get; } = options.StrictOrderingPaths.Count > 0;
+
+        /// <summary>
         /// The first structural node at which nothing was compared, or null when every structural
         /// node asserted something. Only the first is kept: it is enough to explain the mistake,
         /// and reporting every node would bury the cause under its consequences.
@@ -148,8 +172,15 @@ internal static class EquivalencyValidator
 
         if (IsValueLike(expectation.GetType(), context.Options))
         {
-            if (!Equals(subject, expectation))
+            if (!ValuesMatch(context, subject, expectation))
                 differences.Add(new(context.Path.ToPathString(), $"expected {Formatter.Format(expectation)}, but found {Formatter.Format(subject)}"));
+            return;
+        }
+
+        if (context.UseStrictTyping && subject.GetType() != expectation.GetType())
+        {
+            differences.Add(new(context.Path.ToPathString(),
+                $"expected type {expectation.GetType().Name}, but found {subject.GetType().Name}"));
             return;
         }
 
@@ -202,9 +233,16 @@ internal static class EquivalencyValidator
         // node asserted nothing and therefore cannot fail — see the ValidationResult docs.
         var comparedMembers = 0;
 
+        var includedNames = context.HasNestedInclusions
+            ? GetNestedInclusions(context.Options, expectationType, subject.GetType())
+            : null;
+
         foreach (var expectationMember in expectationMembers)
         {
+            // Exclusion beats inclusion: excluding something you also included is a contradiction,
+            // and the exclusion is the more specific statement of intent.
             if (excludedNames is not null && excludedNames.Contains(expectationMember.Name)) continue;
+            if (includedNames is not null && !includedNames.Contains(expectationMember.Name)) continue;
             if (context.Path.IsRoot && context.Options.IncludedMembers.Count > 0
                 && !context.Options.IncludedMembers.Contains(expectationMember.Name)) continue;
 
@@ -213,6 +251,10 @@ internal static class EquivalencyValidator
             var subjectMember = FindByName(subjectMembers, expectationMember.Name);
             if (subjectMember is null)
             {
+                // ExcludingMissingMembers: skip entirely, and do NOT count it as compared — a node
+                // whose every member was skipped this way has asserted nothing, and the vacuity check
+                // is what should say so.
+                if (context.IgnoreMissingMembers) continue;
                 if (!IsExcluded(context.Options, context.Path, childSegment))
                 {
                     differences.Add(new(context.Path.ToPathStringWith(childSegment), $"expectation has member {expectationMember.Name} but subject does not"));
@@ -307,7 +349,7 @@ internal static class EquivalencyValidator
         if (subjectItems.Count != expectationItems.Count)
             differences.Add(new(context.Path.ToPathString(), $"expected {expectationItems.Count} item(s), but found {subjectItems.Count}"));
 
-        if (context.Options.UseStrictOrdering)
+        if (context.Options.UseStrictOrdering || IsStrictlyOrderedHere(context))
         {
             var count = Math.Min(subjectItems.Count, expectationItems.Count);
             for (var i = 0; i < count; i++)
@@ -693,6 +735,72 @@ internal static class EquivalencyValidator
             if (arguments.Length == 1) return arguments[0];
         }
         return null;
+    }
+
+    /// <summary>
+    /// Compares two value-like nodes, honouring the enum and string options.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ The option flags are tested BEFORE the types are, so the default path is one not-taken
+    /// branch and then the same <c>Equals</c> it always was. Testing <c>is Enum</c> first would put a
+    /// type check on every scalar in every comparison to serve options almost nobody sets.
+    /// </remarks>
+    private static bool ValuesMatch(Context context, object? subject, object? expectation)
+    {
+        if (context.CompareEnumsByName && subject is Enum && expectation is Enum)
+            return string.Equals(subject.ToString(), expectation.ToString(), StringComparison.Ordinal);
+
+        if (context.CompareEnumsByValue && subject is Enum subjectEnum && expectation is Enum expectationEnum)
+        {
+            // ToInt64 rather than the underlying type: two enums being compared by value need not
+            // share an underlying type, and a widening comparison is the only one that is defined for
+            // every pair. Unsigned values above long.MaxValue are the documented gap, and no enum
+            // anyone writes reaches them.
+            return Convert.ToInt64(subjectEnum, CultureInfo.InvariantCulture)
+                == Convert.ToInt64(expectationEnum, CultureInfo.InvariantCulture);
+        }
+
+        if (context.IgnoreStringCase && subject is string subjectText && expectation is string expectationText)
+            return string.Equals(subjectText, expectationText, StringComparison.OrdinalIgnoreCase);
+
+        return Equals(subject, expectation);
+    }
+
+    /// <summary>Whether the collection at the current position was asked to compare in order.</summary>
+    /// <remarks>
+    /// ⚠️ Guarded on <c>HasStrictOrderingPaths</c> by the caller, so the path is never rendered for a
+    /// comparison that did not configure one. Rendering it here unconditionally would hand back the
+    /// saving <c>PathStack</c> exists for — the same mistake <c>IsExcluded</c> documents.
+    /// </remarks>
+    private static bool IsStrictlyOrderedHere(Context context)
+    {
+        if (!context.HasStrictOrderingPaths) return false;
+
+        var text = context.Path.ToPathString();
+        foreach (var pattern in context.Options.StrictOrderingPaths)
+        {
+            if (WildcardPattern.IsMatch(text, pattern)) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// The member names to restrict <paramref name="expectationType"/> to, or null when it has none.
+    /// </summary>
+    /// <remarks>
+    /// Mirrors <c>GetNestedExclusions</c>, assignability included, so a base-typed registration
+    /// applies to derived nodes.
+    /// </remarks>
+    private static HashSet<string>? GetNestedInclusions(IEquivalencyOptions options, Type expectationType, Type subjectType)
+    {
+        HashSet<string>? names = null;
+        foreach (var (type, members) in options.NestedInclusions)
+        {
+            if (!type.IsAssignableFrom(expectationType) && !type.IsAssignableFrom(subjectType)) continue;
+            names ??= new(StringComparer.Ordinal);
+            foreach (var member in members) names.Add(member);
+        }
+        return names;
     }
 
     private static bool IsValueLike(Type type, IEquivalencyOptions options)

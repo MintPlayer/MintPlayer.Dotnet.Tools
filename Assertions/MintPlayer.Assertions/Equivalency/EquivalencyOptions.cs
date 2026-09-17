@@ -10,25 +10,32 @@ namespace MintPlayer.Assertions.Equivalency;
 /// <typeparam name="TExpectation">The static type of the expectation object.</typeparam>
 public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
 {
-    // ⚠️ UNADDRESSED: these seven collections are built EAGERLY, in field initialisers, so every
-    // BeEquivalentTo call allocates all of them whether or not a single option is used — and the
-    // overwhelming majority of calls use none. Measured cost is not large next to the walk itself,
-    // which is why it was not fixed during the passing-path work, but it is pure waste.
+    // ⚠️ EVERY collection here is lazily created, and that is measured rather than tidy.
     //
-    // The fix is to make each one nullable and lazily created by the method that populates it, with
-    // the IEquivalencyOptions properties returning an empty sentinel when null. That is mechanical,
-    // but it touches every option method, so it wants its own change and its own measurement rather
-    // than being tacked onto something else.
+    // They used to be created eagerly in the field initialisers, so every BeEquivalentTo call
+    // allocated nine collections whether or not a single option was used -- and the overwhelming
+    // majority of calls use none. Adding two more for the M5c options is what finally made it show:
+    // the walk went 6,808 -> 6,984 B/op and the gate refused it. Making all nine lazy took it to
+    // BELOW where it started.
     //
-    // Note the engine already tests Count == 0 before consulting any of them, so making them lazy
-    // is invisible to the walker — no consumer of IEquivalencyOptions needs to change.
-    private readonly HashSet<string> excludedPaths = new(StringComparer.Ordinal);
-    private readonly Dictionary<Type, IReadOnlyCollection<string>> nestedExclusions = [];
-    private readonly HashSet<string> excludedWildcardPaths = new(StringComparer.Ordinal);
-    private readonly HashSet<string> includedMembers = new(StringComparer.Ordinal);
-    private readonly Dictionary<Type, Action<object?, object?>> customComparers = [];
-    private readonly HashSet<Type> comparedByValue = [];
-    private readonly HashSet<Type> comparedByMembers = [];
+    // The pattern is `(field ??= new(...)).Add(x)` in the option method, and a shared empty sentinel
+    // in the IEquivalencyOptions property. The engine already tests Count == 0 before consulting any
+    // of them, so nothing downstream changes.
+    private static readonly string[] NoStrings = [];
+    private static readonly Dictionary<Type, IReadOnlyCollection<string>> NoMembersByType = [];
+    private static readonly Dictionary<Type, Action<object?, object?>> NoComparers = [];
+    private static readonly Type[] NoTypes = [];
+
+    private HashSet<string>? excludedPaths;
+    private Dictionary<Type, IReadOnlyCollection<string>>? nestedExclusions;
+    private HashSet<string>? excludedWildcardPaths;
+    private HashSet<string>? includedMembers;
+    private Dictionary<Type, Action<object?, object?>>? customComparers;
+    private HashSet<Type>? comparedByValue;
+    private HashSet<Type>? comparedByMembers;
+    private Dictionary<Type, IReadOnlyCollection<string>>? nestedInclusions;
+    private HashSet<string>? strictOrderingPaths;
+
     private bool useStrictOrdering;
     private int maxDepth = 10;
     private bool useRuntimeTypes;
@@ -36,14 +43,19 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     private MemberTraits includedMemberTraits;
     private bool includeDiagnostics;
     private MemberTraits excludedMemberKinds;
+    private bool ignoreMissingMembers;
+    private bool compareEnumsByName;
+    private bool compareEnumsByValue;
+    private bool ignoreStringCase;
+    private bool useStrictTyping;
 
-    IReadOnlyCollection<string> IEquivalencyOptions.ExcludedPaths => excludedPaths;
-    IReadOnlyDictionary<Type, IReadOnlyCollection<string>> IEquivalencyOptions.NestedExclusions => nestedExclusions;
-    IReadOnlyCollection<string> IEquivalencyOptions.ExcludedWildcardPaths => excludedWildcardPaths;
-    IReadOnlyCollection<string> IEquivalencyOptions.IncludedMembers => includedMembers;
-    IReadOnlyDictionary<Type, Action<object?, object?>> IEquivalencyOptions.CustomComparers => customComparers;
-    IReadOnlyCollection<Type> IEquivalencyOptions.ComparedByValue => comparedByValue;
-    IReadOnlyCollection<Type> IEquivalencyOptions.ComparedByMembers => comparedByMembers;
+    IReadOnlyCollection<string> IEquivalencyOptions.ExcludedPaths => excludedPaths ?? (IReadOnlyCollection<string>)NoStrings;
+    IReadOnlyDictionary<Type, IReadOnlyCollection<string>> IEquivalencyOptions.NestedExclusions => nestedExclusions ?? NoMembersByType;
+    IReadOnlyCollection<string> IEquivalencyOptions.ExcludedWildcardPaths => excludedWildcardPaths ?? (IReadOnlyCollection<string>)NoStrings;
+    IReadOnlyCollection<string> IEquivalencyOptions.IncludedMembers => includedMembers ?? (IReadOnlyCollection<string>)NoStrings;
+    IReadOnlyDictionary<Type, Action<object?, object?>> IEquivalencyOptions.CustomComparers => customComparers ?? NoComparers;
+    IReadOnlyCollection<Type> IEquivalencyOptions.ComparedByValue => comparedByValue ?? (IReadOnlyCollection<Type>)NoTypes;
+    IReadOnlyCollection<Type> IEquivalencyOptions.ComparedByMembers => comparedByMembers ?? (IReadOnlyCollection<Type>)NoTypes;
     bool IEquivalencyOptions.UseStrictOrdering => useStrictOrdering;
     int IEquivalencyOptions.MaxDepth => maxDepth;
     bool IEquivalencyOptions.UseRuntimeTypes => useRuntimeTypes;
@@ -51,6 +63,13 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     MemberTraits IEquivalencyOptions.IncludedMemberTraits => includedMemberTraits;
     bool IEquivalencyOptions.IncludeDiagnostics => includeDiagnostics;
     MemberTraits IEquivalencyOptions.ExcludedMemberKinds => excludedMemberKinds;
+    IReadOnlyDictionary<Type, IReadOnlyCollection<string>> IEquivalencyOptions.NestedInclusions => nestedInclusions ?? NoMembersByType;
+    IReadOnlyCollection<string> IEquivalencyOptions.StrictOrderingPaths => strictOrderingPaths ?? (IReadOnlyCollection<string>)NoStrings;
+    bool IEquivalencyOptions.IgnoreMissingMembers => ignoreMissingMembers;
+    bool IEquivalencyOptions.CompareEnumsByName => compareEnumsByName;
+    bool IEquivalencyOptions.CompareEnumsByValue => compareEnumsByValue;
+    bool IEquivalencyOptions.IgnoreStringCase => ignoreStringCase;
+    bool IEquivalencyOptions.UseStrictTyping => useStrictTyping;
 
     /// <summary>
     /// Excludes the member selected by <paramref name="selector"/> from the comparison. Chained
@@ -59,7 +78,7 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     /// </summary>
     public EquivalencyOptions<TExpectation> Excluding(Expression<Func<TExpectation, object?>> selector)
     {
-        excludedPaths.Add(ParseMemberPath(selector));
+        (excludedPaths ??= new(StringComparer.Ordinal)).Add(ParseMemberPath(selector));
         return this;
     }
 
@@ -71,10 +90,10 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     public EquivalencyOptions<TExpectation> ExcludingNested<TNested>(Expression<Func<TNested, object?>> selector)
     {
         var name = ParseSingleMemberName(selector);
-        if (nestedExclusions.TryGetValue(typeof(TNested), out var existing))
-            nestedExclusions[typeof(TNested)] = [.. existing, name];
+        if ((nestedExclusions ??= []).TryGetValue(typeof(TNested), out var existing))
+            (nestedExclusions ??= [])[typeof(TNested)] = [.. existing, name];
         else
-            nestedExclusions[typeof(TNested)] = [name];
+            (nestedExclusions ??= [])[typeof(TNested)] = [name];
         return this;
     }
 
@@ -86,7 +105,7 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     public EquivalencyOptions<TExpectation> ExcludingPath(string wildcardPath)
     {
         ArgumentNullException.ThrowIfNull(wildcardPath);
-        excludedWildcardPaths.Add(wildcardPath);
+        (excludedWildcardPaths ??= new(StringComparer.Ordinal)).Add(wildcardPath);
         return this;
     }
 
@@ -97,7 +116,7 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     /// </summary>
     public EquivalencyOptions<TExpectation> Including(Expression<Func<TExpectation, object?>> selector)
     {
-        includedMembers.Add(ParseSingleMemberName(selector));
+        (includedMembers ??= new(StringComparer.Ordinal)).Add(ParseSingleMemberName(selector));
         return this;
     }
 
@@ -111,7 +130,7 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     public EquivalencyOptions<TExpectation> Using<TMember>(Action<TMember?, TMember?> memberAssertion)
     {
         ArgumentNullException.ThrowIfNull(memberAssertion);
-        customComparers[typeof(TMember)] = (subject, expectation) => memberAssertion(
+        (customComparers ??= [])[typeof(TMember)] = (subject, expectation) => memberAssertion(
             subject is TMember s ? s : default,
             expectation is TMember e ? e : default);
         return this;
@@ -130,8 +149,10 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     /// </summary>
     public EquivalencyOptions<TExpectation> ComparingByValue<TType>()
     {
-        comparedByValue.Add(typeof(TType));
-        comparedByMembers.Remove(typeof(TType));
+        (comparedByValue ??= []).Add(typeof(TType));
+        // Null-conditional: the opposite set may never have been created, and removing from a set
+        // that does not exist is a no-op rather than an error.
+        comparedByMembers?.Remove(typeof(TType));
         return this;
     }
 
@@ -141,8 +162,8 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     /// </summary>
     public EquivalencyOptions<TExpectation> ComparingByMembers<TType>()
     {
-        comparedByMembers.Add(typeof(TType));
-        comparedByValue.Remove(typeof(TType));
+        (comparedByMembers ??= []).Add(typeof(TType));
+        comparedByValue?.Remove(typeof(TType));
         return this;
     }
 
@@ -269,6 +290,142 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     public EquivalencyOptions<TExpectation> IncludingNonBrowsableMembers()
     {
         includedMemberTraits |= MemberTraits.NonBrowsable;
+        return this;
+    }
+
+    /// <summary>
+    /// Compares collections by matching items in any order. This is the default; the method exists so
+    /// a shared options builder can be overridden, and so a call site can say so out loud.
+    /// </summary>
+    public EquivalencyOptions<TExpectation> WithoutStrictOrdering()
+    {
+        useStrictOrdering = false;
+        return this;
+    }
+
+    /// <summary>
+    /// Compares collections in order only at difference paths matching <paramref name="wildcardPath"/>
+    /// (<c>*</c> and <c>?</c>), leaving the rest unordered.
+    /// </summary>
+    /// <remarks>
+    /// The per-path counterpart of <see cref="WithStrictOrdering"/>, for the common shape where one
+    /// collection in a graph is genuinely ordered and the others are not. Ordering the whole graph to
+    /// express that makes every other collection assert something the code does not guarantee.
+    /// </remarks>
+    public EquivalencyOptions<TExpectation> WithStrictOrderingFor(string wildcardPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(wildcardPath);
+        (strictOrderingPaths ??= new(StringComparer.Ordinal)).Add(wildcardPath);
+        return this;
+    }
+
+    /// <summary>
+    /// Ignores expectation members the subject does not have, instead of reporting each as a
+    /// difference.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>This makes a whole class of mistake invisible</b> — a renamed or misspelled member on
+    /// the expectation stops being reported and starts being skipped. It is here for the case it is
+    /// genuinely for: comparing against a type that is a superset by design, such as a DTO checked
+    /// against a richer domain model. If a comparison ends up with NO members left, the vacuity check
+    /// still refuses it.
+    /// </remarks>
+    public EquivalencyOptions<TExpectation> ExcludingMissingMembers()
+    {
+        ignoreMissingMembers = true;
+        return this;
+    }
+
+    /// <summary>Compares only the top level: members of members are treated as equal.</summary>
+    /// <remarks>Equivalent to <c>WithMaxDepth(0)</c>, named for what it does at the call site.</remarks>
+    public EquivalencyOptions<TExpectation> WithoutRecursing()
+    {
+        maxDepth = 0;
+        return this;
+    }
+
+    /// <summary>
+    /// Restricts the comparison of <typeparamref name="TNested"/> nodes to the selected member,
+    /// wherever they appear in the graph. Call more than once to include several.
+    /// </summary>
+    /// <remarks>
+    /// The mirror of <see cref="ExcludingNested{TNested}"/>, and the one to reach for when a type has
+    /// many members and two matter. Inclusion wins over the type's other members but not over an
+    /// explicit exclusion — excluding something you also included is a contradiction, and the
+    /// exclusion is the more specific statement of intent.
+    /// </remarks>
+    public EquivalencyOptions<TExpectation> IncludingNested<TNested>(Expression<Func<TNested, object?>> selector)
+    {
+        var name = ParseSingleMemberName(selector);
+        if ((nestedInclusions ??= []).TryGetValue(typeof(TNested), out var existing))
+            (nestedInclusions ??= [])[typeof(TNested)] = [.. existing, name];
+        else
+            (nestedInclusions ??= [])[typeof(TNested)] = [name];
+        return this;
+    }
+
+    /// <summary>Compares enum values by their name rather than their numeric value.</summary>
+    /// <remarks>
+    /// The right choice when the two sides are different enum types that share names — a domain enum
+    /// against a contract enum, say — where the numbers are an implementation detail nobody intended
+    /// to line up.
+    /// </remarks>
+    public EquivalencyOptions<TExpectation> ComparingEnumsByName()
+    {
+        compareEnumsByName = true;
+        compareEnumsByValue = false;
+        return this;
+    }
+
+    /// <summary>Compares enum values by their numeric value, even across different enum types.</summary>
+    /// <remarks>
+    /// Note the default is neither of these: by default two enums compare with
+    /// <see cref="object.Equals(object?)"/>, which is false for different enum types no matter what
+    /// they contain. Pick one deliberately when the sides are not the same type.
+    /// </remarks>
+    public EquivalencyOptions<TExpectation> ComparingEnumsByValue()
+    {
+        compareEnumsByValue = true;
+        compareEnumsByName = false;
+        return this;
+    }
+
+    /// <summary>Compares string members ignoring casing.</summary>
+    public EquivalencyOptions<TExpectation> ComparingStringsIgnoringCase()
+    {
+        ignoreStringCase = true;
+        return this;
+    }
+
+    /// <summary>
+    /// Requires the subject and the expectation to be the same runtime type at every structural node.
+    /// </summary>
+    /// <remarks>
+    /// By default this library compares structurally and ignores the types entirely, which is what
+    /// makes comparing a DTO against an anonymous object work. That is usually the point — and
+    /// occasionally exactly what you need to rule out.
+    /// </remarks>
+    public EquivalencyOptions<TExpectation> WithStrictTyping()
+    {
+        useStrictTyping = true;
+        return this;
+    }
+
+    /// <summary>Compares members of type <typeparamref name="TMember"/> with the given comparer.</summary>
+    /// <remarks>
+    /// The comparer form of <see cref="Using{TMember}(Action{TMember, TMember})"/>, for when one
+    /// already exists. It is turned into the same custom-comparison machinery, so the two cannot
+    /// behave differently.
+    /// </remarks>
+    public EquivalencyOptions<TExpectation> Using<TMember>(IEqualityComparer<TMember> comparer)
+    {
+        ArgumentNullException.ThrowIfNull(comparer);
+        (customComparers ??= [])[typeof(TMember)] = (subject, expectation) =>
+        {
+            if (comparer.Equals((TMember)subject!, (TMember)expectation!)) return;
+            throw new AssertionFailedException(
+                $"expected {Formatting.Formatter.Format(expectation)}, but found {Formatting.Formatter.Format(subject)}");
+        };
         return this;
     }
 

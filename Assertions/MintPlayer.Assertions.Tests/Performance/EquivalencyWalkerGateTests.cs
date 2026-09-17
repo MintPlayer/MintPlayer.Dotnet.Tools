@@ -31,7 +31,7 @@ public class EquivalencyWalkerGateTests
     /// separate: a tight bound says "something was added", a loose one says "this is no longer the
     /// same algorithm", and a single threshold cannot say both.
     /// <para>
-    /// 16 KB sits at 2.4× the measured 6,808 B and 25× below a reflection walk (~407 KB), so a
+    /// 16 KB sits at 2.6× the measured 6,360 B and 25× below a reflection walk (~407 KB), so a
     /// silent fallback to reflection or a quadratic matcher trips it while ordinary drift does not.
     /// It was 100 KB, which let a 20% regression through without comment — see PRD §9.15.
     /// </para>
@@ -43,7 +43,7 @@ public class EquivalencyWalkerGateTests
 
         Assert.True(bytes < 16 * 1024,
             $"The equivalency walk allocated {bytes:N0} B/op for the 5-type/4-level/20-item graph. "
-            + "The measured figure is ~6.8 KB and FluentAssertions is ~407 KB, so this has stopped "
+            + "The measured figure is ~6.4 KB and FluentAssertions is ~407 KB, so this has stopped "
             + "being a fast path. See PRD §9.1 — the usual cause is a change that multiplied the "
             + "number of subtree comparisons.");
     }
@@ -174,14 +174,15 @@ public class EquivalencyWalkerGateTests
     /// <para>
     /// Hence the tight bound. A smoke alarm at 100 KB would have shrugged at a 20% regression, and
     /// an operation-count gate is structurally blind to allocation that accompanies no work. If this
-    /// fails, measure the delta before touching the number — 6,900 is under 1.4% of headroom over the
+    /// fails, measure the delta before touching the number — 6,450 is under 1.5% of headroom over the
     /// current 6,808, which is less than one allocation per node on this graph and therefore cannot
     /// hide a per-node cost at all.
     /// </para>
     /// <para>
     /// The number has moved twice and both moves were downward, which is the direction this test is
-    /// meant to make easy: 13,992 to 6,808 when the path stopped being a string rebuilt per member
-    /// (see <c>PathStack</c>). Lowering the bound after a win is the other half of the gate's job —
+    /// meant to make easy: 13,992 to 6,808 when the path stopped being a string rebuilt per member (see
+    /// <c>PathStack</c>), then 6,808 to 6,360 when EquivalencyOptions stopped building nine
+    /// collections eagerly on every call. Lowering the bound after a win is the other half of the gate's job —
     /// a bound left at the old figure quietly re-authorises the regression that was just removed.
     /// </para>
     /// </remarks>
@@ -190,8 +191,8 @@ public class EquivalencyWalkerGateTests
     {
         var bytes = AllocationProbe.BytesPerOp(() => ((object)Actual).Should().BeEquivalentTo(Expected));
 
-        Assert.True(bytes <= 6_900,
-            $"The default equivalency walk allocated {bytes:N0} B/op; it measured 6,808 when this "
+        Assert.True(bytes <= 6_450,
+            $"The default equivalency walk allocated {bytes:N0} B/op; it measured 6,360 when this "
             + "bound was set. Something was added to the passing path. A capturing lambda anywhere "
             + "in a hot method is the cause that leaves the operation counts unchanged — the display "
             + "class is allocated at method entry, even on a path that returns before reaching it.");
