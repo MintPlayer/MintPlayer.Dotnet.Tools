@@ -69,6 +69,20 @@ internal static class JsonEquivalency
         }
     }
 
+    /// <remarks>
+    /// ⚠️ UNADDRESSED, and noted because it is the same trap as the object-graph walker in a second
+    /// place. These two loops are O(properties²) per object node — <c>TryGetProperty</c> is a linear
+    /// scan over <c>JsonElement</c>'s properties, run once per property. Fine for the small payloads
+    /// JSON assertions typically compare, and not worth restructuring on its own.
+    /// <para>
+    /// It becomes a problem the moment anyone adds ORDER-INSENSITIVE ARRAY comparison here, which is
+    /// the obvious next feature request and reproduces the equivalency walker's matching problem
+    /// exactly: the naive implementation compares every expected element against every actual one,
+    /// and each comparison is a full recursive subtree walk. See the note on the greedy matcher in
+    /// EquivalencyValidator for why that needs a lazy, short-circuited design rather than a grid —
+    /// and add an operation-count gate for this path before attempting it, because there is none.
+    /// </para>
+    /// </remarks>
     private static void CompareObjects(JsonElement actual, JsonElement expected, string path, List<string> differences)
     {
         foreach (var expectedProperty in expected.EnumerateObject())

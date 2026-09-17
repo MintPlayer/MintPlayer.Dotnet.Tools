@@ -10,6 +10,18 @@ namespace MintPlayer.Assertions.Equivalency;
 /// <typeparam name="TExpectation">The static type of the expectation object.</typeparam>
 public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
 {
+    // ⚠️ UNADDRESSED: these seven collections are built EAGERLY, in field initialisers, so every
+    // BeEquivalentTo call allocates all of them whether or not a single option is used — and the
+    // overwhelming majority of calls use none. Measured cost is not large next to the walk itself,
+    // which is why it was not fixed during the passing-path work, but it is pure waste.
+    //
+    // The fix is to make each one nullable and lazily created by the method that populates it, with
+    // the IEquivalencyOptions properties returning an empty sentinel when null. That is mechanical,
+    // but it touches every option method, so it wants its own change and its own measurement rather
+    // than being tacked onto something else.
+    //
+    // Note the engine already tests Count == 0 before consulting any of them, so making them lazy
+    // is invisible to the walker — no consumer of IEquivalencyOptions needs to change.
     private readonly HashSet<string> excludedPaths = new(StringComparer.Ordinal);
     private readonly Dictionary<Type, IReadOnlyCollection<string>> nestedExclusions = [];
     private readonly HashSet<string> excludedWildcardPaths = new(StringComparer.Ordinal);

@@ -40,6 +40,14 @@ Measured on this branch, on an idle machine, before any change:
 **15.6× faster, 20.0× less memory.** BenchmarkDotNet 0.14.0, .NET 10 host, SDK 11.0.100-rc.1,
 `Fairness checks passed: generated accessors active`.
 
+> **Status 2026-09-17 — the boundary was not merely held, it moved.** After M1/M2/M3 the same
+> benchmark, re-run net11-vs-net11 on an idle machine, measures **12.60 µs / 14.84 KB** against
+> FluentAssertions' 221.26 µs / 397.04 KB — **17.6× faster, 26.8× less memory**, and the allocation
+> figure reproduced to the decimal across two independent runs. The README table has been updated to
+> these numbers, which means **the gate is now set against the improved figure, not the original
+> one**: a change that returns the library to 20.34 KB/op is now a regression. That is deliberate.
+> Per-milestone detail is in `Plan-Net11-Assertions-Parity.md` § STATUS.
+
 Two facts make this usable as a gate:
 
 1. **Allocation reproduces to the byte.** 20.34 KB both times. Bytes are a property of the emitted IL
@@ -274,7 +282,15 @@ benchmark graph.
 the fallback does not means the same option behaves differently depending on whether a type happened
 to be scanned — worse than not having the option.
 
-### S2 — A deterministic operation-count gate (blocks M2 layer 3)
+### S2 — A deterministic operation-count gate (blocks M2 layer 3) ✅ RESOLVED
+
+**✅ RESOLVED — in favour of shipping the counters.** `EquivalencyDiagnostics` carries `[ThreadStatic]`
+`Nodes` / `MemberLookups` / `MatchProbes`, and `EquivalencyWalkerGateTests` pins them at 133 / 112 / 20
+for a fixed graph. It earned its cost immediately: `AnAlignedCollectionCostsOneProbePerItem` is what
+makes the M4 matcher fix safe to attempt, and the counters caught the parallel-test interference trap
+(§9.9) within minutes of being written. **Open question for review:** they add a static-bool read per
+node to shipped code. Measured as no detectable cost, but if that is unacceptable the whole of
+`EquivalencyDiagnostics` can be compiled out behind a symbol — the gate tests then go with it.
 
 **Question.** Can a time-only regression — extra work that allocates nothing — be caught
 deterministically, given that no wall-clock gate can be trusted in CI?

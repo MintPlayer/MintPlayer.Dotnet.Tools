@@ -8,6 +8,21 @@ namespace MintPlayer.Assertions.Collections;
 /// key/value/pair membership. The subject is materialized at most once per assertions instance,
 /// so lazily-evaluated sequences are never enumerated multiple times.
 /// </summary>
+/// <remarks>
+/// ⚠️ <b>MPA0005 reports four remaining boxed-enumerator loops in this file, and they are deliberate.</b>
+/// They are the <c>expected</c>/<c>unexpected</c> sequences — the EXPECTATION side — materialised as
+/// <c>x as IReadOnlyList&lt;T&gt; ?? [.. x]</c> and iterated once per assertion over however many
+/// items the caller happened to write. The subject side is a <see cref="ReadOnlySpan{T}"/> and
+/// allocates nothing, which is the asymmetry that matters: the subject is walked by every assertion
+/// in a suite; an expectation is a handful of items in one call.
+/// <para>
+/// Converting them is not simply low-value, it fights the type system. A <c>ReadOnlySpan&lt;T&gt;</c>
+/// is a ref struct, so it cannot be passed to <c>FailWith</c>'s <c>object?</c> parameters — and
+/// these sequences are rendered into failure messages — nor captured by a lambda, which the
+/// inspector assertions do. An earlier attempt produced 52 compiler errors of exactly those two
+/// kinds before being reverted. Suppress or leave; do not "finish the job" without re-reading this.
+/// </para>
+/// </remarks>
 public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions<IEnumerable<KeyValuePair<TKey, TValue>>, GenericDictionaryAssertions<TKey, TValue>>
 {
     private KeyValuePair<TKey, TValue>[]? copy;

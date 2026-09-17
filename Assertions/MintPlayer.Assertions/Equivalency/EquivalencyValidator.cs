@@ -263,6 +263,27 @@ internal static class EquivalencyValidator
             return;
         }
 
+        // ⚠️ KNOWN CORRECTNESS BUG — greedy first-fit, not maximum matching. Planned as M4; see
+        // docs/Plan-Net11-Assertions-Parity.md.
+        //
+        // Each expectation claims the FIRST unmatched subject item it is equivalent to, which can
+        // strand a later expectation that had only one candidate left. Expectations [A, B] against
+        // subjects [X, Y], where A is equivalent to both and B only to X: greedy gives X to A,
+        // leaves B with nothing, and reports a difference between two genuinely equivalent
+        // collections. The perfect matching A-Y, B-X exists and is not found.
+        //
+        // The fix is maximum bipartite matching by augmenting paths — and the implementation detail
+        // is not optional. Building the candidate grid up front costs n×m FULL SUBTREE comparisons
+        // unconditionally, where this greedy loop does ~n for the common case of a collection that
+        // already lines up. That shipped once and measured 1,027,288 B/op against 13,824 for the
+        // same graph under WithStrictOrdering, a 75× regression. It needs a LAZILY filled, memoised
+        // grid plus a greedy pre-pass, with augmenting paths run only on what greedy could not
+        // place: speed from the first phase, correctness from the second.
+        //
+        // EquivalencyWalkerGateTests.AnAlignedCollectionCostsOneProbePerItem already pins the probe
+        // count at exactly 20 for the benchmark graph, so the quadratic version cannot land quietly.
+        // That gate exists before the fix on purpose.
+        //
         // Greedy bipartite matching: each expectation item claims the first unmatched subject
         // item it is fully equivalent to (trial comparison into a throwaway collector).
         var matched = new bool[subjectItems.Count];
@@ -296,6 +317,28 @@ internal static class EquivalencyValidator
     }
 
     /// <summary>Hash-based multiset comparison for collections of value-like items (avoids O(n²)).</summary>
+    /// <remarks>
+    /// ⚠️ <b>The highest-risk method in this file for a future change, and the risk is not obvious.</b>
+    /// <para>
+    /// This is the O(n) path, taken when every item on both sides is value-like. It works by hashing,
+    /// which means it depends on <see cref="object.Equals(object?)"/> and
+    /// <see cref="object.GetHashCode"/> being the definition of "equal".
+    /// </para>
+    /// <para>
+    /// The moment any option changes what equal MEANS for a value — a custom comparer, a
+    /// case-insensitive string mode, a floating-point tolerance, <c>ComparingByMembers</c> on a type
+    /// that reaches here — hashing stops being valid, and the obvious implementation is to fall back
+    /// to pairwise matching. That is a silent O(n) → O(n²) cliff on collections of primitives, which
+    /// are the most common collections in real test suites. Every one of those options is a
+    /// legitimate feature request, so this will come up.
+    /// </para>
+    /// <para>
+    /// If it does: guard the shortcut on "no option changes value equality", keep this path for the
+    /// default case, and add an allocation/operation-count test over a LARGE collection of value-like
+    /// items before merging. The gate's existing graph has 20 items, which is too few for a quadratic
+    /// blow-up to be obvious in the numbers.
+    /// </para>
+    /// </remarks>
     private static void CompareMultisets(List<Difference> differences, string path,
         List<object?> subjectItems, List<object?> expectationItems)
     {
@@ -390,6 +433,17 @@ internal static class EquivalencyValidator
     }
 
     /// <summary>Member names excluded via ExcludingNested for a node of these types, or null when none apply.</summary>
+    /// <remarks>
+    /// ⚠️ Correctly guarded by <c>Count == 0</c>, so it costs nothing when nobody calls
+    /// <c>ExcludingNested</c> — which is the common case and the only reason this is acceptable today.
+    /// <para>
+    /// When it IS configured, it allocates a fresh <see cref="HashSet{T}"/> <b>per structural node</b>
+    /// and runs an <see cref="Type.IsAssignableFrom"/> scan over every registered exclusion. Memoise
+    /// per (expectationType, subjectType) pair if that ever matters, or if <c>ExcludingNested</c>
+    /// grows to accept interfaces, open generics or predicates — any of which turns this into a
+    /// per-node type-hierarchy walk. Unmeasured: no gate covers the configured path.
+    /// </para>
+    /// </remarks>
     private static HashSet<string>? GetNestedExclusions(IEquivalencyOptions options, Type expectationType, Type subjectType)
     {
         if (options.NestedExclusions.Count == 0) return null;

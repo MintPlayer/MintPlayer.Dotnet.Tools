@@ -21,6 +21,80 @@ running it is how the change is verified at all.
 
 ---
 
+## STATUS — as of 2026-09-17, branch `net11-assertions-parity`, 9 commits
+
+**Done: M0, M1, M2, M3, S3. Outstanding: M4, S1, S2(kept), S4, M5, M6.**
+891 assertion tests pass on net10.0 and net11.0; full solution builds clean.
+
+### The hard boundary: improved, not merely held
+
+Measured net11-vs-net11 on an idle machine, `Fairness checks passed`:
+
+| | Mean | Allocated | vs FluentAssertions |
+|---|---:|---:|---|
+| README claimed (net10) | 13.08 µs | 20.34 KB | 15.4× / 20.1× |
+| **Now (net11)** | **12.60 µs** | **14.84 KB** | **17.6× / 26.8×** |
+
+Allocation reproduced to the decimal across two independent runs. README updated, with an explicit
+note that allocation figures are exact and timings approximate.
+
+### What each milestone actually did
+
+**M1 ✅** — 71 projects re-targeted, 33 versions → `11.0.0-rc.1`, C# 14 → 15, Dockerfile, CI SDK pins,
+`Vidyano.props`' shipped `net9.0`, and `Verz/Program.cs`'s hardcoded `lib/net10.0` replaced with a
+probe. One real .NET 11 breaking change: `Microsoft.Extensions.DependencyInjection.Abstractions`
+moved into the shared framework, and the generator leaked its v10 copy to consumers as a compile
+reference via `TargetPathWithTargetPlatformMoniker` — 120 errors from one line.
+
+**S3 ✅** — `analyzers/dotnet/roslyn4.0|4.9/cs` → a single honest `roslyn5.0/cs`, Roslyn floor lowered
+5.3.0 → 5.0.0 (the whole solution compiles against it, and 5.3 excluded .NET 10.0.112 for nothing).
+The dead `<Choose>` on `$(RoslynVersion)` removed from `eng/` **and** the shipped
+`sourcegenerator_tools.props`; all five shipped `build/*.props` moved together.
+
+**M2 ✅** — `AllocationProbe` + `EquivalencyWalkerGateTests` + `PassingPathAllocationTests` (12 tests)
++ **MPA0005**, and `OutputItemType="Analyzer"` so the library runs its own rules at all. Operation
+counters are `[ThreadStatic]` — plain statics were counted across xUnit's parallel test classes and
+read 259 nodes where the graph has 133.
+
+**M3 ✅** — passing path **112 → 0 B/op**: arity-specific `FailWith` overloads (no call site changed),
+`AndConstraint` → `readonly struct`, `Items`/`Pairs` → `ReadOnlySpan<T>` (which also stopped copying
+subjects that were already arrays), boxed enumerators 28 → 6 sites, and twelve unconditional
+failure-detail lists analysed individually — nine made lazy, two restructured because lazy would have
+been *wrong*, one left alone with a comment.
+
+### Outstanding, and where each is written down in code
+
+Every item below has a ⚠️ comment at the code it concerns, so none depends on this document:
+
+| Item | Location of the note |
+|---|---|
+| **M4 — greedy matching is a live correctness bug** | `EquivalencyValidator.CompareCollections`, above the greedy loop — including why the fix must be lazy + greedy-pre-pass (the eager grid measured 75× once) |
+| `CompareMultisets`' O(n)→O(n²) cliff if any option changes value equality | `EquivalencyValidator.CompareMultisets` |
+| `FindByName` is O(members²) per node | `EquivalencyValidator.FindByName` |
+| `GetNestedExclusions` allocates a HashSet per node when configured | `EquivalencyValidator.GetNestedExclusions` |
+| `EquivalencyOptions` builds 7 collections eagerly per call | `EquivalencyOptions`, on the field block |
+| MPA0004 at `Info` hides the silent 15× reflection fallback | `ErasedEquivalencyAnalyzer.Rule.cs` |
+| `JsonEquivalency` is O(properties²), and order-insensitive arrays would repeat the matcher trap | `JsonEquivalency.CompareObjects` |
+| The 4 remaining MPA0005 sites are the expectation side, deliberately | `GenericDictionaryAssertions`, class-level remark |
+| `InspectItems` allocates an `AssertionScope` per item | `GenericCollectionAssertions.InspectItems` |
+| Per-assertion gate covers one assertion per family, not all | `PassingPathAllocationTests`, KNOWN GAP block |
+
+### Still to do
+
+- **M4** — maximum matching. The gate that makes it safe
+  (`AnAlignedCollectionCostsOneProbePerItem`, pinned at exactly 20 probes) is already in place; that
+  ordering is deliberate.
+- **S1** — generator-emitted member flags. Blocks the ~30 compile-time-decidable equivalency options.
+- **S2** — resolved in favour of keeping the counters; they cost nothing measurable and caught a real
+  bug within minutes. Open question for review: they do add a static-bool read per node to shipped
+  code. If that is unacceptable, compile them out behind a symbol.
+- **M2 layer 4** — nightly BenchmarkDotNet. Not wired; the benchmark still never runs in CI.
+- **M5** — the feature gap: 20 free-on-failure, ~40 own-type, 63 hot-path.
+- **M6** — final verify. Note the README table has already been updated, ahead of M6, because the
+  measurement conditions were right and waiting would have meant re-running it.
+
+---
+
 ## M0 — Baseline ✅ done
 
 Benchmark run on an idle machine before any change: **13.13 µs / 20.34 KB** against FluentAssertions'
