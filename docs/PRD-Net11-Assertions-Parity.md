@@ -390,7 +390,19 @@ by packing and loading the generator in both a .NET 10 and a .NET 11 consumer.
 ⚠️ Five shipped `build/*.props` files also hardcode these folder names; any change must update all of
 them, not just `eng/`.
 
-### S4 — Port and re-measure the matcher fix (blocks the correctness fix)
+### S4 — Port and re-measure the matcher fix (blocks the correctness fix) ✅ RESOLVED
+
+**✅ RESOLVED — the two-phase design holds on this branch.** Greedy first-fit is kept as a pre-pass
+(the only phase an aligned collection runs, ~n comparisons and one `bool[]`), handing off to Kuhn's
+augmenting paths over a lazily filled, memoised grid only when greedy strands an expectation. The
+aligned-collection probe count is exactly 20 for the benchmark graph — pinned, not bounded — and the
+walk is unchanged by the fix. The eager-grid version this replaces measured 1,027,288 B/op against
+13,824; that number is now written above the loop rather than in this document.
+
+Reproducing the bug needs a NON-TRANSITIVE equivalence, which was not obvious up front: with a
+uniform item type the candidate graph is a disjoint union of complete bipartite blocks and greedy is
+accidentally optimal, so a typed array cannot exhibit the bug at all. The tests use `object[]` for
+that reason, and say so.
 
 **Question.** The `dotnet-11` branch has a lazy + greedy-pre-pass matcher measured at 13,640 B/op
 against an eager implementation's 1,027,288 B/op. Does that hold on this branch?
@@ -694,3 +706,72 @@ actually used.
 The general rule: **a capacity hint is a guess about the common case, and the common case is usually
 smaller than the worst case you were picturing.** Measure it like any other change; "obviously
 fewer allocations" is not the same as fewer bytes.
+
+
+### 9.19 An interpolated failure template is built before anything decides it is needed
+
+`Assert().ForCondition(ok).BecauseOf(…).FailWith($"… {occurrence} …", …)` reads as "report this if it
+failed". It is not: the interpolated string and every `ToString()` inside it are evaluated at the
+**call site**, as arguments, before `FailWith` can look at the condition. A passing assertion builds a
+message nobody will ever read and throws it away.
+
+Measured on three assertions written in one sitting: **288 B/op** on `Contain(item, Exactly.Twice())`,
+**272** on `HaveCount(AtLeast…)`, **136** on `BeReadable()`.
+
+**The rule: a template that is interpolated must be inside an `if`.** A constant template is fine —
+`FailWith("Expected {subject} …", value)` allocates nothing when the condition holds, because the
+arguments are already-existing references and the formatting happens inside. The moment a `$` appears
+in front of the template, the whole call needs guarding.
+
+This is the same shape as §9.15 one level up: the cost is not in the branch you are reading, it is in
+getting to it.
+
+### 9.20 A struct dictionary key without `IEquatable<T>` boxes on every lookup
+
+`MemberSelection` is two enum fields and is used as part of a `ConcurrentDictionary` key, on a path
+that exists precisely to be a cache hit. Without `IEquatable<T>`, `EqualityComparer<T>.Default` falls
+back to `ObjectEqualityComparer`, which **boxes both operands on every comparison**: **96 B/op** on a
+comparison using `ExcludingFields`.
+
+Worse than the cost is that a comment in that very file asserted the opposite — that the compiler's
+structural equality made it free. The compiler does generate correct value equality; it does not
+generate `IEquatable<T>`, and `EqualityComparer<T>.Default` cannot use what is not declared.
+
+**The rule: any struct used as a dictionary or set key implements `IEquatable<T>` and overrides
+`GetHashCode`.** And a belief about allocation that has not been measured does not belong in a
+comment, because the next reader will trust it.
+
+### 9.21 Collections created in field initialisers, for options nobody set
+
+`EquivalencyOptions` built **nine** collections in its field initialisers, so every `BeEquivalentTo`
+call allocated all nine whether or not a single option was used — and the overwhelming majority of
+calls use none. It sat as a written-down, unaddressed note for a long time because the cost was small
+next to the walk.
+
+Adding two more for the M5c options is what finally made it visible: the walk went 6,808 → 6,984
+B/op and the byte gate refused the change. Making all nine lazy (`(field ??= new(…)).Add(x)`, with a
+shared empty sentinel on the read side) took the walk to **6,360** — below where it started — and the
+per-comparison fixed cost from 1,168 to 720.
+
+Two things generalise:
+
+1. **A small waste that is paid on every call is a budget, not a rounding error.** It stayed
+   unaddressed because each instance was cheap; nine of them were a quarter of the fixed cost.
+2. **The conversion has a hazard the compiler will not catch on the write side.** `ComparingByValue`
+   and `ComparingByMembers` each *remove* from the opposite set, and removing from a set that was
+   never created is a `NullReferenceException`, not a no-op. Two existing tests caught it. When
+   making a collection lazy, grep for every use, not just the ones that add.
+
+### 9.22 An extension method is invisible until its namespace is imported
+
+The string-collection assertions were first written in `MintPlayer.Assertions.Collections`, beside
+every other collection assertion. They did not compile at the call site. Instance assertions do not
+care which namespace they live in; **extension methods do**, and this library's README promises that
+one `using MintPlayer.Assertions;` covers everything.
+
+They live in the root namespace now, as `AssertionScope` already does for the same reason — and that
+file carries a comment explaining it, which is how the fix was found.
+
+**The rule: any new extension method on the public surface goes in the root namespace**, whatever
+folder its file sits in. A test that exercises it from a file with only the one `using` is what
+proves it.

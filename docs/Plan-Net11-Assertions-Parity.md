@@ -87,7 +87,9 @@ machine).
 
 ### Outstanding, and where each is written down in code
 
-Every item below has a ⚠️ comment at the code it concerns, so none depends on this document:
+Every item below has a ⚠️ comment at the code it concerns, so none depends on this document
+surviving — 70 of them across the library. PRD §9 holds the twenty-two traps with the measurement
+that produced each.
 
 | Item | Location of the note |
 |---|---|
@@ -102,6 +104,19 @@ Every item below has a ⚠️ comment at the code it concerns, so none depends o
 | S1 ✅ — why traits are two tables and not a mask | `MemberTraits`, `EquivalencyRegistry.extended`, and the emitter's `WriteRegistration` |
 | No capturing lambda in a hot method, however cold its branch | `EquivalencyRegistry.TryGetAccessors`, above the `GetOrAdd` |
 | The generator and the reflection fallback are one rule in two projects | `EquivalencyScanner.TryClassify` and `ReflectionMemberProvider`, both pointing at `MemberTraitTests` |
+| An interpolated `FailWith` template must sit inside an `if` | `GenericCollectionAssertions.Occurrence`, at the top; `StreamAssertions.Check` |
+| A struct dictionary key needs `IEquatable<T>` or it boxes per lookup | `MemberSelection`, class remark |
+| Option collections are lazy, and the conversion has a null-removal hazard | `EquivalencyOptions`, on the field block and at `ComparingByValue` |
+| An extension method is invisible until its namespace is imported | `StringCollectionAssertions`, above the namespace |
+| `Contain(x, default)` binds to `because`, not to the occurrence | `OccurrenceConstraint`, class remark |
+| The vacuity check counts the type's OWN members, not the selected ones | `EquivalencyValidator`, above the vacuity return |
+| Why the string surface is extensions and not a subclass | `StringCollectionAssertions`, class remark |
+| Why a stream assertion never reads contents | `StreamAssertions`, class remark |
+| Why the ValueTask subject is a delegate | `AssertionExtensions.Specialized2`, on the overload |
+| Why XML names compare with their namespace | `XElementAssertions`, class remark |
+| Why the DOM routes through one implementation | `AssertionExtensions.XmlDom`, on the bridge |
+| Why `ThenBe…` needed a new entry point rather than an overload | `GenericCollectionAssertions.Order`, on `BeOrderedBy` |
+| `FailWith` formats its arguments, and repeats no placeholder | `GenericCollectionAssertions.HaveNeighbour` |
 | `CompareMultisets`' O(n)→O(n²) cliff if any option changes value equality | `EquivalencyValidator.CompareMultisets` |
 | `FindByName` is O(members²) per node | `EquivalencyValidator.FindByName` |
 | `GetNestedExclusions` allocates a HashSet per node when configured | `EquivalencyValidator.GetNestedExclusions` |

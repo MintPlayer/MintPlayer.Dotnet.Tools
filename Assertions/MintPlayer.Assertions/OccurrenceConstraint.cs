@@ -17,6 +17,14 @@ namespace MintPlayer.Assertions;
 /// A readonly struct because it is constructed at the call site of an assertion and read once. As a
 /// class it would be one allocation on the passing path of every assertion that takes one.
 /// </para>
+/// <para>
+/// ⚠️ <b>The trap runs in reverse too.</b> A bare <c>Contain(x, default)</c> binds to the
+/// <c>because</c> overload, NOT to the occurrence one: <c>default</c> converts to both
+/// <c>string?</c> and this struct, and the reference conversion wins. It is harmless only because
+/// nobody writes a bare <c>default</c> on purpose, and it is pinned by a test
+/// (<c>ADefaultConstraintIsRejected</c>) so the resolution cannot change unnoticed. Any NEW
+/// overload that takes a value type beside the <c>because</c> tail has the same hazard.
+/// </para>
 /// </remarks>
 public readonly struct OccurrenceConstraint
 {
