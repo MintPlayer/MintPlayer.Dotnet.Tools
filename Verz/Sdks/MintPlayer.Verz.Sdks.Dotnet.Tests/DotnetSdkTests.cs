@@ -92,6 +92,7 @@ public sealed class DotnetSdkTests : IDisposable
     [InlineData("net8.0", 8)]
     [InlineData("net9.0", 9)]
     [InlineData("net10.0", 10)]
+    [InlineData("net11.0", 11)]
     public async Task GetMajorVersionAsync_ReadsASingleTargetFramework(string tfm, int expected)
     {
         var path = WriteProject("A.csproj", $"<TargetFramework>{tfm}</TargetFramework>");

@@ -6,8 +6,8 @@
 	</Target>
 
 	<PropertyGroup>
-		<CommonTargetFramework>net9.0</CommonTargetFramework>
-		<CommonLangVersion>13</CommonLangVersion>
+		<CommonTargetFramework>net11.0</CommonTargetFramework>
+		<CommonLangVersion>15</CommonLangVersion>
 		<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
 		<CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
 	</PropertyGroup>

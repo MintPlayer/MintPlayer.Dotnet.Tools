@@ -80,10 +80,47 @@ internal class Program
                     ms.Position = 0;
                     using var packageReader = new PackageArchiveReader(ms);
                     await PackageExtractor.ExtractPackageAsync(string.Empty, packageReader, packagePathResolver, extractionContext, cancellationToken);
-                    var path = Path.Combine(packagePathResolver.GetInstallPath(identity), "lib", "net10.0", $"{tool}.dll");
+                    var path = ResolvePluginAssembly(packagePathResolver.GetInstallPath(identity), tool);
                     return Assembly.LoadFrom(path);
                 }
             }, cancellationToken)));
+
+        static string ResolvePluginAssembly(string installPath, string tool)
+        {
+            // Was hardcoded to lib/net10.0. That is a runtime failure waiting to happen: the plugin
+            // packages multi-target, and the day one stops shipping the hardcoded moniker, verz
+            // throws FileNotFoundException at plugin-load time with nothing failing at build time to
+            // warn anyone. Probe instead, and pick the way NuGet would.
+            var lib = Path.Combine(installPath, "lib");
+            if (!Directory.Exists(lib))
+                throw new FileNotFoundException($"The package for '{tool}' has no lib/ folder, so it ships no loadable plugin assembly.", lib);
+
+            var running = Environment.Version.Major;
+
+            // Highest netN.0 the running runtime can actually load, i.e. N <= running. Never roll
+            // forward: a net11.0 assembly does not load on .NET 10.
+            var best = Directory.EnumerateDirectories(lib)
+                .Select(d => new { Dir = d, Name = Path.GetFileName(d) })
+                .Select(x => new
+                {
+                    x.Dir,
+                    Major = x.Name.StartsWith("net", StringComparison.OrdinalIgnoreCase)
+                        && int.TryParse(x.Name.AsSpan(3).ToString().Split('.')[0], out var m) ? m : -1,
+                })
+                .Where(x => x.Major > 0 && x.Major <= running)
+                .OrderByDescending(x => x.Major)
+                .Select(x => x.Dir)
+                .FirstOrDefault();
+
+            if (best is null)
+            {
+                var available = string.Join(", ", Directory.EnumerateDirectories(lib).Select(Path.GetFileName));
+                throw new FileNotFoundException(
+                    $"The package for '{tool}' ships no assembly loadable on .NET {running}. Available: {available}.", lib);
+            }
+
+            return Path.Combine(best, $"{tool}.dll");
+        }
 
         var types = assemblies.SelectMany(a => a.GetTypes());
         var registries = types.Where(t => typeof(IPackageRegistry).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)

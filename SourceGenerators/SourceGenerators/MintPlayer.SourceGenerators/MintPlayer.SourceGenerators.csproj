@@ -8,7 +8,6 @@
 	<Target Name="GetDependencyTargetPathsMintPlayerSourceGenerators">
 		<ItemGroup>
 			<TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Attributes.dll" IncludeRuntimeDependency="true" />
-			<TargetPathWithTargetPlatformMoniker Include="$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\Microsoft.Extensions.DependencyInjection.Abstractions.dll" IncludeRuntimeDependency="false" />
 		</ItemGroup>
 	</Target>
 

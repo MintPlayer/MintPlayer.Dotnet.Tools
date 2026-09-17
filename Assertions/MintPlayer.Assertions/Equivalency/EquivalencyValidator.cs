@@ -77,6 +77,7 @@ internal static class EquivalencyValidator
     private static void CompareNode(Context context, List<Difference> differences, string path,
         object? subject, object? expectation, Type? declaredType, int depth)
     {
+        if (EquivalencyDiagnostics.Enabled) EquivalencyDiagnostics.Nodes++;
         if (IsExcluded(context.Options, path)) return;
 
         var comparerType = declaredType ?? expectation?.GetType() ?? subject?.GetType();
@@ -267,6 +268,7 @@ internal static class EquivalencyValidator
             for (var i = 0; i < subjectItems.Count; i++)
             {
                 if (matched[i]) continue;
+                if (EquivalencyDiagnostics.Enabled) EquivalencyDiagnostics.MatchProbes++;
                 var trial = new List<Difference>();
                 CompareNode(context, trial, $"{path}[?]", subjectItems[i], expectationItem, itemDeclaredType, depth + 1);
                 if (trial.Count == 0)
@@ -420,6 +422,7 @@ internal static class EquivalencyValidator
 
     private static MemberAccessor? FindByName(IReadOnlyList<MemberAccessor> members, string name)
     {
+        if (EquivalencyDiagnostics.Enabled) EquivalencyDiagnostics.MemberLookups++;
         foreach (var member in members)
         {
             if (string.Equals(member.Name, name, StringComparison.Ordinal)) return member;
