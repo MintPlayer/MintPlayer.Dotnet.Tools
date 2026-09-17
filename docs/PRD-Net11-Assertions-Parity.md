@@ -2,6 +2,9 @@
 
 Branch: `net11-assertions-parity`. Companion plan: [Plan-Net11-Assertions-Parity.md](./Plan-Net11-Assertions-Parity.md).
 
+> **§9 "Traps already paid for" is the most important section here.** Twelve failure modes that
+> already happened on this codebase — several shipped green. Read it before writing code.
+
 Supersedes the abandoned `dotnet-11` branch (PR #181), which mixed these goals with unclear scope.
 Parts of that branch are *measured, working* code and are named below as porting candidates rather
 than as work to redo.
@@ -338,3 +341,153 @@ short-circuited first.**
 6. The FluentAssertions gap closes in the §4 order, each hot-path item measured.
 7. `IsAotCompatible=true` with zero trim warnings; every suppression's diagnostic id checked **against
    a build**, not guessed.
+
+---
+
+## 9. Traps already paid for
+
+**Read this section before writing code, not after.** Every item below actually happened during the
+previous attempt at this work (branch `dotnet-11`, PR #181) or during the investigation that produced
+this PRD. Each cost real time, and several shipped green. They are written as rules because the
+war story is not the useful part.
+
+### 9.1 Correctness fixes that go quadratic
+
+**What happened.** Greedy first-fit collection matching was replaced with maximum bipartite matching —
+a genuine correctness fix. The obvious implementation builds the candidate grid up front. Each cell is
+a **full recursive subtree comparison**, so a 20-item collection went from ~20 subtree walks to 400.
+Measured: **1,027,288 B/op against 13,824 B/op** for the same graph under `WithStrictOrdering`.
+
+**The rule.** *Any change that replaces "first acceptable answer" with "best answer" turns a linear
+number of subtree comparisons into a quadratic one, unless the comparisons are lazy and the common
+case is short-circuited first.* Laziness there is not an optimisation; it is the difference between
+shippable and not. The fix needed **both** a lazily-filled memoised grid **and** a greedy pre-pass,
+with augmenting paths run only on what greedy could not place.
+
+**Where it can recur.** `CompareMultisets` is the closest twin: it is the O(n) hash path for
+value-like items, and the moment anyone makes it honour a custom comparer, a case-insensitive string
+option or a float tolerance — all *correctness* improvements, all of which break hashing — the obvious
+fallback is pairwise matching, a silent O(n)→O(n²) cliff on collections of primitives. Also at risk:
+"show me which items are missing" failure reporting, `FindByName` if the member set ever widens, and
+`SatisfyRespectively` if it ever has to decide which inspector matches which item.
+
+### 9.2 Reflection in the walker, not the folder names
+
+**What happened.** An isolated `Reflection/` folder looked like the risk and was verified to touch
+nothing shared. Meanwhile two reflection calls leaked into `EquivalencyValidator` itself —
+`IsRecord`'s `GetMethod("<Clone>$")` and `IsGenericDictionary`'s `GetInterfaces()`. Both were cached,
+which made them look harmless; one ran **per collection node**.
+
+**The rule.** Judge reflection by *where it executes*, never by which folder it lives in. A cache does
+not make a per-node call free. See the reflection policy in §4.
+
+### 9.3 The `because` parameter swallows anything string-shaped
+
+**What happened, three separate times:**
+- `Contain(params KeyValuePair[])` hijacked single-pair `Contain(key, value)` calls.
+- `WithArgs`'s `[CallerArgumentExpression]` parameter ate a positional `because` argument.
+- `HaveAttribute(name, value)` lost overload resolution to `HaveAttribute(name, because)`.
+
+Every assertion ends `(…, string? because = null, params object?[] becauseArgs)`. That tail is
+compatible with almost anything, the compiler picks a candidate silently, and **neither the compiler
+nor code review can see that the wrong one won**. Each was fixed by a distinct method name
+(`ContainAll`, a reordered signature, `HaveAttributeWithValue`).
+
+**The rule.** A new parameter that could bind to a string does not belong beside `because`. Give it a
+different method name. When adding any overload to an existing assertion, write a test that asserts
+the *old* call shape still binds where it did.
+
+### 9.4 Indexing an interface is NOT the fix for a boxed enumerator
+
+**What happened.** `foreach` over an `IReadOnlyList<T>` boxes the struct enumerator. The obvious fix —
+an indexed `for` loop over the same interface — was applied to 27 sites and reported as free. It is
+not: every indexer call and every `Count` read is an un-inlinable interface dispatch. Measured over
+100k loops of 8 items:
+
+| | time | allocated |
+|---|---:|---:|
+| `foreach` over `IReadOnlyList<int>` | 22.1 ms | 4,000,040 B |
+| indexed `for` over the interface | **30.2 ms** | 40 B |
+| type-check, then `ReadOnlySpan<T>` | **10.6 ms** | 40 B |
+| array subject via span | **5.0 ms** | 40 B |
+
+**The rule.** Iterate a `ReadOnlySpan<T>` — from the array directly, or `CollectionsMarshal.AsSpan`
+on a `List<T>`. Test the **array case before the `List` case**: an array is not a `List<T>`, so
+testing only for the list silently drops every `T[]` onto the copying path, and arrays are what test
+code writes. The analyzer's message must say this, or it will keep prescribing the slower fix.
+
+### 9.5 A bulk regex rewrite introduces bugs the compiler cannot see
+
+**What happened, twice.** A blanket rename across the collection assertions replaced a local named
+`actual` that held a *value* found at a dictionary key with the whole `Subject`, so
+`ContainKeyAndValue` stopped reporting what was actually there. It compiled. Review missed it. Only
+the test suite caught it.
+
+**The rule.** Prefer compiler- or analyzer-verified transformations over pattern rewrites in this
+codebase. If a bulk rewrite is unavoidable, read every hunk, and run the tests before the commit —
+not at the end of the milestone.
+
+### 9.6 "Done" means a grep says the symbols exist
+
+**What happened.** Two milestones were marked ✅ with **four items never built**. The gap was found
+later by grep during a documentation pass, not by the milestone's own review.
+
+**The rule.** A milestone is done when a grep proves each named symbol exists and a test exercises it.
+"It felt finished" is not a completion criterion.
+
+### 9.7 Reasoning where a measurement was available
+
+**What happened, twice.** Indexed loops were described to the user as "a free fix" without measuring
+(§9.4 shows they are 1.4× slower). Later, an audit of the new `Reflection/` folder came back clean and
+was reported as reassurance — while a 75× allocation regression sat in the walker, in code written two
+milestones earlier and never measured.
+
+**The rule.** When a measurement is cheap and available, take it before making a claim. Allocation is
+measurable in seconds with `GC.GetAllocatedBytesForCurrentThread()` and is deterministic even on a
+loaded machine. "This should be fine" is how §9.1 shipped.
+
+### 9.8 Renames scoped to one directory, in a repo that dogfoods itself
+
+**What happened.** A rename inside `Assertions/` broke `Math/MintPlayer.Math.Tests` — the whole repo
+uses this assertion library. A single-project build was green; CI was not.
+
+**The rule.** Any rename in `MintPlayer.Assertions` requires a **full-solution Release build** before
+pushing, not a project build.
+
+### 9.9 Process-wide configuration and parallel tests
+
+**What happened.** Tests that mutate `Formatter.Options`, the formatter registry or
+`AssertionConfiguration.ExceptionFactory` ran beside every other test under xUnit's default
+parallelism, so unrelated assertions failed with whatever renderer or exception type was installed at
+that instant. Not a flake — two tests sharing one process-wide setting.
+
+**The rule.** Any feature that adds process-wide configuration requires
+`[assembly: CollectionBehavior(DisableTestParallelization = true)]`, or the configuration must be
+async-local — and async-local defeats the purpose here, because a failing assertion usually has no
+scope. Decide which, deliberately, when the feature is designed.
+
+### 9.10 Suppressions with guessed diagnostic ids suppress nothing
+
+**What happened.** Two trim suppressions cited `IL2070` where the build wanted `IL2090` and `IL2075`.
+The v1 plan records the same mistake, which meant the "AOT-clean" claim was not being enforced at all.
+
+**The rule.** Every `[UnconditionalSuppressMessage]` id is copied from a build's actual output. Never
+from memory, never from the neighbouring suppression.
+
+### 9.11 A green publish that publishes nothing
+
+**What happened.** See §3.4 — all 45 packages sit at an already-published version and master pushes
+with `--skip-duplicate`. In the previous attempt `MintPlayer.Assertions` was left at 1.1.0 through an
+entire feature PR; merging would have shipped none of it, green.
+
+**The rule.** Bumping the version is part of the change, not a release chore. Verify against
+nuget.org before merge.
+
+### 9.12 Packaging tests that pass against a stale package
+
+**What happened.** The packaging suite used a constant version (`99.9.9-packtest`) in the shared
+global packages folder, so NuGet never re-extracted and the tests validated a previously packed
+artifact. They passed while the real package was wrong.
+
+**The rule.** A packaging test must evict its version from the global packages folder, or use a unique
+version per run. If a packaging test has never failed, confirm it *can*.

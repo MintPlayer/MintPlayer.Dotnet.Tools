@@ -4,6 +4,10 @@ Companion to [PRD-Net11-Assertions-Parity.md](./PRD-Net11-Assertions-Parity.md).
 `net11-assertions-parity`. Repo policy: **one pull request**; milestones are commit boundaries inside
 it.
 
+> **Before writing code, read [PRD §9 "Traps already paid for"](./PRD-Net11-Assertions-Parity.md#9-traps-already-paid-for).**
+> Twelve failure modes that already happened on this codebase, several of which shipped green. The
+> checklist near the end of this plan encodes them; §9 explains why each one exists.
+
 Two standing rules:
 
 - **Nothing may be added to the passing path.** M2 exists to make that enforceable before any feature
@@ -169,6 +173,32 @@ previous attempt, each time invisible to the compiler and to review.
    gaps.
 
 ---
+
+## Definition of done — per milestone
+
+Every one of these encodes a trap from PRD §9 that has already cost time. Run the checklist, do not
+recall it.
+
+- [ ] **Grep proves each named symbol exists**, and a test exercises it. Two milestones were once
+      marked ✅ with four items never built (§9.6).
+- [ ] **Full-solution Release build**, not a project build — the whole repo dogfoods this assertion
+      library, so a rename inside `Assertions/` can break `Math.Tests` (§9.8).
+- [ ] **Zero trim warnings**, and every `[UnconditionalSuppressMessage]` id copied from actual build
+      output rather than from memory or a neighbouring suppression (§9.10).
+- [ ] **The allocation gate ran** for any change touching the walker, collection assertions, or
+      `FailWith` (§9.1, §9.7).
+- [ ] **Any new overload has a test asserting the OLD call shape still binds where it did** (§9.3).
+- [ ] **No bulk regex rewrite went in unread**, and tests ran before that commit, not after (§9.5).
+- [ ] **Versions bumped for anything that changed**, verified absent from nuget.org (§9.11).
+
+## Before opening the PR
+
+- [ ] Re-run the benchmark on .NET 11, idle machine, and compare against PRD §2.
+- [ ] Confirm the gate has been **seen to fail** — introduce a regression, watch it go red, revert.
+- [ ] `grep -rn "net8.0\|net9.0" --include=*.csproj` returns nothing.
+- [ ] Every packable project's version is absent from nuget.org.
+- [ ] Dockerfile base images match their csproj TFMs (§9 / PRD §3.5 — this one is green in CI and
+      crashes on container start).
 
 ## Risk register
 
