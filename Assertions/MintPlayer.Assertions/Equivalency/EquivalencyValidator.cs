@@ -150,6 +150,10 @@ internal static class EquivalencyValidator
         object subject, object expectation, Type? declaredType, int depth)
     {
         var expectationType = ResolveNodeType(context.Options, declaredType, expectation);
+
+        // Both are MemberAccessor[], and `var` is load-bearing here: widening either to
+        // IReadOnlyList<MemberAccessor> puts a boxed enumerator on the foreach below, once per
+        // structural node. See IMemberProvider.GetMembers.
         var expectationMembers = context.MemberProvider.GetMembers(expectationType);
         var subjectMembers = context.MemberProvider.GetMembers(subject.GetType());
         var excludedNames = GetNestedExclusions(context.Options, expectationType, subject.GetType());
@@ -187,7 +191,7 @@ internal static class EquivalencyValidator
 
         // A structural node that compared nothing can never fail. Two memberless values really
         // are equivalent, so the subject must have members for this to count as vacuous at all.
-        if (comparedMembers > 0 || subjectMembers.Count == 0) return;
+        if (comparedMembers > 0 || subjectMembers.Length == 0) return;
 
         // Which of the two causes it is decides where it counts as a mistake.
         //
@@ -201,10 +205,10 @@ internal static class EquivalencyValidator
         // of a subtree is the normal way to say "do not compare this subtree" —
         // ExcludingNested<AuditInfo>(a => a.ModifiedOn) on a type whose only member is
         // ModifiedOn means exactly that, and refusing it would reject correct, idiomatic use.
-        if (expectationMembers.Count == 0 || path.Length == 0)
+        if (expectationMembers.Length == 0 || path.Length == 0)
         {
             context.ReportVacuous(new(path, expectationType, subject.GetType(),
-                ExpectationHasNoMembers: expectationMembers.Count == 0));
+                ExpectationHasNoMembers: expectationMembers.Length == 0));
         }
     }
 
@@ -420,9 +424,29 @@ internal static class EquivalencyValidator
             || typeof(Type).IsAssignableFrom(type);
     }
 
-    private static MemberAccessor? FindByName(IReadOnlyList<MemberAccessor> members, string name)
+    /// <summary>The subject member matching <paramref name="name"/>, or null.</summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b><paramref name="members"/> must stay <c>MemberAccessor[]</c>.</b> This is the single
+    /// hottest loop in the walker — once per expectation member per node, 112 times on the benchmark
+    /// graph — so the boxed enumerator an interface-typed parameter produces cost 27% of the entire
+    /// comparison's allocation. See <see cref="IMemberProvider.GetMembers"/> for the numbers.
+    /// </para>
+    /// <para>
+    /// Known and deliberate: this is a linear scan, so member matching is O(members²) per node.
+    /// That is invisible while member lists are short, and it is the first thing that will bite if a
+    /// feature ever widens the member set — inherited members, explicit interface members, private
+    /// members behind an option, or name mapping. The structural fix is a name→accessor dictionary
+    /// built once per type beside the accessor array. <c>EquivalencyWalkerGateTests</c> asserts the
+    /// exact lookup count, so that regression shows up as a failing number rather than a slow suite.
+    /// </para>
+    /// </remarks>
+    private static MemberAccessor? FindByName(MemberAccessor[] members, string name)
     {
         if (EquivalencyDiagnostics.Enabled) EquivalencyDiagnostics.MemberLookups++;
+
+        // foreach over an ARRAY: the compiler emits an indexed loop with no enumerator. The same
+        // loop over IReadOnlyList<T> allocates one boxed enumerator per call and reads identically.
         foreach (var member in members)
         {
             if (string.Equals(member.Name, name, StringComparison.Ordinal)) return member;

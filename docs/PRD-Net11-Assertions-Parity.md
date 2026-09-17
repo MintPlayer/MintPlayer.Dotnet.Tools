@@ -289,7 +289,30 @@ that allocates nothing (e.g. a memoised matrix on the stack).
 This is the strongest available answer to "an allocation gate cannot see a pure slowdown", and it
 doubles as executable documentation of the walker's complexity.
 
-### S3 — Roslyn folder scheme (blocks packaging)
+### S3 — Roslyn folder scheme ✅ RESOLVED
+
+**Outcome: one build at Roslyn 5.0.0, shipped as `analyzers/dotnet/roslyn5.0/cs`.**
+
+Measured the compiler in each installed SDK rather than trusting the folder names:
+`.NET 10.0.112 → Roslyn 5.0.0`, `.NET 10.0.401 → 5.9.0`, `.NET 11 rc.1 → 5.11.0`.
+
+Two findings followed. **A 4.x/5.x dual build would be unreachable**: now that net8.0/net9.0 are
+gone, no SDK both builds our TFMs and runs a 4.x compiler, so the 4.x flavour could never be
+selected. And **the 5.3.0 pin was arbitrary** — the whole solution compiles unchanged against 5.0.0,
+so it excluded the oldest supported SDK for nothing.
+
+The old arrangement was the worst available: advertising `roslyn4.0`/`roslyn4.9` told a 5.0.0 host
+"this folder is for you" and then handed it a 5.3.0-built assembly, which fails with CS8032. A host
+below the advertised version now finds no folder and skips the generator instead.
+
+Also removed: the `<Choose>` on `$(RoslynVersion)` in `eng/sourcegenerator.targets` **and** in the
+shipped `sourcegenerator_tools.props` — a property declared empty that nothing ever set, identical
+package versions in both arms, and `ROSLYN_4_*` constants no source file tests. All five shipped
+`build/*.props` moved with it; fixing only `eng/` would have left downstream generator authors
+packing into a folder this repo no longer ships. 263 tests pass, including the E2E that installs a
+freshly-packed nupkg into a net11.0 consumer.
+
+### S3 — original question (kept for the reasoning)
 
 **Question.** The folders say `roslyn4.0`/`roslyn4.9`; the packages referenced are **5.3.0**; the
 `<Choose>` branch that would select 4.x is dead. What should ship for .NET 11?

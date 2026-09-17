@@ -13,14 +13,14 @@ namespace MintPlayer.Assertions.Equivalency;
 /// </summary>
 internal sealed class ReflectionMemberProvider : IMemberProvider
 {
-    private readonly ConcurrentDictionary<Type, IReadOnlyList<MemberAccessor>> cache = new();
+    private readonly ConcurrentDictionary<Type, MemberAccessor[]> cache = new();
 
-    public IReadOnlyList<MemberAccessor> GetMembers(Type type)
+    public MemberAccessor[] GetMembers(Type type)
         => cache.GetOrAdd(type, static t => BuildMembers(t));
 
     [UnconditionalSuppressMessage("Trimming", "IL2070",
         Justification = "Fallback only: types that take part in equivalency comparisons are registered by the source generator in EquivalencyRegistry, which is trim-safe and consulted first. When reflection is reached under trimming, missing members merely reduce comparison coverage, matching the Formatter's best-effort approach.")]
-    private static IReadOnlyList<MemberAccessor> BuildMembers(Type type)
+    private static MemberAccessor[] BuildMembers(Type type)
     {
         try
         {
@@ -34,7 +34,11 @@ internal sealed class ReflectionMemberProvider : IMemberProvider
             {
                 members.Add(new(field.Name, field.FieldType, field.GetValue, isProperty: false));
             }
-            return members;
+            // Materialised to an ARRAY, not returned as the List. The List would satisfy an
+            // IReadOnlyList<T> return type and reintroduce the boxed enumerator this whole chain
+            // exists to avoid — and it would do so invisibly, because the call sites would not
+            // change. Cached per type, so the copy happens once. See IMemberProvider.GetMembers.
+            return [.. members];
         }
         catch
         {

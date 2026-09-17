@@ -12,7 +12,20 @@ internal sealed class RegistryMemberProvider : IMemberProvider
 
     private readonly ReflectionMemberProvider fallback = new();
 
-    public IReadOnlyList<MemberAccessor> GetMembers(Type type)
+    /// <summary>Generated accessors when the generator saw this type, reflection otherwise.</summary>
+    /// <remarks>
+    /// <para>
+    /// The array return type is deliberate and measured — see <see cref="IMemberProvider.GetMembers"/>.
+    /// </para>
+    /// <para>
+    /// ⚠️ The <c>false</c> branch is the 15× slow path and it is <b>silent</b>: the comparison is
+    /// still correct, just reflective. Nothing logs it, nothing counts it. That is why the scanner's
+    /// skip list matters so much — an expectation erased to <c>object</c>, a type containing a type
+    /// parameter, a file-local or private nested type, or a call shape the generator does not
+    /// recognise all land here with no signal.
+    /// </para>
+    /// </remarks>
+    public MemberAccessor[] GetMembers(Type type)
         => EquivalencyRegistry.TryGetAccessors(type, out var accessors)
             ? accessors
             : fallback.GetMembers(type);

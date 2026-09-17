@@ -167,7 +167,7 @@ public static class Formatter
 
         if (EquivalencyRegistry.TryGetAccessors(type, out var accessors))
         {
-            for (var i = 0; i < accessors.Count; i++)
+            for (var i = 0; i < accessors.Length; i++)
             {
                 if (i > 0) sb.Append(", ");
                 sb.Append(accessors[i].Name).Append(" = ");

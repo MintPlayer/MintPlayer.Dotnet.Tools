@@ -21,23 +21,26 @@ namespace MintPlayer.Assertions.Equivalency;
 /// paying for with the thing it protects.
 /// </para>
 /// <para>
-/// Not thread-safe and not meant to be: it is a diagnostic for single-threaded assertions in a test,
-/// and making it interlocked would cost far more than it measures.
+/// [ThreadStatic], which is not decoration. These are process-wide statics and xUnit runs test
+/// classes in parallel, so a second walk on another thread was counted into the first: an exact-count
+/// assertion read 259 nodes where the graph has 133. Thread-local costs nothing extra on the walk —
+/// a single comparison never crosses threads — and removes the interference entirely, where
+/// disabling test parallelism would have hidden it behind a slower suite.
 /// </para>
 /// </remarks>
 internal static class EquivalencyDiagnostics
 {
     /// <summary>False in every production run. A test sets it through <see cref="Measure"/>.</summary>
-    public static bool Enabled;
+    [ThreadStatic] public static bool Enabled;
 
     /// <summary>Times <c>CompareNode</c> was entered.</summary>
-    public static long Nodes;
+    [ThreadStatic] public static long Nodes;
 
     /// <summary>Times a member was looked up by name on the subject.</summary>
-    public static long MemberLookups;
+    [ThreadStatic] public static long MemberLookups;
 
     /// <summary>Times two collection items were probed for equivalence by the unordered matcher.</summary>
-    public static long MatchProbes;
+    [ThreadStatic] public static long MatchProbes;
 
     /// <summary>Runs <paramref name="action"/> with counting on, and returns what it did.</summary>
     /// <remarks>

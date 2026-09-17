@@ -96,8 +96,17 @@ public class EquivalencyWalkerGateTests
             () => ((object)Actual).Should().BeEquivalentTo(Expected));
 
         // Pinned, not derived: the value IS the assertion. Deriving it here would restate the
-        // walker and change in lockstep with the bug it is meant to catch. If this number moves,
-        // the shape of the walk changed — work out why before updating it.
+        // walker and change in lockstep with the bug it is meant to catch.
+        //
+        // ⚠️ If this fails, DO NOT just update the number. It means the walk changed shape, and the
+        // question is which of these happened:
+        //   - a feature legitimately visits more nodes           -> update, and say so in the commit
+        //   - an algorithm went from linear to quadratic         -> that is the bug this exists for
+        //   - the counters leaked across threads                 -> they are [ThreadStatic]; if that
+        //     was removed, this reads roughly double (259 was observed where the graph has 133)
+        //
+        // Updating the number without answering that turns the only gate that can see a time-only
+        // regression into a rubber stamp.
         Assert.Equal((133L, 112L), (counts.Nodes, counts.MemberLookups));
     }
 
