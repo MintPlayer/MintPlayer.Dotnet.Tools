@@ -63,6 +63,69 @@ public struct Assertion
         return this;
     }
 
+    // ── Arity-specific overloads ────────────────────────────────────────────────────────────────
+    //
+    // These exist for one reason, and it is not convenience: `params object?[]` builds its array AT
+    // THE CALL SITE, before the call. So a passing assertion — which returns on the very first line
+    // of FailWith — still paid for an array, plus a box for every value-type argument in it.
+    //
+    // Measured over a passing `42.Should().Be(42)`: 112 B/op above a bare Should(). That is the
+    // whole cost of an assertion that does nothing but compare two ints and return.
+    //
+    // The overloads are generic, so nothing boxes on the way in, and the array is built only after
+    // the condition has already failed — on a path that is about to throw anyway.
+    //
+    // ⚠️ No call site had to change. C# prefers a generic overload with an exact arity over the
+    // params form, so every existing `FailWith("...{0}...", x)` binds here automatically. Keep it
+    // that way: adding an argument to a call site silently moves it back onto the params overload
+    // once it exceeds the highest arity below, which is why the count goes to three rather than two.
+    // PassingPathAllocationTests is what notices if that happens.
+
+    /// <summary>Reports a failure with no arguments; nothing to allocate at all.</summary>
+    public Assertion FailWith(string template)
+    {
+        if (condition) return this;
+        condition = true;
+        AssertionScope.ReportFailure(RenderMessage(template, null));
+        return this;
+    }
+
+    /// <inheritdoc cref="FailWith(string, object?[])"/>
+    public Assertion FailWith<T0>(string template, T0 arg0)
+    {
+        if (condition) return this;
+        condition = true;
+        AssertionScope.ReportFailure(RenderMessage(template, [arg0]));
+        return this;
+    }
+
+    /// <inheritdoc cref="FailWith(string, object?[])"/>
+    public Assertion FailWith<T0, T1>(string template, T0 arg0, T1 arg1)
+    {
+        if (condition) return this;
+        condition = true;
+        AssertionScope.ReportFailure(RenderMessage(template, [arg0, arg1]));
+        return this;
+    }
+
+    /// <inheritdoc cref="FailWith(string, object?[])"/>
+    public Assertion FailWith<T0, T1, T2>(string template, T0 arg0, T1 arg1, T2 arg2)
+    {
+        if (condition) return this;
+        condition = true;
+        AssertionScope.ReportFailure(RenderMessage(template, [arg0, arg1, arg2]));
+        return this;
+    }
+
+    /// <inheritdoc cref="FailWith(string, object?[])"/>
+    public Assertion FailWith<T0, T1, T2, T3>(string template, T0 arg0, T1 arg1, T2 arg2, T3 arg3)
+    {
+        if (condition) return this;
+        condition = true;
+        AssertionScope.ReportFailure(RenderMessage(template, [arg0, arg1, arg2, arg3]));
+        return this;
+    }
+
     private readonly string RenderMessage(string template, object?[]? args)
     {
         var sb = new StringBuilder(template.Length + 64);
