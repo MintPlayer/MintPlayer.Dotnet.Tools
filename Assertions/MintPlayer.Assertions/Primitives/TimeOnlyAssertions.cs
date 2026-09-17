@@ -7,7 +7,7 @@ namespace MintPlayer.Assertions.Primitives;
 /// equality, proximity (wrap-around aware), ordering, clock components and null checks.
 /// Positive assertions fail on a null subject; negative ones treat null as passing.
 /// </summary>
-public class TimeOnlyAssertions
+public partial class TimeOnlyAssertions
 {
     public TimeOnlyAssertions(TimeOnly? subject, string? subjectExpression)
     {

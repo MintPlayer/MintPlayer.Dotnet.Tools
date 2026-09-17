@@ -1,0 +1,101 @@
+# Nightly performance watch for MintPlayer.Assertions.
+#
+# This is the LOOSE half of the regression story, and it is deliberately not a gate.
+#
+# The tight gates live in the test suite and assert BYTES and OPERATION COUNTS, because those are
+# deterministic: the same numbers on a developer's machine and on a loaded CI runner. Wall-clock is
+# not. The same benchmark on this project measured FluentAssertions at 150 us and 216 us on the same
+# idle machine, a 44% spread on identical code, and far worse on a busy one. A millisecond threshold
+# here would be either flaky or too loose to catch anything, so this job does not assert a time at
+# all -- it publishes the numbers and fails only on the allocation figure, which does reproduce.
+#
+# Nightly rather than per-PR because a shared GitHub runner is the worst possible place to measure
+# anything, and because the per-PR cost of a full BenchmarkDotNet run is minutes of queue time for a
+# signal the unit-test gates already give in seconds.
+name: assertions-benchmark
+
+on:
+  schedule:
+    # 03:00 UTC. Nothing depends on the hour; it is outside working hours in the maintainer's zone.
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      allocation_ceiling_bytes:
+        description: 'Fail if MintPlayer.Assertions allocates more than this per operation'
+        required: false
+        default: '7168'
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    name: equivalency benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 11.0.100-rc.1.26425.128
+
+      - name: Run the benchmark
+        # Raw output to a file, unfiltered. Piping it into grep loses everything that does not match
+        # and replaces the exit code with grep's, which is how a failed run gets reported as a pass.
+        run: |
+          dotnet run --project Assertions/MintPlayer.Assertions.Benchmarks \
+            -c Release -f net11.0 -- --filter '*' > benchmark.log 2>&1
+
+      - name: Show the results
+        if: always()
+        run: |
+          echo '## Equivalency benchmark' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          # The BenchmarkDotNet summary table, plus the fairness check that proves the generated
+          # accessors were actually active -- without it the run may have measured the reflection
+          # fallback and called it a result.
+          grep -E '^\|' benchmark.log >> "$GITHUB_STEP_SUMMARY" || true
+          grep -E 'Fairness checks' benchmark.log >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Check the allocation figure
+        # Bytes are a property of the emitted IL and the object graph, so this survives a loaded
+        # runner unchanged -- which is exactly why it is the only thing asserted here.
+        run: |
+          ceiling="${{ github.event.inputs.allocation_ceiling_bytes || '7168' }}"
+          line=$(grep -E '^\| MintPlayerAssertions_BeEquivalentTo' benchmark.log || true)
+          if [ -z "$line" ]; then
+            echo "No result row for MintPlayerAssertions_BeEquivalentTo. The benchmark did not complete;"
+            echo "see the log artifact. A missing row is a failure, not a pass."
+            exit 1
+          fi
+          if ! grep -qE 'Fairness checks passed' benchmark.log; then
+            echo "The fairness check did not pass, so this run may have measured the reflection"
+            echo "fallback rather than the generated accessors. Refusing to report it as a result."
+            exit 1
+          fi
+          kb=$(echo "$line" | grep -oE '[0-9]+\.[0-9]+ KB' | tail -1 | cut -d' ' -f1)
+          bytes=$(awk -v kb="$kb" 'BEGIN { printf "%d", kb * 1024 }')
+          echo "Allocated: ${kb} KB (${bytes} B/op), ceiling ${ceiling} B/op"
+          if [ "$bytes" -gt "$ceiling" ]; then
+            echo "::error::Allocation regressed to ${bytes} B/op against a ceiling of ${ceiling}."
+            echo "The unit-test gates (TheDefaultWalkStaysUnderItsMeasuredByteCost) should have caught"
+            echo "this first -- if they did not, the gap between what they cover and what the"
+            echo "benchmark covers is the actual bug."
+            exit 1
+          fi
+
+      - name: Upload the log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: assertions-benchmark-log
+          path: benchmark.log
+          retention-days: 14

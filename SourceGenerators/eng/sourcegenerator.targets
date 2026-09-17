@@ -6,40 +6,57 @@
 	
 	<PropertyGroup>
 		<TargetFramework>netstandard2.0</TargetFramework>
-		<LangVersion>14</LangVersion>
+		<LangVersion>15</LangVersion>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<DevelopmentDependency>true</DevelopmentDependency>
 		<IncludeBuildOutput>false</IncludeBuildOutput>
 		<IsRoslynComponent>true</IsRoslynComponent>
 		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-		<RoslynVersion></RoslynVersion>
 	</PropertyGroup>
 
-	<Choose>
-		<When Condition="$(RoslynVersion) == 'roslyn4.0'">
-			<ItemGroup>
-				<PackageReference Include="Microsoft.CodeAnalysis" Version="4.14.0" PrivateAssets="all" />
-				<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
-				<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
-				<!--<PackageReference Include="Microsoft.CodeAnalysis.Features" Version="4.0.1" PrivateAssets="all" />-->
-			</ItemGroup>
-			<PropertyGroup>
-				<DefineConstants>$(DefineConstants);ROSLYN_4_0;ROSLYN_4_0_OR_GREATER</DefineConstants>
-			</PropertyGroup>
-		</When>
-		<Otherwise>
-			<ItemGroup>
-				<PackageReference Include="Microsoft.CodeAnalysis" Version="4.14.0" PrivateAssets="all" />
-				<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
-				<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
-				<!--<PackageReference Include="Microsoft.CodeAnalysis.Features" Version="4.9.2" PrivateAssets="all" />-->
-			</ItemGroup>
-			<PropertyGroup>
-				<DefineConstants>$(DefineConstants);ROSLYN_4_9;ROSLYN_4_0_OR_GREATER;ROSLYN_4_9_OR_GREATER</DefineConstants>
-			</PropertyGroup>
-		</Otherwise>
-	</Choose>
+	<!--
+	ONE Roslyn version, named honestly.
+
+	This used to be a <Choose> on $(RoslynVersion) with a 'roslyn4.0' branch and an <Otherwise>.
+	$(RoslynVersion) was declared empty and nothing ever set it, so <Otherwise> always won: the
+	'roslyn4.0' branch was dead, both branches referenced the SAME package versions, and the only
+	difference between them was a set of ROSLYN_4_* DefineConstants that no source file in this
+	repository ever tested. It was a dual build in appearance only.
+
+	5.0.0 is the floor, and it is chosen rather than inherited. Measured Roslyn by SDK:
+
+	    .NET 10.0.112   Roslyn 5.0.0     <- the oldest SDK that can build net10.0
+	    .NET 10.0.401   Roslyn 5.9.0
+	    .NET 11 rc.1    Roslyn 5.11.0
+
+	Every SDK capable of building net10.0 or net11.0 ships Roslyn 5.x, so Roslyn 4.x support is dead
+	weight for this repository now that net8.0/net9.0 are gone — there is no SDK that both builds our
+	TFMs and runs a 4.x compiler. That is why this is ONE build rather than a 4.x/5.x dual build.
+
+	The generators were pinned to 5.3.0, which excluded .NET 10.0.112 for no reason: the whole
+	solution compiles unchanged against 5.0.0, so 5.3.0 bought nothing and cost the oldest supported
+	SDK. Lowering the floor widens reach across exactly the matrix we support.
+
+	Advertising roslyn4.0/roslyn4.9 was worse than either: it told a 5.0.0 host "this is for you",
+	which loaded a 5.3.0-built assembly and failed with CS8032. A host below the advertised version
+	now finds no matching folder and skips the generator instead of crashing on it.
+	-->
+	<ItemGroup>
+		<PackageReference Include="Microsoft.CodeAnalysis" Version="5.0.0" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+	</ItemGroup>
+
+	<PropertyGroup>
+		<!--
+		The single source of truth for the analyzer folder name. Roslyn probes
+		analyzers/dotnet/roslyn<N.N>/cs and picks the highest folder whose version is <= its own, so
+		this name IS the minimum supported Roslyn version. Five shipped build/*.props files repeat
+		it; they must move together with this.
+		-->
+		<RoslynPackagePath>analyzers/dotnet/roslyn5.0/cs</RoslynPackagePath>
+	</PropertyGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="$(MSBuildThisFileDirectory)\..\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj" PrivateAssets="all" />
@@ -106,16 +123,13 @@
 		       Text="$(AssemblyName).Attributes.dll was not found in bin\$(Configuration)\netstandard2.0. Packing would produce a generator whose own attributes Roslyn cannot resolve." />
 
 		<ItemGroup>
-			<!-- The attributes live one level up, shared by both Roslyn versions. -->
+			<!-- The attributes live one level up, version-independent: Roslyn resolves them while
+			     LOADING the generator, whichever versioned folder it picked. -->
 			<TfmSpecificPackageFile Include="@(_GeneratorAttributeAssets)" PackagePath="analyzers/dotnet/cs" />
 
-			<!-- Roslyn 4.0 -->
-			<TfmSpecificPackageFile Include="@(_GeneratorAssembly)" PackagePath="analyzers/dotnet/roslyn4.0/cs" />
-			<TfmSpecificPackageFile Include="@(_GeneratorToolsAssets)" PackagePath="analyzers/dotnet/roslyn4.0/cs" />
-
-			<!-- Roslyn 4.9 -->
-			<TfmSpecificPackageFile Include="@(_GeneratorAssembly)" PackagePath="analyzers/dotnet/roslyn4.9/cs" />
-			<TfmSpecificPackageFile Include="@(_GeneratorToolsAssets)" PackagePath="analyzers/dotnet/roslyn4.9/cs" />
+			<!-- One folder, named for the Roslyn these are actually compiled against. -->
+			<TfmSpecificPackageFile Include="@(_GeneratorAssembly)" PackagePath="$(RoslynPackagePath)" />
+			<TfmSpecificPackageFile Include="@(_GeneratorToolsAssets)" PackagePath="$(RoslynPackagePath)" />
 		</ItemGroup>
 	</Target>
 

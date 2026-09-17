@@ -8,10 +8,8 @@
 
 	<ItemGroup Condition="'$(IsRoslynComponent)' == 'true'">
 		<!-- Put the assets for this project in the correct package path -->
-		<!-- Rolsyn 4.0 -->
-		<None Include="$(PkgMintPlayer_Mapper_Attributes)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.0/cs" Visible="true" />
 
-		<!-- Rolsyn 4.9 -->
-		<None Include="$(PkgMintPlayer_Mapper_Attributes)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.9/cs" Visible="true" />
+		<!-- Roslyn 5.0 — see eng/sourcegenerator.targets for why this is the minimum -->
+		<None Include="$(PkgMintPlayer_Mapper_Attributes)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn5.0/cs" Visible="true" />
 	</ItemGroup>
 </Project>

@@ -33,11 +33,11 @@ public static class EquivalencyAssertionExtensions
         string? because = null,
         params object?[] becauseArgs)
     {
-        var result = Validate(assertions.Subject, expectation, config, typeof(TExpectation));
+        var (result, diagnostics) = Validate(assertions.Subject, expectation, config, typeof(TExpectation));
         if (result.Differences.Count > 0)
         {
             assertions.Assert().ForCondition(false).BecauseOf(because, becauseArgs)
-                .FailWith(BuildFailureTemplate(result.Differences, assertions.SubjectExpression), expectation);
+                .FailWith(BuildFailureTemplate(result, diagnostics, assertions.SubjectExpression), expectation);
         }
         return new(assertions);
     }
@@ -50,9 +50,9 @@ public static class EquivalencyAssertionExtensions
         string? because = null,
         params object?[] becauseArgs)
     {
-        var result = Validate(assertions.Subject, expectation, config, typeof(TExpectation));
+        var (result, diagnostics) = Validate(assertions.Subject, expectation, config, typeof(TExpectation));
         assertions.Assert().ForCondition(result.Differences.Count > 0).BecauseOf(because, becauseArgs)
-            .FailWith("Did not expect {subject} to be equivalent to {0}{reason}, but no differences were found.", expectation);
+            .FailWith(BuildNegativeFailureTemplate(diagnostics), expectation);
         return new(assertions);
     }
 
@@ -69,11 +69,11 @@ public static class EquivalencyAssertionExtensions
         string? because = null,
         params object?[] becauseArgs)
     {
-        var result = Validate(assertions.Subject, expectation, config, typeof(IEnumerable<TExpectation>));
+        var (result, diagnostics) = Validate(assertions.Subject, expectation, config, typeof(IEnumerable<TExpectation>));
         if (result.Differences.Count > 0)
         {
             assertions.Assert().ForCondition(false).BecauseOf(because, becauseArgs)
-                .FailWith(BuildFailureTemplate(result.Differences, assertions.SubjectExpression), expectation);
+                .FailWith(BuildFailureTemplate(result, diagnostics, assertions.SubjectExpression), expectation);
         }
         return new(assertions);
     }
@@ -92,9 +92,9 @@ public static class EquivalencyAssertionExtensions
         string? because = null,
         params object?[] becauseArgs)
     {
-        var result = Validate(assertions.Subject, expectation, config, typeof(IEnumerable<TExpectation>));
+        var (result, diagnostics) = Validate(assertions.Subject, expectation, config, typeof(IEnumerable<TExpectation>));
         assertions.Assert().ForCondition(result.Differences.Count > 0).BecauseOf(because, becauseArgs)
-            .FailWith("Did not expect {subject} to be equivalent to {0}{reason}, but no differences were found.", expectation);
+            .FailWith(BuildNegativeFailureTemplate(diagnostics), expectation);
         return new(assertions);
     }
 
@@ -118,11 +118,11 @@ public static class EquivalencyAssertionExtensions
         string? because = null,
         params object?[] becauseArgs)
     {
-        var result = Validate(assertions.Subject, expectation, config, typeof(IEnumerable<KeyValuePair<TKey, TExpectation>>));
+        var (result, diagnostics) = Validate(assertions.Subject, expectation, config, typeof(IEnumerable<KeyValuePair<TKey, TExpectation>>));
         if (result.Differences.Count > 0)
         {
             assertions.Assert().ForCondition(false).BecauseOf(because, becauseArgs)
-                .FailWith(BuildFailureTemplate(result.Differences, assertions.SubjectExpression), expectation);
+                .FailWith(BuildFailureTemplate(result, diagnostics, assertions.SubjectExpression), expectation);
         }
         return new(assertions);
     }
@@ -138,9 +138,9 @@ public static class EquivalencyAssertionExtensions
         string? because = null,
         params object?[] becauseArgs)
     {
-        var result = Validate(assertions.Subject, expectation, config, typeof(IEnumerable<KeyValuePair<TKey, TExpectation>>));
+        var (result, diagnostics) = Validate(assertions.Subject, expectation, config, typeof(IEnumerable<KeyValuePair<TKey, TExpectation>>));
         assertions.Assert().ForCondition(result.Differences.Count > 0).BecauseOf(because, becauseArgs)
-            .FailWith("Did not expect {subject} to be equivalent to {0}{reason}, but no differences were found.", expectation);
+            .FailWith(BuildNegativeFailureTemplate(diagnostics), expectation);
         return new(assertions);
     }
 
@@ -148,16 +148,44 @@ public static class EquivalencyAssertionExtensions
     /// Runs the comparison and rejects a vacuous one, so every assertion method above shares the
     /// same guard by construction instead of repeating the condition.
     /// </summary>
-    private static ValidationResult Validate<TExpectation>(
+    private static (ValidationResult Result, string? Diagnostics) Validate<TExpectation>(
         object? subject, object? expectation,
         Func<EquivalencyOptions<TExpectation>, EquivalencyOptions<TExpectation>>? config,
         Type rootDeclaredType)
     {
         var options = BuildOptions(config);
-        var result = EquivalencyValidator.Validate(subject, expectation, options, rootDeclaredType);
+
+        // ⚠️ The diagnostics branch lives in its own method, and that is not organisation.
+        // Measuring the walk needs a lambda, and a capturing lambda ANYWHERE in a method makes the
+        // compiler allocate its display class at method entry — on every call, including the ones
+        // that never reach it. That exact mistake cost 2,768 B/op in EquivalencyRegistry (PRD §9.15).
+        // This method runs once per BeEquivalentTo; keeping the closure out of it keeps the default
+        // path byte-for-byte what it was.
+        var (result, diagnostics) = ((IEquivalencyOptions)options).IncludeDiagnostics
+            ? ValidateWithDiagnostics(subject, expectation, options, rootDeclaredType)
+            : (EquivalencyValidator.Validate(subject, expectation, options, rootDeclaredType), null);
+
         if (result.Vacuity is { } vacuity && !((IEquivalencyOptions)options).AllowVacuousComparison)
             throw new InvalidOperationException(BuildVacuityMessage(vacuity));
-        return result;
+        return (result, diagnostics);
+    }
+
+    /// <summary>Runs the walk with the operation counters on and returns their totals beside the result.</summary>
+    /// <remarks>
+    /// The summary is returned SEPARATELY rather than stored on <see cref="ValidationResult"/>. A
+    /// nullable field there measured 13,992 → 14,000 B/op, because that record is allocated once per
+    /// comparison and would charge every passing suite 8 bytes for a diagnostic almost nobody
+    /// enables. A value tuple costs nothing.
+    /// </remarks>
+    private static (ValidationResult Result, string? Diagnostics) ValidateWithDiagnostics(
+        object? subject, object? expectation, IEquivalencyOptions options, Type rootDeclaredType)
+    {
+        ValidationResult? captured = null;
+        var counts = EquivalencyDiagnostics.Measure(
+            () => captured = EquivalencyValidator.Validate(subject, expectation, options, rootDeclaredType));
+
+        return (captured!, $"Walk: {counts.Nodes} node(s), {counts.MemberLookups} member lookup(s), "
+            + $"{counts.MatchProbes} collection match probe(s).");
     }
 
     private static EquivalencyOptions<TExpectation> BuildOptions<TExpectation>(
@@ -180,14 +208,15 @@ public static class EquivalencyAssertionExtensions
                 + $"{CountMembers(vacuity.SubjectType)}. Compare against a concrete type, or against an "
                 + "anonymous object listing the members you care about"
             : $"every member of '{vacuity.ExpectationType.Name}' was removed by the configured "
-                + "exclusions or inclusions. Keep at least one member in the comparison";
+                + "exclusions or inclusions — including, if both were called, ExcludingFields together "
+                + "with ExcludingProperties. Keep at least one member in the comparison";
 
         return $"No members were compared, so {where} can never fail: {cause} — "
             + "or call AllowingVacuousComparison() if comparing nothing is intended.";
     }
 
     private static int CountMembers(Type type)
-        => RegistryMemberProvider.Instance.GetMembers(type).Count;
+        => RegistryMemberProvider.Instance.GetMembers(type, MemberSelection.Default).Length;
 
     /// <summary>
     /// Builds the failure template with the difference block pre-rendered into it. The block is
@@ -195,16 +224,41 @@ public static class EquivalencyAssertionExtensions
     /// escaped rather than passed through a Formatter placeholder; only the expectation itself is
     /// left as the {0} argument.
     /// </summary>
-    private static string BuildFailureTemplate(List<Difference> differences, string subjectExpression)
+    private static string BuildFailureTemplate(ValidationResult result, string? diagnostics, string subjectExpression)
     {
         var sb = new StringBuilder("Expected {subject} to be equivalent to {0}{reason}, but found the following difference(s):");
-        foreach (var difference in differences)
+        foreach (var difference in result.Differences)
         {
             sb.Append(Environment.NewLine).Append("  - ")
               .Append(EscapeBraces(difference.Path.Length == 0 ? subjectExpression : difference.Path))
               .Append(": ")
               .Append(EscapeBraces(difference.Message));
         }
+        AppendDiagnostics(sb, diagnostics);
+        return sb.ToString();
+    }
+
+    /// <summary>Appends the WithDiagnostics() summary, when one was asked for.</summary>
+    /// <remarks>Escaped like everything else here: the counts contain no braces today, and relying on that would be a trap for whoever adds one.</remarks>
+    private static void AppendDiagnostics(StringBuilder sb, string? diagnostics)
+    {
+        if (diagnostics is null) return;
+        sb.Append(Environment.NewLine).Append(EscapeBraces(diagnostics));
+    }
+
+
+    /// <summary>
+    /// The negative form's message. Kept beside the positive one so a diagnostics summary asked for
+    /// with <c>WithDiagnostics()</c> appears on BOTH — the counts describe the search, and a search
+    /// that found nothing is exactly the case where "did it even look?" is the question.
+    /// </summary>
+    private static string BuildNegativeFailureTemplate(string? diagnostics)
+    {
+        const string Template = "Did not expect {subject} to be equivalent to {0}{reason}, but no differences were found.";
+        if (diagnostics is null) return Template;
+
+        var sb = new StringBuilder(Template);
+        AppendDiagnostics(sb, diagnostics);
         return sb.ToString();
     }
 

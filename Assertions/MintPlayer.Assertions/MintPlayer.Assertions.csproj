@@ -1,15 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
-		<LangVersion>14</LangVersion>
+		<TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+		<LangVersion>15</LangVersion>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<OutputType>Library</OutputType>
 		<IsAotCompatible>true</IsAotCompatible>
 
 		<IsPackable>true</IsPackable>
-		<Version>1.1.0</Version>
+		<Version>11.0.0-rc.1</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>Fluent assertion library for .NET. Free forever (Apache-2.0), AOT/trimming-safe, with source-generated object-graph equivalency and first-class analyzers.</Description>
@@ -36,7 +36,14 @@
 	<!-- The source generator and analyzers ship inside this package so a single
 	     PackageReference gives consumers the full experience. -->
 	<ItemGroup>
-		<ProjectReference Include="..\MintPlayer.Assertions.SourceGenerator\MintPlayer.Assertions.SourceGenerator.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+		<!--
+		OutputItemType="Analyzer" is not cosmetic: without it this library ships analyzers to
+		consumers and never runs them on its own code. MPA0005 — the rule that catches a foreach
+		boxing its enumerator, worth 27% of the equivalency walk's allocation — would have been
+		unenforceable in the one codebase that most needs it. MPA0004 sat ignorable for the same
+		reason.
+		-->
+		<ProjectReference Include="..\MintPlayer.Assertions.SourceGenerator\MintPlayer.Assertions.SourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
 	</ItemGroup>
 
 	<!--

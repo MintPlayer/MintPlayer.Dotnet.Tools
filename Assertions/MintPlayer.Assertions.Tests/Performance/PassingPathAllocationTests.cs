@@ -1,0 +1,349 @@
+namespace MintPlayer.Assertions.Tests.Performance;
+
+/// <summary>
+/// The rule this library is built on, as a test: <b>a passing assertion allocates nothing beyond the
+/// <c>Should()</c> wrapper.</b>
+/// </summary>
+/// <remarks>
+/// <para>
+/// Measured <b>relative</b> to a bare <c>Should()</c> on the same subject, never as an absolute byte
+/// count. That is deliberate: the wrapper is one object per chain and is not what these tests are
+/// about, and a pinned absolute number drifts with unrelated changes until someone "fixes" it by
+/// raising the constant. Relative states the actual rule.
+/// </para>
+/// <para>
+/// The equivalency benchmark only ever covered <c>BeEquivalentTo</c>. Every string, numeric, date and
+/// collection assertion — which is nearly all of the library and nearly all of what a suite runs —
+/// was unmeasured and therefore unprotected. This is that coverage.
+/// </para>
+/// <para>
+/// See <see cref="AllocationProbe"/> for why bytes rather than time, and for the warm-up and
+/// two-sample mechanics that keep the number honest.
+/// </para>
+/// </remarks>
+public class PassingPathAllocationTests
+{
+    /// <summary>
+    /// Bytes an assertion is allowed to add over the bare <c>Should()</c> it is chained onto.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Zero.</b> Not a tolerance that nothing currently exceeds — the actual rule. Every assertion
+    /// covered here measures at or below its bare <c>Should()</c> baseline, so there is no slack to
+    /// give and none is given. It was 16 while sites were still being fixed; once they all read zero,
+    /// leaving the allowance up would have meant a future 16-byte box could land unnoticed.
+    /// </para>
+    /// <para>
+    /// It took three fixes to get here, and the numbers are recorded because each was found by this
+    /// test rather than by reading code. On a passing <c>42.Should().Be(42)</c>:
+    /// <list type="bullet">
+    /// <item><b>112 B/op</b> — <c>FailWith</c>'s <c>params object?[]</c>, built at the call site
+    /// before the call and discarded when the condition held, with every value-type argument boxed
+    /// into it. Fixed by arity-specific generic overloads, which every existing call site rebound
+    /// to automatically.</item>
+    /// <item><b>24 B/op</b> — <c>AndConstraint&lt;T&gt;</c> was a class, one allocation from each of
+    /// ~360 assertion methods. Now a readonly struct.</item>
+    /// <item><b>0</b>.</item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// ⚠️ Raising this number is almost never the right response to a failure. It means an
+    /// allocation came back; find it. See the message on <see cref="AssertNoExtraAllocation"/> for
+    /// the three causes that actually occur.
+    /// </para>
+    /// </remarks>
+    private const long AllowanceBytesPerOp = 0;
+
+    /* KNOWN GAP, deliberately recorded rather than silently left.
+     *
+     * This covers one assertion per family, not every assertion. The families are what matter for
+     * the shared machinery — Should(), FailWith, AndConstraint, Items — but a per-assertion cost
+     * inside a single method is only caught if that method is listed here.
+     *
+     * A concrete example, found by adding IteratingTheSubjectAllocatesNothing: NotContainNulls
+     * allocated `new List<int>()` unconditionally to hold indexes for a failure message, then threw
+     * it away empty on every passing call. Ordinary-looking code; 32 B/op; invisible to review.
+     *
+     * That shape — allocate a List<T> up front, fill it only on mismatch, assert Count == 0 — has
+     * since been swept out of GenericCollectionAssertions and GenericDictionaryAssertions, one site
+     * at a time. Analysing them individually was the point: of twelve, nine converted uniformly, two
+     * (ContainSingle, NotContainSingle) had to be restructured because the lazy form would have been
+     * WRONG and would still have allocated on success, and one was correct to leave alone. A single
+     * batch edit would have kept every test green while still allocating.
+     *
+     * The second family found this way is subtler and has no grep: `x is null` on an unconstrained
+     * generic parameter emits `box !T`. It reads as a plain null check and costs 24 B per test — 192
+     * B/op for an eight-item int[]. Guarded now in NotContainNulls, ContainNulls and
+     * TryGetValueForKey; any NEW generic null test needs the same `default(T) is null` guard, and
+     * the only thing that will ever tell you is a gate test over a value-type instantiation.
+     *
+     * The ordering rule that produced both: add the gate test for an assertion, watch it fail, fix
+     * that one, move on. Near-identical edits made in one pass is the shape that has twice
+     * introduced a compiler-invisible bug in this file (PRD 9.5). */
+
+    private static void AssertNoExtraAllocation(string what, Action bare, Action full)
+    {
+        var baseline = AllocationProbe.BytesPerOp(bare);
+        var measured = AllocationProbe.BytesPerOp(full);
+        var added = measured - baseline;
+
+        Assert.True(added <= AllowanceBytesPerOp,
+            $"{what} added {added:N0} B/op over a bare Should() ({measured:N0} vs {baseline:N0}). "
+            + "A passing assertion must not allocate. Usual causes: a boxed enumerator from "
+            + "iterating an interface-typed collection (MPA0005), a value type boxed into FailWith's "
+            + "params array, a copy of an already-materialised subject, a failure-detail List<T> "
+            + "built before anything has failed, or `x is null` on an unconstrained T — which emits "
+            + "`box !T` and costs 24 B per test (guard it with `default(T) is null`).");
+    }
+
+    #region Scalars
+
+    [Fact]
+    public void NumericAssertionAllocatesNothing()
+    {
+        var value = 42;
+        AssertNoExtraAllocation("Be(int)", () => value.Should(), () => value.Should().Be(42));
+    }
+
+    [Fact]
+    public void StringAssertionAllocatesNothing()
+    {
+        var value = "hello world";
+        AssertNoExtraAllocation("Be(string)", () => value.Should(), () => value.Should().Be("hello world"));
+    }
+
+    [Fact]
+    public void BooleanAssertionAllocatesNothing()
+    {
+        var value = true;
+        AssertNoExtraAllocation("BeTrue()", () => value.Should(), () => value.Should().BeTrue());
+    }
+
+    [Fact]
+    public void DateTimeAssertionAllocatesNothing()
+    {
+        var value = new DateTime(2026, 9, 17, 12, 0, 0, DateTimeKind.Utc);
+        AssertNoExtraAllocation("Be(DateTime)", () => value.Should(), () => value.Should().Be(value));
+    }
+
+    #endregion
+
+    #region Collections — the subject must not be copied
+
+    /// <summary>
+    /// An array subject must not be copied. <c>Items</c> used to do <c>[.. Subject]</c>
+    /// unconditionally, so every collection assertion allocated a fresh array and a wrapper for a
+    /// subject that was already contiguous.
+    /// </summary>
+    [Fact]
+    public void CountingAnArrayAllocatesNothing()
+    {
+        int[] subject = [1, 2, 3, 4, 5, 6, 7, 8];
+        AssertNoExtraAllocation("HaveCount() over T[]", () => subject.Should(), () => subject.Should().HaveCount(8));
+    }
+
+    /// <summary>The same for a <c>List&lt;T&gt;</c>, which reaches a span via CollectionsMarshal.</summary>
+    [Fact]
+    public void CountingAListAllocatesNothing()
+    {
+        List<int> subject = [1, 2, 3, 4, 5, 6, 7, 8];
+        AssertNoExtraAllocation("HaveCount() over List<T>", () => subject.Should(), () => subject.Should().HaveCount(8));
+    }
+
+    /// <summary>
+    /// Iterating the subject is where the boxed enumerator lived — 16 loops in the collection
+    /// assertions alone, each one allocation per call and invisible in the source.
+    /// </summary>
+    [Fact]
+    public void IteratingTheSubjectAllocatesNothing()
+    {
+        int[] subject = [1, 2, 3, 4, 5, 6, 7, 8];
+        AssertNoExtraAllocation("NotContainNulls() over T[]",
+            () => subject.Should(), () => subject.Should().NotContainNulls());
+    }
+
+    [Fact]
+    public void EmptinessChecksAllocateNothing()
+    {
+        int[] subject = [1, 2, 3];
+        AssertNoExtraAllocation("NotBeEmpty() over T[]", () => subject.Should(), () => subject.Should().NotBeEmpty());
+    }
+
+    /// <summary>
+    /// The predicate assertions whose failure-detail list is collected lazily.
+    /// </summary>
+    [Fact]
+    public void PredicateAssertionsAllocateNothingWhenNothingMatches()
+    {
+        int[] subject = [1, 2, 3, 4, 5, 6, 7, 8];
+        AssertNoExtraAllocation("NotContain(predicate)",
+            () => subject.Should(), () => subject.Should().NotContain(x => x > 100));
+        AssertNoExtraAllocation("OnlyContain(predicate)",
+            () => subject.Should(), () => subject.Should().OnlyContain(x => x > 0));
+    }
+
+    /// <summary>
+    /// <c>ContainSingle</c> passes on exactly ONE match, so it cannot use the lazy-list trick its
+    /// siblings do — a lazy list would still be allocated on every successful call. It counts
+    /// instead, and collects only in the failing branch.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ This test exists because the obvious "simplification" — collecting matches into a list and
+    /// testing <c>Count == 1</c> — passes every behavioural test in the suite while allocating on
+    /// the passing path. Only a byte count can tell the two apart.
+    /// </remarks>
+    [Fact]
+    public void ContainSingleAllocatesNothingWhenItSucceeds()
+    {
+        int[] subject = [1, 2, 3, 4, 5, 6, 7, 8];
+        AssertNoExtraAllocation("ContainSingle(predicate)",
+            () => subject.Should(), () => subject.Should().ContainSingle(x => x == 5));
+    }
+
+    /// <summary>
+    /// <c>NotContainSingle</c> is the subtler one: it passes when the count is anything other than
+    /// one, <b>including two or more</b>. A lazy list would therefore be allocated AND populated on
+    /// a successful call over a collection where several items match — which is the case asserted
+    /// here deliberately.
+    /// </summary>
+    [Fact]
+    public void NotContainSingleAllocatesNothingEvenWhenManyMatch()
+    {
+        int[] subject = [1, 2, 3, 4, 5, 6, 7, 8];
+        AssertNoExtraAllocation("NotContainSingle(predicate), many matches",
+            () => subject.Should(), () => subject.Should().NotContainSingle(x => x > 2));
+    }
+
+    /// <summary>
+    /// A value-type key must not be boxed on the way into a lookup. <c>key is not null</c> on an
+    /// unconstrained TKey emits <c>box !TKey</c>, which is invisible in the source and cost 24 B on
+    /// every <c>ContainKey</c> over a <c>Dictionary&lt;int, …&gt;</c> before the guard was added.
+    /// </summary>
+    [Fact]
+    public void LookingUpAValueTypeKeyAllocatesNothing()
+    {
+        var subject = new Dictionary<int, string> { [1] = "a", [2] = "b" };
+        AssertNoExtraAllocation("ContainKey(int) over Dictionary<int, string>",
+            () => subject.Should(), () => subject.Should().ContainKey(1));
+    }
+
+    /// <summary>
+    /// The value-type counterpart of <see cref="IteratingTheSubjectAllocatesNothing"/>: the positive
+    /// null check boxes exactly the same way, so it needs its own gate rather than trusting that a
+    /// fix to one was applied to the other.
+    /// </summary>
+    [Fact]
+    public void TheNullScanOverAReferenceCollectionAllocatesNothing()
+    {
+        string[] subject = ["a", "b", "c"];
+        AssertNoExtraAllocation("NotContainNulls() over string[]",
+            () => subject.Should(), () => subject.Should().NotContainNulls());
+    }
+
+    #endregion
+
+    #region The M5b/M5c families
+
+    /// <summary>
+    /// An occurrence constraint is a readonly struct built at the call site. As a class it would be
+    /// one allocation on every assertion that takes one.
+    /// </summary>
+    [Fact]
+    public void AnOccurrenceConstraintAllocatesNothing()
+    {
+        int[] subject = [1, 2, 2, 3];
+        AssertNoExtraAllocation("Contain(item, Exactly.Twice())",
+            () => subject.Should(), () => subject.Should().Contain(2, Exactly.Twice()));
+    }
+
+    [Fact]
+    public void CountingWithAnOccurrenceConstraintAllocatesNothing()
+    {
+        int[] subject = [1, 2, 3];
+        AssertNoExtraAllocation("HaveCount(AtLeast.Times(3))",
+            () => subject.Should(), () => subject.Should().HaveCount(AtLeast.Times(3)));
+    }
+
+    /// <summary>
+    /// The string-collection assertions live OUTSIDE GenericCollectionAssertions, so they cannot
+    /// reach <c>Items</c> the way an instance assertion does. Enumerating <c>Subject</c> instead
+    /// boxes a struct enumerator per call, and MPA0005 does not report it — IEnumerable&lt;T&gt; is
+    /// not indexable, so it is outside that rule's scope. This test is the only thing that notices.
+    /// </summary>
+    [Fact]
+    public void TheStringCollectionSurfaceAllocatesNothing()
+    {
+        string[] subject = ["alpha", "beta", "gamma"];
+        AssertNoExtraAllocation("ContainMatch() over string[]",
+            () => subject.Should(), () => subject.Should().ContainMatch("al*"));
+    }
+
+    [Fact]
+    public void ScanningStringsForBlanksAllocatesNothing()
+    {
+        string[] subject = ["a", "b", "c"];
+        AssertNoExtraAllocation("NotContainNullsOrWhiteSpace() over string[]",
+            () => subject.Should(), () => subject.Should().NotContainNullsOrWhiteSpace());
+    }
+
+    [Fact]
+    public void TheNumericMirrorsAllocateNothing()
+    {
+        var value = 5;
+        AssertNoExtraAllocation("NotBeGreaterThan(int)",
+            () => value.Should(), () => value.Should().NotBeGreaterThan(5));
+    }
+
+    /// <summary>
+    /// The capability checks pass non-capturing lambdas, which the compiler caches as statics. A
+    /// lambda that captured anything would allocate a display class per call — see PRD §9.15.
+    /// </summary>
+    [Fact]
+    public void StreamCapabilityChecksAllocateNothing()
+    {
+        using var stream = new MemoryStream([1, 2, 3]);
+        AssertNoExtraAllocation("BeReadable() over MemoryStream",
+            () => stream.Should(), () => stream.Should().BeReadable());
+    }
+
+    [Fact]
+    public void StreamLengthChecksAllocateNothing()
+    {
+        using var stream = new MemoryStream([1, 2, 3]);
+        AssertNoExtraAllocation("HaveLength() over MemoryStream",
+            () => stream.Should(), () => stream.Should().HaveLength(3));
+    }
+
+    /// <summary>
+    /// Excluding a member kind must not cost anything per comparison: the filtered table is built
+    /// once per (type, selection) and cached, so the second and later calls do no work at all.
+    /// </summary>
+    [Fact]
+    public void AMemberKindOptionIsFreeAfterTheFirstComparison()
+    {
+        var subject = new KindedPoco { Property = 1, Field = 1 };
+        var expectation = new KindedPoco { Property = 1, Field = 1 };
+
+        AssertNoExtraAllocation("BeEquivalentTo(ExcludingFields) vs unfiltered",
+            () => subject.Should().BeEquivalentTo(expectation),
+            () => subject.Should().BeEquivalentTo(expectation, o => o.ExcludingFields()));
+    }
+
+    #endregion
+
+    #region Scopes
+
+    /// <summary>
+    /// Inside a scope the failure funnel reads an <c>AsyncLocal</c>, but only when something fails —
+    /// a passing assertion must not pay for the scope it happens to be inside.
+    /// </summary>
+    [Fact]
+    public void AssertionInsideAScopeAllocatesNothingExtra()
+    {
+        var value = 42;
+        using var scope = new AssertionScope();
+        AssertNoExtraAllocation("Be(int) inside a scope", () => value.Should(), () => value.Should().Be(42));
+    }
+
+    #endregion
+}

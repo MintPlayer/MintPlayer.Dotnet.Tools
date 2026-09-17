@@ -3,7 +3,7 @@
 	<PropertyGroup>
 		<!-- netstandard2.0 so the task assembly loads in both `dotnet` (net) and Visual Studio (net472) MSBuild hosts -->
 		<TargetFramework>netstandard2.0</TargetFramework>
-		<LangVersion>latest</LangVersion>
+		<LangVersion>15</LangVersion>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<OutputType>Library</OutputType>

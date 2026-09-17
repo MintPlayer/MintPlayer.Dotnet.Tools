@@ -35,6 +35,13 @@ internal sealed record VacuousNode(
 /// </remarks>
 /// <param name="Differences">Every structural difference found; empty when equivalent.</param>
 /// <param name="Vacuity">The first node that compared nothing, or null when the comparison was meaningful.</param>
+/// <remarks>
+/// ⚠️ <b>Do not add a field here for something only failures read.</b> This record is allocated once
+/// per comparison, on the passing path, so every field is charged to suites that never fail. A
+/// nullable string for the <c>WithDiagnostics()</c> summary lived here briefly and measured
+/// 13,992 → 14,000 B/op on the benchmark graph; it is returned beside this record in a value tuple
+/// instead, which costs nothing. See EquivalencyAssertionExtensions.Validate.
+/// </remarks>
 internal sealed record ValidationResult(List<Difference> Differences, VacuousNode? Vacuity)
 {
     /// <summary>True when some node compared nothing, making the result meaningless in both directions.</summary>

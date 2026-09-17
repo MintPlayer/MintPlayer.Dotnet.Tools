@@ -5,7 +5,7 @@ namespace MintPlayer.Assertions.Primitives;
 /// <summary>
 /// Assertions on <see cref="bool"/> and nullable <see cref="bool"/> subjects.
 /// </summary>
-public class BooleanAssertions
+public partial class BooleanAssertions
 {
     public BooleanAssertions(bool? subject, string? subjectExpression)
     {

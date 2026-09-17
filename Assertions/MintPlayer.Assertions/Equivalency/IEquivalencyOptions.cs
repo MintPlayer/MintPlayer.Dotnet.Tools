@@ -49,4 +49,55 @@ public interface IEquivalencyOptions
     /// that cannot fail. Rejected by default, because it is nearly always a mistake.
     /// </summary>
     bool AllowVacuousComparison { get; }
+
+    /// <summary>
+    /// Members that are excluded from comparison by default but have been asked for — currently
+    /// <see cref="MemberTraits.NonPublic"/>. <see cref="MemberTraits.None"/> for the default walk.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Anything other than <see cref="MemberTraits.None"/> changes which member table the engine
+    /// is handed, and can force a type off the generated accessors onto reflection — see
+    /// <see cref="EquivalencyRegistry.RegisterExtendedAccessors"/>. That is the price of the option,
+    /// and it is charged only to the comparison that sets it.
+    /// </remarks>
+    MemberTraits IncludedMemberTraits { get; }
+
+    /// <summary>
+    /// Member kinds to leave out entirely: <see cref="MemberTraits.Property"/>,
+    /// <see cref="MemberTraits.Field"/>, or neither (the default).
+    /// </summary>
+    MemberTraits ExcludedMemberKinds { get; }
+
+    /// <summary>
+    /// Member names included on any node whose type matches the key. When a type has an entry, ONLY
+    /// those members of it are compared.
+    /// </summary>
+    IReadOnlyDictionary<Type, IReadOnlyCollection<string>> NestedInclusions { get; }
+
+    /// <summary>Difference paths (wildcards allowed) whose collections compare in order.</summary>
+    IReadOnlyCollection<string> StrictOrderingPaths { get; }
+
+    /// <summary>True to ignore expectation members the subject does not have, instead of reporting them.</summary>
+    bool IgnoreMissingMembers { get; }
+
+    /// <summary>True to compare enums by their name rather than their numeric value.</summary>
+    bool CompareEnumsByName { get; }
+
+    /// <summary>True to compare enums by their numeric value even across different enum types.</summary>
+    bool CompareEnumsByValue { get; }
+
+    /// <summary>True to compare strings ignoring casing.</summary>
+    bool IgnoreStringCase { get; }
+
+    /// <summary>True to require the subject's runtime type to match the expectation's.</summary>
+    bool UseStrictTyping { get; }
+
+    /// <summary>True to convert a value-like subject to the expectation's type before comparing.</summary>
+    bool UseAutoConversion { get; }
+
+    /// <summary>
+    /// True to append a summary of the work the walk did — nodes visited, members looked up, match
+    /// probes — to the failure message. Off by default and free when off.
+    /// </summary>
+    bool IncludeDiagnostics { get; }
 }

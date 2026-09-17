@@ -27,9 +27,13 @@ detection and no adapter package to install.
 dotnet add package MintPlayer.Assertions
 ```
 
-One package reference brings three things: the assertion library (`net8.0`, `net9.0`,
-`net10.0`), the source generator that makes object-graph comparison reflection-free, and the
-analyzers that catch assertions which cannot fail.
+One package reference brings three things: the assertion library (`net10.0`, `net11.0`), the source
+generator that makes object-graph comparison reflection-free, and the analyzers that catch
+assertions which cannot fail.
+
+> **Upgrading from 1.x?** This version drops `net8.0` and `net9.0`. NuGet does not roll *forward*
+> across target frameworks, so a `net8.0` or `net9.0` test project will report `NU1202` rather than
+> silently resolving something older — stay on `1.1.0` until you move the test project up.
 
 And one using covers everything you write in a test:
 
@@ -142,6 +146,24 @@ using (new AssertionScope("the response"))
 Scopes nest, and a nested scope folds its failures into its parent. Forgetting to dispose one
 would swallow everything it collected, so [MPA0003](#analyzers) warns when you do.
 
+A scope can also be inspected and steered:
+
+```csharp
+using var scope = new AssertionScope();
+
+scope.AddReportable("correlationId", () => request.CorrelationId);  // shown only if something fails
+
+response.Status.Should().Be(200);
+
+if (scope.HasFailures) { /* scope.Failures is a snapshot of what has been collected */ }
+
+scope.AddPreFormattedFailure(renderedDiff);   // your own message, verbatim, no substitution
+scope.Discard();                              // take the failures; disposing now throws nothing
+```
+
+`AddReportable` takes a `Func<string>` on purpose: the value is built only when a failure is actually
+reported, so attaching context to a scope that passes costs nothing.
+
 ---
 
 ## What you can assert
@@ -179,6 +201,18 @@ Options (`NotBeEquivalentTo` takes the same):
 | `Including(x => x.Name)` | Compare only the listed members |
 | `Using<T>((actual, expected) => …)` | Custom comparison for members of type `T` |
 | `WithStrictOrdering()` | Compare collections positionally (default matches unordered) |
+| `ExcludingFields()` / `ExcludingProperties()` | Compare only one kind of member. Answered from a generator-emitted flag, not reflection |
+| `IncludingInternalMembers()` | Also compare `internal`/`protected` members (never `private`) |
+| `IncludingNonBrowsableMembers()` | Also compare members marked `[EditorBrowsable(Never)]` |
+| `WithDiagnostics()` | Append what the walk actually did to the failure message |
+| `WithoutStrictOrdering()` / `WithStrictOrderingFor(path)` | Unordered (the default), or ordered only where it matters |
+| `ExcludingMissingMembers()` | Ignore expectation members the subject lacks |
+| `WithoutRecursing()` | Compare the top level only |
+| `IncludingNested<T>(x => x.M)` | Restrict type `T` anywhere in the graph to the named members |
+| `ComparingEnumsByName()` / `ComparingEnumsByValue()` | How to compare enums of different types |
+| `ComparingStringsIgnoringCase()` | Case-insensitive string members |
+| `WithStrictTyping()` | Require the same runtime type at every node |
+| `Using<T>(IEqualityComparer<T>)` | Compare members of type `T` with an existing comparer |
 | `ComparingByValue<T>()` / `ComparingByMembers<T>()` | Force `Equals` or member-wise comparison for a type |
 | `WithMaxDepth(n)` / `AllowingInfiniteRecursion()` | Bound or unbound recursion (default depth 10) |
 | `RespectingRuntimeTypes()` | Resolve members from runtime types instead of declared ones |
@@ -235,12 +269,27 @@ substantially cheaper. On a 4-level graph of 5 types containing a 20-item collec
 
 | | Mean | Allocated |
 |---|---:|---:|
-| FluentAssertions 7.2.2 | 201.08 µs | 409.14 KB |
-| MintPlayer.Assertions | **13.08 µs** | **20.34 KB** |
+| FluentAssertions 7.2.2 | 276.91 µs | 397.04 KB |
+| MintPlayer.Assertions | **15.25 µs** | **6.16 KB** |
 
-<sub>BenchmarkDotNet 0.14.0, .NET 10.0.11, X64 RyuJIT AVX-512, Windows 11. Reproduce with
+<sub>BenchmarkDotNet 0.14.0, .NET 11.0.0, X64 RyuJIT AVX-512, Windows 11. Reproduce with
 `dotnet run -c Release --project Assertions/MintPlayer.Assertions.Benchmarks -- --filter '*'`.
-The benchmark verifies both libraries traverse the entire graph before it will report.</sub>
+The benchmark verifies both libraries traverse the entire graph, and that the generated accessors
+are actually active, before it will report — otherwise it would happily measure the reflection
+fallback and call it a result.</sub>
+
+That is **18× faster and 64× less memory**.
+
+**Trust the allocation column; treat the timings as an order of magnitude.** This library's bytes are
+a property of the emitted IL and reproduce to the hundredth of a KB in every run — 6.16 KB in both
+runs behind this table. Wall-clock does not: across six runs this library measured **9.29–15.25 µs**
+and FluentAssertions **150.55–276.91 µs**, on a machine that was supposed to be idle each time. The
+row above is one run quoted whole rather than a best figure assembled from several, which is why the
+µs column is at the slow end of that range and the ratio is still conservative.
+
+That asymmetry is the whole reason the regression gates in this repo assert **bytes and operation
+counts** rather than milliseconds — a 6,450-byte bound and an exact 133 nodes / 112 member lookups /
+20 match probes hold identically on a loaded CI runner, and a millisecond threshold would not.
 
 ### Strings
 
@@ -296,11 +345,24 @@ ratio.Should().BeInRange(0, 1);
 `HaveCountLessThanOrEqualTo` `HaveSameCountAs` `NotHaveSameCountAs` `ContainSingle` `Contain`
 `NotContain` `ContainInOrder` `OnlyContain` `OnlyHaveUniqueItems` `NotContainNulls` `Equal`
 `NotEqual` `StartWith` `EndWith` `BeInAscendingOrder` `BeInDescendingOrder` `BeSubsetOf`
-`NotBeSubsetOf` `IntersectWith` `NotIntersectWith` `AllSatisfy` `SatisfyRespectively`
-`AllBeOfType<T>` `AllBeAssignableTo<T>` `BeEquivalentTo` `NotBeEquivalentTo`
+`NotBeSubsetOf` `BeSupersetOf` `NotBeSupersetOf` `BeProperSubsetOf` `BeProperSupersetOf`
+`IntersectWith` `NotIntersectWith` `HaveElementAt` `HaveElementPreceding` `HaveElementSucceeding`
+`ContainInConsecutiveOrder` `NotContainInConsecutiveOrder` `BeOrderedBy` `BeOrderedByDescending`
+`AllSatisfy` `SatisfyRespectively` `AllBeOfType<T>` `AllBeAssignableTo<T>` `BeEquivalentTo`
+`NotBeEquivalentTo`
+
+On a collection of strings, additionally: `ContainMatch` `NotContainMatch` `ContainEquivalentOf`
+`NotContainNullsOrWhiteSpace` `AllStartWith`.
 
 ```csharp
 orders.Should().BeInAscendingOrder(o => o.PlacedOn);
+
+// Sort by more than one key — ties broken left to right:
+people.Should().BeOrderedBy(p => p.Team).ThenBeInAscendingOrder(p => p.Name);
+
+// "In order" allows gaps; "in consecutive order" does not:
+new[] { 1, 9, 2 }.Should().ContainInOrder(1, 2);
+new[] { 1, 9, 2 }.Should().NotContainInConsecutiveOrder([1, 2]);
 orders.Should().AllSatisfy(o => o.Total.Should().BePositive());
 orders.Should().SatisfyRespectively(
     first  => first.Id.Should().Be(1),
@@ -470,6 +532,39 @@ $.tags[1]: expected "b", but found "c"
 $.name: property is missing
 ```
 
+### Streams
+
+`BeReadable` `NotBeReadable` `BeWritable` `NotBeWritable` `BeSeekable` `NotBeSeekable` `HaveLength`
+`HavePosition` `BeAtStart` `BeAtEnd` `BeEmpty` `NotBeEmpty`
+
+Nothing here reads the stream's contents — reading consumes a forward-only stream and moves a
+seekable one, so the assertion would change what it is asserting about. Read it yourself and assert
+on the bytes.
+
+### XML
+
+`XDocument` — `HaveRoot` `BeEquivalentTo`.
+`XElement` — `HaveName` `HaveValue` `HaveAttribute` `NotHaveAttribute` `HaveElement` (optionally with
+an occurrence) `NotHaveElement` `BeEmpty` `BeEquivalentTo`.
+
+An `XmlDocument`/`XmlElement` from the DOM gets the same assertions, converted once, rather than a
+second implementation that can drift. Names compare **with their namespace**: XML whose namespace is
+wrong looks identical in a diff.
+
+```csharp
+doc.Should().HaveRoot("order").Which!.Should().HaveElement("line", Exactly.Twice());
+```
+
+### How often — occurrence constraints
+
+`Exactly` `AtLeast` `AtMost` `MoreThan` `LessThan`, each with `Times(n)`/`Once()`/`Twice()`/`Thrice()`:
+
+```csharp
+items.Should().Contain(x, Exactly.Twice());
+text.Should().Contain("ab", AtLeast.Once());
+names.Should().ContainMatch("a*", Exactly.Twice());
+```
+
 ### Types
 
 `Be<T>` `NotBe<T>` `BeAssignableTo<T>` `BeDerivedFrom<T>` `Implement<TInterface>`
@@ -572,6 +667,64 @@ number.Should().BeEven();
 The name is derived from the predicate (`Is…` → `Be…`, `Has…` → `Have…`), or set it yourself
 with `[GenerateAssertion(Name = "BeDivisibleByTwo")]`. Extra parameters become parameters of the
 generated assertion.
+
+---
+
+## Failure messages
+
+Everything here runs only after an assertion has failed, so none of it costs a passing test.
+
+### Rendering your own types
+
+```csharp
+Formatter.Register<Money>(m => $"{m.Amount:0.00} {m.Currency}");
+// Expected total to be 120.00 EUR, but found 90.00 EUR.
+```
+
+Registration is **explicit**. Nothing scans your assemblies looking for formatter types — that is the
+pattern that breaks under trimming and AOT, which is the property this library is built around.
+Matching is by exact type first, then up the base-class chain; interfaces are not matched, because a
+value implementing two registered interfaces would have no predictable winner.
+
+### How much detail a message carries
+
+```csharp
+FormattingOptions.MaxDepth = 5;          // process-wide, set once at start-up
+FormattingOptions.UseLineBreaks = true;
+```
+
+`MaxDepth`, `MaxCollectionItems`, `MaxStringLength`, `UseLineBreaks` and `MaxLines`. When a message
+is cut short it says which knob did it, so you can act on it instead of reaching for a debugger:
+
+```
+Expected order to be equivalent to Order {… depth 3 reached; raise FormattingOptions.MaxDepth to see more}
+```
+
+⚠️ Those properties are **process-wide**. Setting one from inside a test changes the failure messages
+of every test running beside it, which is a flaky-test generator. For anything other than start-up
+configuration use the thread-local form:
+
+```csharp
+using (FormattingOptions.With(maxDepth: 10, useLineBreaks: true))
+{
+    deepGraph.Should().BeEquivalentTo(expected);
+}
+```
+
+(It is thread-local, so it does not survive an `await` — keep the block synchronous around the
+assertion.)
+
+### Why did that comparison do all that work?
+
+```csharp
+actual.Should().BeEquivalentTo(expected, o => o.WithDiagnostics());
+// ...
+// Walk: 133 node(s), 112 member lookup(s), 20 collection match probe(s).
+```
+
+For the two questions a list of differences does not answer: *did it even look at the member I think
+it did*, and *why is this slow*. A node count far larger than the graph means the walk is revisiting;
+a probe count near n² on an ordered collection means the matcher is not taking its fast path.
 
 ---
 
