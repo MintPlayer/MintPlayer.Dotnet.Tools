@@ -23,7 +23,7 @@ running it is how the change is verified at all.
 
 ## STATUS — as of 2026-09-17, branch `net11-assertions-parity`, 9 commits
 
-**Done: M0, M1, M2, M3, S3. Outstanding: M4, S1, S2(kept), S4, M5, M6.**
+**Done: M0, M1, M2, M3, M4, S3, S4. Outstanding: S1, S2(kept), M5, M6.**
 891 assertion tests pass on net10.0 and net11.0; full solution builds clean.
 
 ### The hard boundary: improved, not merely held
@@ -33,10 +33,12 @@ Measured net11-vs-net11 on an idle machine, `Fairness checks passed`:
 | | Mean | Allocated | vs FluentAssertions |
 |---|---:|---:|---|
 | README claimed (net10) | 13.08 µs | 20.34 KB | 15.4× / 20.1× |
-| **Now (net11)** | **12.60 µs** | **14.84 KB** | **17.6× / 26.8×** |
+| **Now (net11, after M4)** | **11.04 µs** | **14.81 KB** | **17.3× / 26.8×** |
 
-Allocation reproduced to the decimal across two independent runs. README updated, with an explicit
-note that allocation figures are exact and timings approximate.
+Allocation reproduced to the decimal across two independent runs (14.81 KB both times) while
+FluentAssertions' did not (404.26 then 397.04 KB) — the byte-exact gate works because nothing on this
+library's passing path allocates conditionally, which is a property the code earned rather than a
+property of benchmarking. README updated, quoting the less flattering of the two runs whole.
 
 ### What each milestone actually did
 
@@ -68,7 +70,7 @@ Every item below has a ⚠️ comment at the code it concerns, so none depends o
 
 | Item | Location of the note |
 |---|---|
-| **M4 — greedy matching is a live correctness bug** | `EquivalencyValidator.CompareCollections`, above the greedy loop — including why the fix must be lazy + greedy-pre-pass (the eager grid measured 75× once) |
+| M4 ✅ fixed — why the two phases must stay two phases | `EquivalencyValidator.CompareCollections` and `MaximumMatcher` |
 | `CompareMultisets`' O(n)→O(n²) cliff if any option changes value equality | `EquivalencyValidator.CompareMultisets` |
 | `FindByName` is O(members²) per node | `EquivalencyValidator.FindByName` |
 | `GetNestedExclusions` allocates a HashSet per node when configured | `EquivalencyValidator.GetNestedExclusions` |
@@ -81,9 +83,9 @@ Every item below has a ⚠️ comment at the code it concerns, so none depends o
 
 ### Still to do
 
-- **M4** — maximum matching. The gate that makes it safe
-  (`AnAlignedCollectionCostsOneProbePerItem`, pinned at exactly 20 probes) is already in place; that
-  ordering is deliberate.
+- **M4 ✅** — maximum matching landed. The gate that made it safe to attempt
+  (`AnAlignedCollectionCostsOneProbePerItem`, pinned at exactly 20 probes) was written first, on
+  purpose, and the probe count is unchanged by the fix.
 - **S1** — generator-emitted member flags. Blocks the ~30 compile-time-decidable equivalency options.
 - **S2** — resolved in favour of keeping the counters; they cost nothing measurable and caught a real
   bug within minutes. Open question for review: they do add a static-bool read per node to shipped
@@ -191,14 +193,56 @@ Ports from `dotnet-11` are candidates for 1, 2 and 4 — **re-measured here**, n
 
 ---
 
-## M4 — Correctness: maximum matching (S4)
+## M4 — Correctness: maximum matching (S4) ✅ done
 
-Replace greedy first-fit with maximum bipartite matching, implemented lazily with a greedy pre-pass.
-Both halves are required: greedy alone is not a maximum matching (the bug), and eager matrix
-construction is quadratic in full subtree comparisons (the 75× regression).
+Greedy first-fit is replaced by a maximum bipartite matching, in two phases inside
+`EquivalencyValidator.CompareCollections`:
 
-Add the test for the case greedy gets wrong — expectations `[A, B]`, subjects `[X, Y]`, `A` matching
-both and `B` only `X`.
+1. **Greedy pre-pass, unchanged.** Still the only phase an aligned collection ever runs: ~n
+   comparisons, one `bool[]`, nothing else. It bails out the moment it strands an expectation.
+2. **`MaximumMatcher`** — Kuhn's augmenting paths over a **lazily filled, memoised** candidate grid,
+   reached only from that bail-out. An edge test is a full recursive subtree comparison, so the memo
+   is what bounds the work at n×m instead of leaving it open-ended across augmenting attempts.
+
+Phase 1's assignments are deliberately **not** carried into phase 2. Reconstructing them would cost
+an `int[]` per collection node on the passing path to serve a branch passing tests never take; paying
+n×m once, on a path that is about to produce a failure message, is the cheaper trade.
+
+**Reproducing the bug needed a non-transitive equivalence, which is why the new tests use
+`object[]`.** Comparison is driven by the expectation's members, so when every item has the same type
+the relation is transitive, the candidate graph is a disjoint union of complete bipartite blocks, and
+greedy is accidentally optimal — a typed array cannot exhibit the bug at all. Mixed expectation types
+are what make one expectation strictly pickier than another about the same subject item.
+`UnorderedCollectionMatchingTests` carries that reasoning, because "tidying" those arrays to a typed
+one would leave every test green and testing nothing.
+
+Eight tests: the two-item strand, the same case with the order reversed, a three-deep displacement
+chain, a genuine no-match (the fix must not become "find an excuse to pass"), leftover items, an
+empty subject, strict ordering still bypassing the matcher, and the value-like multiset shortcut
+still being taken.
+
+### What running the gate turned up on the way
+
+`PassingPathAllocationTests` was **already failing on the branch** before M4 was touched — the fix's
+own safety net caught something unrelated the moment it was run again:
+
+- **`x is null` on an unconstrained generic emits `box !T`.** `NotContainNulls` over an `int[8]` cost
+  **192 B/op** — 24 B per item — to discover eight times that an `int` is not null. It reads as a
+  plain null check; there is no grep for it.
+- **The obvious guard has the same bug.** Writing `if (default(T) is null)` inline moved it to
+  24 B/op rather than 0: the guard boxes too. It is now a `static readonly bool` per closed generic
+  type (`ItemsCanBeNull`, `KeysCanBeNull`), so the box happens once at type initialisation.
+- **`var pairs = Pairs;` opening six dictionary methods that never read it.** `ContainKey`,
+  `ContainKeys`, `NotContainKey`, `NotContainKeys`, `Contain`, `NotContain` all answer through
+  `TryGetValueForKey`, which goes at the dictionary's own `TryGetValue` — the unused local copied the
+  whole subject on every call. 56 B/op for a two-entry dictionary, proportional to size for a real
+  one. It reads as harmless setup and was the most expensive line in each method.
+
+Two new gates pin these: `LookingUpAValueTypeKeyAllocatesNothing` and
+`TheNullScanOverAReferenceCollectionAllocatesNothing`. **Trap for later: an allocation gate only
+covers the instantiations it names.** The generic-boxing family is invisible unless a test exercises
+a *value-type* instantiation specifically — `NotContainNulls` over `string[]` allocates nothing and
+always did.
 
 ---
 

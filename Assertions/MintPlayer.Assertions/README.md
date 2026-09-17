@@ -239,8 +239,8 @@ substantially cheaper. On a 4-level graph of 5 types containing a 20-item collec
 
 | | Mean | Allocated |
 |---|---:|---:|
-| FluentAssertions 7.2.2 | 221.26 µs | 397.04 KB |
-| MintPlayer.Assertions | **12.60 µs** | **14.84 KB** |
+| FluentAssertions 7.2.2 | 191.53 µs | 397.04 KB |
+| MintPlayer.Assertions | **11.04 µs** | **14.81 KB** |
 
 <sub>BenchmarkDotNet 0.14.0, .NET 11.0.0, X64 RyuJIT AVX-512, Windows 11. Reproduce with
 `dotnet run -c Release --project Assertions/MintPlayer.Assertions.Benchmarks -- --filter '*'`.
@@ -248,10 +248,13 @@ The benchmark verifies both libraries traverse the entire graph, and that the ge
 are actually active, before it will report — otherwise it would happily measure the reflection
 fallback and call it a result.</sub>
 
-Treat the allocation figures as exact and the timings as approximate. Bytes are a property of the
-emitted IL and reproduce to the decimal across runs; wall-clock moved ±15% for FluentAssertions
-between runs on an *idle* machine, and far more on a busy one. That asymmetry is why the regression
-gates in this repo assert bytes and operation counts rather than milliseconds.
+Treat the allocation figures as exact and the timings as approximate. This library's bytes are a
+property of the emitted IL and reproduce to the decimal: 14.81 KB in both of the runs behind this
+table. Wall-clock does not — the same two runs measured this library at 9.36 µs and 11.04 µs, and
+FluentAssertions at 216.45 µs and 191.53 µs, on an *idle* machine; the figures quoted above are the
+less flattering run of the two, taken whole rather than assembled from the best of each. That
+asymmetry is why the regression gates in this repo assert bytes and operation counts rather than
+milliseconds.
 
 ### Strings
 

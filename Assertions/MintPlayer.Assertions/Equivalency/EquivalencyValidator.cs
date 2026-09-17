@@ -19,9 +19,11 @@ namespace MintPlayer.Assertions.Equivalency;
 /// stack is treated as equal instead of recursing.</item>
 /// <item>Nodes deeper than <see cref="IEquivalencyOptions.MaxDepth"/> are silently treated as
 /// equal; no difference and no warning is produced for them.</item>
-/// <item>Unordered collection matching is greedy: each expectation item claims the first
-/// unmatched subject item it is fully equivalent to. When every item on both sides is
-/// value-like, a hash-based multiset comparison is used instead of the O(n²) matching.</item>
+/// <item>Unordered collection matching finds a MAXIMUM matching: a greedy first-fit pre-pass
+/// handles the aligned case in ~n comparisons, and anything it strands is resolved by augmenting
+/// paths, so two equivalent collections never report a difference because greedy chose badly.
+/// When every item on both sides is value-like, a hash-based multiset comparison is used instead
+/// of the O(n²) matching.</item>
 /// </list>
 /// </remarks>
 internal static class EquivalencyValidator
@@ -263,57 +265,191 @@ internal static class EquivalencyValidator
             return;
         }
 
-        // ⚠️ KNOWN CORRECTNESS BUG — greedy first-fit, not maximum matching. Planned as M4; see
-        // docs/Plan-Net11-Assertions-Parity.md.
+        // Unordered matching is a maximum bipartite matching problem: expectations on one side,
+        // subject items on the other, an edge wherever a full subtree comparison finds no
+        // difference. It is solved in two phases, and:
         //
-        // Each expectation claims the FIRST unmatched subject item it is equivalent to, which can
-        // strand a later expectation that had only one candidate left. Expectations [A, B] against
-        // subjects [X, Y], where A is equivalent to both and B only to X: greedy gives X to A,
-        // leaves B with nothing, and reports a difference between two genuinely equivalent
-        // collections. The perfect matching A-Y, B-X exists and is not found.
+        // ⚠️ THE TWO PHASES ARE NOT A STYLE CHOICE. DO NOT COLLAPSE THEM INTO ONE ALGORITHM.
         //
-        // The fix is maximum bipartite matching by augmenting paths — and the implementation detail
-        // is not optional. Building the candidate grid up front costs n×m FULL SUBTREE comparisons
-        // unconditionally, where this greedy loop does ~n for the common case of a collection that
-        // already lines up. That shipped once and measured 1,027,288 B/op against 13,824 for the
-        // same graph under WithStrictOrdering, a 75× regression. It needs a LAZILY filled, memoised
-        // grid plus a greedy pre-pass, with augmenting paths run only on what greedy could not
-        // place: speed from the first phase, correctness from the second.
+        // Phase 1 below is greedy first-fit. It is WRONG on its own — that was the shipped bug this
+        // replaced. Expectations [A, B] against subjects [X, Y], where A is equivalent to both and B
+        // only to X: greedy hands X to A, strands B, and reports a difference between two genuinely
+        // equivalent collections. The perfect matching A–Y, B–X exists and greedy cannot find it.
         //
-        // EquivalencyWalkerGateTests.AnAlignedCollectionCostsOneProbePerItem already pins the probe
-        // count at exactly 20 for the benchmark graph, so the quadratic version cannot land quietly.
-        // That gate exists before the fix on purpose.
+        // Phase 1 is kept anyway because it is the ONLY phase that runs for a collection that
+        // already lines up, which is nearly every collection in a passing test: ~n comparisons, and
+        // the bool[] below is its whole allocation. The correct algorithm — augmenting paths over a
+        // candidate grid — is reached only when phase 1 strands something, in MaximumMatcher.
         //
-        // Greedy bipartite matching: each expectation item claims the first unmatched subject
-        // item it is fully equivalent to (trial comparison into a throwaway collector).
+        // The obvious "clean" rewrite is to drop phase 1 and always build the candidate grid. That
+        // version shipped once: it costs n×m FULL SUBTREE comparisons unconditionally and measured
+        // 1,027,288 B/op against 13,824 for the same graph, a 75× regression. Phase 1 exists to
+        // keep that cost off the passing path; phase 2 exists so the answer is right.
+        //
+        // EquivalencyWalkerGateTests.AnAlignedCollectionCostsOneProbePerItem pins the probe count at
+        // exactly 20 for the benchmark graph. If a change makes phase 2 run for an aligned
+        // collection, that test fails immediately rather than the cost showing up in a benchmark
+        // nobody runs. That gate was written before this fix, on purpose.
         var matched = new bool[subjectItems.Count];
-        foreach (var expectationItem in expectationItems)
+        var allPlaced = true;
+        for (var e = 0; e < expectationItems.Count && allPlaced; e++)
         {
-            var found = false;
+            allPlaced = false;
             for (var i = 0; i < subjectItems.Count; i++)
             {
                 if (matched[i]) continue;
                 if (EquivalencyDiagnostics.Enabled) EquivalencyDiagnostics.MatchProbes++;
                 var trial = new List<Difference>();
-                CompareNode(context, trial, $"{path}[?]", subjectItems[i], expectationItem, itemDeclaredType, depth + 1);
-                if (trial.Count == 0)
+                CompareNode(context, trial, $"{path}[?]", subjectItems[i], expectationItems[e], itemDeclaredType, depth + 1);
+                if (trial.Count != 0) continue;
+                matched[i] = true;
+                allPlaced = true;
+                break;
+            }
+        }
+
+        if (!allPlaced)
+        {
+            // Greedy stranded an expectation. That means EITHER the collections genuinely differ, OR
+            // greedy picked badly and a perfect matching still exists — and the two are
+            // indistinguishable without running the real algorithm. Phase 1's assignments are
+            // deliberately NOT carried over: reconstructing them would cost an int[] per collection
+            // node on the passing path to serve a branch that passing tests never take.
+            new MaximumMatcher(context, path, subjectItems, expectationItems, itemDeclaredType, depth)
+                .MatchAndReport(differences);
+            return;
+        }
+
+        // Lazy: a collection with no extra items is the passing case, and it must not allocate.
+        List<object?>? extras = null;
+        for (var i = 0; i < subjectItems.Count; i++)
+        {
+            if (!matched[i]) (extras ??= []).Add(subjectItems[i]);
+        }
+        if (extras is not null)
+            differences.Add(new(path, $"found unexpected item(s) {Formatter.Format(extras)}"));
+    }
+
+    /// <summary>
+    /// Maximum bipartite matching between expectation items and subject items by Kuhn's augmenting
+    /// paths, reached only when the greedy pre-pass in <see cref="CompareCollections"/> stranded an
+    /// expectation. Reports the expectations that genuinely cannot be matched and the subject items
+    /// left over.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>Everything here is on the failure-ish path, and that is what pays for it.</b> This type
+    /// allocates a memo grid, two index arrays and an object of its own. None of that is acceptable
+    /// per-node cost on the passing path, and none of it is ever reached from one — see the comment
+    /// in <see cref="CompareCollections"/> for why the greedy phase is not redundant.
+    /// <para>
+    /// ⚠️ <b><see cref="AreEquivalent"/>'s memo is load-bearing, not a micro-optimisation.</b> An
+    /// edge test is a FULL RECURSIVE SUBTREE COMPARISON, and augmenting paths revisit the same
+    /// (expectation, subject) pair many times over. Without the memo the work is unbounded in the
+    /// number of augmenting attempts instead of bounded at n×m; with it, every pair is compared at
+    /// most once, which is also exactly the worst case the greedy loop already had. Do not "simplify"
+    /// it away because the grid looks like a cache nobody needs.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Comparisons already made in phase 1 are intentionally repeated here.</b> Threading them
+    /// through would mean materialising phase 1's results for every collection node, including the
+    /// overwhelming majority that never reach this class. Paying n×m once on a path that is about to
+    /// produce a failure message is the cheaper trade.
+    /// </para>
+    /// </remarks>
+    private sealed class MaximumMatcher(Context context, string path, List<object?> subjectItems,
+        List<object?> expectationItems, Type? itemDeclaredType, int depth)
+    {
+        /// <summary>0 = not compared yet, 1 = equivalent, -1 = not equivalent. Indexed [e * n + i].</summary>
+        private readonly sbyte[] memo = new sbyte[expectationItems.Count * subjectItems.Count];
+        private readonly int[] ownerOfSubject = FilledWithMinusOne(subjectItems.Count);
+        private readonly int[] matchOfExpectation = FilledWithMinusOne(expectationItems.Count);
+        private bool[]? visited;
+
+        public void MatchAndReport(List<Difference> differences)
+        {
+            // Greedy again, now memoised — it settles the easy majority of the pairs cheaply and
+            // leaves augmenting paths with only the contested ones to resolve.
+            for (var e = 0; e < expectationItems.Count; e++)
+            {
+                for (var i = 0; i < subjectItems.Count; i++)
                 {
-                    matched[i] = true;
-                    found = true;
+                    if (ownerOfSubject[i] >= 0 || !AreEquivalent(e, i)) continue;
+                    ownerOfSubject[i] = e;
+                    matchOfExpectation[e] = i;
                     break;
                 }
             }
-            if (!found)
-                differences.Add(new(path, $"expected collection to contain {Formatter.Format(expectationItem)}, but no equivalent item was found"));
+
+            foreach (var e in Unplaced())
+            {
+                if (visited is null) visited = new bool[subjectItems.Count];
+                else Array.Clear(visited);
+                TryAugment(e);
+            }
+
+            for (var e = 0; e < expectationItems.Count; e++)
+            {
+                if (matchOfExpectation[e] < 0)
+                    differences.Add(new(path, $"expected collection to contain {Formatter.Format(expectationItems[e])}, but no equivalent item was found"));
+            }
+
+            List<object?>? extras = null;
+            for (var i = 0; i < subjectItems.Count; i++)
+            {
+                if (ownerOfSubject[i] < 0) (extras ??= []).Add(subjectItems[i]);
+            }
+            if (extras is not null)
+                differences.Add(new(path, $"found unexpected item(s) {Formatter.Format(extras)}"));
         }
 
-        var extras = new List<object?>();
-        for (var i = 0; i < subjectItems.Count; i++)
+        /// <summary>Expectation indices greedy could not place, snapshotted before any augmenting runs.</summary>
+        private List<int> Unplaced()
         {
-            if (!matched[i]) extras.Add(subjectItems[i]);
+            var unplaced = new List<int>();
+            for (var e = 0; e < expectationItems.Count; e++)
+            {
+                if (matchOfExpectation[e] < 0) unplaced.Add(e);
+            }
+            return unplaced;
         }
-        if (extras.Count > 0)
-            differences.Add(new(path, $"found unexpected item(s) {Formatter.Format(extras)}"));
+
+        /// <summary>
+        /// Kuhn's augmenting path: try to give expectation <paramref name="e"/> a subject item,
+        /// displacing an incumbent only if that incumbent can be re-placed elsewhere.
+        /// </summary>
+        private bool TryAugment(int e)
+        {
+            for (var i = 0; i < subjectItems.Count; i++)
+            {
+                if (visited![i] || !AreEquivalent(e, i)) continue;
+                visited[i] = true;
+                var incumbent = ownerOfSubject[i];
+                if (incumbent >= 0 && !TryAugment(incumbent)) continue;
+                ownerOfSubject[i] = e;
+                matchOfExpectation[e] = i;
+                return true;
+            }
+            return false;
+        }
+
+        private bool AreEquivalent(int e, int i)
+        {
+            ref var cached = ref memo[(e * subjectItems.Count) + i];
+            if (cached != 0) return cached > 0;
+
+            if (EquivalencyDiagnostics.Enabled) EquivalencyDiagnostics.MatchProbes++;
+            var trial = new List<Difference>();
+            CompareNode(context, trial, $"{path}[?]", subjectItems[i], expectationItems[e], itemDeclaredType, depth + 1);
+            cached = (sbyte)(trial.Count == 0 ? 1 : -1);
+            return cached > 0;
+        }
+
+        private static int[] FilledWithMinusOne(int length)
+        {
+            var values = new int[length];
+            values.AsSpan().Fill(-1);
+            return values;
+        }
     }
 
     /// <summary>Hash-based multiset comparison for collections of value-like items (avoids O(n²)).</summary>

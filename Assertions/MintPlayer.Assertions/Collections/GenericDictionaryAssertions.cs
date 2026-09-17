@@ -25,6 +25,20 @@ namespace MintPlayer.Assertions.Collections;
 /// </remarks>
 public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions<IEnumerable<KeyValuePair<TKey, TValue>>, GenericDictionaryAssertions<TKey, TValue>>
 {
+    /// <summary>
+    /// Whether a key of type <typeparamref name="TKey"/> can be <see langword="null"/> at all.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>A field, not an inline <c>default(TKey) is null</c>.</b> A null test against an
+    /// unconstrained generic emits <c>box !TKey</c>, and so does the guard, so writing it inline
+    /// merely moves the allocation rather than removing it — measured as 24 B/op still on the passing
+    /// path of every <c>ContainKey</c> over a <c>Dictionary&lt;int, …&gt;</c>. As a static readonly
+    /// field the box happens once per closed generic type. Same reasoning as
+    /// <c>GenericCollectionAssertions&lt;T&gt;.ItemsCanBeNull</c>; gated by
+    /// <c>PassingPathAllocationTests.LookingUpAValueTypeKeyAllocatesNothing</c>.
+    /// </remarks>
+    private static readonly bool KeysCanBeNull = default(TKey) is null;
+
     private KeyValuePair<TKey, TValue>[]? copy;
     private bool materialized;
 
@@ -42,6 +56,17 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
     /// neither an array nor a <c>List&lt;&gt;</c>, so it still copies. That is not a missed optimisation:
     /// a hash table is not contiguous, so there is no span to hand back without one. The win here is
     /// the boxing, not the copy.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Because it copies, reading this property is not free — do not open a method with
+    /// <c>var pairs = Pairs;</c> out of habit.</b> Six key-based methods (<c>ContainKey</c>,
+    /// <c>ContainKeys</c>, <c>NotContainKey</c>, <c>NotContainKeys</c>, <c>Contain</c>,
+    /// <c>NotContain</c>) did exactly that and never read the local: they answer through
+    /// <see cref="TryGetValueForKey"/>, which goes straight at the dictionary's own
+    /// <c>TryGetValue</c>. The unused line cost a full copy of the subject on every call — 56 B/op
+    /// for a two-entry <c>Dictionary&lt;int, string&gt;</c>, and proportional to the dictionary for a
+    /// real one. It reads as harmless setup, and it is the most expensive line in the method.
+    /// <c>LookingUpAValueTypeKeyAllocatesNothing</c> gates it now.
     /// </para>
     /// </remarks>
     private ReadOnlySpan<KeyValuePair<TKey, TValue>> Pairs
@@ -71,7 +96,14 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
     private bool TryGetValueForKey(TKey key, out TValue value)
     {
         // A null key throws in Dictionary<,>.TryGetValue, so scan for it instead.
-        if (key is not null)
+        //
+        // ⚠️ The `!KeysCanBeNull` half is there to avoid a BOX, not to save a branch.
+        // `key is not null` on an unconstrained TKey emits `box !TKey`, so every ContainKey on a
+        // Dictionary<int, …> allocated 24 B to ask whether an int is null. The guard is a cached static
+        // bool, so a value-type key short-circuits before the box
+        // and a reference-type key runs exactly the check it used to. Same trap as the item loops in
+        // GenericCollectionAssertions.NotContainNulls, which is where it was first measured.
+        if (!KeysCanBeNull || key is not null)
         {
             switch (Subject)
             {
@@ -154,7 +186,6 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
     /// <summary>Asserts the dictionary contains the given key, and exposes its value via Which.</summary>
     public AndWhichConstraint<GenericDictionaryAssertions<TKey, TValue>, TValue> ContainKey(TKey expected, string? because = null, params object?[] becauseArgs)
     {
-        var pairs = Pairs;
         if (Subject is null)
         {
             FailNull($"to contain key {Formatting.Formatter.Format(expected)}", because, becauseArgs);
@@ -177,7 +208,6 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
     public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> ContainKeys(IEnumerable<TKey> expected, string? because = null, params object?[] becauseArgs)
     {
         ArgumentNullException.ThrowIfNull(expected);
-        var pairs = Pairs;
         var expectedKeys = expected as IReadOnlyList<TKey> ?? [.. expected];
         if (Subject is null) return FailNull($"to contain keys {Formatting.Formatter.Format(expectedKeys)}", because, becauseArgs);
 
@@ -195,7 +225,6 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
     /// <summary>Asserts the dictionary does not contain the given key.</summary>
     public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> NotContainKey(TKey unexpected, string? because = null, params object?[] becauseArgs)
     {
-        var pairs = Pairs;
         if (Subject is null) return FailNull($"not to contain key {Formatting.Formatter.Format(unexpected)}", because, becauseArgs);
 
         var found = TryGetValueForKey(unexpected, out _);
@@ -226,7 +255,6 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
     public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> NotContainKeys(IEnumerable<TKey> unexpected, string? because = null, params object?[] becauseArgs)
     {
         ArgumentNullException.ThrowIfNull(unexpected);
-        var pairs = Pairs;
         var unexpectedKeys = unexpected as IReadOnlyList<TKey> ?? [.. unexpected];
         if (Subject is null) return FailNull($"not to contain keys {Formatting.Formatter.Format(unexpectedKeys)}", because, becauseArgs);
 
@@ -344,7 +372,6 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
     /// <summary>Asserts the dictionary contains the given value at the given key.</summary>
     public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> Contain(TKey key, TValue value, string? because = null, params object?[] becauseArgs)
     {
-        var pairs = Pairs;
         if (Subject is null) return FailNull($"to contain {Formatting.Formatter.Format(value)} at key {Formatting.Formatter.Format(key)}", because, becauseArgs);
 
         if (!TryGetValueForKey(key, out var actual))
@@ -366,7 +393,6 @@ public class GenericDictionaryAssertions<TKey, TValue> : ReferenceTypeAssertions
     /// <summary>Asserts the dictionary does not contain the given value at the given key.</summary>
     public AndConstraint<GenericDictionaryAssertions<TKey, TValue>> NotContain(TKey key, TValue value, string? because = null, params object?[] becauseArgs)
     {
-        var pairs = Pairs;
         if (Subject is null) return FailNull($"not to contain {Formatting.Formatter.Format(value)} at key {Formatting.Formatter.Format(key)}", because, becauseArgs);
 
         var found = TryGetValueForKey(key, out var actual)

@@ -40,13 +40,19 @@ Measured on this branch, on an idle machine, before any change:
 **15.6× faster, 20.0× less memory.** BenchmarkDotNet 0.14.0, .NET 10 host, SDK 11.0.100-rc.1,
 `Fairness checks passed: generated accessors active`.
 
-> **Status 2026-09-17 — the boundary was not merely held, it moved.** After M1/M2/M3 the same
-> benchmark, re-run net11-vs-net11 on an idle machine, measures **12.60 µs / 14.84 KB** against
-> FluentAssertions' 221.26 µs / 397.04 KB — **17.6× faster, 26.8× less memory**, and the allocation
-> figure reproduced to the decimal across two independent runs. The README table has been updated to
-> these numbers, which means **the gate is now set against the improved figure, not the original
-> one**: a change that returns the library to 20.34 KB/op is now a regression. That is deliberate.
-> Per-milestone detail is in `Plan-Net11-Assertions-Parity.md` § STATUS.
+> **Status 2026-09-17 — the boundary was not merely held, it moved.** After M1–M4 the same
+> benchmark, re-run net11-vs-net11 on an idle machine, measures **11.04 µs / 14.81 KB** against
+> FluentAssertions' 191.53 µs / 397.04 KB — **17.3× faster, 26.8× less memory**. The README table has
+> been updated to these numbers, which means **the gate is now set against the improved figure, not
+> the original one**: a change that returns the library to 20.34 KB/op is now a regression. That is
+> deliberate. Per-milestone detail is in `Plan-Net11-Assertions-Parity.md` § STATUS.
+>
+> **An unplanned confirmation of §2's premise.** Across two runs this library allocated 14.81 KB
+> both times, to the decimal, while FluentAssertions allocated 404.26 KB and then 397.04 KB. Bytes
+> reproduce exactly *here* because nothing on the passing path allocates conditionally — that is a
+> property this code earned, not one every library has, and it is the reason a byte-exact gate works
+> at all. The timings in the same two runs were 9.36 / 11.04 µs and 216.45 / 191.53 µs; the README
+> quotes the less flattering run whole rather than the best figure from each.
 
 Two facts make this usable as a gate:
 
@@ -530,3 +536,36 @@ artifact. They passed while the real package was wrong.
 
 **The rule.** A packaging test must evict its version from the global packages folder, or use a unique
 version per run. If a packaging test has never failed, confirm it *can*.
+
+### 9.13 `x is null` on an unconstrained generic allocates
+
+`items[i] is null` where `T` is unconstrained compiles to `box !T` followed by a null test. Over an
+`int[8]` that is **192 B/op** — 24 B per item — to establish eight times that an `int` is not null.
+The source reads as an ordinary null check, there is no analyzer for it, and no amount of review
+finds it; `PassingPathAllocationTests` did, and only because the test happened to use `int[]`.
+
+Two things make it worse than it first looks:
+
+1. **The obvious guard has the same bug.** Writing `if (default(T) is null)` inline does not reach
+   zero — the guard boxes too. It measured 192 → 24 B/op, which looks like a fix in a changelog and
+   is not one. It has to be a `static readonly bool` on the generic type (`ItemsCanBeNull`,
+   `KeysCanBeNull`), so the box happens once per closed generic type at type initialisation.
+2. **A gate only covers the instantiations it names.** `NotContainNulls` over `string[]` allocates
+   nothing and always did. The whole family is invisible unless a test exercises a **value-type**
+   instantiation on purpose. Any new allocation gate over a generic assertion should pick a value
+   type deliberately, not whichever element type reads nicely.
+
+Same trap, same session, third site: `TryGetValueForKey`'s `key is not null`.
+
+### 9.14 Reading a materialising property "for safety" at the top of a method
+
+Six dictionary methods opened with `var pairs = Pairs;` and never read the local. `Pairs` copies the
+subject — a `Dictionary<,>` is neither an array nor a `List<>`, so there is nothing to hand back as a
+span without one — and all six answer through `TryGetValueForKey`, which goes straight at the
+dictionary's own `TryGetValue`. Cost: 56 B/op for a two-entry dictionary, proportional to size for a
+real one, on the passing path of `ContainKey` and five others.
+
+It survived review because it reads as setup, and because every other method in the file legitimately
+starts the same way. The general shape: **a property whose name is a noun can still be the most
+expensive line in the method.** When a property materialises, say so in its own doc comment — nobody
+reads the getter before using it.

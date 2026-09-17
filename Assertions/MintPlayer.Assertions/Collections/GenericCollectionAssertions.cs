@@ -11,6 +11,20 @@ namespace MintPlayer.Assertions.Collections;
 /// </summary>
 public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerable<T>, GenericCollectionAssertions<T>>
 {
+    /// <summary>
+    /// Whether an item of type <typeparamref name="T"/> can be <see langword="null"/> at all.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>This is a field, not an inline <c>default(T) is null</c>, and that is the whole point.</b>
+    /// Every null test against an unconstrained generic emits <c>box !T</c> — including the guard
+    /// itself. Writing the guard inline turned <c>NotContainNulls</c> over an <c>int[8]</c> from
+    /// 192 B/op (one box per item) into 24 B/op (one box for the guard), which is better and still
+    /// not zero. As a static readonly field the box happens once per closed generic type, at type
+    /// initialisation, and the per-call cost is a static bool read the JIT folds away.
+    /// Measured by <c>PassingPathAllocationTests.IteratingTheSubjectAllocatesNothing</c>.
+    /// </remarks>
+    private static readonly bool ItemsCanBeNull = default(T) is null;
+
     private T[]? copy;
     private bool materialized;
 
@@ -600,10 +614,18 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         var items = Items;
         if (Subject is null) return FailNull("to contain <null> items", because, becauseArgs);
 
+        // ⚠️ `ItemsCanBeNull` is a guard against BOXING, not a shortcut. On an unconstrained T
+        // the compiler emits `box !T` before the null test, so `items[i] is null` over an int[]
+        // allocates 24 B per item to answer a question whose answer is always "no". The JIT folds
+        // this outer test to a constant per instantiation, so the whole loop disappears for a value
+        // type and costs nothing for a reference type. See NotContainNulls for the measurement.
         var containsNull = false;
-        for (var i = 0; i < items.Length; i++)
+        if (ItemsCanBeNull)
         {
-            if (items[i] is null) { containsNull = true; break; }
+            for (var i = 0; i < items.Length; i++)
+            {
+                if (items[i] is null) { containsNull = true; break; }
+            }
         }
 
         Assert().ForCondition(containsNull).BecauseOf(because, becauseArgs)
@@ -621,10 +643,20 @@ public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerabl
         // thrown away empty, which cost 32 B/op on the passing path of every call — a collection
         // that exists purely to be rendered into a failure message, built by assertions that pass.
         // PassingPathAllocationTests caught this; nothing else would have.
+        // ⚠️ The `ItemsCanBeNull` guard is load-bearing and must not be removed as redundant.
+        // `items[i] is null` on an unconstrained T compiles to `box !T` followed by a null test, so
+        // over an int[8] this loop allocated 192 B/op — 24 B per item — to discover eight times that
+        // an int is not null. Measured by IteratingTheSubjectAllocatesNothing, which is the only
+        // reason it was ever noticed: the source reads as a plain null check either way. The JIT
+        // constant-folds the guard per instantiation, so a value type skips the loop entirely and a
+        // reference type pays nothing for the test.
         List<int>? nullIndexes = null;
-        for (var i = 0; i < items.Length; i++)
+        if (ItemsCanBeNull)
         {
-            if (items[i] is null) (nullIndexes ??= []).Add(i);
+            for (var i = 0; i < items.Length; i++)
+            {
+                if (items[i] is null) (nullIndexes ??= []).Add(i);
+            }
         }
 
         Assert().ForCondition(nullIndexes is null).BecauseOf(because, becauseArgs)

@@ -62,15 +62,22 @@ public class PassingPathAllocationTests
      * allocated `new List<int>()` unconditionally to hold indexes for a failure message, then threw
      * it away empty on every passing call. Ordinary-looking code; 32 B/op; invisible to review.
      *
-     * The same shape — allocate a List<T> up front, fill it only on mismatch, assert Count == 0 —
-     * appears in roughly ten more places across GenericCollectionAssertions and
-     * GenericDictionaryAssertions (OnlyContain, OnlyHaveUniqueItems, BeSubsetOf, IntersectWith,
-     * ContainKeys, NotContainKeys, ...). Each converts the same way: declare `List<T>? xs = null`,
-     * use `(xs ??= []).Add(item)`, and test `xs is null`.
+     * That shape — allocate a List<T> up front, fill it only on mismatch, assert Count == 0 — has
+     * since been swept out of GenericCollectionAssertions and GenericDictionaryAssertions, one site
+     * at a time. Analysing them individually was the point: of twelve, nine converted uniformly, two
+     * (ContainSingle, NotContainSingle) had to be restructured because the lazy form would have been
+     * WRONG and would still have allocated on success, and one was correct to leave alone. A single
+     * batch edit would have kept every test green while still allocating.
      *
-     * They are not fixed here because ten near-identical edits made in one pass is the shape that
-     * has twice introduced a compiler-invisible bug in this file (PRD 9.5). The right order is: add
-     * the gate test for an assertion, watch it fail, fix that one, move on. */
+     * The second family found this way is subtler and has no grep: `x is null` on an unconstrained
+     * generic parameter emits `box !T`. It reads as a plain null check and costs 24 B per test — 192
+     * B/op for an eight-item int[]. Guarded now in NotContainNulls, ContainNulls and
+     * TryGetValueForKey; any NEW generic null test needs the same `default(T) is null` guard, and
+     * the only thing that will ever tell you is a gate test over a value-type instantiation.
+     *
+     * The ordering rule that produced both: add the gate test for an assertion, watch it fail, fix
+     * that one, move on. Near-identical edits made in one pass is the shape that has twice
+     * introduced a compiler-invisible bug in this file (PRD 9.5). */
 
     private static void AssertNoExtraAllocation(string what, Action bare, Action full)
     {
@@ -82,7 +89,9 @@ public class PassingPathAllocationTests
             $"{what} added {added:N0} B/op over a bare Should() ({measured:N0} vs {baseline:N0}). "
             + "A passing assertion must not allocate. Usual causes: a boxed enumerator from "
             + "iterating an interface-typed collection (MPA0005), a value type boxed into FailWith's "
-            + "params array, or a copy of an already-materialised subject.");
+            + "params array, a copy of an already-materialised subject, a failure-detail List<T> "
+            + "built before anything has failed, or `x is null` on an unconstrained T — which emits "
+            + "`box !T` and costs 24 B per test (guard it with `default(T) is null`).");
     }
 
     #region Scalars
@@ -201,6 +210,32 @@ public class PassingPathAllocationTests
         int[] subject = [1, 2, 3, 4, 5, 6, 7, 8];
         AssertNoExtraAllocation("NotContainSingle(predicate), many matches",
             () => subject.Should(), () => subject.Should().NotContainSingle(x => x > 2));
+    }
+
+    /// <summary>
+    /// A value-type key must not be boxed on the way into a lookup. <c>key is not null</c> on an
+    /// unconstrained TKey emits <c>box !TKey</c>, which is invisible in the source and cost 24 B on
+    /// every <c>ContainKey</c> over a <c>Dictionary&lt;int, …&gt;</c> before the guard was added.
+    /// </summary>
+    [Fact]
+    public void LookingUpAValueTypeKeyAllocatesNothing()
+    {
+        var subject = new Dictionary<int, string> { [1] = "a", [2] = "b" };
+        AssertNoExtraAllocation("ContainKey(int) over Dictionary<int, string>",
+            () => subject.Should(), () => subject.Should().ContainKey(1));
+    }
+
+    /// <summary>
+    /// The value-type counterpart of <see cref="IteratingTheSubjectAllocatesNothing"/>: the positive
+    /// null check boxes exactly the same way, so it needs its own gate rather than trusting that a
+    /// fix to one was applied to the other.
+    /// </summary>
+    [Fact]
+    public void TheNullScanOverAReferenceCollectionAllocatesNothing()
+    {
+        string[] subject = ["a", "b", "c"];
+        AssertNoExtraAllocation("NotContainNulls() over string[]",
+            () => subject.Should(), () => subject.Should().NotContainNulls());
     }
 
     #endregion
