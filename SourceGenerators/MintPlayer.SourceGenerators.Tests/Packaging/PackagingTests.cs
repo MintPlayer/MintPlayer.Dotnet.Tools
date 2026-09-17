@@ -27,9 +27,8 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
     /// with no error anywhere.
     /// </summary>
     [Theory]
-    [InlineData("analyzers/dotnet/roslyn4.0/cs/MintPlayer.SourceGenerators.dll")]
-    [InlineData("analyzers/dotnet/roslyn4.9/cs/MintPlayer.SourceGenerators.dll")]
-    public void TheGeneratorShipsInEveryRoslynAnalyzerFolder(string expectedPath)
+    [InlineData("analyzers/dotnet/roslyn5.0/cs/MintPlayer.SourceGenerators.dll")]
+    public void TheGeneratorShipsInTheRoslynAnalyzerFolder(string expectedPath)
         => feed.EntriesOf(GeneratorPackage).Should().Contain(expectedPath);
 
     /// <summary>
@@ -41,8 +40,7 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
     /// more often, nothing at all.
     /// </remarks>
     [Theory]
-    [InlineData("analyzers/dotnet/roslyn4.0/cs/MintPlayer.SourceGenerators.Tools.dll")]
-    [InlineData("analyzers/dotnet/roslyn4.9/cs/MintPlayer.SourceGenerators.Tools.dll")]
+    [InlineData("analyzers/dotnet/roslyn5.0/cs/MintPlayer.SourceGenerators.Tools.dll")]
     public void TheGeneratorsRuntimeDependencyShipsBesideIt(string expectedPath)
         => feed.EntriesOf(GeneratorPackage).Should().Contain(expectedPath);
 
@@ -114,11 +112,9 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
     /// </remarks>
     [Theory]
     [InlineData(GeneratorPackage, "SourceGenerators/SourceGenerators/MintPlayer.SourceGenerators/MintPlayer.SourceGenerators.csproj",
-        "analyzers/dotnet/roslyn4.0/cs/MintPlayer.SourceGenerators.dll",
-        "analyzers/dotnet/roslyn4.0/cs/MintPlayer.SourceGenerators.Tools.dll",
-        "analyzers/dotnet/roslyn4.9/cs/MintPlayer.SourceGenerators.dll",
-        "analyzers/dotnet/roslyn4.9/cs/MintPlayer.SourceGenerators.Tools.dll",
-        "analyzers/dotnet/cs/MintPlayer.SourceGenerators.Attributes.dll",
+        "analyzers/dotnet/roslyn5.0/cs/MintPlayer.SourceGenerators.dll",
+        "analyzers/dotnet/roslyn5.0/cs/MintPlayer.SourceGenerators.Tools.dll",
+        "analyzers/dotnet/roslyn5.0/cs/MintPlayer.SourceGenerators.dll",
         // [AutoValueComparer] decorates this generator's own model types, so Roslyn cannot load
         // the generator without it. Dropping this entry does not degrade the package, it disables
         // it — which an earlier revision of this file did.
