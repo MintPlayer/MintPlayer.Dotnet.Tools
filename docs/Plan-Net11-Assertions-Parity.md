@@ -131,11 +131,17 @@ scan), configurable `MaxDepth`/`MaxLines`/`UseLineBreaks` with a depth-exceeded 
 knob, `AssertionScope` inspection (`Discard`, `AddPreFormattedFailure`, reportables), equivalency
 diagnostics. Reached only after an assertion has failed, so free by construction.
 
-**M5b — own-type (95 items).** Streams, XML, `Assembly`, `MemberInfo`/`MethodInfo`/`PropertyInfo`,
-the selector family, `TaskCompletionSource`, ValueTask, the per-primitive `Not*`/`BeNull` gaps,
-`BeSupersetOf`/`BeProperSubsetOf`/`BeProperSupersetOf`, comparer-lambda overloads. Cost falls on the
-caller only. Annotate trimming honestly and **check every suppression's diagnostic id against a
-build** — guessed ids suppress nothing.
+**M5b — own-type, reflection-free only (~95 items minus the ~100 cut in PRD §5).** Streams, XML
+(LINQ-to-XML and the DOM), `TaskCompletionSource`, ValueTask, `ExecutionTimeOf`, `OccurrenceConstraint`,
+`StringCollectionAssertions`, the per-primitive `Not*`/`BeNull` gaps, `BeSupersetOf` /
+`BeProperSubsetOf` / `BeProperSupersetOf`, `HaveElementAt`/`Preceding`/`Succeeding`,
+`ContainInConsecutiveOrder`, `ThenBeInAscendingOrder`, comparer-lambda overloads. Cost falls on the
+caller only, and **none of these needs reflection** — that is now the entry condition for this
+milestone, not a nice-to-have.
+
+The Types/MemberInfo/Assembly/selector family is **out of scope** (PRD §5). Anything that reaches for
+`Type.GetProperty`, `GetMethod`, `GetInterfaces`, `GetTypes` or `GetCustomAttribute` to answer an
+assertion belongs with it and does not land here.
 
 **M5c — hot-path (63 items), gated on S1.** Chiefly the ~46 missing equivalency options. The ~30
 compile-time-decidable ones ride on generator-emitted flags; the ~14 needing runtime reflection go

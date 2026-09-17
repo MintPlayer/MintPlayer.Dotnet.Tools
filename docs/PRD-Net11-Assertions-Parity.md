@@ -147,7 +147,9 @@ MintPlayer implements **12 of FluentAssertions' ~62** equivalency options. Of th
 - **4 are diagnostics** (`WithTracing`, `WithFullDump`, …) and are FREE-ON-FAILURE.
 
 Across the whole surface the gap classifies as **20 free-on-failure, 95 own-type, 63 hot-path**.
-Nearly every hot-path item is an equivalency option.
+Nearly every hot-path item is an equivalency option. Roughly 100 of the own-type items are the
+Types/MemberInfo/Assembly/selector family, which §5 cuts — so the surface actually in scope is closer
+to **20 free-on-failure, ~40 own-type, 63 hot-path**.
 
 **This is the design that makes R4 and R5 compatible.** The generator is not merely what makes the
 library fast — it is what makes feature parity affordable, because a flag baked into emitted metadata
@@ -165,6 +167,26 @@ costs a bitwise AND where FluentAssertions pays reflection.
 4. **Then add features, cheapest class first**: free-on-failure → own-type → hot-path.
 5. **Every hot-path item is measured, not argued.** A feature that moves the allocation numbers does
    not land until it does not.
+
+### The reflection policy
+
+Two kinds of reflection exist in this library and conflating them is how the previous attempt went
+wrong. The rule, in priority order:
+
+1. **Never in the equivalency walker.** This is what the generator exists to eliminate and where the
+   15× lives. The reflection fallback already there is silent — a type the scanner skips is compared
+   correctly and 15× slower with no signal — so anything that *widens* its reach is a regression even
+   when it allocates nothing.
+2. **Never per-node, per-member, or per-assertion**, cached or not. A `ConcurrentDictionary` lookup is
+   not free when it runs once per node.
+3. **Acceptable only when the assertion *is* the reflection question** — `HaveProperty("Name")` cannot
+   be answered any other way — and only on an assertion type nothing else touches.
+
+⚠️ The lesson from the previous attempt is precise and worth stating: the isolated `Reflection/`
+folder was **not** the problem. It was verified to touch nothing shared. The damage was two reflection
+calls that leaked into `EquivalencyValidator` itself — `IsRecord`'s `GetMethod("<Clone>$")` and
+`IsGenericDictionary`'s `GetInterfaces()`. Both were cached; one was correctly short-circuited behind
+an option check and one ran per collection node. **Watch the walker, not the folder names.**
 
 ### Rejected outright
 
@@ -207,6 +229,19 @@ costs a bitwise AND where FluentAssertions pays reflection.
   so a net8.0 or net9.0 test project referencing the new version gets `NU1202: package is not
   compatible`; and the csproj comment explaining the net8.0 pin (the `IsExternalInit` polyfill and the
   CS0433 collision it avoids) must be rewritten rather than left contradicting the file.
+- **The whole Types / MemberInfo / Assembly / type-selector family — ~100 members — is cut.** This is
+  FluentAssertions' architecture-test surface: `HaveProperty`, `HaveMethod`, `AllTypes.From(asm)
+  .ThatImplement<I>().Should().BeSealed()`, `assembly.Should().NotReference(other)`, plus
+  `MethodInfoSelector`, `PropertyInfoSelector` and their assertion types.
+
+  Cut for three reasons that compound: (a) it is the **one family where the reflection policy above
+  cannot be honoured**, because the assertion *is* the reflection question; (b) it **cannot be source
+  generated even in principle** — a generator needs a compile-time target and the `Type` here comes
+  from a runtime assembly scan — so it is the least aligned with what this library is for; and (c) it
+  is the single largest block of the gap, for the surface least connected to the performance story.
+
+  Architecture testing is also a different product, served properly by NetArchTest and ArchUnitNET.
+  Revisit only if a user asks, and then as a separate package so it cannot touch this one's hot path.
 - The 5 independent version lines (`Vidyano.Sdk` 2.0.2, `NestFiles` 1.0.4, `MSBuild.Tasks` 1.0.2,
   `TokenReplacer.Targets` 1.0.0) — framework-agnostic packages, no reason to renumber.
 - Updating the README benchmark table with new numbers **until** it is re-measured on .NET 11 on an
