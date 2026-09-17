@@ -63,6 +63,12 @@ public interface IEquivalencyOptions
     MemberTraits IncludedMemberTraits { get; }
 
     /// <summary>
+    /// Member kinds to leave out entirely: <see cref="MemberTraits.Property"/>,
+    /// <see cref="MemberTraits.Field"/>, or neither (the default).
+    /// </summary>
+    MemberTraits ExcludedMemberKinds { get; }
+
+    /// <summary>
     /// True to append a summary of the work the walk did — nodes visited, members looked up, match
     /// probes — to the failure message. Off by default and free when off.
     /// </summary>

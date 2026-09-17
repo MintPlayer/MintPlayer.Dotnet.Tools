@@ -25,8 +25,8 @@ internal sealed class RegistryMemberProvider : IMemberProvider
     /// recognise all land here with no signal.
     /// </para>
     /// </remarks>
-    public MemberAccessor[] GetMembers(Type type, MemberTraits wanted)
-        => EquivalencyRegistry.TryGetAccessors(type, wanted, out var accessors)
+    public MemberAccessor[] GetMembers(Type type, in MemberSelection selection)
+        => EquivalencyRegistry.TryGetAccessors(type, selection, out var accessors)
             ? accessors
-            : fallback.GetMembers(type, wanted);
+            : fallback.GetMembers(type, selection);
 }

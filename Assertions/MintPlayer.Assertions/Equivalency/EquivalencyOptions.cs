@@ -35,6 +35,7 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     private bool allowVacuousComparison;
     private MemberTraits includedMemberTraits;
     private bool includeDiagnostics;
+    private MemberTraits excludedMemberKinds;
 
     IReadOnlyCollection<string> IEquivalencyOptions.ExcludedPaths => excludedPaths;
     IReadOnlyDictionary<Type, IReadOnlyCollection<string>> IEquivalencyOptions.NestedExclusions => nestedExclusions;
@@ -49,6 +50,7 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     bool IEquivalencyOptions.AllowVacuousComparison => allowVacuousComparison;
     MemberTraits IEquivalencyOptions.IncludedMemberTraits => includedMemberTraits;
     bool IEquivalencyOptions.IncludeDiagnostics => includeDiagnostics;
+    MemberTraits IEquivalencyOptions.ExcludedMemberKinds => excludedMemberKinds;
 
     /// <summary>
     /// Excludes the member selected by <paramref name="selector"/> from the comparison. Chained
@@ -227,6 +229,46 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     public EquivalencyOptions<TExpectation> WithDiagnostics()
     {
         includeDiagnostics = true;
+        return this;
+    }
+
+    /// <summary>Compares properties only, leaving fields out of the comparison.</summary>
+    /// <remarks>
+    /// Answered from a generator-emitted flag, so the member list is filtered once per type and
+    /// cached — the walk itself does no per-member testing and a comparison that does not use this
+    /// is unaffected.
+    /// <para>
+    /// Excluding both kinds leaves nothing to compare, which the engine already rejects as a vacuous
+    /// comparison rather than passing unconditionally. That is the right error and it needs no extra
+    /// check here.
+    /// </para>
+    /// </remarks>
+    public EquivalencyOptions<TExpectation> ExcludingFields()
+    {
+        excludedMemberKinds |= MemberTraits.Field;
+        return this;
+    }
+
+    /// <summary>Compares fields only, leaving properties out of the comparison.</summary>
+    /// <remarks>See <see cref="ExcludingFields"/>.</remarks>
+    public EquivalencyOptions<TExpectation> ExcludingProperties()
+    {
+        excludedMemberKinds |= MemberTraits.Property;
+        return this;
+    }
+
+    /// <summary>
+    /// Also compares members marked <c>[EditorBrowsable(EditorBrowsableState.Never)]</c>, which are
+    /// skipped by default.
+    /// </summary>
+    /// <remarks>
+    /// The attribute hides a member from IntelliSense, which usually means "not part of the intended
+    /// surface" — so comparing it by default would make an assertion fail over something the author
+    /// deliberately hid. It is still sometimes exactly what you want to check, hence the opt-in.
+    /// </remarks>
+    public EquivalencyOptions<TExpectation> IncludingNonBrowsableMembers()
+    {
+        includedMemberTraits |= MemberTraits.NonBrowsable;
         return this;
     }
 

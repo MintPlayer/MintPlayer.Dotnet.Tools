@@ -28,14 +28,14 @@ namespace MintPlayer.Assertions.Equivalency;
 /// </remarks>
 internal sealed class ReflectionMemberProvider : IMemberProvider
 {
-    private readonly ConcurrentDictionary<(Type Type, MemberTraits Wanted), MemberAccessor[]> cache = new();
+    private readonly ConcurrentDictionary<(Type Type, MemberSelection Selection), MemberAccessor[]> cache = new();
 
-    public MemberAccessor[] GetMembers(Type type, MemberTraits wanted)
-        => cache.GetOrAdd((type, wanted), static key => BuildMembers(key.Type, key.Wanted));
+    public MemberAccessor[] GetMembers(Type type, in MemberSelection selection)
+        => cache.GetOrAdd((type, selection), static key => BuildMembers(key.Type, key.Selection));
 
     [UnconditionalSuppressMessage("Trimming", "IL2070",
         Justification = "Fallback only: types that take part in equivalency comparisons are registered by the source generator in EquivalencyRegistry, which is trim-safe and consulted first. When reflection is reached under trimming, missing members merely reduce comparison coverage, matching the Formatter's best-effort approach.")]
-    private static MemberAccessor[] BuildMembers(Type type, MemberTraits wanted)
+    private static MemberAccessor[] BuildMembers(Type type, MemberSelection selection)
     {
         try
         {
@@ -43,7 +43,7 @@ internal sealed class ReflectionMemberProvider : IMemberProvider
             // runtime hand back compiler-generated backing fields and a great deal else, so the
             // cheap binding is used unless something actually wants more.
             var binding = BindingFlags.Public | BindingFlags.Instance;
-            if ((wanted & MemberTraits.NonPublic) != 0) binding |= BindingFlags.NonPublic;
+            if ((selection.Wanted & MemberTraits.NonPublic) != 0) binding |= BindingFlags.NonPublic;
 
             var members = new List<MemberAccessor>();
             foreach (var property in type.GetProperties(binding))
@@ -59,7 +59,7 @@ internal sealed class ReflectionMemberProvider : IMemberProvider
                 if (property.Name.Contains('.')) continue;
 
                 var traits = TraitsOf(getter.IsPublic, getter.IsPrivate || getter.IsFamilyAndAssembly, MemberTraits.Property, property);
-                if (traits is null || !IsWanted(traits.Value, wanted)) continue;
+                if (traits is null || !selection.Admits(traits.Value)) continue;
 
                 members.Add(new(property.Name, property.PropertyType, property.GetValue, traits.Value));
             }
@@ -71,7 +71,7 @@ internal sealed class ReflectionMemberProvider : IMemberProvider
                 if (field.IsSpecialName || field.Name.Contains('<')) continue;
 
                 var traits = TraitsOf(field.IsPublic, field.IsPrivate || field.IsFamilyAndAssembly, MemberTraits.Field, field);
-                if (traits is null || !IsWanted(traits.Value, wanted)) continue;
+                if (traits is null || !selection.Admits(traits.Value)) continue;
 
                 members.Add(new(field.Name, field.FieldType, field.GetValue, traits.Value));
             }
@@ -102,6 +102,4 @@ internal sealed class ReflectionMemberProvider : IMemberProvider
     private static bool IsNonBrowsable(MemberInfo member)
         => member.GetCustomAttribute<EditorBrowsableAttribute>() is { State: EditorBrowsableState.Never };
 
-    private static bool IsWanted(MemberTraits traits, MemberTraits wanted)
-        => (traits & EquivalencyRegistry.ExcludedByDefault & ~wanted) == MemberTraits.None;
 }

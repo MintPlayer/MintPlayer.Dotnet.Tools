@@ -23,7 +23,7 @@ running it is how the change is verified at all.
 
 ## STATUS — as of 2026-09-17, branch `net11-assertions-parity`, 9 commits
 
-**Done: M0, M1, M2 (all four layers), M3, M4, M5a, M6, S1, S3, S4. Partial: M5b. Outstanding: S2(kept), M5c.**
+**Done: M0, M1, M2 (all four layers), M3, M4, M5a, M6, S1, S3, S4. Partial: M5b, M5c. Outstanding: S2(kept).**
 891 assertion tests pass on net10.0 and net11.0; full solution builds clean.
 
 ### The hard boundary: improved, not merely held
@@ -366,6 +366,44 @@ behind an explicit opt-in so they never cost a test that does not use them.
 and that tail swallows anything compatible with it. A new parameter that could be a string does not
 belong beside `because` — it belongs in a differently named method. This bit three times in the
 previous attempt, each time invisible to the compiler and to review.
+
+---
+
+## M5c — hot-path options (first tranche) ✅ partial
+
+The first equivalency options answered from generator-emitted member flags rather than reflection,
+which is what S1 was built for:
+
+| Option | Rides on |
+|---|---|
+| `ExcludingFields()`, `ExcludingProperties()` | the `Property` / `Field` traits |
+| `IncludingNonBrowsableMembers()` | the `NonBrowsable` trait |
+| `IncludingInternalMembers()` (M5a/S1) | the `NonPublic` trait |
+
+**`MemberSelection` keeps the two directions apart.** `Wanted` ADDS members that are off by default;
+`ExcludedKinds` REMOVES members that are on by default. Folding them into one mask would make every
+call site guess which direction a bit means. It is the cache key for both providers, so a filtered
+member list is built **once per (type, selection)** and the walk itself does no per-member testing —
+`MemberSelection.Default` short-circuits to the exact array the provider held before selections
+existed. The byte gate is unchanged at 6,808.
+
+### It opened a hole in the vacuity check, and the test caught it
+
+Excluding both kinds leaves nothing to compare, which should be rejected as a vacuous comparison.
+It was not: the check said "two memberless values really are equivalent, so the subject must have
+members for this to count as vacuous", and with both tables filtered empty, a node whose members had
+all been REMOVED BY OPTIONS looked identical to a genuinely memberless value. The assertion went
+green.
+
+Fixed by testing the type's OWN member count, not the selected one — an unfiltered lookup that is
+cached and only runs when nothing was compared, so a normal comparison pays nothing. Worth recording
+as a shape: **a filter added upstream of a "did we assert anything?" check can make "nothing to do"
+indistinguishable from "nothing was asked for".**
+
+### Still outstanding in M5c
+
+The remaining ~43 equivalency options, including the ~14 that genuinely need runtime reflection and
+must therefore go behind an explicit opt-in so they never cost a test that does not use them.
 
 ---
 

@@ -54,7 +54,7 @@ public class MemberTraitTests
 
     private static string[] NamesOf(Type type, MemberTraits wanted)
     {
-        var names = RegistryMemberProvider.Instance.GetMembers(type, wanted).Select(m => m.Name).ToArray();
+        var names = RegistryMemberProvider.Instance.GetMembers(type, new MemberSelection(wanted, MemberTraits.None)).Select(m => m.Name).ToArray();
         Array.Sort(names, StringComparer.Ordinal);
         return names;
     }
@@ -79,7 +79,7 @@ public class MemberTraitTests
     [Fact]
     public void PublicMembersCarryTheirKind()
     {
-        var members = RegistryMemberProvider.Instance.GetMembers(typeof(Mixed), MemberTraits.None);
+        var members = RegistryMemberProvider.Instance.GetMembers(typeof(Mixed), MemberSelection.Default);
 
         var property = members.Single(m => m.Name == "PublicProperty");
         var field = members.Single(m => m.Name == "PublicField");
@@ -93,7 +93,7 @@ public class MemberTraitTests
     [Fact]
     public void InternalMembersCarryTheNonPublicTrait()
     {
-        var members = RegistryMemberProvider.Instance.GetMembers(typeof(Mixed), MemberTraits.NonPublic);
+        var members = RegistryMemberProvider.Instance.GetMembers(typeof(Mixed), new MemberSelection(MemberTraits.NonPublic, MemberTraits.None));
 
         Assert.Equal(MemberTraits.Property | MemberTraits.NonPublic, members.Single(m => m.Name == "InternalProperty").Traits);
         Assert.Equal(MemberTraits.Field | MemberTraits.NonPublic, members.Single(m => m.Name == "InternalField").Traits);
@@ -108,16 +108,16 @@ public class MemberTraitTests
     public void TheDefaultTableIsCachedNotRebuilt()
     {
         Assert.Same(
-            RegistryMemberProvider.Instance.GetMembers(typeof(Mixed), MemberTraits.None),
-            RegistryMemberProvider.Instance.GetMembers(typeof(Mixed), MemberTraits.None));
+            RegistryMemberProvider.Instance.GetMembers(typeof(Mixed), MemberSelection.Default),
+            RegistryMemberProvider.Instance.GetMembers(typeof(Mixed), MemberSelection.Default));
     }
 
     [Fact]
     public void TheExtendedTableIsAlsoCached()
     {
         Assert.Same(
-            RegistryMemberProvider.Instance.GetMembers(typeof(Mixed), MemberTraits.NonPublic),
-            RegistryMemberProvider.Instance.GetMembers(typeof(Mixed), MemberTraits.NonPublic));
+            RegistryMemberProvider.Instance.GetMembers(typeof(Mixed), new MemberSelection(MemberTraits.NonPublic, MemberTraits.None)),
+            RegistryMemberProvider.Instance.GetMembers(typeof(Mixed), new MemberSelection(MemberTraits.NonPublic, MemberTraits.None)));
     }
 
     // -------------------------------------------------------------------------------------------
@@ -147,26 +147,26 @@ public class MemberTraitTests
         Assert.True(EquivalencyRegistry.TryGetAccessors(typeof(TraitParityPoco), out var generated));
 
         Assert.Equal(
-            Sorted(new ReflectionMemberProvider().GetMembers(typeof(TraitParityPoco), MemberTraits.None)),
+            Sorted(new ReflectionMemberProvider().GetMembers(typeof(TraitParityPoco), MemberSelection.Default)),
             Sorted(generated!));
     }
 
     [Fact]
     public void GeneratedAndReflectedNonPublicMembersMatch()
     {
-        Assert.True(EquivalencyRegistry.TryGetAccessors(typeof(TraitParityPoco), MemberTraits.NonPublic, out var generated));
+        Assert.True(EquivalencyRegistry.TryGetAccessors(typeof(TraitParityPoco), new MemberSelection(MemberTraits.NonPublic, MemberTraits.None), out var generated));
 
         Assert.Equal(
-            Sorted(new ReflectionMemberProvider().GetMembers(typeof(TraitParityPoco), MemberTraits.NonPublic)),
+            Sorted(new ReflectionMemberProvider().GetMembers(typeof(TraitParityPoco), new MemberSelection(MemberTraits.NonPublic, MemberTraits.None))),
             Sorted(generated!));
     }
 
     [Fact]
     public void GeneratedAndReflectedTraitsMatchMemberForMember()
     {
-        Assert.True(EquivalencyRegistry.TryGetAccessors(typeof(TraitParityPoco), MemberTraits.NonPublic | MemberTraits.NonBrowsable, out var generated));
+        Assert.True(EquivalencyRegistry.TryGetAccessors(typeof(TraitParityPoco), new MemberSelection(MemberTraits.NonPublic | MemberTraits.NonBrowsable, MemberTraits.None), out var generated));
         var reflected = new ReflectionMemberProvider()
-            .GetMembers(typeof(TraitParityPoco), MemberTraits.NonPublic | MemberTraits.NonBrowsable)
+            .GetMembers(typeof(TraitParityPoco), new MemberSelection(MemberTraits.NonPublic | MemberTraits.NonBrowsable, MemberTraits.None))
             .ToDictionary(m => m.Name, m => m.Traits);
 
         foreach (var member in generated!)
@@ -182,9 +182,9 @@ public class MemberTraitTests
     [Fact]
     public void ANonBrowsableMemberIsHiddenByDefaultAndTagged()
     {
-        Assert.DoesNotContain("HiddenProperty", Sorted(RegistryMemberProvider.Instance.GetMembers(typeof(TraitParityPoco), MemberTraits.None)));
+        Assert.DoesNotContain("HiddenProperty", Sorted(RegistryMemberProvider.Instance.GetMembers(typeof(TraitParityPoco), MemberSelection.Default)));
 
-        var members = RegistryMemberProvider.Instance.GetMembers(typeof(TraitParityPoco), MemberTraits.NonBrowsable);
+        var members = RegistryMemberProvider.Instance.GetMembers(typeof(TraitParityPoco), new MemberSelection(MemberTraits.NonBrowsable, MemberTraits.None));
         Assert.Equal(MemberTraits.Property | MemberTraits.NonBrowsable, members.Single(m => m.Name == "HiddenProperty").Traits);
     }
 
@@ -195,7 +195,7 @@ public class MemberTraitTests
     [Fact]
     public void AskingForOneTraitDoesNotAdmitAMemberExcludedForTwo()
     {
-        var internalsOnly = Sorted(RegistryMemberProvider.Instance.GetMembers(typeof(TraitParityPoco), MemberTraits.NonPublic));
+        var internalsOnly = Sorted(RegistryMemberProvider.Instance.GetMembers(typeof(TraitParityPoco), new MemberSelection(MemberTraits.NonPublic, MemberTraits.None)));
 
         Assert.Contains("InternalProperty", internalsOnly);
         Assert.DoesNotContain("HiddenProperty", internalsOnly);

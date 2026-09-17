@@ -7,8 +7,8 @@ namespace MintPlayer.Assertions.Equivalency;
 internal interface IMemberProvider
 {
     /// <summary>
-    /// The readable members of <paramref name="type"/>, in declaration order when known, including
-    /// any member whose <see cref="MemberTraits"/> are covered by <paramref name="wanted"/>.
+    /// The readable members of <paramref name="type"/> that <paramref name="selection"/> asks for,
+    /// in declaration order when known.
     /// </summary>
     /// <remarks>
     /// ⚠️ <b>The array is the contract. Do not "tidy" this to <c>IReadOnlyList&lt;MemberAccessor&gt;</c>.</b>
@@ -38,9 +38,9 @@ internal interface IMemberProvider
     /// </para>
     /// </remarks>
     /// <remarks>
-    /// <paramref name="wanted"/> is <see cref="MemberTraits.None"/> for almost every call, and that
-    /// case must stay exactly as cheap as it was before traits existed — same array, no filtering,
-    /// no extra members for <c>FindByName</c> to scan past.
+    /// <paramref name="selection"/> is <see cref="MemberSelection.Default"/> for almost every call,
+    /// and that case must stay exactly as cheap as it was before traits existed — same array, no
+    /// filtering, no extra members for <c>FindByName</c> to scan past.
     /// </remarks>
-    MemberAccessor[] GetMembers(Type type, MemberTraits wanted);
+    MemberAccessor[] GetMembers(Type type, in MemberSelection selection);
 }

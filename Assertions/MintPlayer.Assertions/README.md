@@ -201,6 +201,10 @@ Options (`NotBeEquivalentTo` takes the same):
 | `Including(x => x.Name)` | Compare only the listed members |
 | `Using<T>((actual, expected) => …)` | Custom comparison for members of type `T` |
 | `WithStrictOrdering()` | Compare collections positionally (default matches unordered) |
+| `ExcludingFields()` / `ExcludingProperties()` | Compare only one kind of member. Answered from a generator-emitted flag, not reflection |
+| `IncludingInternalMembers()` | Also compare `internal`/`protected` members (never `private`) |
+| `IncludingNonBrowsableMembers()` | Also compare members marked `[EditorBrowsable(Never)]` |
+| `WithDiagnostics()` | Append what the walk actually did to the failure message |
 | `ComparingByValue<T>()` / `ComparingByMembers<T>()` | Force `Equals` or member-wise comparison for a type |
 | `WithMaxDepth(n)` / `AllowingInfiniteRecursion()` | Bound or unbound recursion (default depth 10) |
 | `RespectingRuntimeTypes()` | Resolve members from runtime types instead of declared ones |

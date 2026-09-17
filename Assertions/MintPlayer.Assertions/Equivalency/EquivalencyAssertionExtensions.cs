@@ -208,14 +208,15 @@ public static class EquivalencyAssertionExtensions
                 + $"{CountMembers(vacuity.SubjectType)}. Compare against a concrete type, or against an "
                 + "anonymous object listing the members you care about"
             : $"every member of '{vacuity.ExpectationType.Name}' was removed by the configured "
-                + "exclusions or inclusions. Keep at least one member in the comparison";
+                + "exclusions or inclusions — including, if both were called, ExcludingFields together "
+                + "with ExcludingProperties. Keep at least one member in the comparison";
 
         return $"No members were compared, so {where} can never fail: {cause} — "
             + "or call AllowingVacuousComparison() if comparing nothing is intended.";
     }
 
     private static int CountMembers(Type type)
-        => RegistryMemberProvider.Instance.GetMembers(type, MemberTraits.None).Length;
+        => RegistryMemberProvider.Instance.GetMembers(type, MemberSelection.Default).Length;
 
     /// <summary>
     /// Builds the failure template with the difference block pre-rendered into it. The block is

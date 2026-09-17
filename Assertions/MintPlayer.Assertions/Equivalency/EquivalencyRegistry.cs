@@ -33,7 +33,7 @@ public static class EquivalencyRegistry
     private static readonly ConcurrentDictionary<Type, ExtendedAccessors> extended = new();
 
     /// <summary>Combinations already materialised, so the concatenation happens once per (type, traits).</summary>
-    private static readonly ConcurrentDictionary<(Type Type, MemberTraits Wanted), MemberAccessor[]> combinations = new();
+    private static readonly ConcurrentDictionary<(Type Type, MemberSelection Selection), MemberAccessor[]> combinations = new();
 
     private sealed record ExtendedAccessors(MemberAccessor[] Members, bool IsComplete);
 
@@ -56,7 +56,7 @@ public static class EquivalencyRegistry
     /// ⚠️ <paramref name="isComplete"/> is not bookkeeping. A partial table would make an option
     /// like <c>IncludingInternalMembers</c> compare a DIFFERENT set of members depending on which
     /// assembly the type came from — a discrepancy that shows up only in someone else's build. When
-    /// it is false, <see cref="TryGetAccessors(Type, MemberTraits, out MemberAccessor[])"/> refuses
+    /// it is false, the selection-aware <c>TryGetAccessors</c> overload refuses
     /// the type for any request that wants those traits, and the caller falls back to reflection,
     /// which can always see them. Slower, and right.
     /// </remarks>
@@ -77,9 +77,9 @@ public static class EquivalencyRegistry
     /// covered by <paramref name="wanted"/>. Returns false when the generated table cannot serve
     /// the request, in which case the caller must use reflection rather than compare fewer members.
     /// </summary>
-    public static bool TryGetAccessors(Type type, MemberTraits wanted, [NotNullWhen(true)] out MemberAccessor[]? members)
+    internal static bool TryGetAccessors(Type type, in MemberSelection selection, [NotNullWhen(true)] out MemberAccessor[]? members)
     {
-        if (wanted == MemberTraits.None) return TryGetAccessors(type, out members);
+        if (selection.IsDefault) return TryGetAccessors(type, out members);
 
         if (!accessors.TryGetValue(type, out var defaults))
         {
@@ -87,15 +87,19 @@ public static class EquivalencyRegistry
             return false;
         }
 
-        // Nothing was registered as excluded, so there is nothing extra to hand back and the
-        // default table is already the complete answer.
+        // Nothing was registered as excluded, so there is nothing extra to hand back. The default
+        // table may still need FILTERING, though — ExcludingFields and friends remove members that
+        // are in it — so this cannot just return `defaults` unless the selection wants everything.
         if (!extended.TryGetValue(type, out var extras))
         {
-            members = defaults;
+            members = selection.ExcludedKinds == MemberTraits.None
+                ? defaults
+                : combinations.GetOrAdd((type, selection), static (key, state) => Combine(key.Selection, state, []),
+                    defaults);
             return true;
         }
 
-        if (!extras.IsComplete)
+        if (!extras.IsComplete && (selection.Wanted & EquivalencyRegistry.ExcludedByDefault) != MemberTraits.None)
         {
             members = null;
             return false;
@@ -114,37 +118,45 @@ public static class EquivalencyRegistry
         //
         // The same trap applies to any helper added below the fast path in a hot method: put the
         // closure in its own method, or pass state to a `static` lambda as here.
-        members = combinations.GetOrAdd((type, wanted), static (key, state) => Combine(key.Wanted, state.Defaults, state.Extras),
+        members = combinations.GetOrAdd((type, selection), static (key, state) => Combine(key.Selection, state.Defaults, state.Extras),
             (Defaults: defaults, Extras: extras.Members));
         return true;
     }
 
-    private static MemberAccessor[] Combine(MemberTraits wanted, MemberAccessor[] defaults, MemberAccessor[] extras)
+    /// <summary>
+    /// The members of <paramref name="defaults"/> and <paramref name="extras"/> that
+    /// <paramref name="selection"/> admits, as one array.
+    /// </summary>
+    /// <remarks>
+    /// Two passes so the result is exactly sized. The alternative is a List and a copy, which is two
+    /// allocations instead of one on a path that is cached per (type, selection) anyway.
+    /// </remarks>
+    private static MemberAccessor[] Combine(in MemberSelection selection, MemberAccessor[] defaults, MemberAccessor[] extras)
     {
         var matched = 0;
-        foreach (var extra in extras)
+        foreach (var member in defaults)
         {
-            if (IsWanted(extra.Traits, wanted)) matched++;
+            if (selection.Admits(member.Traits)) matched++;
+        }
+        foreach (var member in extras)
+        {
+            if (selection.Admits(member.Traits)) matched++;
         }
 
-        if (matched == 0) return defaults;
+        if (matched == defaults.Length && extras.Length == 0) return defaults;
 
-        var combined = new MemberAccessor[defaults.Length + matched];
-        Array.Copy(defaults, combined, defaults.Length);
-        var next = defaults.Length;
-        foreach (var extra in extras)
+        var combined = new MemberAccessor[matched];
+        var next = 0;
+        foreach (var member in defaults)
         {
-            if (IsWanted(extra.Traits, wanted)) combined[next++] = extra;
+            if (selection.Admits(member.Traits)) combined[next++] = member;
+        }
+        foreach (var member in extras)
+        {
+            if (selection.Admits(member.Traits)) combined[next++] = member;
         }
         return combined;
     }
-
-    /// <summary>
-    /// True when every reason this member is excluded by default has been asked for. A member that
-    /// is both non-public AND non-browsable needs both bits, not either.
-    /// </summary>
-    private static bool IsWanted(MemberTraits traits, MemberTraits wanted)
-        => (traits & ExcludedByDefault & ~wanted) == MemberTraits.None;
 
     /// <summary>The traits that keep a member out of the default table.</summary>
     internal const MemberTraits ExcludedByDefault =

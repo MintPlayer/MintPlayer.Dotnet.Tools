@@ -49,16 +49,18 @@ internal static class EquivalencyValidator
         public IMemberProvider MemberProvider { get; } = RegistryMemberProvider.Instance;
 
         /// <summary>
-        /// Which normally-excluded members this comparison asked for, read once instead of per node.
+        /// Which members this comparison wants, read once instead of per node.
         /// </summary>
         /// <remarks>
-        /// ⚠️ Read from the options HERE and nowhere else. It is <see cref="MemberTraits.None"/> for
-        /// essentially every comparison, and on that path the provider hands back the very same
-        /// array it did before traits existed — so the walk does no filtering and <c>FindByName</c>
-        /// has no extra members to scan past. Moving this test into <c>CompareMembers</c> would put
-        /// it on the hottest loop in the library to serve an option that is off by default.
+        /// ⚠️ Read from the options HERE and nowhere else, and note that the FILTERING happens in the
+        /// provider, not in <c>CompareMembers</c>. For essentially every comparison this is
+        /// <see cref="MemberSelection.Default"/> and the provider hands back the very same array it
+        /// did before selections existed — no filtering, and no extra members for <c>FindByName</c>
+        /// (which is O(members²) per node) to scan past. When it is not the default, the filtered
+        /// array is built once per type and cached. Moving any of this into <c>CompareMembers</c>
+        /// would put it on the hottest loop in the library to serve options that are off by default.
         /// </remarks>
-        public MemberTraits WantedMemberTraits { get; } = options.IncludedMemberTraits;
+        public MemberSelection MemberSelection { get; } = new(options.IncludedMemberTraits, options.ExcludedMemberKinds);
 
         /// <summary>
         /// Where the walk currently is. Lives on the context rather than being threaded as a string
@@ -192,8 +194,8 @@ internal static class EquivalencyValidator
         // Both are MemberAccessor[], and `var` is load-bearing here: widening either to
         // IReadOnlyList<MemberAccessor> puts a boxed enumerator on the foreach below, once per
         // structural node. See IMemberProvider.GetMembers.
-        var expectationMembers = context.MemberProvider.GetMembers(expectationType, context.WantedMemberTraits);
-        var subjectMembers = context.MemberProvider.GetMembers(subject.GetType(), context.WantedMemberTraits);
+        var expectationMembers = context.MemberProvider.GetMembers(expectationType, context.MemberSelection);
+        var subjectMembers = context.MemberProvider.GetMembers(subject.GetType(), context.MemberSelection);
         var excludedNames = GetNestedExclusions(context.Options, expectationType, subject.GetType());
 
         // Counts the members that actually took part in the comparison. Zero of them means this
@@ -229,7 +231,20 @@ internal static class EquivalencyValidator
 
         // A structural node that compared nothing can never fail. Two memberless values really
         // are equivalent, so the subject must have members for this to count as vacuous at all.
-        if (comparedMembers > 0 || subjectMembers.Length == 0) return;
+        //
+        // ⚠️ "Has members" means the type's OWN members, not the ones this selection left. Once
+        // ExcludingFields/ExcludingProperties existed, a node whose members had all been removed by
+        // options looked identical to a genuinely memberless value — both tables empty — and the
+        // assertion went green instead of reporting the vacuity. Excluding both kinds is exactly
+        // that case, and it is the one this check exists for. The unfiltered lookup is cached and
+        // only ever runs when nothing was compared, so it costs a normal comparison nothing.
+        if (comparedMembers > 0) return;
+        if (subjectMembers.Length == 0
+            && (context.MemberSelection.IsDefault
+                || context.MemberProvider.GetMembers(subject.GetType(), MemberSelection.Default).Length == 0))
+        {
+            return;
+        }
 
         // Which of the two causes it is decides where it counts as a mistake.
         //
