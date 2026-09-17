@@ -328,11 +328,21 @@ ratio.Should().BeInRange(0, 1);
 `HaveCountLessThanOrEqualTo` `HaveSameCountAs` `NotHaveSameCountAs` `ContainSingle` `Contain`
 `NotContain` `ContainInOrder` `OnlyContain` `OnlyHaveUniqueItems` `NotContainNulls` `Equal`
 `NotEqual` `StartWith` `EndWith` `BeInAscendingOrder` `BeInDescendingOrder` `BeSubsetOf`
-`NotBeSubsetOf` `IntersectWith` `NotIntersectWith` `AllSatisfy` `SatisfyRespectively`
-`AllBeOfType<T>` `AllBeAssignableTo<T>` `BeEquivalentTo` `NotBeEquivalentTo`
+`NotBeSubsetOf` `BeSupersetOf` `NotBeSupersetOf` `BeProperSubsetOf` `BeProperSupersetOf`
+`IntersectWith` `NotIntersectWith` `HaveElementAt` `HaveElementPreceding` `HaveElementSucceeding`
+`ContainInConsecutiveOrder` `NotContainInConsecutiveOrder` `BeOrderedBy` `BeOrderedByDescending`
+`AllSatisfy` `SatisfyRespectively` `AllBeOfType<T>` `AllBeAssignableTo<T>` `BeEquivalentTo`
+`NotBeEquivalentTo`
 
 ```csharp
 orders.Should().BeInAscendingOrder(o => o.PlacedOn);
+
+// Sort by more than one key — ties broken left to right:
+people.Should().BeOrderedBy(p => p.Team).ThenBeInAscendingOrder(p => p.Name);
+
+// "In order" allows gaps; "in consecutive order" does not:
+new[] { 1, 9, 2 }.Should().ContainInOrder(1, 2);
+new[] { 1, 9, 2 }.Should().NotContainInConsecutiveOrder([1, 2]);
 orders.Should().AllSatisfy(o => o.Total.Should().BePositive());
 orders.Should().SatisfyRespectively(
     first  => first.Id.Should().Be(1),

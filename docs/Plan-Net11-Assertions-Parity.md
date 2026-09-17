@@ -23,7 +23,7 @@ running it is how the change is verified at all.
 
 ## STATUS — as of 2026-09-17, branch `net11-assertions-parity`, 9 commits
 
-**Done: M0, M1, M2, M3, M4, M5a, S1, S3, S4. Outstanding: S2(kept), M5b, M5c, M6.**
+**Done: M0, M1, M2, M3, M4, M5a, S1, S3, S4. Partial: M5b. Outstanding: S2(kept), M5c, M6.**
 891 assertion tests pass on net10.0 and net11.0; full solution builds clean.
 
 ### The hard boundary: improved, not merely held
@@ -366,6 +366,43 @@ behind an explicit opt-in so they never cost a test that does not use them.
 and that tail swallows anything compatible with it. A new parameter that could be a string does not
 belong beside `because` — it belongs in a differently named method. This bit three times in the
 previous attempt, each time invisible to the compiler and to review.
+
+---
+
+## M5b — own-type, reflection-free (collections tranche) ✅ partial
+
+Landed, all reflection-free and all own-type cost — they run only for the caller who invoked them:
+
+| Added | Notes |
+|---|---|
+| `BeSupersetOf`, `NotBeSupersetOf` | mirrors of the existing subset pair |
+| `BeProperSubsetOf`, `BeProperSupersetOf` | ⚠️ "proper" compares DISTINCT VALUES, not item counts — `[1,1]` is a proper subset of `[1,2]`. Comparing counts is the obvious implementation and is wrong for any collection with duplicates; there is a test for exactly that case. |
+| `HaveElementAt` | returns the element via `.Which`. An out-of-range index is a FAILURE, not an `ArgumentOutOfRangeException`: the test is asserting something false about the collection, and an exception would report that as an error instead. |
+| `HaveElementPreceding`, `HaveElementSucceeding` | first occurrence of the anchor |
+| `ContainInConsecutiveOrder`, `NotContainInConsecutiveOrder` | the strict sibling of `ContainInOrder`, which allows gaps. The difference is asserted rather than described, because it is the only reason both exist. |
+| `BeOrderedBy`, `BeOrderedByDescending` + `ThenBeInAscendingOrder` / `ThenBeInDescendingOrder` | multi-key ordering, each level with its own direction |
+
+**The naming trap, in a form the plan did not anticipate.** `ThenBe…` needs the ordering assertion to
+return something other than `AndConstraint`, and changing `BeInAscendingOrder`'s return type is a
+breaking change to a shipped surface. A new overload cannot help either: overloads differing only by
+return type are not selectable, and one differing by an added parameter risks being swallowed by the
+`because`/`becauseArgs` tail. Hence a differently named entry point, `BeOrderedBy`, with
+`BeInAscendingOrder(selector)` left exactly as it was.
+
+`Then…` re-checks the whole collection with a composite comparer rather than only the tied runs.
+Same answer — a sequence is ordered by (a, b) exactly when every adjacent pair is — and the composite
+cannot get the tie boundaries wrong.
+
+**One message bug, caught by a test rather than by review:** `FailWith` renders arguments through the
+Formatter, so passing the word "preceding" as an argument quoted it; and a template mentioning `{1}`
+twice does not substitute it twice. Both are now commented at the method, because the failure looked
+like a wrong assertion rather than a wrong message.
+
+### Still outstanding in M5b
+
+Streams, XML (LINQ-to-XML and the DOM), `TaskCompletionSource`, ValueTask, `ExecutionTimeOf`,
+`OccurrenceConstraint`, `StringCollectionAssertions`, the per-primitive `Not*`/`BeNull` gaps, and the
+comparer-lambda overloads. All still in scope and all still reflection-free; none started.
 
 ---
 

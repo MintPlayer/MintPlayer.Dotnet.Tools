@@ -9,7 +9,7 @@ namespace MintPlayer.Assertions.Collections;
 /// set relations and per-item inspection. The subject is materialized at most once per
 /// assertions instance, so lazily-evaluated sequences are never enumerated multiple times.
 /// </summary>
-public class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerable<T>, GenericCollectionAssertions<T>>
+public partial class GenericCollectionAssertions<T> : ReferenceTypeAssertions<IEnumerable<T>, GenericCollectionAssertions<T>>
 {
     /// <summary>
     /// Whether an item of type <typeparamref name="T"/> can be <see langword="null"/> at all.
