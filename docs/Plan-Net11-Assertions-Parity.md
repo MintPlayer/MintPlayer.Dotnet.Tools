@@ -23,7 +23,7 @@ running it is how the change is verified at all.
 
 ## STATUS — as of 2026-09-17, branch `net11-assertions-parity`, 9 commits
 
-**Done: M0, M1, M2, M3, M4, M5a, S1, S3, S4. Partial: M5b. Outstanding: S2(kept), M5c, M6.**
+**Done: M0, M1, M2 (all four layers), M3, M4, M5a, M6, S1, S3, S4. Partial: M5b. Outstanding: S2(kept), M5c.**
 891 assertion tests pass on net10.0 and net11.0; full solution builds clean.
 
 ### The hard boundary: improved, not merely held
@@ -117,7 +117,7 @@ Every item below has a ⚠️ comment at the code it concerns, so none depends o
 - **S2** — resolved in favour of keeping the counters; they cost nothing measurable and caught a real
   bug within minutes. Open question for review: they do add a static-bool read per node to shipped
   code. If that is unacceptable, compile them out behind a symbol.
-- **M2 layer 4** — nightly BenchmarkDotNet. Not wired; the benchmark still never runs in CI.
+- **M2 layer 4 ✅** — nightly BenchmarkDotNet wired; see its own section. It asserts bytes and the fairness check, never a time.
 - **M5** — the feature gap: 20 free-on-failure, ~40 own-type, 63 hot-path.
 - **M6** — final verify. Note the README table has already been updated, ahead of M6, because the
   measurement conditions were right and waiting would have meant re-running it.
@@ -369,6 +369,36 @@ previous attempt, each time invisible to the compiler and to review.
 
 ---
 
+## M2 layer 4 — the nightly benchmark ✅ done
+
+`.github/workflows/assertions-benchmark.yml`. Nightly at 03:00 UTC plus `workflow_dispatch`.
+
+**It is deliberately NOT a gate, and it asserts no wall-clock figure at all.** The tight gates live
+in the test suite and assert bytes and operation counts, which are the same on a developer's machine
+and on a loaded runner. Time is not: this benchmark measured FluentAssertions at 150 and 216 us on
+the same idle machine, a 44% spread on identical code. A millisecond threshold on a shared GitHub
+runner would be flaky or useless, and adding one would teach people to ignore the job.
+
+What it does instead: publishes the BenchmarkDotNet table to the job summary, and fails on two
+things that DO reproduce —
+
+1. **The allocation figure**, against a 7,168 B ceiling (measured 6,808). Overridable per run via the
+   dispatch input.
+2. **A missing result row, or a failed fairness check.** Both are failures rather than passes. A run
+   whose fairness check did not pass may have measured the reflection fallback and would otherwise
+   report a flattering number for the wrong code.
+
+Nightly rather than per-PR because a full BenchmarkDotNet run costs minutes of queue time for a
+signal the unit tests already give in seconds, and because a shared runner is the worst available
+place to measure anything.
+
+⚠️ **It will not run until this branch is merged.** GitHub only schedules workflows from the
+default branch, so the first real execution is the night after the merge — which also means the
+first run is the one that proves the parsing works. `workflow_dispatch` is there so that can be
+checked on purpose rather than discovered.
+
+---
+
 ## M5b — own-type, reflection-free (collections tranche) ✅ partial
 
 Landed, all reflection-free and all own-type cost — they run only for the caller who invoked them:
@@ -406,7 +436,34 @@ comparer-lambda overloads. All still in scope and all still reflection-free; non
 
 ---
 
-## M6 — Verify
+## M6 — Verify ✅ run, with results
+
+Run against the branch, not recalled. Each line is what was actually observed.
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Full solution **Release** build | 0 errors. Zero trim warnings attributable to `MintPlayer.Assertions`. |
+| 2 | Full `dotnet test` sweep, Release | **24 test projects, 0 failures.** `MintPlayer.Assertions.Tests` 981 × 2 TFMs; `MintPlayer.SourceGenerators.Tests` 263 (the packaging tests among them). |
+| 3 | The gate passes **and has been seen to fail** | Reintroduced the §9.15 closure on purpose. `TheDefaultWalkStaysUnderItsMeasuredByteCost` failed at **9,560 B/op against 6,808** — and the 16 KB alarm correctly stayed quiet, which is the two-gate design doing its job. Reverted; green again. |
+| 4 | Benchmark re-run on .NET 11, idle machine | **9.58 us / 6.59 KB** against FluentAssertions' 167.82 us / 397.04 KB. README updated. |
+| 5 | Pack, and the analyzer payload lands | `MintPlayer.Assertions.11.0.0-rc.1.nupkg` carries `lib/net10.0`, `lib/net11.0` and both analyzer assemblies. `PackagingTests` — which packs and inspects for real — passes, including the Roslyn-folder layout from S3 and Debug/Release parity. Consumed and exercised from **both** a net10.0 and a net11.0 test project. |
+| 6 | Bumped versions absent from nuget.org | `mintplayer.assertions`, `mintplayer.sourcegenerators`, `mintplayer.verz` — no `11.0.0-rc.1` published. |
+| 7 | README and PRD/plan current | Done, including the deliberate boundaries. |
+
+⚠️ **On check 5, one thing that looks wrong and is not.** The Assertions package ships its analyzers
+at `analyzers/dotnet/cs`, NOT the `analyzers/dotnet/roslyn5.0/cs` that S3 established. That is
+deliberate and documented in the csproj: S3 governs the standalone generator packages, which import
+`eng/sourcegenerator.targets`; this library cannot import that file (it would strip `lib/` and mark
+the package a development dependency) and ships its analyzers itself, unversioned, so they load under
+every Roslyn version. Verified rather than assumed, because the mismatch reads as a bug.
+
+⚠️ **On check 6, the 33 bumped versions are not every package.** Ten packages remain on 10.x, and
+each was checked rather than waved through: all are `netstandard2.0`, directly or via
+`eng/sourcegenerator.targets`. They do not depend on .NET Core, so R3 does not apply to them.
+
+---
+
+## M6 — original checklist
 
 1. Full solution Release build, 0 errors, zero trim warnings from `MintPlayer.Assertions`.
 2. Full `dotnet test` sweep.
