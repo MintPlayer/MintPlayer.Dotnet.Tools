@@ -61,4 +61,10 @@ public interface IEquivalencyOptions
     /// and it is charged only to the comparison that sets it.
     /// </remarks>
     MemberTraits IncludedMemberTraits { get; }
+
+    /// <summary>
+    /// True to append a summary of the work the walk did — nodes visited, members looked up, match
+    /// probes — to the failure message. Off by default and free when off.
+    /// </summary>
+    bool IncludeDiagnostics { get; }
 }

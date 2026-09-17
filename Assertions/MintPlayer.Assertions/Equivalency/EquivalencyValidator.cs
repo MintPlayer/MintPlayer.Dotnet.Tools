@@ -38,7 +38,7 @@ internal static class EquivalencyValidator
     {
         var differences = new List<Difference>();
         var context = new Context(options);
-        CompareNode(context, differences, string.Empty, subject, expectation, rootDeclaredType, 0);
+        CompareNode(context, differences, PathSegment.None, subject, expectation, rootDeclaredType, 0);
         return new(differences, context.Vacuity);
     }
 
@@ -59,6 +59,13 @@ internal static class EquivalencyValidator
         /// it on the hottest loop in the library to serve an option that is off by default.
         /// </remarks>
         public MemberTraits WantedMemberTraits { get; } = options.IncludedMemberTraits;
+
+        /// <summary>
+        /// Where the walk currently is. Lives on the context rather than being threaded as a string
+        /// parameter because building that string per member was 49% of the whole comparison — see
+        /// <see cref="PathStack"/>.
+        /// </summary>
+        public PathStack Path { get; } = new();
 
         /// <summary>
         /// The first structural node at which nothing was compared, or null when every structural
@@ -88,11 +95,28 @@ internal static class EquivalencyValidator
         }
     }
 
-    private static void CompareNode(Context context, List<Difference> differences, string path,
+    private static void CompareNode(Context context, List<Difference> differences, in PathSegment segment,
         object? subject, object? expectation, Type? declaredType, int depth)
     {
         if (EquivalencyDiagnostics.Enabled) EquivalencyDiagnostics.Nodes++;
-        if (IsExcluded(context.Options, path)) return;
+
+        // ⚠️ Every return below this point must stay inside the try, or the path stack unbalances —
+        // and the symptom is not a crash, it is silently wrong paths in later failure messages.
+        context.Path.Push(segment);
+        try
+        {
+            CompareNodeCore(context, differences, subject, expectation, declaredType, depth);
+        }
+        finally
+        {
+            context.Path.Pop();
+        }
+    }
+
+    private static void CompareNodeCore(Context context, List<Difference> differences,
+        object? subject, object? expectation, Type? declaredType, int depth)
+    {
+        if (IsExcluded(context.Options, context.Path)) return;
 
         var comparerType = declaredType ?? expectation?.GetType() ?? subject?.GetType();
         if (comparerType is not null && TryGetCustomComparer(context.Options, comparerType, out var comparer))
@@ -103,7 +127,7 @@ internal static class EquivalencyValidator
             }
             catch (AssertionFailedException ex)
             {
-                differences.Add(new(path, ex.Message));
+                differences.Add(new(context.Path.ToPathString(), ex.Message));
             }
             return;
         }
@@ -111,19 +135,19 @@ internal static class EquivalencyValidator
         if (subject is null && expectation is null) return;
         if (expectation is null)
         {
-            differences.Add(new(path, $"expected <null>, but found {Formatter.Format(subject)}"));
+            differences.Add(new(context.Path.ToPathString(), $"expected <null>, but found {Formatter.Format(subject)}"));
             return;
         }
         if (subject is null)
         {
-            differences.Add(new(path, $"expected {Formatter.Format(expectation)}, but found <null>"));
+            differences.Add(new(context.Path.ToPathString(), $"expected {Formatter.Format(expectation)}, but found <null>"));
             return;
         }
 
         if (IsValueLike(expectation.GetType(), context.Options))
         {
             if (!Equals(subject, expectation))
-                differences.Add(new(path, $"expected {Formatter.Format(expectation)}, but found {Formatter.Format(subject)}"));
+                differences.Add(new(context.Path.ToPathString(), $"expected {Formatter.Format(expectation)}, but found {Formatter.Format(subject)}"));
             return;
         }
 
@@ -138,20 +162,20 @@ internal static class EquivalencyValidator
             if (expectation is IDictionary expectationDictionary)
             {
                 if (subject is IDictionary subjectDictionary)
-                    CompareDictionaries(context, differences, path, subjectDictionary, expectationDictionary, depth);
+                    CompareDictionaries(context, differences, subjectDictionary, expectationDictionary, depth);
                 else
-                    differences.Add(new(path, $"expected a dictionary {Formatter.Format(expectation)}, but found {Formatter.Format(subject)}"));
+                    differences.Add(new(context.Path.ToPathString(), $"expected a dictionary {Formatter.Format(expectation)}, but found {Formatter.Format(subject)}"));
             }
             else if (expectation is IEnumerable expectationEnumerable and not string)
             {
                 if (subject is IEnumerable subjectEnumerable and not string)
-                    CompareCollections(context, differences, path, subjectEnumerable, expectationEnumerable, declaredType, depth);
+                    CompareCollections(context, differences, subjectEnumerable, expectationEnumerable, declaredType, depth);
                 else
-                    differences.Add(new(path, $"expected a collection {Formatter.Format(expectation)}, but found {Formatter.Format(subject)}"));
+                    differences.Add(new(context.Path.ToPathString(), $"expected a collection {Formatter.Format(expectation)}, but found {Formatter.Format(subject)}"));
             }
             else
             {
-                CompareMembers(context, differences, path, subject, expectation, declaredType, depth);
+                CompareMembers(context, differences, subject, expectation, declaredType, depth);
             }
         }
         finally
@@ -160,7 +184,7 @@ internal static class EquivalencyValidator
         }
     }
 
-    private static void CompareMembers(Context context, List<Difference> differences, string path,
+    private static void CompareMembers(Context context, List<Difference> differences,
         object subject, object expectation, Type? declaredType, int depth)
     {
         var expectationType = ResolveNodeType(context.Options, declaredType, expectation);
@@ -179,26 +203,26 @@ internal static class EquivalencyValidator
         foreach (var expectationMember in expectationMembers)
         {
             if (excludedNames is not null && excludedNames.Contains(expectationMember.Name)) continue;
-            if (path.Length == 0 && context.Options.IncludedMembers.Count > 0
+            if (context.Path.IsRoot && context.Options.IncludedMembers.Count > 0
                 && !context.Options.IncludedMembers.Contains(expectationMember.Name)) continue;
 
-            var childPath = path.Length == 0 ? expectationMember.Name : $"{path}.{expectationMember.Name}";
+            var childSegment = PathSegment.ForMember(expectationMember.Name);
 
             var subjectMember = FindByName(subjectMembers, expectationMember.Name);
             if (subjectMember is null)
             {
-                if (!IsExcluded(context.Options, childPath))
+                if (!IsExcluded(context.Options, context.Path, childSegment))
                 {
-                    differences.Add(new(childPath, $"expectation has member {expectationMember.Name} but subject does not"));
+                    differences.Add(new(context.Path.ToPathStringWith(childSegment), $"expectation has member {expectationMember.Name} but subject does not"));
                     comparedMembers++;
                 }
                 continue;
             }
 
-            if (IsExcluded(context.Options, childPath)) continue;
+            if (IsExcluded(context.Options, context.Path, childSegment)) continue;
             comparedMembers++;
 
-            CompareNode(context, differences, childPath,
+            CompareNode(context, differences, childSegment,
                 subjectMember.Getter(subject), expectationMember.Getter(expectation),
                 expectationMember.Type, depth + 1);
         }
@@ -219,27 +243,27 @@ internal static class EquivalencyValidator
         // of a subtree is the normal way to say "do not compare this subtree" —
         // ExcludingNested<AuditInfo>(a => a.ModifiedOn) on a type whose only member is
         // ModifiedOn means exactly that, and refusing it would reject correct, idiomatic use.
-        if (expectationMembers.Length == 0 || path.Length == 0)
+        if (expectationMembers.Length == 0 || context.Path.IsRoot)
         {
-            context.ReportVacuous(new(path, expectationType, subject.GetType(),
+            context.ReportVacuous(new(context.Path.ToPathString(), expectationType, subject.GetType(),
                 ExpectationHasNoMembers: expectationMembers.Length == 0));
         }
     }
 
-    private static void CompareDictionaries(Context context, List<Difference> differences, string path,
+    private static void CompareDictionaries(Context context, List<Difference> differences,
         IDictionary subject, IDictionary expectation, int depth)
     {
         foreach (var key in expectation.Keys)
         {
             var keyText = Convert.ToString(key, CultureInfo.InvariantCulture);
-            var childPath = $"{path}[{keyText}]";
+            var childSegment = PathSegment.ForIndex(keyText);
             if (!subject.Contains(key!))
             {
-                if (!IsExcluded(context.Options, childPath))
-                    differences.Add(new(path, $"expected dictionary to contain key {Formatter.Format(key)}, but it was not found"));
+                if (!IsExcluded(context.Options, context.Path, childSegment))
+                    differences.Add(new(context.Path.ToPathString(), $"expected dictionary to contain key {Formatter.Format(key)}, but it was not found"));
                 continue;
             }
-            CompareNode(context, differences, childPath, subject[key!], expectation[key!], null, depth + 1);
+            CompareNode(context, differences, childSegment, subject[key!], expectation[key!], null, depth + 1);
         }
 
         var extraKeys = new List<object?>();
@@ -248,10 +272,17 @@ internal static class EquivalencyValidator
             if (!expectation.Contains(key!)) extraKeys.Add(key);
         }
         if (extraKeys.Count > 0)
-            differences.Add(new(path, $"found unexpected key(s) {Formatter.Format(extraKeys)}"));
+            differences.Add(new(context.Path.ToPathString(), $"found unexpected key(s) {Formatter.Format(extraKeys)}"));
     }
 
-    private static void CompareCollections(Context context, List<Difference> differences, string path,
+    /// <summary>
+    /// The placeholder segment a trial comparison runs under. Unordered matching does not know which
+    /// index an item will end up at — that is what it is working out — so a probe's path reads
+    /// <c>Lines[?]</c>. A single shared value because every probe uses the same one.
+    /// </summary>
+    private static readonly PathSegment ProbeSegment = PathSegment.ForIndex("?");
+
+    private static void CompareCollections(Context context, List<Difference> differences,
         IEnumerable subject, IEnumerable expectation, Type? declaredType, int depth)
     {
         var subjectItems = Materialize(subject);
@@ -259,21 +290,21 @@ internal static class EquivalencyValidator
         var itemDeclaredType = GetElementType(declaredType);
 
         if (subjectItems.Count != expectationItems.Count)
-            differences.Add(new(path, $"expected {expectationItems.Count} item(s), but found {subjectItems.Count}"));
+            differences.Add(new(context.Path.ToPathString(), $"expected {expectationItems.Count} item(s), but found {subjectItems.Count}"));
 
         if (context.Options.UseStrictOrdering)
         {
             var count = Math.Min(subjectItems.Count, expectationItems.Count);
             for (var i = 0; i < count; i++)
             {
-                CompareNode(context, differences, $"{path}[{i}]", subjectItems[i], expectationItems[i], itemDeclaredType, depth + 1);
+                CompareNode(context, differences, PathSegment.ForIndex(i.ToString()), subjectItems[i], expectationItems[i], itemDeclaredType, depth + 1);
             }
             return;
         }
 
         if (AllItemsValueLike(context.Options, subjectItems) && AllItemsValueLike(context.Options, expectationItems))
         {
-            CompareMultisets(differences, path, subjectItems, expectationItems);
+            CompareMultisets(differences, context.Path, subjectItems, expectationItems);
             return;
         }
 
@@ -312,7 +343,7 @@ internal static class EquivalencyValidator
                 if (matched[i]) continue;
                 if (EquivalencyDiagnostics.Enabled) EquivalencyDiagnostics.MatchProbes++;
                 var trial = new List<Difference>();
-                CompareNode(context, trial, $"{path}[?]", subjectItems[i], expectationItems[e], itemDeclaredType, depth + 1);
+                CompareNode(context, trial, ProbeSegment, subjectItems[i], expectationItems[e], itemDeclaredType, depth + 1);
                 if (trial.Count != 0) continue;
                 matched[i] = true;
                 allPlaced = true;
@@ -327,7 +358,7 @@ internal static class EquivalencyValidator
             // indistinguishable without running the real algorithm. Phase 1's assignments are
             // deliberately NOT carried over: reconstructing them would cost an int[] per collection
             // node on the passing path to serve a branch that passing tests never take.
-            new MaximumMatcher(context, path, subjectItems, expectationItems, itemDeclaredType, depth)
+            new MaximumMatcher(context, context.Path.ToPathString(), subjectItems, expectationItems, itemDeclaredType, depth)
                 .MatchAndReport(differences);
             return;
         }
@@ -339,7 +370,7 @@ internal static class EquivalencyValidator
             if (!matched[i]) (extras ??= []).Add(subjectItems[i]);
         }
         if (extras is not null)
-            differences.Add(new(path, $"found unexpected item(s) {Formatter.Format(extras)}"));
+            differences.Add(new(context.Path.ToPathString(), $"found unexpected item(s) {Formatter.Format(extras)}"));
     }
 
     /// <summary>
@@ -368,7 +399,7 @@ internal static class EquivalencyValidator
     /// produce a failure message is the cheaper trade.
     /// </para>
     /// </remarks>
-    private sealed class MaximumMatcher(Context context, string path, List<object?> subjectItems,
+    private sealed class MaximumMatcher(Context context, string pathText, List<object?> subjectItems,
         List<object?> expectationItems, Type? itemDeclaredType, int depth)
     {
         /// <summary>0 = not compared yet, 1 = equivalent, -1 = not equivalent. Indexed [e * n + i].</summary>
@@ -402,7 +433,7 @@ internal static class EquivalencyValidator
             for (var e = 0; e < expectationItems.Count; e++)
             {
                 if (matchOfExpectation[e] < 0)
-                    differences.Add(new(path, $"expected collection to contain {Formatter.Format(expectationItems[e])}, but no equivalent item was found"));
+                    differences.Add(new(pathText, $"expected collection to contain {Formatter.Format(expectationItems[e])}, but no equivalent item was found"));
             }
 
             List<object?>? extras = null;
@@ -411,7 +442,7 @@ internal static class EquivalencyValidator
                 if (ownerOfSubject[i] < 0) (extras ??= []).Add(subjectItems[i]);
             }
             if (extras is not null)
-                differences.Add(new(path, $"found unexpected item(s) {Formatter.Format(extras)}"));
+                differences.Add(new(pathText, $"found unexpected item(s) {Formatter.Format(extras)}"));
         }
 
         /// <summary>Expectation indices greedy could not place, snapshotted before any augmenting runs.</summary>
@@ -451,7 +482,7 @@ internal static class EquivalencyValidator
 
             if (EquivalencyDiagnostics.Enabled) EquivalencyDiagnostics.MatchProbes++;
             var trial = new List<Difference>();
-            CompareNode(context, trial, $"{path}[?]", subjectItems[i], expectationItems[e], itemDeclaredType, depth + 1);
+            CompareNode(context, trial, ProbeSegment, subjectItems[i], expectationItems[e], itemDeclaredType, depth + 1);
             cached = (sbyte)(trial.Count == 0 ? 1 : -1);
             return cached > 0;
         }
@@ -487,7 +518,7 @@ internal static class EquivalencyValidator
     /// blow-up to be obvious in the numbers.
     /// </para>
     /// </remarks>
-    private static void CompareMultisets(List<Difference> differences, string path,
+    private static void CompareMultisets(List<Difference> differences, PathStack path,
         List<object?> subjectItems, List<object?> expectationItems)
     {
         var counts = new Dictionary<object, int>();
@@ -502,13 +533,13 @@ internal static class EquivalencyValidator
             if (item is null)
             {
                 if (nullBalance > 0) nullBalance--;
-                else differences.Add(new(path, "expected collection to contain <null>, but no equivalent item was found"));
+                else differences.Add(new(path.ToPathString(), "expected collection to contain <null>, but no equivalent item was found"));
                 continue;
             }
             if (counts.TryGetValue(item, out var n) && n > 0)
                 counts[item] = n - 1;
             else
-                differences.Add(new(path, $"expected collection to contain {Formatter.Format(item)}, but no equivalent item was found"));
+                differences.Add(new(path.ToPathString(), $"expected collection to contain {Formatter.Format(item)}, but no equivalent item was found"));
         }
 
         var extras = new List<object?>();
@@ -518,7 +549,7 @@ internal static class EquivalencyValidator
             for (var i = 0; i < remaining; i++) extras.Add(item);
         }
         if (extras.Count > 0)
-            differences.Add(new(path, $"found unexpected item(s) {Formatter.Format(extras)}"));
+            differences.Add(new(path.ToPathString(), $"found unexpected item(s) {Formatter.Format(extras)}"));
     }
 
     private static bool AllItemsValueLike(IEquivalencyOptions options, List<object?> items)
@@ -555,15 +586,32 @@ internal static class EquivalencyValidator
     /// interface type. Only the <c>foreach</c> is the problem.
     /// </para>
     /// </remarks>
-    private static bool IsExcluded(IEquivalencyOptions options, string path)
+    private static bool IsExcluded(IEquivalencyOptions options, PathStack path)
+        => IsExcluded(options, path, PathSegment.None);
+
+    /// <summary>
+    /// Whether the current position — optionally plus one more segment — is excluded.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>The configuration checks come FIRST, before the path is rendered, and that order is the
+    /// optimisation rather than the style.</b> This runs twice per member on every node of every
+    /// comparison, and the overwhelming majority of comparisons configure no exclusions at all.
+    /// Rendering the text up front would hand straight back the 49% that <see cref="PathStack"/>
+    /// exists to save.
+    /// </remarks>
+    private static bool IsExcluded(IEquivalencyOptions options, PathStack path, in PathSegment extra)
     {
-        if (path.Length == 0) return false;
-        if (options.ExcludedPaths.Contains(path)) return true;
+        if (options.ExcludedPaths.Count == 0 && options.ExcludedWildcardPaths.Count == 0) return false;
+        if (path.IsRoot && extra.IsNone) return false;
+
+        var text = path.ToPathStringWith(extra);
+        if (text.Length == 0) return false;
+        if (options.ExcludedPaths.Contains(text)) return true;
         if (options.ExcludedWildcardPaths.Count == 0) return false;
 
         foreach (var pattern in options.ExcludedWildcardPaths)
         {
-            if (WildcardPattern.IsMatch(path, pattern)) return true;
+            if (WildcardPattern.IsMatch(text, pattern)) return true;
         }
         return false;
     }

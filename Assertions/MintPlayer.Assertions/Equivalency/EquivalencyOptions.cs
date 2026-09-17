@@ -34,6 +34,7 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     private bool useRuntimeTypes;
     private bool allowVacuousComparison;
     private MemberTraits includedMemberTraits;
+    private bool includeDiagnostics;
 
     IReadOnlyCollection<string> IEquivalencyOptions.ExcludedPaths => excludedPaths;
     IReadOnlyDictionary<Type, IReadOnlyCollection<string>> IEquivalencyOptions.NestedExclusions => nestedExclusions;
@@ -47,6 +48,7 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     bool IEquivalencyOptions.UseRuntimeTypes => useRuntimeTypes;
     bool IEquivalencyOptions.AllowVacuousComparison => allowVacuousComparison;
     MemberTraits IEquivalencyOptions.IncludedMemberTraits => includedMemberTraits;
+    bool IEquivalencyOptions.IncludeDiagnostics => includeDiagnostics;
 
     /// <summary>
     /// Excludes the member selected by <paramref name="selector"/> from the comparison. Chained
@@ -203,6 +205,28 @@ public sealed class EquivalencyOptions<TExpectation> : IEquivalencyOptions
     public EquivalencyOptions<TExpectation> IncludingInternalMembers()
     {
         includedMemberTraits |= MemberTraits.NonPublic;
+        return this;
+    }
+
+    /// <summary>
+    /// Appends a summary of what the comparison actually did — nodes visited, members looked up,
+    /// collection match probes — to the failure message.
+    /// </summary>
+    /// <remarks>
+    /// For the two questions a bare difference list does not answer: <i>did it even look at the
+    /// member I think it did</i>, and <i>why is this comparison slow</i>. A node count far larger
+    /// than the graph means the walk is revisiting; a probe count near n² on an ordered collection
+    /// means the matcher is not taking its fast path.
+    /// <para>
+    /// Costs nothing when unset — the counters are behind a thread-static flag this option is the
+    /// only production caller of, and the summary is built only after a failure. Note it reports the
+    /// walk, not the assertion: <c>NotBeEquivalentTo</c> fails when it finds NO differences, and the
+    /// counts describe the search that found none.
+    /// </para>
+    /// </remarks>
+    public EquivalencyOptions<TExpectation> WithDiagnostics()
+    {
+        includeDiagnostics = true;
         return this;
     }
 

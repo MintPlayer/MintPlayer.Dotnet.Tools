@@ -23,7 +23,7 @@ running it is how the change is verified at all.
 
 ## STATUS — as of 2026-09-17, branch `net11-assertions-parity`, 9 commits
 
-**Done: M0, M1, M2, M3, M4, S1, S3, S4. Outstanding: S2(kept), M5, M6.**
+**Done: M0, M1, M2, M3, M4, M5a, S1, S3, S4. Outstanding: S2(kept), M5b, M5c, M6.**
 891 assertion tests pass on net10.0 and net11.0; full solution builds clean.
 
 ### The hard boundary: improved, not merely held
@@ -33,9 +33,9 @@ Measured net11-vs-net11 on an idle machine, `Fairness checks passed`:
 | | Mean | Allocated | vs FluentAssertions |
 |---|---:|---:|---|
 | README claimed (net10) | 13.08 µs | 20.34 KB | 15.4× / 20.1× |
-| **Now (net11, after M4+S1)** | **9.29 µs** | **14.83 KB** | **16.2× / 26.8×** |
+| **Now (net11, after M5a)** | **9.58 µs** | **6.59 KB** | **17.5× / 60×** |
 
-Allocation reproduced to the decimal across every run (14.83 KB after S1, 14.81 before its +16 B) while
+Allocation reproduced to the decimal across every run (6.59 KB after M5a; 14.83 before the path work) while
 FluentAssertions' did not (404.26 then 397.04 KB) — the byte-exact gate works because nothing on this
 library's passing path allocates conditionally, which is a property the code earned rather than a
 property of benchmarking. README updated, quoting the less flattering of the two runs whole.
@@ -72,9 +72,9 @@ bound — §9.15 slipped a 20% regression past a 100 KB alarm.
 | Gate | Was | Now | Measured | Why that number |
 |---|---:|---:|---:|---|
 | PassingPathAllocationTests.AllowanceBytesPerOp | 16 B | **0 B** | 0 B everywhere | The actual rule. 16 was scaffolding from while sites were still being fixed, and would have hidden a future box. |
-| TheDefaultWalkStaysUnderItsMeasuredByteCost | — (new) | **14,100 B** | 13,992 B | Under 1% headroom — less than one allocation per node on this graph, so it cannot hide a per-node cost. |
-| TheWalkStaysFarUnderAReflectionWalkersCost | 100 KB | **32 KB** | 13,992 B | Kept deliberately loose and kept separate: it answers "is this still the same algorithm", which the tight bound cannot. 2.3× the measurement, 12× under a reflection walk. |
-| UnorderedMatchingOfAnAlreadyOrderedCollection… | 3× strict | **1.15×** | 1.04× | 3× would accept a matcher three times more expensive than the algorithm it mirrors. |
+| TheDefaultWalkStaysUnderItsMeasuredByteCost | 14,100 B | **6,900 B** | 6,808 B | Under 1.4% headroom — less than one allocation per node on this graph, so it cannot hide a per-node cost. |
+| TheWalkStaysFarUnderAReflectionWalkersCost | 100 KB, then 32 KB | **16 KB** | 6,808 B | Kept deliberately loose and kept separate: it answers "is this still the same algorithm", which the tight bound cannot. 2.4× the measurement, 25× under a reflection walk. |
+| UnorderedMatchingOfAnAlreadyOrderedCollection… | 3× strict | **1.2×** | 1.11× | 3× would accept a matcher three times more expensive than the algorithm it mirrors. |
 
 **There is no wall-clock gate, and that is not an omission.** Duration is gated by the exact
 operation counts — 133 nodes, 112 member lookups, 20 match probes, 0 probes under strict ordering —
@@ -273,9 +273,75 @@ always did.
 
 ---
 
+## M5a — free-on-failure ✅ done
+
+Everything here is reached only after an assertion has already failed, so it is free by construction
+— and that was verified rather than assumed: the walk measures the same before and after.
+
+**Formatter extensibility, explicitly registered.** `Formatter.Register<T>(Func<T,string>)`,
+`Unregister<T>()`, `ClearCustomFormatters()`. Matching is exact type first, then up the base chain;
+interfaces are deliberately not matched, because a value implementing two registered interfaces has
+no defensible winner. **Nothing is discovered by scanning assemblies** — that is the pattern that
+breaks trimming and AOT, which is the property this library exists for. A formatter that throws
+renders as `<custom formatter for X threw Y>` rather than replacing the failure it was rendering.
+
+**`FormattingOptions`** — `MaxDepth`, `MaxCollectionItems`, `MaxStringLength`, `UseLineBreaks`,
+`MaxLines`, all previously constants. Every elision marker now **names the knob that caused it**
+(`{… depth 3 reached; raise FormattingOptions.MaxDepth to see more}`), because a truncation the
+reader cannot act on sends them to a debugger for information the message could have carried.
+
+⚠️ The properties are process-wide, so `FormattingOptions.With(...)` applies a **thread-local**
+override for a `using` block, and that is what tests and concurrent code should use. This is PRD §9.9
+answered before the mistake instead of after it: process-wide state plus parallel test classes is
+exactly what once made a walker node count read 259 where the graph had 133. The suite's own option
+tests all go through `With`.
+
+**`AssertionScope` inspection** — `Failures` (a snapshot, not the live list), `Discard()` (returns
+what it discarded, so an ignored result is not indistinguishable from a swallowed failure),
+`AddPreFormattedFailure`, and reportables. `AddReportable` takes a **`Func<string>`**: reportables
+exist to be read when something fails, and a passing scope must not build text nobody reads. A
+nested scope hands its reportables up with its failures, since the outermost scope is the one that
+throws.
+
+**`WithDiagnostics()`** on equivalency — appends `Walk: N node(s), M member lookup(s), P collection
+match probe(s).` to the failure message, positive and negative form both. It answers the two
+questions a difference list cannot: *did it even look at that member*, and *why is this slow*. Off by
+default and free when off; it is the first production caller of the counters S2 built for the gate.
+
+⚠️ Two allocation traps were paid here, both caught by the gate rather than by review:
+
+- The diagnostics branch lives in its own method, because a capturing lambda anywhere in
+  `Validate` would allocate its display class at method entry on every comparison (§9.15).
+- The summary is returned in a **value tuple** beside `ValidationResult`, not stored on it. A
+  nullable field on that record measured 13,992 → 14,000 B/op, because it is allocated once per
+  comparison and would charge every passing suite 8 bytes for a diagnostic almost nobody enables.
+
+### The walk itself got 51% cheaper on the way past
+
+Not planned as part of M5a; found because the 8-byte question above made the number worth looking at.
+The walker threaded its position as a **string**, rebuilt at every step — `$"{path}.{member}"` once
+per member per node. That was **6,848 bytes, 49% of the whole comparison**, and a passing comparison
+never reads a path.
+
+`PathStack` replaces it: a push/pop stack of segments on the context, rendered only on demand.
+**13,992 → 6,808 B/op**, node/lookup/probe counts unchanged, 958 tests untouched. PRD §9.17 and
+§9.18 have the details, including the design that does not compile (CS9050) and the capacity hint
+that measured worse.
+
+Gates re-tightened to the new floor — a bound left at the old figure quietly re-authorises the
+regression that was just removed:
+
+| Gate | Was | Now |
+|---|---:|---:|
+| Tight walk bound | 14,100 B | **6,900 B** (measured 6,808) |
+| Loose shape alarm | 32 KB | **16 KB** |
+| Unordered ÷ strict | 1.15× | **1.2×** (measured 1.11×) |
+
+---
+
 ## M5 — Features, cheapest class first (R4)
 
-**M5a — free-on-failure (20 items).** Formatter extensibility with explicit registration (no assembly
+**M5a — free-on-failure (20 items).** ✅ Done; see the M5a section above. Formatter extensibility with explicit registration (no assembly
 scan), configurable `MaxDepth`/`MaxLines`/`UseLineBreaks` with a depth-exceeded message that names the
 knob, `AssertionScope` inspection (`Discard`, `AddPreFormattedFailure`, reportables), equivalency
 diagnostics. Reached only after an assertion has failed, so free by construction.

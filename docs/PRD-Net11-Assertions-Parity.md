@@ -40,11 +40,11 @@ Measured on this branch, on an idle machine, before any change:
 **15.6× faster, 20.0× less memory.** BenchmarkDotNet 0.14.0, .NET 10 host, SDK 11.0.100-rc.1,
 `Fairness checks passed: generated accessors active`.
 
-> **Status 2026-09-17 — the boundary was not merely held, it moved.** After M1–M4 and S1 the same
-> benchmark, re-run net11-vs-net11 on an idle machine, measures **9.29 µs / 14.83 KB** against
-> FluentAssertions' 150.55 µs / 397.04 KB — **16.2× faster, 26.8× less memory**. The README table has
+> **Status 2026-09-17 — the boundary was not merely held, it moved.** After M1–M4, S1 and M5a the same
+> benchmark, re-run net11-vs-net11 on an idle machine, measures **9.58 µs / 6.59 KB** against
+> FluentAssertions' 167.82 µs / 397.04 KB — **17.5× faster, 60× less memory**. The README table has
 > been updated to these numbers, which means **the gate is now set against the improved figure, not
-> the original one**: a change that returns the library to 20.34 KB/op is now a regression. That is
+> the original one**: a change that returns the library to 14.83 KB/op, let alone the original 20.34, is now a regression. That is
 > deliberate. Per-milestone detail is in `Plan-Net11-Assertions-Parity.md` § STATUS.
 >
 > **An unplanned confirmation of §2's premise.** Across four runs this library allocated the same figure
@@ -652,3 +652,45 @@ between.
 Corollary: back up the working tree **before** the first bisect edit, not part-way through, and
 prefer `git stash` over `cp -r` — a stash cannot silently contain a debugging edit made after it was
 taken.
+
+
+### 9.17 The failure message's path, built for every comparison that succeeds
+
+The walker threaded its position through the recursion as a string and rebuilt it at every step:
+`$"{path}.{member}"` once per member per node, `$"{path}[{i}]"` per collection item, `$"{path}[?]"`
+per match probe. On the benchmark graph that is **6,848 bytes — 49% of the entire comparison** — and
+a passing comparison reads none of it, because a path is only needed to report a difference or to
+test a configured exclusion.
+
+Replaced by `PathStack`: a push/pop stack of `PathSegment` on the walk's context, rendered only when
+something asks for the text. **13,992 → 6,808 B/op**, with the node, member-lookup and probe counts
+unchanged and all 958 tests passing untouched.
+
+Three things worth keeping:
+
+1. **It was found by measuring, not by reading.** The attribution took one experiment — replace the
+   concatenation with a constant, re-measure — and gave the answer in under a minute. Reading the
+   method would have shown a string concatenation that looks entirely ordinary.
+2. **The first design did not compile, and the reason is not obvious.** A `ref struct` chained
+   through the recursion by a `ref` field needs no stack at all; C# rejects it, because a ref field
+   cannot refer to a ref struct (CS9050). The note is in `PathStack` so nobody re-derives it.
+3. **The `IsExcluded` checks now test the CONFIGURATION before rendering the path.** Getting that
+   order wrong hands the entire win straight back, because that method runs twice per member on
+   every node and almost no comparison configures an exclusion.
+
+**Push and pop must stay balanced**, which is why `CompareNode` splits into a push/try/finally
+wrapper around a `CompareNodeCore`. An early `return` added to the middle of the walk unbalances the
+stack, and the symptom is not a crash — it is silently wrong paths in later failure messages.
+
+### 9.18 An initial capacity that costs more than the growth it avoids
+
+`PathStack`'s segment list looked like an obvious candidate for `new List<PathSegment>(16)`: growing
+from empty reallocates at 4, then 8, then 16, so pre-sizing trades three allocations for one. It
+measured **worse** — 6,808 → 6,848 B/op on the walk and 1,168 → 1,360 on the per-comparison fixed
+cost — because a 16-element array of a 16-byte struct is 256 bytes charged to every comparison,
+including the shallow ones that are most of them. The doubling growth only ever reaches the depth
+actually used.
+
+The general rule: **a capacity hint is a guess about the common case, and the common case is usually
+smaller than the worst case you were picturing.** Measure it like any other change; "obviously
+fewer allocations" is not the same as fewer bytes.

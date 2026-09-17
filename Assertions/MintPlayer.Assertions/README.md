@@ -146,6 +146,24 @@ using (new AssertionScope("the response"))
 Scopes nest, and a nested scope folds its failures into its parent. Forgetting to dispose one
 would swallow everything it collected, so [MPA0003](#analyzers) warns when you do.
 
+A scope can also be inspected and steered:
+
+```csharp
+using var scope = new AssertionScope();
+
+scope.AddReportable("correlationId", () => request.CorrelationId);  // shown only if something fails
+
+response.Status.Should().Be(200);
+
+if (scope.HasFailures) { /* scope.Failures is a snapshot of what has been collected */ }
+
+scope.AddPreFormattedFailure(renderedDiff);   // your own message, verbatim, no substitution
+scope.Discard();                              // take the failures; disposing now throws nothing
+```
+
+`AddReportable` takes a `Func<string>` on purpose: the value is built only when a failure is actually
+reported, so attaching context to a scope that passes costs nothing.
+
 ---
 
 ## What you can assert
@@ -239,8 +257,8 @@ substantially cheaper. On a 4-level graph of 5 types containing a 20-item collec
 
 | | Mean | Allocated |
 |---|---:|---:|
-| FluentAssertions 7.2.2 | 150.55 µs | 397.04 KB |
-| MintPlayer.Assertions | **9.29 µs** | **14.83 KB** |
+| FluentAssertions 7.2.2 | 167.82 µs | 397.04 KB |
+| MintPlayer.Assertions | **9.58 µs** | **6.59 KB** |
 
 <sub>BenchmarkDotNet 0.14.0, .NET 11.0.0, X64 RyuJIT AVX-512, Windows 11. Reproduce with
 `dotnet run -c Release --project Assertions/MintPlayer.Assertions.Benchmarks -- --filter '*'`.
@@ -248,13 +266,13 @@ The benchmark verifies both libraries traverse the entire graph, and that the ge
 are actually active, before it will report — otherwise it would happily measure the reflection
 fallback and call it a result.</sub>
 
-Treat the allocation figures as exact and the timings as approximate. This library's bytes are a
-property of the emitted IL and reproduce to the decimal — the same figure, to the hundredth of a KB,
-in every run. Wall-clock does not: across three runs on a nominally idle machine this library
-measured 9.29, 9.36 and 11.04 µs and FluentAssertions measured 150.55, 191.53 and 216.45 µs — a 44%
-spread on identical code. The row above is one run quoted whole, the least flattering of the three,
-rather than a best figure assembled from several. That asymmetry is why the regression gates in this
-repo assert bytes and operation counts rather than milliseconds.
+That is **17.5× faster and 60× less memory**. Treat the allocation figures as exact and the timings
+as approximate: this library's bytes are a property of the emitted IL and reproduce to the hundredth
+of a KB in every run, while wall-clock does not — across four runs on a nominally idle machine this
+library measured 9.29–11.04 µs and FluentAssertions measured 150.55–216.45 µs, a 44% spread on
+identical code. The row above is one run quoted whole rather than a best figure assembled from
+several. That asymmetry is why the regression gates in this repo assert bytes and operation counts
+rather than milliseconds.
 
 ### Strings
 
@@ -586,6 +604,64 @@ number.Should().BeEven();
 The name is derived from the predicate (`Is…` → `Be…`, `Has…` → `Have…`), or set it yourself
 with `[GenerateAssertion(Name = "BeDivisibleByTwo")]`. Extra parameters become parameters of the
 generated assertion.
+
+---
+
+## Failure messages
+
+Everything here runs only after an assertion has failed, so none of it costs a passing test.
+
+### Rendering your own types
+
+```csharp
+Formatter.Register<Money>(m => $"{m.Amount:0.00} {m.Currency}");
+// Expected total to be 120.00 EUR, but found 90.00 EUR.
+```
+
+Registration is **explicit**. Nothing scans your assemblies looking for formatter types — that is the
+pattern that breaks under trimming and AOT, which is the property this library is built around.
+Matching is by exact type first, then up the base-class chain; interfaces are not matched, because a
+value implementing two registered interfaces would have no predictable winner.
+
+### How much detail a message carries
+
+```csharp
+FormattingOptions.MaxDepth = 5;          // process-wide, set once at start-up
+FormattingOptions.UseLineBreaks = true;
+```
+
+`MaxDepth`, `MaxCollectionItems`, `MaxStringLength`, `UseLineBreaks` and `MaxLines`. When a message
+is cut short it says which knob did it, so you can act on it instead of reaching for a debugger:
+
+```
+Expected order to be equivalent to Order {… depth 3 reached; raise FormattingOptions.MaxDepth to see more}
+```
+
+⚠️ Those properties are **process-wide**. Setting one from inside a test changes the failure messages
+of every test running beside it, which is a flaky-test generator. For anything other than start-up
+configuration use the thread-local form:
+
+```csharp
+using (FormattingOptions.With(maxDepth: 10, useLineBreaks: true))
+{
+    deepGraph.Should().BeEquivalentTo(expected);
+}
+```
+
+(It is thread-local, so it does not survive an `await` — keep the block synchronous around the
+assertion.)
+
+### Why did that comparison do all that work?
+
+```csharp
+actual.Should().BeEquivalentTo(expected, o => o.WithDiagnostics());
+// ...
+// Walk: 133 node(s), 112 member lookup(s), 20 collection match probe(s).
+```
+
+For the two questions a list of differences does not answer: *did it even look at the member I think
+it did*, and *why is this slow*. A node count far larger than the graph means the walk is revisiting;
+a probe count near n² on an ordered collection means the matcher is not taking its fast path.
 
 ---
 
