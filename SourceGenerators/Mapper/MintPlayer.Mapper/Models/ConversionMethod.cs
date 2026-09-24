@@ -19,5 +19,6 @@ public partial class ConversionMethod
     public string? StateType { get; set; }
     public string? StateTypeName { get; set; }
 
-    public LocationKey AttributeLocation { get; internal set; }
+    /// <summary>Set only for a conversion whose states do not match its types; null otherwise.</summary>
+    public LocationKey? AttributeLocation { get; internal set; }
 }
