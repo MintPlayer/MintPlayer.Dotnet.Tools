@@ -94,7 +94,8 @@ public sealed record GeneratorResult(
 }
 
 /// <summary>
-/// The two runs from <see cref="GeneratorHarness.RunGeneratorTwice"/>, with helpers for asking what
+/// The two runs from <see cref="GeneratorHarness.RunGeneratorTwice"/> or
+/// <see cref="GeneratorHarness.RunKeystroke"/>, with helpers for asking what
 /// the second one reused.
 /// </summary>
 public sealed record IncrementalGeneratorResult(

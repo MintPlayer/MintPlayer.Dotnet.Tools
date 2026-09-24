@@ -134,9 +134,75 @@ public sealed class GeneratorHarness
         string[] after)
     {
         var generator = Instantiate<IIncrementalGenerator>(generatorTypeName);
-        var first = BuildCompilation(before);
-        var second = BuildCompilation(after);
+        return RunTwice(generator, BuildCompilation(before), BuildCompilation(after));
+    }
 
+    /// <summary>
+    /// Runs one generator over <paramref name="sources"/>, then applies <paramref name="edit"/> to
+    /// the source at <paramref name="editIndex"/> the way an IDE applies a keystroke, runs again on
+    /// the same driver, and reports what the second run reused.
+    /// </summary>
+    /// <param name="generatorTypeName">Simple name of the <see cref="IIncrementalGenerator"/> to run.</param>
+    /// <param name="sources">The files of the first compilation, named <c>Source0.cs</c>, <c>Source1.cs</c>, ….</param>
+    /// <param name="editIndex">Which of <paramref name="sources"/> the edit applies to.</param>
+    /// <param name="edit">Maps that file's text to its text after the edit.</param>
+    /// <remarks>
+    /// <para>
+    /// Prefer this over <see cref="RunGeneratorTwice"/> for incrementality tests.
+    /// <see cref="RunGeneratorTwice"/> parses the second compilation from scratch, so every syntax
+    /// tree is new, including the files that did not change. An IDE never does that: it replaces the
+    /// one edited tree with <c>Compilation.ReplaceSyntaxTree(old, old.WithChangedText(text))</c>,
+    /// every other tree keeps its identity, and the driver skips the syntax transforms over those
+    /// trees altogether. From-scratch parsing therefore both over-reports work (every file looks
+    /// edited) and misses a class of defect: a pipeline that caches only because every tree was
+    /// re-parsed identically, rather than because its comparers absorbed the change.
+    /// </para>
+    /// <para>
+    /// The edited text is applied as the smallest single <see cref="TextChange"/> that turns the old
+    /// text into the new one, not as a whole new document, so the parser reuses the unchanged parts
+    /// of the tree exactly as it does for a keystroke.
+    /// </para>
+    /// </remarks>
+    public IncrementalGeneratorResult RunKeystroke(
+        string generatorTypeName,
+        string[] sources,
+        int editIndex,
+        Func<string, string> edit)
+    {
+        if (edit is null) throw new ArgumentNullException(nameof(edit));
+        if (editIndex < 0 || editIndex >= sources.Length)
+            throw new ArgumentOutOfRangeException(
+                nameof(editIndex), $"There are {sources.Length} source(s), so index {editIndex} names none of them.");
+
+        var generator = Instantiate<IIncrementalGenerator>(generatorTypeName);
+        var first = BuildCompilation(sources);
+
+        var oldTree = first.SyntaxTrees.ElementAt(editIndex);
+        var oldText = oldTree.GetText();
+        var newText = oldText.WithChanges(SmallestChange(oldText.ToString(), edit(oldText.ToString())));
+        var second = first.ReplaceSyntaxTree(oldTree, oldTree.WithChangedText(newText));
+
+        return RunTwice(generator, first, second);
+    }
+
+    /// <summary>The single change that keeps the longest common prefix and suffix of the two texts.</summary>
+    private static TextChange SmallestChange(string before, string after)
+    {
+        var prefix = 0;
+        var max = Math.Min(before.Length, after.Length);
+        while (prefix < max && before[prefix] == after[prefix]) prefix++;
+
+        // The suffix may not overlap the prefix in either string.
+        var suffix = 0;
+        while (suffix < max - prefix && before[before.Length - 1 - suffix] == after[after.Length - 1 - suffix]) suffix++;
+
+        return new TextChange(
+            new TextSpan(prefix, before.Length - prefix - suffix),
+            after.Substring(prefix, after.Length - prefix - suffix));
+    }
+
+    private IncrementalGeneratorResult RunTwice(IIncrementalGenerator generator, Compilation first, Compilation second)
+    {
         var driver = CreateDriver(generator, first, trackSteps: true)
             .RunGeneratorsAndUpdateCompilation(first, out _, out _);
         var firstResult = driver.GetRunResult().Results.Single();
@@ -146,6 +212,23 @@ public sealed class GeneratorHarness
 
         return new IncrementalGeneratorResult(firstResult, secondResult);
     }
+
+    /// <summary>
+    /// Every concrete incremental generator in the component that Roslyn would load: types carrying
+    /// <see cref="GeneratorAttribute"/>.
+    /// </summary>
+    /// <remarks>
+    /// A completeness check, like <see cref="CodeFixProvidersFor"/>: a test that enumerates the
+    /// generators and demands a case for each makes it impossible to ship a new generator that no
+    /// test ever runs. Types without the attribute are left out, because Roslyn never runs them —
+    /// an abstract base or a helper implementing the interface is not a generator.
+    /// </remarks>
+    public IReadOnlyList<Type> GeneratorTypes()
+        => LoadableTypes()
+            .Where(t => !t.IsAbstract && typeof(IIncrementalGenerator).IsAssignableFrom(t))
+            .Where(t => t.GetCustomAttributes(typeof(GeneratorAttribute), inherit: false).Length > 0)
+            .OrderBy(t => t.Name, StringComparer.Ordinal)
+            .ToList();
 
     private GeneratorDriver CreateDriver(IIncrementalGenerator generator, Compilation compilation, bool trackSteps)
         => CSharpGeneratorDriver.Create(

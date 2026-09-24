@@ -148,6 +148,21 @@ comparers, so only a second run catches a comparer that reports "changed" for an
 does not care about. That is a real performance defect in every consuming IDE and invisible to
 every other kind of test.
 
+`RunKeystroke` replays the second run the way an IDE produces it: only the edited file's tree is
+replaced (`ReplaceSyntaxTree(old, old.WithChangedText(...))`, applied as the smallest text change),
+and every other tree keeps its identity. Assert on the output steps, not on "some step was cached" —
+the syntax steps are cached no matter what happens downstream:
+
+```csharp
+var run = Harness.RunKeystroke("MyGenerator", [model, unrelated], editIndex: 0,
+    text => text.Replace("=> 1;", "=> 42;"));
+
+run.OutputsFullyCached.Should().BeTrue();
+```
+
+`GeneratorTypes()` lists every `[Generator]` in the component, so a test can demand an
+incrementality case for each and a new generator cannot ship without one.
+
 ## Why not Microsoft.CodeAnalysis.Testing?
 
 It works, and its `{|ACME001:...|}` markup is nicer. It also pulls in NuGet.Common/Packaging/
