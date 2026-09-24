@@ -14,7 +14,6 @@ public class ClassDeclaration
     public bool HasAutoValueComparerAttribute { get; set; }
     public PropertyDeclaration[] Properties { get; set; } = [];
     public PropertyDeclaration[] AllProperties { get; set; } = [];
-    public LocationKey? Location { get; internal set; }
 
     public override string ToString() => FullName ?? string.Empty;
 }

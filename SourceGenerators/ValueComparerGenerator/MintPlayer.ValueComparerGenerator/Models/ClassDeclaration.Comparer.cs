@@ -12,8 +12,12 @@ public class ClassDeclarationValueComparer : ValueComparer<ClassDeclaration>
         if (!IsEquals(x.PathSpec, y.PathSpec)) return false;
         if (!IsEquals(x.IsPartial, y.IsPartial)) return false;
         if (!IsEquals(x.IsInternal, y.IsInternal)) return false;
+        // IsAbstract and AllProperties were hashed but not compared, although the producer emits from
+        // both: a class that inherited a new property compared equal and kept its stale comparer.
+        if (!IsEquals(x.IsAbstract, y.IsAbstract)) return false;
         if (!IsEquals(x.HasAutoValueComparerAttribute, y.HasAutoValueComparerAttribute)) return false;
         if (!IsEquals(x.Properties, y.Properties)) return false;
+        if (!IsEquals(x.AllProperties, y.AllProperties)) return false;
 
         return true;
     }
@@ -29,6 +33,5 @@ public class ClassDeclarationValueComparer : ValueComparer<ClassDeclaration>
         AddHash(ref h, obj?.HasAutoValueComparerAttribute);
         AddHash(ref h, obj?.Properties);
         AddHash(ref h, obj?.AllProperties);
-        AddHash(ref h, obj?.Location);
     }
 }

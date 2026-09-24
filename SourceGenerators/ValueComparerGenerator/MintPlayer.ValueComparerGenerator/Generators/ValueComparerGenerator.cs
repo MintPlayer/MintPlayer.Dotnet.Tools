@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.SourceGenerators.Tools.ValueComparers;
+using System.Collections.Immutable;
 
 namespace MintPlayer.ValueComparerGenerator.Generators;
 
@@ -33,10 +34,9 @@ public class ValueComparerGenerator : IncrementalGenerator
                     var autoValueComparerAttr = context.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.ValueComparerGenerator.Attributes.AutoValueComparerAttribute");
                     if (symbol.BaseType is { Name: not "Object" } baseType)
                     {
-                        return new
+                        return new Models.TypeCandidate
                         {
-                            symbol.Name,
-                            Location = symbol.Locations.FirstOrDefault()?.AsKey(),
+                            Name = symbol.Name,
                             Type = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                             IsPartial = classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
                             IsAbstract = symbol.IsAbstract,
@@ -95,10 +95,9 @@ public class ValueComparerGenerator : IncrementalGenerator
                     }
                     else
                     {
-                        return new
+                        return new Models.TypeCandidate
                         {
-                            symbol.Name,
-                            Location = symbol.Locations.FirstOrDefault()?.AsKey(),
+                            Name = symbol.Name,
                             Type = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                             IsPartial = classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
                             IsAbstract = symbol.IsAbstract,
@@ -130,13 +129,20 @@ public class ValueComparerGenerator : IncrementalGenerator
                         };
                     }
                 }
-                return default;
+                return default(Models.TypeCandidate);
             }
-        );
+        )
+            .WithComparer(ComparerRegistry.For<Models.TypeCandidate?>());
+
+        var allTypesCollectedProvider = allTypesProvider
+            .Collect()
+            .WithComparer(ComparerRegistry.For<ImmutableArray<Models.TypeCandidate?>>());
+
+        // Each Select below materializes its result. A deferred IEnumerable compares by reference, and
+        // is re-evaluated by every enumeration in the producer.
 
         // This provider retrieves all types without a base-type
-        var typeProvider = allTypesProvider
-            .Collect()
+        var typeProvider = allTypesCollectedProvider
             .Select((allTypes, ct) => allTypes
                 .NotNull()
                 .Where(t => t.IsPartial && (t.BaseType is null || !t.BaseType.IsPartial || !t.BaseType.HasAttribute))
@@ -148,16 +154,16 @@ public class ValueComparerGenerator : IncrementalGenerator
                     IsPartial = t.IsPartial,
                     IsInternal = t.IsInternal,
                     IsAbstract = t.IsAbstract,
-                    //Location = t.Location,
                     Properties = t.Properties,
                     AllProperties = t.AllProperties,
                     HasAutoValueComparerAttribute = t.HasAttribute,
                 })
-            );
+                .ToArray()
+            )
+            .WithComparer(ComparerRegistry.For<Models.ClassDeclaration[]>());
 
         // This provider retrieves all types that have derived types
-        var typeTreeProvider = allTypesProvider
-            .Collect()
+        var typeTreeProvider = allTypesCollectedProvider
             .Select((allTypes, ct) => allTypes
                 .NotNull()
                 //.Where(t => t.BaseType.IsPartial && (t.BaseType.FullName != "Object" || t.BaseType.HasAttribute))
@@ -174,10 +180,12 @@ public class ValueComparerGenerator : IncrementalGenerator
                         AllProperties = t.AllProperties,
                     }).ToArray(),
                 })
-        );
+                .ToArray()
+            )
+            .WithComparer(ComparerRegistry.For<Models.TypeTreeDeclaration[]>());
 
         //allTypesProvider.Collect().Select(p => p.Except(typeProvider.co).Except(typeTreeProvider));
-        var childrenWithoutDerived = allTypesProvider.Collect()
+        var childrenWithoutDerived = allTypesCollectedProvider
             .Join(typeProvider)
             .Join(typeTreeProvider)
             .Select(static (p, ct) => p.Item1
@@ -191,14 +199,14 @@ public class ValueComparerGenerator : IncrementalGenerator
                     IsAbstract = t.IsAbstract,
                     IsPartial = t.IsPartial,
                     IsInternal = t.IsInternal,
-                    Location = t.Location,
                     Properties = t.Properties,
                     AllProperties = t.AllProperties,
                     HasAutoValueComparerAttribute = t.HasAttribute,
-                }));
+                })
+                .ToArray())
+            .WithComparer(ComparerRegistry.For<Models.ClassDeclaration[]>());
 
-        var hasCodeAnalysisReference = allTypesProvider
-            .Collect()
+        var hasCodeAnalysisReference = allTypesCollectedProvider
             .Select(static (allTypes, ct) => allTypes
                 .NotNull()
                 .Any(t => t.HasCodeAnalysisReference));
