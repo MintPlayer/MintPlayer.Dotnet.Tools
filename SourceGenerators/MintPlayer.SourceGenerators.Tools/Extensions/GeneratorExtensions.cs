@@ -1,4 +1,5 @@
 ﻿using Microsoft.CodeAnalysis;
+using System.Collections.Immutable;
 
 namespace MintPlayer.SourceGenerators.Tools;
 
@@ -37,36 +38,26 @@ public static class GeneratorExtensions
     /// </summary>
     /// <param name="context">context parameter from the <see cref="IIncrementalGenerator.Initialize(IncrementalGeneratorInitializationContext)"/> method</param>
     /// <param name="providers">All the diagnostic providers to be registered</param>
+    /// <remarks>
+    /// The compilation is still needed here — it turns stored locations back into in-tree ones, which
+    /// <c>#pragma</c> and <c>.editorconfig</c> severity depend on — but only by a reporter that has
+    /// something to report. An <see cref="IConditionalDiagnosticReporter"/> with
+    /// <see cref="IConditionalDiagnosticReporter.HasDiagnostics"/> false is filtered out before the
+    /// combine, and a combine over zero values runs nothing. Any other reporter is combined with the
+    /// compilation as before, and so re-runs on every edit.
+    /// </remarks>
     public static void ReportDiagnostics(this IncrementalGeneratorInitializationContext context, params IncrementalValueProvider<IDiagnosticReporter>[] providers)
     {
-        switch (providers.Length)
+        foreach (var provider in providers)
         {
-            case 0: return;
-            case 1:
-                //context.RegisterSourceOutput(providers[0], static (c, d) => c.ReportDiagnostic(d.GetDiagnostics()));
-                context.RegisterSourceOutput(context.CompilationProvider
-                    .Combine(providers[0])
-                    .Select(static (p, ct) => p.Right.GetDiagnostics(p.Left)),
-                    static (c, d) => c.ReportDiagnostic(d));
-                return;
+            var reportersWithWork = provider.SelectMany(static (r, ct) =>
+                r is null || r is IConditionalDiagnosticReporter { HasDiagnostics: false }
+                    ? ImmutableArray<IDiagnosticReporter>.Empty
+                    : ImmutableArray.Create(r));
+
+            context.RegisterSourceOutput(
+                reportersWithWork.Combine(context.CompilationProvider),
+                static (c, p) => c.ReportDiagnostic(p.Left.GetDiagnostics(p.Right)));
         }
-
-        var sourceProvider = providers[0]
-            .Combine(providers[1])
-            .SelectMany(static (p, ct) => new[] { p.Left, p.Right });
-
-        for (int i = 2; i < providers.Length; i++)
-        {
-            sourceProvider = sourceProvider
-                .Collect()
-                .Combine(providers[i])
-                .SelectMany(static (p, ct) => p.Left.Concat([p.Right]));
-        }
-
-        var sourceAndCompilationProvider = context.CompilationProvider
-            .Combine(sourceProvider.Collect())
-            .Select(static (p, ct) => p.Right.Select(rep => (compilation: p.Left, reporter: rep)));
-
-        context.RegisterSourceOutput(sourceAndCompilationProvider, static (c, cd) => c.ReportDiagnostic(cd.SelectMany(d => d.reporter.GetDiagnostics(d.compilation))));
     }
 }

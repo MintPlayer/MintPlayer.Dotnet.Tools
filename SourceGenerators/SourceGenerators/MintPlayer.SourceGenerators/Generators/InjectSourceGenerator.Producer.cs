@@ -5,7 +5,7 @@ using System.CodeDom.Compiler;
 
 namespace MintPlayer.SourceGenerators.Generators;
 
-internal class InjectProducer : Producer, IDiagnosticReporter
+internal class InjectProducer : Producer, IConditionalDiagnosticReporter
 {
     private readonly IEnumerable<Models.ClassWithBaseDependenciesAndInjectFields> classInfos;
     public InjectProducer(IEnumerable<Models.ClassWithBaseDependenciesAndInjectFields> classInfos, string rootNamespace) : base(rootNamespace, $"Inject.g.cs")
@@ -16,6 +16,8 @@ internal class InjectProducer : Producer, IDiagnosticReporter
     {
         this.classInfos = classInfos;
     }
+
+    public bool HasDiagnostics => classInfos.Any(ci => ci.Diagnostics.Count > 0 || ci.ConfigDiagnostics.Count > 0);
 
     public IEnumerable<Diagnostic> GetDiagnostics(Compilation compilation)
     {
