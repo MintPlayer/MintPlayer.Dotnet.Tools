@@ -44,7 +44,6 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                             {
                                 var formalParamCount = attr.AttributeConstructor?.Parameters.Length ?? 0; // includes optional params
                                 var args = attr.ConstructorArguments; // supplied values only
-                                var location = attr.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation().AsKey();
 
                                 // Error: 5-param constructor (assembly-level) used on a class
                                 if (formalParamCount == 5)
@@ -53,7 +52,11 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                     {
                                         AppliedOn = ERegistrationAppliedOn.Class,
                                         HasError = true,
-                                        Location = location,
+                                        // Only a registration that reports a diagnostic carries its location.
+                                        // Nothing else reads it, and a line-based location changes whenever
+                                        // code above the class grows, so a clean registration holding one
+                                        // would re-run the output step for every edit higher up in the file.
+                                        Location = attr.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation().AsKey(),
                                     };
                                 }
 
@@ -83,7 +86,6 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                                 .Select(f => BuildFactoryExpression(namedTypeSymbol, f.Name, f.Shape))
                                                 .ToArray(),
                                             AppliedOn = ERegistrationAppliedOn.Class,
-                                            Location = location,
                                         };
                                     }
                                     else if (args.ElementAtOrDefault(0).Value is INamedTypeSymbol serviceTypeSymbol)
@@ -138,7 +140,6 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                                 IsGeneric = true,
                                                 GenericInfo = genericInfo,
                                                 AppliedOn = ERegistrationAppliedOn.Class,
-                                                Location = location,
                                             };
                                         }
                                         else
@@ -161,7 +162,6 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                                     .Select(f => BuildFactoryExpression(namedTypeSymbol, f.Name, f.Shape))
                                                     .ToArray(),
                                                 AppliedOn = ERegistrationAppliedOn.Class,
-                                                Location = location,
                                             };
                                         }
                                     }
@@ -175,8 +175,13 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                     return default;
                 }
             )
+            // Arrays compare by reference, and the transform allocates a new one on every run, so
+            // without a structural comparer every class in an edited file counted as changed.
+            .WithComparer(ComparerRegistry.For<ServiceRegistration[]>())
             .SelectMany((x, ct) => x)
-            .Collect();
+            .WithComparer()
+            .Collect()
+            .WithComparer();
 
         // Provider for assembly-level [Register] attributes (for third-party types)
         var assemblyLevelRegisterAttributeProvider = context.CompilationProvider
@@ -197,7 +202,6 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                 {
                     var formalParamCount = attr.AttributeConstructor?.Parameters.Length ?? 0;
                     var args = attr.ConstructorArguments;
-                    var location = attr.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation().AsKey();
 
                     // Error: 3-param constructor (ServiceLifetime first) used on assembly
                     // Pattern 1 is class-only: [Register(ServiceLifetime.Scoped)]
@@ -207,7 +211,8 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                         {
                             AppliedOn = ERegistrationAppliedOn.Assembly,
                             HasError = true,
-                            Location = location,
+                            // As for the class-level provider: only an erroneous registration keeps its location.
+                            Location = attr.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation().AsKey(),
                         };
                     }
 
@@ -239,7 +244,6 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                             Accessibility = accessibility,
                             FactoryExpressions = [], // No factories for assembly-level registrations
                             AppliedOn = ERegistrationAppliedOn.Assembly,
-                            Location = location,
                         };
                     }
 
@@ -271,7 +275,6 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                             Accessibility = accessibility,
                             FactoryExpressions = [], // No factories for assembly-level registrations
                             AppliedOn = ERegistrationAppliedOn.Assembly,
-                            Location = location,
                         };
                     }
 
@@ -279,7 +282,10 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                 })
                 .Where(r => r is not null)
                 .ToArray()!;
-            });
+            })
+            // A CompilationProvider.Select re-runs on every edit, so its result must compare by value
+            // for anything downstream to be served from cache.
+            .WithComparer(ComparerRegistry.For<ServiceRegistration[]>());
 
         var knowsDependencyInjectionAbstractionsProvider = context.CompilationProvider
             .Select((compilation, ct) => compilation.GetTypeByMetadataName("Microsoft.Extensions.DependencyInjection.IServiceCollection") is not null);
@@ -312,7 +318,8 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                     DefaultMethodName = defaultMethodName,
                     DefaultAccessibility = defaultAccessibility
                 };
-            });
+            })
+            .WithComparer();
 
         // Combine class-level and assembly-level registrations
         var allRegistrationsProvider = classesWithRegisterAttributeProvider
