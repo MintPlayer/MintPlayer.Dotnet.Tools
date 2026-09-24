@@ -19,7 +19,7 @@ public class InjectSourceGenerator : IncrementalGenerator
     // https://www.meziantou.net/measuring-performance-of-roslyn-source-generators.htm
     public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<ICompilationCache> cacheProvider)
     {
-        var classesProvider = context.SyntaxProvider
+        var classModelsProvider = context.SyntaxProvider
             .CreateSyntaxProvider(
                 static (node, ct) => node is ClassDeclarationSyntax classDeclaration &&
                     (
@@ -151,8 +151,18 @@ public class InjectSourceGenerator : IncrementalGenerator
 
                     return default;
                 }
-            )
+            );
+
+        // Without the comparer the models compare by reference: the transform allocates a new one
+        // for every class in an edited file, so the collected array always looked changed.
+        // MINT001 objects to the DiagnosticDescriptor on the diagnostic models. That one is safe: it
+        // is immutable, equatable by value, and a static singleton here, so unlike a symbol or a
+        // syntax node it neither pins a compilation nor changes between runs.
+#pragma warning disable MINT001
+        var classesProvider = classModelsProvider
+            .WithNullableComparer()
             .Collect();
+#pragma warning restore MINT001
 
         var classesSourceProvider = classesProvider
             .Join(settingsProvider)
