@@ -134,6 +134,31 @@ public sealed record IncrementalGeneratorResult(
     /// <summary>Steps that were entirely served from cache on the second run.</summary>
     public IReadOnlyList<string> CachedSteps => StepNames.Where(WasFullyCached).ToList();
 
+    /// <summary>
+    /// Every run reason recorded against the generator's output steps (<c>RegisterSourceOutput</c> and
+    /// friends) on the second run.
+    /// </summary>
+    /// <remarks>
+    /// This is the step that matters. A pipeline can report cache hits on every syntax step and still
+    /// regenerate every file on every keystroke if anything between the comparers and the output —
+    /// a <c>Combine</c> with the <c>Compilation</c>, a model compared by reference — lets a new value
+    /// through. Asserting on <see cref="CachedSteps"/> alone cannot see that; asserting here can.
+    /// </remarks>
+    public IReadOnlyList<IncrementalStepRunReason> OutputReasons
+        => Second.TrackedOutputSteps.Values
+            .SelectMany(steps => steps)
+            .SelectMany(s => s.Outputs)
+            .Select(o => o.Reason)
+            .ToList();
+
+    /// <summary>
+    /// True when the second run reused every output step. False when there were no output steps at all,
+    /// so a generator that stopped registering output cannot pass vacuously.
+    /// </summary>
+    public bool OutputsFullyCached
+        => OutputReasons.Count > 0
+            && OutputReasons.All(r => r is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged);
+
     /// <summary>True when both runs emitted byte-identical sources.</summary>
     public bool OutputUnchanged
         => First.GeneratedSources.Select(s => s.SourceText.ToString())
