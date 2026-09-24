@@ -107,3 +107,14 @@ public partial class TypeToMap
 ```
 
 This generator will generate a value-comparer and a `.WithComparer()` and `.WithNullableComparer()` extension method for you.
+
+## Staying incremental
+A generator that emits the same output on every keystroke is still doing the work on every keystroke. The pieces above are built so that an edit your generator does not care about stops at a comparer:
+
+- `ProduceCode(...)` gives each producer its own output step and never touches the `Compilation`, so a file is regenerated only when its own producer's input changed. Since 10.22.0; before that every producer was combined with the `Compilation` and re-ran on every edit.
+- `[ValueComparer(typeof(...))]` (which `[AutoValueComparer]` emits for you) is honoured by `ComparerRegistry`, so `.WithComparer()` and nested comparisons use your comparer without manual registration. Arrays, `List<T>` and `ImmutableArray<T>` compare element-wise.
+- `ReportDiagnostics(...)` needs the `Compilation` to rebuild in-tree locations, which `#pragma` and `.editorconfig` severity depend on. Implement `IConditionalDiagnosticReporter` and a reporter with nothing to report runs no step at all.
+
+Rules of thumb for your models: no `ISymbol`, `SyntaxNode`, `SyntaxTokenList`, `Location` or `Compilation` (use strings and `LocationKey`); put `.WithComparer()` on every step that produces a model, especially before `Collect()`; and carry a `LocationKey` only on a model that will actually report a diagnostic, so that typing above a declaration does not invalidate it.
+
+To prove it, `MintPlayer.SourceGenerators.Testing` runs a generator twice and reports the run reason of every output step.

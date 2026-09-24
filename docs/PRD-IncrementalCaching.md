@@ -196,4 +196,68 @@ ordering constraint: this PR lands and publishes first.
 
 ## Spike results
 
-*(filled in as the spikes run)*
+### S1 — baseline, measured
+
+`IncrementalOutputCachingTests` (both test projects) runs each generator twice: a *Trailing* edit (a method
+body at the end of a relevant class; nothing moves) and a *Leading* edit (an unrelated class above the
+relevant code grows by six lines; every declaration shifts). The assertion is on the output steps.
+
+| Generator | Baseline | D1 only | D1 + D3 |
+|---|---|---|---|
+| ClassNames | fail | fail | pass |
+| ServiceRegistrations | fail | fail | fail |
+| Description | fail | fail | pass |
+| Inject | fail | fail | fail |
+| GenericMethod | fail | fail | fail |
+| Mapper | fail | fail | fail |
+| CliCommand | fail | fail | pass |
+| ValueComparer | fail | fail | fail |
+| JoinMethod | fail | pass | pass |
+| GenerateAssertion | fail | Trailing pass, Leading fail | same |
+| EquivalencyRegistration | fail | pass | pass |
+
+**Every case failed on master.** Corrections to the static audit:
+
+- **New defect — `LocationKey` compared by reference.** `LocationKeyValueComparer.AreEqual` called
+  `x.Equals(y)`, and `LocationKey` has no `Equals` override. Every model holding a `LocationKey` was
+  therefore unequal to its previous run, even with D3. Fixed in the comparer.
+- **Location shifts.** An edit above a declaration moves its line, and the models carried their location
+  unconditionally — so typing above a `[Register]` class regenerated the registrations. Locations are read
+  only to report diagnostics, so the policy is: **a model carries a location only when it will report a
+  diagnostic.** A clean declaration can then move freely; a diagnostic still follows its code.
+- CliCommand's `ImmutableArray` row does not block a body edit (its `Select` is cached when upstream is
+  unchanged); covered anyway by the structural `ImmutableArray<T>` comparer.
+- Mapper belongs in the table: `LocationKey`, `TypeToMap.Location`, and a deferred `Where` iterator.
+- The `LangVersion` walk costs work per edit but ends `Cached`; it was not a blocker. Fixed anyway.
+
+### S2 — diagnostics, measured
+
+- A `Location.Create(path, span, lineSpan)` (no tree) is accepted by the driver, but `#pragma warning disable`
+  and per-tree severity (`.editorconfig`) **silently stop applying** to it; only compilation-wide
+  `SpecificDiagnosticOptions` still work. Rejected: diagnostics need the in-tree location, hence the
+  compilation.
+- Today's shape re-runs the reporter step on every edit even with zero diagnostics.
+- `provider.SelectMany(r => r has diagnostics ? [r] : []).Combine(CompilationProvider)` with no diagnostics
+  records **no tracked step and no output step at all**, and invokes nothing. With a diagnostic it re-reports
+  correctly on every edit, and all transitions (none → some → edit → none) behave. Adopted as D2, via an
+  additive `IConditionalDiagnosticReporter.HasDiagnostics`; reporters that do not implement it keep today's
+  behaviour.
+
+### S3 — consumers in other repositories
+
+`MintPlayer.SourceGenerators.Tools` is public API with live consumers: `MintPlayer.AspNetCore.Tools`
+(Endpoints generator: an `IDiagnosticReporter` whose `GetDiagnostics` does real work, plus `Producer`s) and
+`MintPlayer.Spark` (about a dozen generators on `ProduceCode`, three reporters, pinned to Tools 10.16.0 /
+10.21.0). No one calls the two-argument `Producer.Produce` directly. Every change here is additive or
+source-compatible; those repos get the caching fix by bumping the package, and their reporters get the
+zero-diagnostics fast path by implementing `IConditionalDiagnosticReporter`.
+
+### Test design addendum
+
+The regression tests model a real keystroke — the second compilation is
+`compilation.ReplaceSyntaxTree(tree, tree.WithChangedText(...))`, as the IDE does, so other trees keep their
+identity — over several edit kinds (method body, line-shifting edit, comment/whitespace, edit in an unrelated
+file). A reflection guard fails if any `[Generator]` in the shipped assemblies lacks an incrementality case,
+so a new generator cannot ship without proving it caches. `MSBuildWorkspace` was considered and rejected: it
+runs its own untracked driver (the step reasons are not observable), contributes no coverage, and needs a
+restore.
