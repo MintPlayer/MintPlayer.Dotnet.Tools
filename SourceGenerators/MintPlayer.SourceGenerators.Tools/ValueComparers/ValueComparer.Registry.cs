@@ -96,12 +96,27 @@ public static class ComparerRegistry
     private static object? CreateImplicit(Type type)
         => CreateStructural(type) ?? CreateFromValueComparerAttribute(type);
 
+    /// <summary>Value tuples, by generic definition, and the comparer that compares them item by item.</summary>
+    private static readonly Dictionary<Type, Type> ValueTupleComparers = new()
+    {
+        [typeof(ValueTuple<,>)] = typeof(ValueTupleValueComparer<,>),
+        [typeof(ValueTuple<,,>)] = typeof(ValueTupleValueComparer<,,>),
+        [typeof(ValueTuple<,,,>)] = typeof(ValueTupleValueComparer<,,,>),
+        [typeof(ValueTuple<,,,,>)] = typeof(ValueTupleValueComparer<,,,,>),
+        [typeof(ValueTuple<,,,,,>)] = typeof(ValueTupleValueComparer<,,,,,>),
+    };
+
     /// <summary>
     /// Arrays, lists and <see cref="ImmutableArray{T}"/> compare element-wise, each element through this
     /// registry. Their default equality is by reference, which a pipeline step never wants: the generated
     /// <c>WithComparer()</c> for a collected <c>ImmutableArray&lt;T&gt;</c> resolves through here, and so do
     /// array-valued steps.
     /// </summary>
+    /// <remarks>
+    /// Value tuples compare item by item for the same reason. Their own <c>Equals</c> is structural, but
+    /// through each item's default comparer — by reference for a model class — so an array of
+    /// <c>(Model, Model)</c> pairs never matched its previous run.
+    /// </remarks>
     private static object? CreateStructural(Type type)
     {
         Type? comparerType = null;
@@ -111,6 +126,8 @@ public static class ComparerRegistry
             comparerType = typeof(ImmutableArrayValueComparer<>).MakeGenericType(type.GetGenericArguments());
         else if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>))
             comparerType = typeof(ListValueComparer<>).MakeGenericType(type.GetGenericArguments());
+        else if (type.IsGenericType && ValueTupleComparers.TryGetValue(type.GetGenericTypeDefinition(), out var tupleComparer))
+            comparerType = tupleComparer.MakeGenericType(type.GetGenericArguments());
 
         return comparerType is null ? null : Activator.CreateInstance(comparerType, nonPublic: true);
     }
