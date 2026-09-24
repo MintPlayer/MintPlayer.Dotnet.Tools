@@ -51,10 +51,12 @@ public class GenerateAssertionGenerator : IncrementalGenerator
 
     private static AssertionMethodDeclaration Describe(IMethodSymbol method, AttributeData? attribute)
     {
-        var location = method.Locations.FirstOrDefault().AsKey();
+        // Only a rejected method carries its location: MPAG001 is the one thing that reads it. It is
+        // line-based, so on a supported method it changed whenever code above the method grew, and
+        // regenerated the assertion file for an edit that cannot affect it.
         var reason = GetUnsupportedReason(method);
         if (reason is not null)
-            return new AssertionMethodDeclaration { MethodName = method.Name, ContainingTypeFullName = method.ContainingType?.ToDisplayString() ?? string.Empty, Diagnostic = reason, Location = location };
+            return new AssertionMethodDeclaration { MethodName = method.Name, ContainingTypeFullName = method.ContainingType?.ToDisplayString() ?? string.Empty, Diagnostic = reason, Location = method.Locations.FirstOrDefault().AsKey() };
 
         var subjectType = method.Parameters[0].Type;
         var underlying = subjectType is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable
@@ -78,7 +80,6 @@ public class GenerateAssertionGenerator : IncrementalGenerator
                 .Select(p => new ParameterDeclaration(p.Name, p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
                 .ToArray(),
             IsPublic = IsPubliclyVisible(method.ContainingType) && method.Parameters.Skip(1).All(p => IsPubliclyVisible(p.Type)),
-            Location = location,
         };
     }
 
