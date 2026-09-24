@@ -27,7 +27,8 @@ namespace MintPlayer.SourceGenerators.Tests.Generators;
 /// same reason: a generator that produces nothing is trivially "cached".
 /// </para>
 /// <para>
-/// Every fixture is run with two edits, neither of which changes a declaration the generator reads:
+/// Every fixture is paired with a second, unrelated file, and run with four edits, none of which
+/// changes a declaration the generator reads:
 /// </para>
 /// <list type="bullet">
 /// <item><see cref="Edit.Trailing"/> changes an expression body on the last member of a relevant
@@ -37,14 +38,24 @@ namespace MintPlayer.SourceGenerators.Tests.Generators;
 /// declaration moves down. Typing inside a method above the code a generator watches is the most
 /// common edit there is; a model that carries a line-based location (<c>LocationKey</c>) changes on
 /// it even though nothing the generator emits depends on it.</item>
+/// <item><see cref="Edit.CommentOnly"/> adds comment lines and blank lines above everything the
+/// generator reads: no token changes at all, only trivia, and every declaration moves.</item>
+/// <item><see cref="Edit.OtherFile"/> edits the unrelated file. Its tree changes and the fixture's
+/// does not.</item>
 /// </list>
+/// <para>
+/// The edit is replayed with <see cref="GeneratorHarness.RunKeystroke"/>, which replaces only the
+/// edited tree, as an IDE does. Re-parsing the whole second compilation would hand the driver a new
+/// tree for every file and hide the difference between "the transform re-ran and a comparer absorbed
+/// it" and "the transform never had to run".
+/// </para>
 /// </remarks>
 public class IncrementalOutputCachingTests
 {
     private const string BodyToken = "__BODY__";
     private const string LeadToken = "__LEAD__";
 
-    public enum Edit { Trailing, Leading }
+    public enum Edit { Trailing, Leading, CommentOnly, OtherFile }
 
     private const string LeadBefore = "public static class Leading { public static int Touch() { return 1; } }";
     private const string LeadAfter = """
@@ -57,19 +68,57 @@ public class IncrementalOutputCachingTests
         }
         """;
 
+    private const string CommentAfter = """
+        // Only trivia changes here: a comment, and blank lines around it,
+        // so every declaration below moves down.
+
+
+        """;
+
+    private const string OtherFileBefore = """
+        namespace Elsewhere;
+
+        public static class Unrelated
+        {
+            public static int Compute() => 1;
+        }
+        """;
+
+    private const string OtherFileAfter = """
+        namespace Elsewhere;
+
+        public static class Unrelated
+        {
+            public static int Compute()
+            {
+                return 42;
+            }
+        }
+        """;
+
     /// <summary>One generator, a fixture that makes it emit, the assembly it lives in, and the edit.</summary>
     /// <remarks>
-    /// <c>__LEAD__</c> marks where the leading class goes: before every declaration the generator
-    /// reads. <c>__BODY__</c> is the trailing expression body.
+    /// <c>__LEAD__</c> marks where the leading class or comment goes: before every declaration the
+    /// generator reads. <c>__BODY__</c> is the trailing expression body.
     /// </remarks>
     public sealed record Case(string Generator, string Assembly, string Fixture, Edit Edit = Edit.Trailing)
     {
-        public string Before => Render(lead: Edit == Edit.Leading ? LeadBefore : "", body: "1");
-        public string After => Edit == Edit.Leading
-            ? Render(lead: LeadAfter, body: "1")
-            : Render(lead: "", body: "42");
+        /// <summary>The fixture, then the unrelated file.</summary>
+        public string[] Sources => [Render(lead: Edit == Edit.Leading ? LeadBefore : "", body: "1"), OtherFileBefore];
 
-        private string Render(string lead, string body) => Fixture.Replace(LeadToken, lead).Replace(BodyToken, body);
+        public int EditIndex => Edit == Edit.OtherFile ? 1 : 0;
+
+        /// <summary>The text of <see cref="Sources"/>[<see cref="EditIndex"/>] after the edit.</summary>
+        public string Edited => Edit switch
+        {
+            Edit.Trailing => Render(lead: "", body: "42"),
+            Edit.Leading => Render(lead: LeadAfter, body: "1"),
+            Edit.CommentOnly => Render(lead: CommentAfter, body: "1"),
+            Edit.OtherFile => OtherFileAfter,
+            _ => throw new ArgumentOutOfRangeException(nameof(Edit), Edit, null),
+        };
+
+        public string Render(string lead, string body) => Fixture.Replace(LeadToken, lead).Replace(BodyToken, body);
 
         // xunit displays the case by ToString; the fixture text is noise.
         public override string ToString() => $"{Generator} ({Edit})";
@@ -255,19 +304,17 @@ public class IncrementalOutputCachingTests
     {
         var data = new TheoryData<Case>();
         foreach (var c in Cases)
-        {
-            data.Add(c with { Edit = Edit.Trailing });
-            data.Add(c with { Edit = Edit.Leading });
-        }
+        foreach (var edit in Enum.GetValues<Edit>())
+            data.Add(c with { Edit = edit });
         return data;
     }
 
     [Theory]
     [MemberData(nameof(AllGenerators))]
-    public void AMethodBodyEdit_IsServedFromCache(Case c)
+    public void AnIrrelevantEdit_IsServedFromCache(Case c)
     {
-        var run = GeneratorHarness.RunIncremental(
-            c.Generator, [c.Before], [c.After], generatorAssemblyName: c.Assembly);
+        var run = GeneratorHarness.RunKeystroke(
+            c.Generator, c.Sources, c.EditIndex, _ => c.Edited, generatorAssemblyName: c.Assembly);
 
         // Guard: a generator that emits nothing, or registers no output, is vacuously "cached".
         run.First.GeneratedSources.Should().NotBeEmpty(
@@ -280,8 +327,84 @@ public class IncrementalOutputCachingTests
 
         // And it must not have been recomputed to get there.
         run.OutputsFullyCached.Should().BeTrue(
-            $"a method-body edit must not re-run any output step of {c.Generator}. {Describe(run)}");
+            $"a {c.Edit} edit must not re-run any output step of {c.Generator}. {Describe(run)}");
     }
+
+    /// <summary>
+    /// Every generator the harness can load must have a case above, so a new generator cannot ship
+    /// without an incrementality test.
+    /// </summary>
+    /// <remarks>
+    /// The theory only covers what it is given. Before it existed, nothing noticed that nine of the
+    /// eleven generators regenerated every file on every keystroke; a twelfth added without a case
+    /// would go just as unnoticed. The Assertions generators are guarded the same way in their own
+    /// test project.
+    /// </remarks>
+    [Fact]
+    public void EveryGenerator_HasAnIncrementalityCase()
+    {
+        var generators = GeneratorHarness.AllGenerators();
+        generators.Should().NotBeEmpty("the harness must find the generators, or this guard guards nothing");
+
+        var covered = Cases.Select(c => (c.Assembly, c.Generator)).ToHashSet();
+        var missing = generators
+            .Where(g => !covered.Contains((g.Assembly, g.Generator.Name)))
+            .Select(g => $"{g.Generator.Name} ({g.Assembly})")
+            .ToList();
+
+        missing.Should().BeEmpty(
+            $"every generator needs a fixture in {nameof(IncrementalOutputCachingTests)}.{nameof(Cases)}. Missing: {string.Join(", ", missing)}");
+    }
+
+    /// <summary>A relevant edit, and a fragment the output must contain afterwards.</summary>
+    public sealed record RelevantCase(string Generator, string Assembly, string Fixture, string Find, string Replace, string Expected)
+    {
+        public override string ToString() => Generator;
+    }
+
+    /// <summary>
+    /// The counterpart to the theory above, for the generator families that have no other test of
+    /// it: a comparer that calls everything equal passes every cache test and fails here.
+    /// </summary>
+    /// <remarks>
+    /// ServiceRegistrations is covered by <see cref="IncrementalityTests.ARelevantEditIsNotServedFromCache"/>,
+    /// and Mapper, per producer, by <see cref="AnEditToOneMapperProducersInput_LeavesTheOtherProducersOutputCached"/>.
+    /// </remarks>
+    public static TheoryData<RelevantCase> RelevantEdits() => new()
+    {
+        new RelevantCase("ValueComparerGenerator", ValueComparers,
+            Fixture("ValueComparerGenerator"),
+            // On the [AutoValueComparer] base: Circle has no attribute of its own, so its properties
+            // are not emitted and adding one there rightly changes nothing.
+            Find: "public string Name { get; set; } = \"\";",
+            Replace: "public string Name { get; set; } = \"\";\n    public int Sides { get; set; }",
+            Expected: "Sides"),
+
+        new RelevantCase("CliCommandSourceGenerator", Cli,
+            Fixture("CliCommandSourceGenerator"),
+            Find: "[CliOption(\"--verbose\")] public bool Verbose { get; set; }",
+            Replace: "[CliOption(\"--verbose\")] public bool Verbose { get; set; }\n    [CliOption(\"--quiet\")] public bool Quiet { get; set; }",
+            Expected: "--quiet"),
+    };
+
+    [Theory]
+    [MemberData(nameof(RelevantEdits))]
+    public void ARelevantEdit_ReRunsTheOutput(RelevantCase c)
+    {
+        var source = new Case(c.Generator, c.Assembly, c.Fixture).Render(lead: "", body: "1");
+        source.Should().Contain(c.Find, "the edit must apply to the fixture");
+
+        var run = GeneratorHarness.RunKeystroke(
+            c.Generator, [source, OtherFileBefore], 0, text => text.Replace(c.Find, c.Replace),
+            generatorAssemblyName: c.Assembly);
+
+        string.Join("\n", Texts(run.First)).Should().NotContain(c.Expected);
+        string.Join("\n", Texts(run.Second)).Should().Contain(c.Expected);
+        run.OutputReasons.Should().Contain(IncrementalStepRunReason.Modified,
+            $"the output step must have re-run to emit the new code. {Describe(run)}");
+    }
+
+    private static string Fixture(string generator) => Cases.Single(c => c.Generator == generator).Fixture;
 
     /// <summary>
     /// A relevant edit that only one producer reads must leave the other producer's output alone.
@@ -351,8 +474,8 @@ public class IncrementalOutputCachingTests
         const string entrypoint = "MapperEntrypoint.g.cs";
         const string mappers = "Mappers.g.cs";
 
-        var run = GeneratorHarness.RunIncremental(
-            "MapperGenerator", [types, conversionsBefore], [types, conversionsAfter], generatorAssemblyName: Mapper);
+        var run = GeneratorHarness.RunKeystroke(
+            "MapperGenerator", [types, conversionsBefore], 1, _ => conversionsAfter, generatorAssemblyName: Mapper);
 
         // Guards: both files exist, and the edit really is relevant to one of them.
         HintNames(run.First).Should().Contain(entrypoint);
@@ -369,6 +492,12 @@ public class IncrementalOutputCachingTests
         entrypointSteps.Should().NotBeEmpty($"some output step must emit {entrypoint}. {Describe(run)}");
         entrypointSteps.All(s => s.Reasons.All(IsCacheHit)).Should().BeTrue(
             $"the output step emitting {entrypoint} must be served from cache when only the conversion methods changed. {Describe(run)}");
+
+        // The per-producer counter-test: the producer whose input did change must have re-run. A
+        // pipeline that served everything from cache would pass the assertion above.
+        OutputSteps(run).Where(s => s.HintNames.Contains(mappers)).SelectMany(s => s.Reasons)
+            .Should().Contain(IncrementalStepRunReason.Modified,
+                $"the output step emitting {mappers} must re-run when a conversion method is added. {Describe(run)}");
     }
 
     private static bool IsCacheHit(IncrementalStepRunReason r)

@@ -97,13 +97,14 @@ public class IncrementalityTests
         run.StepNames.Should().NotBeEmpty(
             "trackIncrementalGeneratorSteps must be on for this test to mean anything");
 
-        // At least one tracked step has to report a cache hit. Asserting on every step would be
-        // over-specified — the syntax provider legitimately re-runs when the tree changes; what
-        // matters is that the change stops there rather than propagating to the output.
-        var cached = run.StepNames.Where(run.WasFullyCached).ToList();
-
-        cached.Should().NotBeEmpty(
-            $"an edit the generator does not care about should be absorbed by a comparer. Steps seen: {string.Join(", ", run.StepNames)}");
+        // Asserting on every step would be over-specified — the syntax provider legitimately re-runs
+        // when the tree changes; what matters is that the change stops there rather than
+        // propagating to the output. So the assertion is on the output steps. This used to demand
+        // only that *some* step was cached, which the syntax steps satisfied while every file was
+        // regenerated on every keystroke.
+        run.OutputsFullyCached.Should().BeTrue(
+            $"an edit the generator does not care about should be absorbed by a comparer before it reaches the output. " +
+            $"OutputReasons: [{string.Join(", ", run.OutputReasons)}]");
     }
 
     [Fact]
