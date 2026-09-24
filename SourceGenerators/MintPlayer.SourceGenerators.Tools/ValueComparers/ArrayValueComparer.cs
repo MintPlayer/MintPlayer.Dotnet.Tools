@@ -16,4 +16,11 @@ internal sealed class ArrayValueComparer<TValue> : ValueComparer<TValue[]>
 
         return true;
     }
+
+    protected override void AddHash(ref Polyfills.HashCodeCompat h, TValue[]? obj)
+    {
+        if (obj is null) { h.Add(0); return; }
+        foreach (var item in obj)
+            AddHash(ref h, item);
+    }
 }

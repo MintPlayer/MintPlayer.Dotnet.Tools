@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using System.Reflection;
 
 namespace MintPlayer.SourceGenerators.Tools.ValueComparers;
@@ -7,11 +8,11 @@ public static class ComparerRegistry
 {
     private static readonly ConcurrentDictionary<Type, object> _byType = new();
 
-    /// <summary>Types whose entry came from a <see cref="ValueComparerAttribute"/>, not an explicit registration.</summary>
-    private static readonly ConcurrentDictionary<Type, bool> _fromAttribute = new();
+    /// <summary>Types whose entry was resolved implicitly (structural, or a <see cref="ValueComparerAttribute"/>), not registered explicitly.</summary>
+    private static readonly ConcurrentDictionary<Type, bool> _implicit = new();
 
-    /// <summary>Types already inspected for a <see cref="ValueComparerAttribute"/> and found to have none.</summary>
-    private static readonly ConcurrentDictionary<Type, bool> _noAttribute = new();
+    /// <summary>Types already inspected for an implicit comparer (structural or attribute) and found to have none.</summary>
+    private static readonly ConcurrentDictionary<Type, bool> _noImplicitComparer = new();
 
     public static void Register(Type type, object comparer)
     {
@@ -23,7 +24,7 @@ public static class ComparerRegistry
             throw new ArgumentException($"Comparer must implement {expected}.");
 
         _byType[type] = comparer;
-        _fromAttribute.TryRemove(type, out _);
+        _implicit.TryRemove(type, out _);
     }
 
     /// <returns>
@@ -43,7 +44,7 @@ public static class ComparerRegistry
         if (_byType.TryAdd(type, comparer))
             return true;
 
-        if (!_fromAttribute.TryRemove(type, out _))
+        if (!_implicit.TryRemove(type, out _))
             return false; // already explicitly registered
 
         _byType[type] = comparer;
@@ -60,7 +61,7 @@ public static class ComparerRegistry
     /// </remarks>
     public static bool TryGet<T>(out IEqualityComparer<T> comparer)
     {
-        if (_byType.TryGetValue(typeof(T), out var obj) || TryResolveFromAttribute(typeof(T), out obj))
+        if (_byType.TryGetValue(typeof(T), out var obj) || TryResolveImplicit(typeof(T), out obj))
         {
             comparer = (IEqualityComparer<T>)obj;
             return true;
@@ -72,27 +73,49 @@ public static class ComparerRegistry
     public static IEqualityComparer<T> For<T>()
         => TryGet<T>(out var comparer) ? comparer : EqualityComparer<T>.Default;
 
-    private static bool TryResolveFromAttribute(Type type, out object comparer)
+    private static bool TryResolveImplicit(Type type, out object comparer)
     {
         comparer = default!;
-        if (_noAttribute.ContainsKey(type)) return false;
+        if (_noImplicitComparer.ContainsKey(type)) return false;
 
-        var created = CreateFromAttribute(type);
+        var created = CreateImplicit(type);
         if (created is null)
         {
-            _noAttribute.TryAdd(type, true);
+            _noImplicitComparer.TryAdd(type, true);
             return false;
         }
 
         if (_byType.TryAdd(type, created))
-            _fromAttribute.TryAdd(type, true);
+            _implicit.TryAdd(type, true);
 
         // Another thread, or an explicit registration, may have won the race; use whatever is there.
         comparer = _byType[type];
         return true;
     }
 
-    private static object? CreateFromAttribute(Type type)
+    private static object? CreateImplicit(Type type)
+        => CreateStructural(type) ?? CreateFromValueComparerAttribute(type);
+
+    /// <summary>
+    /// Arrays, lists and <see cref="ImmutableArray{T}"/> compare element-wise, each element through this
+    /// registry. Their default equality is by reference, which a pipeline step never wants: the generated
+    /// <c>WithComparer()</c> for a collected <c>ImmutableArray&lt;T&gt;</c> resolves through here, and so do
+    /// array-valued steps.
+    /// </summary>
+    private static object? CreateStructural(Type type)
+    {
+        Type? comparerType = null;
+        if (type.IsArray && type.GetArrayRank() == 1)
+            comparerType = typeof(ArrayValueComparer<>).MakeGenericType(type.GetElementType()!);
+        else if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ImmutableArray<>))
+            comparerType = typeof(ImmutableArrayValueComparer<>).MakeGenericType(type.GetGenericArguments());
+        else if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>))
+            comparerType = typeof(ListValueComparer<>).MakeGenericType(type.GetGenericArguments());
+
+        return comparerType is null ? null : Activator.CreateInstance(comparerType, nonPublic: true);
+    }
+
+    private static object? CreateFromValueComparerAttribute(Type type)
     {
         var attribute = type.GetCustomAttribute<ValueComparerAttribute>(inherit: true);
         var comparerType = attribute?.ComparerType;

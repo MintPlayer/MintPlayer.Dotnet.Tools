@@ -19,8 +19,11 @@ public abstract partial class IncrementalGenerator : IIncrementalGenerator
             .Select(static (p, ct) => AnalyzerInfo.FromGlobalOptions(p.GlobalOptions))
             .WithComparer(ComparerRegistry.For<AnalyzerInfo>());
 
-        var languageVersionProvider = context.CompilationProvider
-            .SelectMany(static (p, ct) => p.SyntaxTrees.Select(t => t.Options).OfType<CSharpParseOptions>()
+        // Read from the parse options, not by walking CompilationProvider.SyntaxTrees: every tree of a
+        // project shares them, and the compilation is a new object on every edit, so the walk re-ran on
+        // every keystroke to produce the same answer.
+        var languageVersionProvider = context.ParseOptionsProvider
+            .SelectMany(static (p, ct) => new[] { p }.OfType<CSharpParseOptions>()
                 .Select((po) =>
                 {
                     switch (po.LanguageVersion)
