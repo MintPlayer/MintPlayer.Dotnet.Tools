@@ -676,3 +676,86 @@ The runtime tests cover all three instead:
 - `ADerivedTypeWithoutTheAttribute_…` (P2);
 - `AComparerIgnoreProperty_IsLeftOutOfEqualsAndOutOfTheHash` (the `[ComparerIgnore]` hash);
 - `Dictionaries_CompareOrderInsensitively` (D6).
+
+### B1/B2: benchmarks (measured)
+
+The project is `SourceGenerators/MintPlayer.SourceGenerators.Tools.Benchmarks`; see its README for how to run it.
+- **Setup:** BenchmarkDotNet 0.14.0, Release. The machine is Windows 11, with .NET 11.0.0 (RC1 SDK) and
+  .NET Framework 4.8.1.
+- **Gate:** `Verification.Run()` passed before the runs.
+- **B1, Legacy:** master's runtime, vendored under `Legacy/Runtime` with the namespace renamed. It is paired
+  with hand-written copies of what master's producer emitted, and called through `ComparerRegistry.For<T>()`.
+- **B1, Generated:** this branch's real `[AutoValueComparer]` output, called through
+  `EqualityComparer<T>.Default`.
+- **Design A (delegation):** not measured. It would land at about the Legacy numbers.
+
+**B1 on net11.0.** Legacy ns / B against Generated ns / B, with the speed-up in brackets. Generated allocates 0 B
+in every row.
+
+| Shape | Equal pair | Last property differs | `GetHashCode` |
+| --- | --- | --- | --- |
+| 3 strings of 30 chars | 4,736 / 10,272 vs 7.9 (599x) | 4,547 / 10,272 vs 9.1 (499x) | 3,564 / 7,296 vs 66 (54x) |
+| `IReadOnlyList<string>` ×20 | 2,979 / 4,784 vs 68 (44x) | 4,998 / 4,784 vs 100 (50x) | 2,978 / 3,592 vs 455 (6.5x) |
+| `ImmutableArray<Child>` ×50 | 84,359 / 174,624 vs 176 (480x) | 84,417 / 174,624 vs 178 (475x) | 58,875 / 124,032 vs 1,224 (48x) |
+| `(Child, Child)` tuple | 5,375 / 10,272 vs 9.3 (576x) | 7,812 / 10,272 vs 18 (426x) | 3,970 / 7,296 vs 66 (60x) |
+| 3-level abstract tree (7 nodes) | 30,566 / 61,632 vs 59 (522x) | 31,193 / 61,632 vs 81 (385x) | 1,368 / 2,432 vs 440 (3.1x) |
+| Spark-like `List<Model>` ×20 | 102,724 / 212,288 vs 182 (566x) | 96,661 / 212,288 vs 178 (543x) | 78,610 / 150,784 vs 1,374 (57x) |
+
+**B1 on net481**, the in-process analyzer host in Visual Studio. Same format; Generated again allocates 0 B
+everywhere.
+
+| Shape | Equal pair | Last property differs | `GetHashCode` |
+| --- | --- | --- | --- |
+| 3 strings of 30 chars | 25,194 / 13,913 vs 21 (1,188x) | 24,887 / 13,913 vs 19 (1,282x) | 19,947 / 10,206 vs 62 (321x) |
+| `IReadOnlyList<string>` ×20 | 14,602 / 6,804 vs 288 (51x) | 19,270 / 6,804 vs 335 (58x) | 16,184 / 5,207 vs 660 (25x) |
+| `ImmutableArray<Child>` ×50 | 445,750 / 240,226 vs 589 (757x) | 462,025 / 240,226 vs 576 (802x) | 363,541 / 174,705 vs 1,194 (305x) |
+| `(Child, Child)` tuple | 25,762 / 14,186 vs 31 (828x) | 35,448 / 14,186 vs 42 (851x) | 26,865 / 10,254 vs 106 (254x) |
+| 3-level abstract tree (7 nodes) | 146,784 / 83,479 vs 185 (792x) | 151,592 / 83,479 vs 181 (837x) | 7,235 / 3,402 vs 385 (19x) |
+| Spark-like `List<Model>` ×20 | 598,496 / 289,051 vs 610 (982x) | 595,863 / 289,051 vs 597 (998x) | 579,430 / 211,406 vs 1,607 (361x) |
+
+- **S1 agrees.** Legacy reproduces S1's "Today" figures: 3 strings, equal, 4,736 ns / 10,272 B here against
+  5,248 ns / 10,272 B in S1.
+- **The tree hash is only 3.1x faster, but it is not a like-for-like case.** Legacy's abstract-root comparer
+  hashes only `Node.Name`. That is P3: its hash covers less than its `Equals` compares. Generated hashes all 7
+  nodes.
+- **An early exit barely helps Legacy.** A pair that differs in its last property costs Legacy as much as an
+  equal pair, which confirms P1.
+
+**B2.** One `RunGenerators` on a warm driver, with tracking off, after one edit. The edit is applied in
+`[IterationSetup]`, so it is not measured.
+- **Iterations:** 30 warmup and 40 measured.
+- **Master:** master @ 840456d, built in Release. It is loaded in the same process through its own
+  `AssemblyLoadContext`.
+- **SG5:** the 5 MintPlayer.SourceGenerators generators over S1's corpus (500 files, 50 `[Register]`
+  classes).
+- **All:** the 8 generators (plus Mapper, ValueComparer and JoinMethod) over 500 files: 50 `[Register]`
+  classes, 50 `[GenerateMapper]` pairs, 50 `[AutoValueComparer]` models and 350 plain files.
+
+The table gives allocated bytes per run, then the mean for run 1 and the median for run 2.
+
+| Generators | Edit | Master | Branch | Bytes |
+| --- | --- | --- | --- | --- |
+| SG5 | unrelated method body | 6.23 MB, 35.9 / 34.0 ms | 5.46 MB, 43.6 / 25.0 ms | −12% |
+| SG5 | relevant (lifetime toggle) | 6.39 MB, 34.8 / 51.5 ms | 5.59 MB, 26.2 / 31.8 ms | −12% |
+| All | unrelated method body | 13.13 MB, 72.7 / 61.8 ms | 7.52 MB, 42.3 / 58.9 ms | −43% |
+| All | relevant (lifetime toggle) | 13.39 MB, 65.8 / 87.3 ms | 7.82 MB, 59.6 / 39.4 ms | −42% |
+
+- **Bytes reproduce; time does not.** The byte counts agree between the two runs to within 0.05 MB. Master's
+  SG5 numbers match S1's baseline (6.16 MB unrelated and 6.30 MB relevant) to within 1.5%.
+- **Wall time is noisy.** The standard deviation is 6 to 16 ms against means of 25 to 90 ms. Run 1's branch
+  SG5 unrelated mean (43.6 ms, standard deviation 16.4 ms) is the one cell where the branch is slower. Run 2
+  reverses it: a median of 25.0 ms against 34.0 ms.
+
+**Against the pass criteria:**
+
+| Criterion | Result |
+| --- | --- |
+| 0 B allocated on typed collection shapes | **Pass.** Every Generated row is 0 B, `GetHashCode` included, on both runtimes. |
+| At least 5x faster than Today on string-heavy shapes | **Pass.** net11.0: 44x to 599x for `Equals`, 6.5x to 60x for the hash. net481: 51x to 1,282x. |
+| Design A within 5% of Today | **Not measured**, by decision. |
+| B2 allocates fewer bytes, in both cases | **Pass.** 12% fewer for SG5, 42 to 43% fewer for all 8 generators. |
+| B2 is no slower, in both cases | **Pass, within noise.** The branch is faster in 7 of 8 comparisons (4 rows, 2 runs each), including all 4 of run 2's medians. The one exception is inside a 16 ms standard deviation. |
+
+**net481 needed one workaround.** On BenchmarkDotNet 0.14 with the .NET 11 SDK, the net481 child process exits
+with -1 and prints nothing, unless the config keeps the benchmark files (`ConfigOptions.KeepBenchmarkFiles`,
+now in `EqualityConfig`). The net481 figures above come from a B1-only rerun with that option on.
