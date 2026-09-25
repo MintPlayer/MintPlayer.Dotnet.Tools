@@ -1,0 +1,98 @@
+# Pull-request performance check for the source generators (MintPlayer.SourceGenerators.Tools.Benchmarks).
+#
+# Runs the benchmarks twice on the same runner, on the pull request's HEAD and on its BASE commit, and
+# compares them. Measuring both sides in one job is what makes the comparison meaningful: a stored
+# number from another runner, on another day, differs by more than most regressions.
+#
+# Only allocated bytes are gated (see .github/scripts/compare-benchmarks.sh). Time is published in the job
+# summary and never fails the job, because wall-clock on a shared runner varies too much to threshold.
+#
+# When the base commit has no benchmark project (the pull request that introduced it), there is nothing
+# to compare against: the head still runs, its sanity gate must pass, and the summary says so.
+name: sourcegenerators-benchmark
+
+on:
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'SourceGenerators/**'
+      - '.github/workflows/sourcegenerators-benchmark.yml'
+      - '.github/scripts/compare-benchmarks.sh'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  BENCH_PROJECT: SourceGenerators/MintPlayer.SourceGenerators.Tools.Benchmarks
+
+jobs:
+  benchmark:
+    name: head vs base
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout head
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 11.0.100-rc.1.26425.128
+
+      - name: Check out the base commit
+        id: base
+        run: |
+          git worktree add "$RUNNER_TEMP/base" "${{ github.event.pull_request.base.sha }}"
+          if [ -d "$RUNNER_TEMP/base/$BENCH_PROJECT" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run the benchmarks on the head
+        # Raw output to a file, unfiltered: piping into grep loses what does not match and replaces the
+        # exit code with grep's.
+        run: |
+          dotnet run --project "$BENCH_PROJECT" -c Release -f net11.0 -- \
+            --filter '*' --exporters json --artifacts "$RUNNER_TEMP/head-artifacts" > head.log 2>&1
+
+      - name: Run the benchmarks on the base
+        if: steps.base.outputs.present == 'true'
+        working-directory: ${{ runner.temp }}/base
+        run: |
+          dotnet run --project "$BENCH_PROJECT" -c Release -f net11.0 -- \
+            --filter '*' --exporters json --artifacts "$RUNNER_TEMP/base-artifacts" > "$GITHUB_WORKSPACE/base.log" 2>&1
+
+      - name: Compare head against base
+        # Runs without a base too: every row then reports as "new", and the head is still checked for
+        # benchmarks that produced no result.
+        run: |
+          if [ "${{ steps.base.outputs.present }}" != 'true' ]; then
+            {
+              echo "> The base commit (${{ github.event.pull_request.base.sha }}) has no benchmark project, so there is"
+              echo '> nothing to compare against. These head numbers become the baseline once this pull request merges.'
+              echo ''
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          bash .github/scripts/compare-benchmarks.sh \
+            "$RUNNER_TEMP/base-artifacts" "$RUNNER_TEMP/head-artifacts" "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sourcegenerators-benchmark-logs
+          path: |
+            head.log
+            base.log
+            ${{ runner.temp }}/head-artifacts/results
+            ${{ runner.temp }}/base-artifacts/results
+          if-no-files-found: ignore
+          retention-days: 14

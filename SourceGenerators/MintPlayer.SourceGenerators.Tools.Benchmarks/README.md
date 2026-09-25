@@ -48,3 +48,16 @@ dotnet run -c Release -f net11.0 --project SourceGenerators/MintPlayer.SourceGen
   because Visual Studio runs analyzers on .NET Framework. Set `BENCH_NET481=0` to skip that job.
 - **Which metric to trust.** In B2, trust allocated bytes. Wall time on a warm driver varies by about ±30%
   from run to run.
+
+## In CI
+
+`.github/workflows/sourcegenerators-benchmark.yml` runs on every pull request that touches `SourceGenerators/`.
+It runs these benchmarks on the pull request's head and on its base commit, on the same runner, and
+compares the two with `.github/scripts/compare-benchmarks.sh`:
+
+- **Only allocated bytes are gated.** A row that allocated 0 B on the base must stay 0 B, and any other
+  row may grow by at most 5% (`BYTES_TOLERANCE_PERCENT`). Time goes in the job summary but never fails
+  the job.
+- **A benchmark that produced no result fails the job.** BenchmarkDotNet exits 0 even then.
+- **When the base commit has no benchmark project,** which is the case for the pull request that added it,
+  every row reports as new. The head is then only checked for missing results.
