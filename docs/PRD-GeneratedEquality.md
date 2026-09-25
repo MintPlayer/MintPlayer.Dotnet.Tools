@@ -582,3 +582,49 @@ members are part of the generated contract.
 - **Scratch folders:** the only exceptions are pre-10.0 projects there, which are irrelevant.
 
 **D5 stands:** `ValueEquality` lives in Tools.
+
+### S3: compile matrix (measured, M2)
+
+`EqualityCompileMatrixTests` runs the generator over each of the 13 fixtures in `Snapshots/EqualityShapes.cs` at
+LangVersion 9, 11 and latest. The fixtures cover sealed, non-sealed, abstract tree, record, sealed record, derived
+record, struct, record struct, generic, nested, user-declared, `[UseEqualityComparer]` and nested collections.
+Nullable is on and warnings are errors. The record-struct and `record class` fixtures skip C# 9, which leaves 37
+cases.
+
+- **Result:** zero compiler diagnostics in all 37 cases, so no CS8851, CS8872, CS0659, CS0661, CS0436 or CS8656.
+- **Generator diagnostics:** the only one is MINT002, and only on the user-declared fixture.
+- **Real models:** the generator also ran over the repo's own models in MintPlayer.SourceGenerators, Mapper and
+  CliGenerator. The generated files compiled there with no errors.
+
+### S4: oracle agreement with the old comparers (measured, M2)
+
+The harness is two scratch console processes that share one source file (it lives in the session scratchpad and is
+not in the repo).
+
+- **Models:** the property shapes of all 25 repo models. `PathSpec`, `PathSpecElement` and `LocationKey` are
+  replaced by local `[AutoValueComparer]` copies, which makes 28 types.
+- **OLD process:** built with master's generator and Tools, and compares through `ComparerRegistry.For<T>()`, which
+  is the generated `XValueComparer`.
+- **NEW process:** built with this branch, and compares through `EqualityComparer<T>.Default`.
+- **Pairs:** a seeded reflection populator makes 300 pairs per type. Each seed gives an equal pair (built twice),
+  a pair with one property changed, and a comparison against null.
+- **Edge cases the populator covers:** null strings, null arrays, default vs empty vs populated `ImmutableArray`,
+  and `IReadOnlyList`/`IList` backed alternately by `T[]` and `List<T>`.
+
+| | OLD | NEW |
+| --- | --- | --- |
+| Comparisons | 25,200 | 25,200 |
+| Equal pairs equal (and equal hashes) | 8,400 / 8,400 | 8,400 / 8,400 |
+| One-property pairs unequal | 7,037 | 7,037 |
+| Symmetry or hash-contract violations | 0 | 0 |
+| **Lines that differ** | | **0** |
+
+No deviation was found. The expected ones are not exercised by these models:
+- **D6:** no model has a dictionary property.
+- **P2:** no repo model is a hierarchy.
+- **`[ComparerIgnore]` hash:** no repo model uses the attribute.
+
+The runtime tests cover all three instead:
+- `ADerivedTypeWithoutTheAttribute_…` (P2);
+- `AComparerIgnoreProperty_IsLeftOutOfEqualsAndOutOfTheHash` (the `[ComparerIgnore]` hash);
+- `Dictionaries_CompareOrderInsensitively` (D6).
