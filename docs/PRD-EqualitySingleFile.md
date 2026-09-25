@@ -263,6 +263,13 @@ Tests are batched to the end, per the house rule.
    - The PR's `sourcegenerators-benchmark` job compares against master, the first real head-vs-base run. The gate
      applies: B1 is unaffected, and B2's "All 8" set includes this generator. Its allocation must stay within 5%.
      L2 predicts a small increase only on model edits, and B2's edits aren't model edits.
+   - *Status: done.* The full Release suite passes (24 assemblies). PR #186 is green: `pull-request`,
+     `dotnet-build-any`, and the first real `sourcegenerators-benchmark` comparison against master, with all 22 rows
+     within the gate:
+     - **B1:** all 18 rows stay at 0 B, with times within noise.
+     - **B2 "All 8":** 7,739,040 → 7,713,368 B on the unrelated edit (−0.3%), and 8,102,376 → 8,066,064 B on the
+       relevant edit (−0.4%).
+     - **B2 SG5:** unchanged.
 
 ## Acceptance criteria
 
