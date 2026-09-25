@@ -63,6 +63,26 @@ public class XmlDocumentationTests
         run.AllSources.Should().NotContain("<c>");
     }
 
+    /// <summary>
+    /// A summary that starts the declaration's leading trivia — at column 0, directly below the
+    /// line before. <c>SyntaxTriviaList.ToString()</c> leaves out the first trivia's own leading
+    /// trivia, and for a doc comment that is the <c>///</c> exterior, so the summary was read
+    /// without its <c>///</c> prefixes and dropped. Indentation or a blank line before the comment
+    /// hid it, which is why it looked like a block-scoped namespace problem.
+    /// </summary>
+    [Theory]
+    [InlineData("namespace Demo\n{\n/// <summary>A widget that does widget things.</summary>\npublic partial class Widget { }\n}")]
+    [InlineData("namespace Demo;\n/// <summary>A widget that does widget things.</summary>\npublic partial class Widget { }")]
+    [InlineData("/// <summary>A widget that does widget things.</summary>\npublic partial class Widget { }")]
+    [InlineData("namespace Demo\n{\n    /// <summary>A widget that does widget things.</summary>\n    public partial class Widget { }\n}")]
+    public void ItPicksUpASummaryThatIsTheFirstTrivia(string source)
+    {
+        var run = Run(source);
+
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        run.AllSources.Should().Contain("widget things");
+    }
+
     [Fact]
     public void ItIgnoresAnUndocumentedType()
     {

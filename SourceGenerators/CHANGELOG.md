@@ -24,6 +24,14 @@ change: generated file names are not API.
   and the Assertions generator test projects). It runs each generator over one decorated input and over five, and
   fails if the set of hint names differs.
 
+### Fixed
+
+**MintPlayer.SourceGenerators**
+- **`DescriptionSourceGenerator` no longer drops a summary at column 0 directly below the previous line** (for
+  example `namespace Demo;` or `{` followed by `/// <summary>` with no indentation or blank line). It read the leading
+  trivia with `ToString()`, which leaves out the doc comment's `///` exterior when the comment is the first trivia,
+  so no `[Description]` was generated.
+
 ## 12.0.0
 
 Issue [#184](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/184), PR
