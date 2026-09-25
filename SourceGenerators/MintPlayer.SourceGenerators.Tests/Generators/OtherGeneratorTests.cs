@@ -364,7 +364,7 @@ public class ValueComparerGeneratorTests
             generatorAssemblyName: "MintPlayer.ValueComparerGenerator");
 
     [Fact]
-    public void ItGeneratesAComparerForADecoratedHierarchy()
+    public void ItGeneratesEqualityForEveryTypeOfADecoratedHierarchy()
     {
         var run = Run("""
             using MintPlayer.ValueComparerGenerator.Attributes;
@@ -384,11 +384,34 @@ public class ValueComparerGeneratorTests
             """);
 
         run.Errors.Should().BeEmpty(run.ErrorText);
-        run.GeneratedSources.Should().NotBeEmpty();
+        run.GeneratedSources.Select(s => s.HintName).Should().Contain("Demo.Shape.Equality.g.cs");
+        // Circle has no attribute of its own, and still gets its members: without them it would inherit
+        // Shape's EqualsCore and compare only Name.
+        run.SourceFor("Demo.Circle.Equality.g.cs")!.Should().Contain("protected override bool EqualsCore(global::Demo.Shape other)");
     }
 
     [Fact]
-    public void ItHonoursComparerIgnore()
+    public void ItGeneratesNoComparerClassesAndNoWithComparerExtensions()
+    {
+        var run = Run("""
+            using MintPlayer.ValueComparerGenerator.Attributes;
+
+            namespace Demo;
+
+            [AutoValueComparer]
+            public sealed partial class Model { public string Name { get; set; } = ""; }
+            """);
+
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        run.AllSources.Should().NotContain("ValueComparer<");
+        run.AllSources.Should().NotContain("ComparerRegistry");
+        run.AllSources.Should().NotContain("ValueComparerAttribute");
+        run.AllSources.Should().NotContain("WithComparer");
+        run.AllSources.Should().NotContain("ModelValueComparer");
+    }
+
+    [Fact]
+    public void ItHonoursComparerIgnore_InEqualsAndInGetHashCode()
     {
         var run = Run("""
             using MintPlayer.ValueComparerGenerator.Attributes;
@@ -408,6 +431,63 @@ public class ValueComparerGeneratorTests
             """);
 
         run.Errors.Should().BeEmpty(run.ErrorText);
+        var circle = run.SourceFor("Demo.Circle.Equality.g.cs")!;
+        circle.Should().Contain("// Radius: [ComparerIgnore]");
+        // The #184 bug: the hash used to include ignored properties.
+        circle.Should().NotContain("Radius.GetHashCode()");
+        circle.Should().NotContain("Radius ==");
+    }
+
+    [Fact]
+    public void ItFindsRecordsAndStructs()
+    {
+        var run = Run("""
+            using MintPlayer.ValueComparerGenerator.Attributes;
+
+            namespace Demo;
+
+            [AutoValueComparer] public partial record R(string Name);
+            [AutoValueComparer] public partial struct S { public int X { get; set; } }
+            [AutoValueComparer] public partial record struct RS(int X);
+            """);
+
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        run.GeneratedSources.Select(s => s.HintName).Should().Contain("Demo.R.Equality.g.cs");
+        run.GeneratedSources.Select(s => s.HintName).Should().Contain("Demo.S.Equality.g.cs");
+        run.GeneratedSources.Select(s => s.HintName).Should().Contain("Demo.RS.Equality.g.cs");
+        run.SourceFor("Demo.R.Equality.g.cs")!.Should().Contain("partial record R");
+        run.SourceFor("Demo.RS.Equality.g.cs")!.Should().Contain("partial record struct RS");
+    }
+
+    [Fact]
+    public void AGenericModel_NamesItsTypeParametersEverywhere()
+    {
+        var run = Run("""
+            using MintPlayer.ValueComparerGenerator.Attributes;
+
+            namespace Demo;
+
+            [AutoValueComparer]
+            public sealed partial class Box<T> { public T? Value { get; set; } }
+            """);
+
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        // The old generator concatenated this into Box<T>ValueComparer, which does not compile.
+        run.SourceFor("Demo.Box_1.Equality.g.cs")!.Should().Contain("partial class Box<T> : global::System.IEquatable<global::Demo.Box<T>>");
+    }
+
+    [Fact]
+    public void ATypeInTheGlobalNamespace_IsNotMovedIntoTheRootNamespace()
+    {
+        var run = Run("""
+            using MintPlayer.ValueComparerGenerator.Attributes;
+
+            [AutoValueComparer]
+            public sealed partial class Global { public int X { get; set; } }
+            """);
+
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        run.SourceFor("Global.Equality.g.cs")!.Should().NotContain("namespace");
     }
 
     [Fact]
@@ -421,6 +501,7 @@ public class ValueComparerGeneratorTests
             """);
 
         run.Errors.Should().BeEmpty(run.ErrorText);
+        run.GeneratedSources.Should().BeEmpty();
     }
 
     [Fact]
@@ -437,7 +518,7 @@ public class ValueComparerGeneratorTests
             public partial class Circle : Shape { }
             """, rootNamespace: null);
 
-        run.Errors.Should().NotContain(d => d.Id == "CS1001", run.ErrorText);
+        run.Errors.Should().BeEmpty(run.ErrorText);
     }
 }
 

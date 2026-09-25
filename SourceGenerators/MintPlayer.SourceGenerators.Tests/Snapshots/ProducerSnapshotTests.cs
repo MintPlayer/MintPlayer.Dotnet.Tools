@@ -123,4 +123,49 @@ public class ProducerSnapshotTests
                 public double Radius { get; set; }
             }
             """], "Demo", generatorAssemblyName: "MintPlayer.ValueComparerGenerator"));
+
+    // One snapshot per generated equality shape (PRD D1 to D4). Each also has to compile, which the S3 matrix
+    // in EqualityCompileMatrixTests checks again under warnings-as-errors and several language versions.
+
+    private static GeneratorRun Equality(string source)
+        => GeneratorHarness.Run("ValueComparerGenerator", [source], "Demo", generatorAssemblyName: "MintPlayer.ValueComparerGenerator");
+
+    [Fact]
+    public void EqualitySealedClass() => Verify(Equality(EqualityShapes.SealedClass));
+
+    [Fact]
+    public void EqualityNonSealedClass() => Verify(Equality(EqualityShapes.NonSealedClass));
+
+    [Fact]
+    public void EqualityAbstractTree() => Verify(Equality(EqualityShapes.AbstractTree));
+
+    [Fact]
+    public void EqualityRecord() => Verify(Equality(EqualityShapes.Record));
+
+    [Fact]
+    public void EqualitySealedRecord() => Verify(Equality(EqualityShapes.SealedRecord));
+
+    [Fact]
+    public void EqualityDerivedRecord() => Verify(Equality(EqualityShapes.DerivedRecord));
+
+    [Fact]
+    public void EqualityStruct() => Verify(Equality(EqualityShapes.Struct));
+
+    [Fact]
+    public void EqualityRecordStruct() => Verify(Equality(EqualityShapes.RecordStruct));
+
+    [Fact]
+    public void EqualityGeneric() => Verify(Equality(EqualityShapes.Generic));
+
+    [Fact]
+    public void EqualityNested() => Verify(Equality(EqualityShapes.Nested));
+
+    [Fact]
+    public void EqualityUserDeclared() => Verify(Equality(EqualityShapes.UserDeclared));
+
+    [Fact]
+    public void EqualityUseEqualityComparer() => Verify(Equality(EqualityShapes.UseEqualityComparer));
+
+    [Fact]
+    public void EqualityNestedCollections() => Verify(Equality(EqualityShapes.NestedCollections));
 }

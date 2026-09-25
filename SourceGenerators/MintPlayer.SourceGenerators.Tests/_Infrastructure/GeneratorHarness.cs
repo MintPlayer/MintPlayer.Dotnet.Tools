@@ -55,7 +55,7 @@ internal static class GeneratorHarness
         typeof(Attributes.RegisterAttribute),
         typeof(Mapper.Attributes.GenerateMapperAttribute),
         typeof(CliGenerator.Attributes.CliCommandAttribute),
-        typeof(Tools.ValueComparerAttribute),
+        typeof(Tools.ValueEquality),
         typeof(ValueComparerGenerator.Attributes.AutoValueComparerAttribute),
     ];
 

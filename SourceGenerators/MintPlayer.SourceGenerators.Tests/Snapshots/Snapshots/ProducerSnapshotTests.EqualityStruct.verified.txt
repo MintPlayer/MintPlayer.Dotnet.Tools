@@ -1,4 +1,4 @@
-//---- Demo.Circle.Equality.g.cs ----
+//---- Demo.Range.Equality.g.cs ----
 #nullable enable
 
 //-----------------------------------------------------------------------------------//
@@ -12,30 +12,32 @@
 
 namespace Demo
 {
-    partial class Circle : global::System.IEquatable<global::Demo.Circle>
+    partial struct Range : global::System.IEquatable<global::Demo.Range>
     {
-        public bool Equals(global::Demo.Circle? other) => base.Equals(other);
-        
-        protected override bool EqualsCore(global::Demo.Shape other)
+        public readonly bool Equals(global::Demo.Range other)
         {
-            if (!base.EqualsCore(other)) return false;
-            var o = (global::Demo.Circle)other;
-            return Radius.Equals(o.Radius);
+            return Start == other.Start
+                && End == other.End
+                && global::MintPlayer.SourceGenerators.Tools.ValueEquality.Array<string>(Labels, other.Labels);
         }
         
-        protected override int HashCore()
+        public override readonly bool Equals(object? obj) => obj is global::Demo.Range other && Equals(other);
+        
+        public override readonly int GetHashCode()
         {
             unchecked
             {
-                int h = base.HashCore();
-                h = h * 31 + Radius.GetHashCode();
+                int h = 17;
+                h = h * 31 + Start.GetHashCode();
+                h = h * 31 + End.GetHashCode();
+                h = h * 31 + global::MintPlayer.SourceGenerators.Tools.ValueEquality.ArrayHash<string>(Labels);
                 return h;
             }
         }
     }
 }
 
-//---- Demo.Shape.Equality.g.cs ----
+//---- Demo.Span.Equality.g.cs ----
 #nullable enable
 
 //-----------------------------------------------------------------------------------//
@@ -49,30 +51,21 @@ namespace Demo
 
 namespace Demo
 {
-    partial class Shape : global::System.IEquatable<global::Demo.Shape>
+    partial struct Span : global::System.IEquatable<global::Demo.Span>
     {
-        public bool Equals(global::Demo.Shape? other)
+        public readonly bool Equals(global::Demo.Span other)
         {
-            if (other is null) return false;
-            if (global::System.Object.ReferenceEquals(this, other)) return true;
-            return other.GetType() == GetType() && EqualsCore(other);
+            return Length == other.Length;
         }
         
-        public override bool Equals(object? obj) => Equals(obj as global::Demo.Shape);
+        public override readonly bool Equals(object? obj) => obj is global::Demo.Span other && Equals(other);
         
-        public override int GetHashCode() => HashCore();
-        
-        protected virtual bool EqualsCore(global::Demo.Shape other)
-        {
-            return global::System.String.Equals(Name, other.Name, global::System.StringComparison.Ordinal);
-        }
-        
-        protected virtual int HashCore()
+        public override readonly int GetHashCode()
         {
             unchecked
             {
                 int h = 17;
-                h = h * 31 + (Name is null ? 0 : global::System.StringComparer.Ordinal.GetHashCode(Name));
+                h = h * 31 + Length.GetHashCode();
                 return h;
             }
         }
