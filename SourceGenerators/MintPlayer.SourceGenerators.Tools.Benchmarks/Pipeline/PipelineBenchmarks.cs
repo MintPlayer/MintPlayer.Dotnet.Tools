@@ -4,26 +4,21 @@ using Microsoft.CodeAnalysis.CSharp;
 
 namespace MintPlayer.SourceGenerators.Tools.Benchmarks.Pipeline;
 
-/// <summary>One B2 case: which build, which generators, over which corpus.</summary>
-public sealed record PipelineScenario(GeneratorBuild Build, string Set, string[] Assemblies, Corpus Corpus)
+/// <summary>One B2 case: which generators, over which corpus.</summary>
+public sealed record PipelineScenario(string Set, string[] Assemblies, Corpus Corpus)
 {
     /// <summary>
     /// SG5 is the 5 generators in MintPlayer.SourceGenerators over the S1 corpus: the set and corpus of the
     /// PRD's baseline. All adds MapperGenerator, ValueComparerGenerator and JoinMethodGenerator, over the corpus
     /// that gives them inputs.
     /// </summary>
-    public static IEnumerable<PipelineScenario> Available()
-    {
-        foreach (var build in new[] { GeneratorBuild.Master, GeneratorBuild.Branch })
-        {
-            if (build is null) continue;
-            yield return new(build, "SG5", [GeneratorBuild.SourceGenerators], Corpus.S1);
-            if (build.Has(GeneratorBuild.Mapper) && build.Has(GeneratorBuild.ValueComparerGenerator))
-                yield return new(build, "All", [GeneratorBuild.SourceGenerators, GeneratorBuild.Mapper, GeneratorBuild.ValueComparerGenerator], Corpus.Full);
-        }
-    }
+    public static IEnumerable<PipelineScenario> Available() =>
+    [
+        new("SG5", [GeneratorBuild.SourceGenerators], Corpus.S1),
+        new("All", [GeneratorBuild.SourceGenerators, GeneratorBuild.Mapper, GeneratorBuild.ValueComparerGenerator], Corpus.Full),
+    ];
 
-    public override string ToString() => $"{Build.Name}/{Set}";
+    public override string ToString() => Set;
 }
 
 /// <summary>
@@ -74,7 +69,7 @@ public class PipelineBenchmarks
     /// <summary>A driver over the scenario's corpus that has already done its cold run.</summary>
     public static (GeneratorDriver Driver, CSharpCompilation Compilation) Warm(PipelineScenario scenario)
     {
-        var generators = scenario.Build.Load(scenario.Assemblies);
+        var generators = GeneratorBuild.Load(scenario.Assemblies);
         var compilation = scenario.Corpus.Create();
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             generators.Select(Microsoft.CodeAnalysis.GeneratorExtensions.AsSourceGenerator),

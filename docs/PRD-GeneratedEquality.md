@@ -682,6 +682,12 @@ The runtime tests cover all three instead:
 ### B1/B2: benchmarks (measured)
 
 The project is `SourceGenerators/MintPlayer.SourceGenerators.Tools.Benchmarks`; see its README for how to run it.
+
+> **Recorded baseline.** The Legacy and Master columns below were measured once, from master @ 840456d: the old
+> runtime was vendored under a renamed namespace, and master's generators were loaded side by side with the
+> branch's. They are kept here as a recorded baseline. The benchmark project in the repo measures the current
+> implementation only, so re-running it reproduces the Generated and Branch columns, not these.
+
 - **Setup:** BenchmarkDotNet 0.14.0, Release. The machine is Windows 11, with .NET 11.0.0 (RC1 SDK) and
   .NET Framework 4.8.1.
 - **Gate:** `Verification.Run()` passed before the runs.

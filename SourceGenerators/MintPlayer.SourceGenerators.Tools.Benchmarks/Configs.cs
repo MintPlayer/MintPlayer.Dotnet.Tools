@@ -42,7 +42,7 @@ public sealed class EqualityConfig : ManualConfig
 
 /// <summary>
 /// B2: one <c>RunGenerators</c> per invocation, with the edit applied in an iteration setup so it is not
-/// measured. net11.0 only: loading two generator builds side by side needs an AssemblyLoadContext.
+/// measured. net11.0 only (the csproj compiles Pipeline/ for net11.0 only).
 /// </summary>
 public sealed class PipelineConfig : ManualConfig
 {

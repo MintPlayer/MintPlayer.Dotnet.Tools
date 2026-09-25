@@ -3,8 +3,7 @@ using System.Collections.Immutable;
 
 namespace MintPlayer.SourceGenerators.Tools.Benchmarks.Generated;
 
-// The same B1 models as Legacy/Models.cs, decorated with [AutoValueComparer]. The ValueComparerGenerator of
-// this branch runs over them at build time (it is referenced as an analyzer), so what gets measured is the
+// The B1 models, decorated with [AutoValueComparer]. The ValueComparerGenerator of this checkout runs over them at build time (it is referenced as an analyzer), so what gets measured is the
 // real generated IEquatable<T> calling MintPlayer.SourceGenerators.Tools.ValueEquality. Set
 // EmitCompilerGeneratedFiles to inspect it under obj/.
 

@@ -13,8 +13,6 @@
 		<Nullable>enable</Nullable>
 		<IsPackable>false</IsPackable>
 		<IsTestProject>false</IsTestProject>
-		<!-- Legacy/Runtime is vendored verbatim from master; its warnings are master's. -->
-		<NoWarn>$(NoWarn);CS8600;CS8601;CS8602;CS8603;CS8604;CS8619;CS8620;CS8625</NoWarn>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -27,28 +25,26 @@
 	</ItemGroup>
 	<Import Project="..\eng\valuecomparergenerator.targets" />
 
-	<!-- B2 is net11.0 only (it needs AssemblyLoadContext). ImplicitUsings adds System.Net.Http, which net481 does not reference by default. -->
+	<!-- B2 is net11.0 only. ImplicitUsings adds System.Net.Http, which net481 does not reference by default. -->
 	<ItemGroup Condition="'$(TargetFramework)' == 'net481'">
 		<Compile Remove="Pipeline\**" />
 		<Using Remove="System.Net.Http" />
 	</ItemGroup>
 
 	<!--
-	B2: the generators run in-process through CSharpGeneratorDriver, loaded from their own bin folders into an
-	AssemblyLoadContext (see Pipeline/GeneratorBuilds.cs). These references only make sure they are built first;
+	B2: the generators run in-process through CSharpGeneratorDriver, loaded from their own bin folders
+	(see Pipeline/GeneratorBuilds.cs). These references only make sure they are built first;
 	ValueComparerGenerator is already built through the analyzer reference that valuecomparergenerator.targets adds.
 	-->
 	<ItemGroup Condition="'$(TargetFramework)' != 'net481'">
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
 		<!-- The generator assemblies also hold code fixes, whose base types are in Workspaces. -->
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" />
-		<!-- Master's MintPlayer.SourceGenerators build compares JObject properties; its bin does not carry Newtonsoft. -->
-		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
 
 		<ProjectReference Include="..\SourceGenerators\MintPlayer.SourceGenerators\MintPlayer.SourceGenerators.csproj"
-		                  ReferenceOutputAssembly="false" SetTargetFramework="TargetFramework=netstandard2.0" />
+		                  ReferenceOutputAssembly="false" />
 		<ProjectReference Include="..\Mapper\MintPlayer.Mapper\MintPlayer.Mapper.csproj"
-		                  ReferenceOutputAssembly="false" SetTargetFramework="TargetFramework=netstandard2.0" />
+		                  ReferenceOutputAssembly="false" />
 
 		<!-- The corpus compilations reference the attribute assemblies. -->
 		<ProjectReference Include="..\SourceGenerators\MintPlayer.SourceGenerators.Attributes\MintPlayer.SourceGenerators.Attributes.csproj" />

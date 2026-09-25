@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
-using L = MintPlayer.SourceGenerators.Tools.Benchmarks.Legacy;
-using G = MintPlayer.SourceGenerators.Tools.Benchmarks.Generated;
+using MintPlayer.SourceGenerators.Tools.Benchmarks.Generated;
 
 namespace MintPlayer.SourceGenerators.Tools.Benchmarks.Equality;
 
@@ -24,91 +23,56 @@ public static class Shapes
     }
 
     // ---- Flat: 3 strings of 30 chars ----
-    public static L.Flat LegacyFlat(bool differ) => new() { A = Str("alpha", 1), B = Str("bravo", 2), C = Str("charlie", 3, differ) };
-    public static G.Flat GeneratedFlat(bool differ) => new() { A = Str("alpha", 1), B = Str("bravo", 2), C = Str("charlie", 3, differ) };
+    public static Flat CreateFlat(bool differ) => new() { A = Str("alpha", 1), B = Str("bravo", 2), C = Str("charlie", 3, differ) };
 
     // ---- IReadOnlyList<string> x20 (backed by List<string>, the common case) ----
     public const int StringCount = 20;
-    private static List<string> Strings(bool differ)
+    public static StringList CreateStringList(bool differ)
     {
         var list = new List<string>(StringCount);
         for (var i = 0; i < StringCount; i++) list.Add(Str("item", i, differ && i == StringCount - 1));
-        return list;
+        return new() { Name = Str("list", 0), Items = list };
     }
-    public static L.StringList LegacyStringList(bool differ) => new() { Name = Str("list", 0), Items = Strings(differ) };
-    public static G.StringList GeneratedStringList(bool differ) => new() { Name = Str("list", 0), Items = Strings(differ) };
 
     // ---- ImmutableArray<Child> x50 ----
     public const int ChildCount = 50;
-    public static L.ChildArray LegacyChildArray(bool differ)
+    public static ChildArray CreateChildArray(bool differ)
     {
-        var b = ImmutableArray.CreateBuilder<L.Child>(ChildCount);
-        for (var i = 0; i < ChildCount; i++) b.Add(new L.Child { Name = Str("child", i), Value = differ && i == ChildCount - 1 ? -1 : i });
-        return new() { Name = Str("array", 0), Children = b.MoveToImmutable() };
-    }
-    public static G.ChildArray GeneratedChildArray(bool differ)
-    {
-        var b = ImmutableArray.CreateBuilder<G.Child>(ChildCount);
-        for (var i = 0; i < ChildCount; i++) b.Add(new G.Child { Name = Str("child", i), Value = differ && i == ChildCount - 1 ? -1 : i });
+        var b = ImmutableArray.CreateBuilder<Child>(ChildCount);
+        for (var i = 0; i < ChildCount; i++) b.Add(new Child { Name = Str("child", i), Value = differ && i == ChildCount - 1 ? -1 : i });
         return new() { Name = Str("array", 0), Children = b.MoveToImmutable() };
     }
 
     // ---- (Child, Child) tuple property ----
-    public static L.ChildPair LegacyChildPair(bool differ) => new()
+    public static ChildPair CreateChildPair(bool differ) => new()
     {
         Name = Str("pair", 0),
-        Pair = (new L.Child { Name = Str("left", 1), Value = 1 }, new L.Child { Name = Str("right", 2), Value = differ ? -2 : 2 }),
-    };
-    public static G.ChildPair GeneratedChildPair(bool differ) => new()
-    {
-        Name = Str("pair", 0),
-        Pair = (new G.Child { Name = Str("left", 1), Value = 1 }, new G.Child { Name = Str("right", 2), Value = differ ? -2 : 2 }),
+        Pair = (new Child { Name = Str("left", 1), Value = 1 }, new Child { Name = Str("right", 2), Value = differ ? -2 : 2 }),
     };
 
     // ---- 3-level abstract tree: a complete binary tree of depth 3 (7 nodes, 4 leaves), compared as Node ----
-    public static L.Node LegacyTree(bool differ)
+    public static Node CreateTree(bool differ)
     {
         var n = 0;
-        L.Node Build(int depth, bool last)
+        Node Build(int depth, bool last)
         {
             var id = n++;
             if (depth == 0)
-                return new L.Leaf { Name = Str("leaf", id), Kind = Str("lit", id), Value = Str("value", id, differ && last) };
+                return new Leaf { Name = Str("leaf", id), Kind = Str("lit", id), Value = Str("value", id, differ && last) };
             var left = Build(depth - 1, false);
             var right = Build(depth - 1, last);
-            return new L.Binary { Name = Str("bin", id), Kind = Str("add", id), Left = left, Right = right };
-        }
-        return Build(2, true);
-    }
-    public static G.Node GeneratedTree(bool differ)
-    {
-        var n = 0;
-        G.Node Build(int depth, bool last)
-        {
-            var id = n++;
-            if (depth == 0)
-                return new G.Leaf { Name = Str("leaf", id), Kind = Str("lit", id), Value = Str("value", id, differ && last) };
-            var left = Build(depth - 1, false);
-            var right = Build(depth - 1, last);
-            return new G.Binary { Name = Str("bin", id), Kind = Str("add", id), Left = left, Right = right };
+            return new Binary { Name = Str("bin", id), Kind = Str("add", id), Left = left, Right = right };
         }
         return Build(2, true);
     }
 
     // ---- Spark-like: an entity with a List<PropertyDefinition> x20 ----
     public const int SparkPropertyCount = 20;
-    public static L.SparkEntity LegacySpark(bool differ)
+    public static SparkEntity CreateSpark(bool differ)
     {
-        var props = new List<L.SparkProperty>(SparkPropertyCount);
+        var props = new List<SparkProperty>(SparkPropertyCount);
         for (var i = 0; i < SparkPropertyCount; i++)
-            props.Add(new L.SparkProperty { Name = Str("prop", i), ClrType = Str("System.String", i), IsNullable = i % 2 == 0, Label = Str("label", i, differ && i == SparkPropertyCount - 1) });
-        return new() { Name = Str("entity", 0), Namespace = Str("Demo.Entities", 0), Properties = props };
-    }
-    public static G.SparkEntity GeneratedSpark(bool differ)
-    {
-        var props = new List<G.SparkProperty>(SparkPropertyCount);
-        for (var i = 0; i < SparkPropertyCount; i++)
-            props.Add(new G.SparkProperty { Name = Str("prop", i), ClrType = Str("System.String", i), IsNullable = i % 2 == 0, Label = Str("label", i, differ && i == SparkPropertyCount - 1) });
+            props.Add(new SparkProperty { Name = Str("prop", i), ClrType = Str("System.String", i), IsNullable = i % 2 == 0, Label = Str("label", i, differ && i == SparkPropertyCount - 1) });
         return new() { Name = Str("entity", 0), Namespace = Str("Demo.Entities", 0), Properties = props };
     }
 }

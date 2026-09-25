@@ -1,18 +1,15 @@
 using BenchmarkDotNet.Running;
-using MintPlayer.SourceGenerators.Tools.Benchmarks;
 using MintPlayer.SourceGenerators.Tools.Benchmarks.Equality;
-using MintPlayer.SourceGenerators.Tools.Benchmarks.Legacy;
-using L = MintPlayer.SourceGenerators.Tools.Benchmarks.Legacy;
-using G = MintPlayer.SourceGenerators.Tools.Benchmarks.Generated;
+using MintPlayer.SourceGenerators.Tools.Benchmarks.Generated;
 #if NET
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using MintPlayer.SourceGenerators.Tools.Benchmarks.Pipeline;
 #endif
 
-// A comparison is only meaningful if both sides do the same work, so the run is gated on proving it:
-// Legacy and Generated must give the same answer on every shape, the generator must really have run, and
-// each pipeline scenario must load its generators and react to a relevant edit (and only to that).
+// The numbers only mean something if the code under measurement is correct, so the run is gated on it: the
+// generated models must compare correctly on every shape (which also proves the generator ran), and each
+// pipeline scenario must load its generators and react to a relevant edit (and only to that).
 // Pass --verify-only to run just these checks.
 Verification.Run();
 if (args.Contains("--verify-only")) return;
@@ -23,63 +20,57 @@ static class Verification
 {
     public static void Run()
     {
-        Shape("flat 3 strings", Shapes.LegacyFlat, Shapes.GeneratedFlat);
-        Shape("IReadOnlyList<string> x20", Shapes.LegacyStringList, Shapes.GeneratedStringList);
-        Shape("ImmutableArray<Child> x50", Shapes.LegacyChildArray, Shapes.GeneratedChildArray);
-        Shape("(Child, Child) tuple", Shapes.LegacyChildPair, Shapes.GeneratedChildPair);
-        Shape("3-level abstract tree", Shapes.LegacyTree, Shapes.GeneratedTree);
-        Shape("Spark-like List<Model> x20", Shapes.LegacySpark, Shapes.GeneratedSpark);
+        Shape("flat 3 strings", Shapes.CreateFlat);
+        Shape("IReadOnlyList<string> x20", Shapes.CreateStringList);
+        Shape("ImmutableArray<Child> x50", Shapes.CreateChildArray);
+        Shape("(Child, Child) tuple", Shapes.CreateChildPair);
+        Shape("3-level abstract tree", Shapes.CreateTree);
+        Shape("Spark-like List<Model> x20", Shapes.CreateSpark);
 
         // Equal pairs share no string instance, so nothing short-circuits on a reference below the root.
-        var (a, b) = (Shapes.GeneratedFlat(false), Shapes.GeneratedFlat(false));
+        var (a, b) = (Shapes.CreateFlat(false), Shapes.CreateFlat(false));
         Require(!ReferenceEquals(a.C, b.C), "equal pairs share string instances");
 
-        // The generated tree dispatches on the runtime type: a Leaf never equals a Binary, in either variant.
-        Require(!ComparerRegistry.For<L.Node>().Equals(new L.Leaf(), new L.Binary()), "Legacy: Leaf equals Binary");
-        Require(!EqualityComparer<G.Node>.Default.Equals(new G.Leaf(), new G.Binary()), "Generated: Leaf equals Binary");
+        // The generated tree dispatches on the runtime type: a Leaf never equals a Binary.
+        Require(!EqualityComparer<Node>.Default.Equals(new Leaf(), new Binary()), "a Leaf equals a Binary");
 
-        Console.WriteLine("B1 fairness checks passed: Legacy and Generated agree on every shape.");
+        Console.WriteLine("B1 checks passed: the generated models compare correctly on every shape.");
 
 #if NET
         foreach (var scenario in PipelineScenario.Available())
             Pipeline(scenario);
-        if (GeneratorBuild.Master is null)
-            Console.WriteLine("B2: BENCH_MASTER_ROOT is not set, so only this branch's generators are measured.");
 #endif
     }
 
-    private static void Shape<TL, TG>(string name, Func<bool, TL> legacy, Func<bool, TG> generated)
-        where TL : class where TG : class
+    private static void Shape<T>(string name, Func<bool, T> create) where T : class
     {
-        Require(typeof(IEquatable<TG>).IsAssignableFrom(typeof(TG)),
-            $"{typeof(TG).Name} does not implement IEquatable<T>: the ValueComparerGenerator did not run.");
+        Require(typeof(IEquatable<T>).IsAssignableFrom(typeof(T)),
+            $"{typeof(T).Name} does not implement IEquatable<{typeof(T).Name}>: the ValueComparerGenerator did not run.");
 
-        var lc = ComparerRegistry.For<TL>();
-        Require(lc.GetType().Name == typeof(TL).Name + "ValueComparer",
-            $"ComparerRegistry.For<{typeof(TL).Name}>() returned {lc.GetType().Name}, not the generated-style comparer.");
-        var gc = EqualityComparer<TG>.Default;
+        // T? because net481's EqualityComparer<T> carries no nullable annotations.
+        var comparer = EqualityComparer<T?>.Default;
+        var (x, y, diff) = (create(false), create(false), create(true));
+        Require(!ReferenceEquals(x, y), $"{name}: an equal pair is one instance.");
 
-        var (l1, l2, l3) = (legacy(false), legacy(false), legacy(true));
-        var (g1, g2, g3) = (generated(false), generated(false), generated(true));
-
-        Require(!ReferenceEquals(l1, l2) && !ReferenceEquals(g1, g2), $"{name}: an equal pair is one instance.");
-
-        var answers = new (string What, bool Legacy, bool Generated, bool Expected)[]
+        var answers = new (string What, bool Actual, bool Expected)[]
         {
-            ("equal pair", lc.Equals(l1, l2), gc.Equals(g1, g2), true),
-            ("last property differs", lc.Equals(l1, l3), gc.Equals(g1, g3), false),
-            ("symmetry", lc.Equals(l3, l1), gc.Equals(g3, g1), false),
-            ("null", lc.Equals(l1, null), gc.Equals(g1, null), false),
-            ("equal hashes", lc.GetHashCode(l1) == lc.GetHashCode(l2), gc.GetHashCode(g1) == gc.GetHashCode(g2), true),
+            ("equal pair", comparer.Equals(x, y), true),
+            ("equal pair, reversed", comparer.Equals(y, x), true),
+            ("equal hashes", comparer.GetHashCode(x) == comparer.GetHashCode(y), true),
+            ("last property differs", comparer.Equals(x, diff), false),
+            ("last property differs, reversed", comparer.Equals(diff, x), false),
+            ("null on the right", comparer.Equals(x, null), false),
+            ("null on the left", comparer.Equals(null, x), false),
+            ("null against null", comparer.Equals(null, null), true),
         };
-        foreach (var (what, l, g, expected) in answers)
-            Require(l == expected && g == expected, $"{name}, {what}: Legacy={l}, Generated={g}, expected {expected}.");
+        foreach (var (what, actual, expected) in answers)
+            Require(actual == expected, $"{name}, {what}: got {actual}, expected {expected}.");
     }
 
 #if NET
     private static void Pipeline(PipelineScenario scenario)
     {
-        var generators = scenario.Build.Load(scenario.Assemblies);
+        var generators = GeneratorBuild.Load(scenario.Assemblies);
         Require(generators.Length > 0, $"{scenario}: no generators loaded.");
         var (driver, compilation) = PipelineBenchmarks.Warm(scenario);
 
@@ -112,6 +103,6 @@ static class Verification
 
     private static void Require(bool condition, string message)
     {
-        if (!condition) throw new InvalidOperationException("Fairness check failed: " + message);
+        if (!condition) throw new InvalidOperationException("Verification failed: " + message);
     }
 }
