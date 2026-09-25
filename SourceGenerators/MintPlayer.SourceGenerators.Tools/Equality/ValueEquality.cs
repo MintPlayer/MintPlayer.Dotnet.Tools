@@ -237,6 +237,16 @@ public static class ValueEquality
         public int GetHashCode(IReadOnlyDictionary<TKey, TValue>? obj) => DictionaryHash(obj, value);
     }
 
+    /// <summary>
+    /// A comparer built from an equality and a hash delegate. Generated code uses it for an element type that no
+    /// comparer above covers but that still needs a structural comparison, such as a tuple holding a list.
+    /// </summary>
+    public sealed class DelegateComparer<T>(Func<T, T, bool> equals, Func<T, int> hash) : IEqualityComparer<T>
+    {
+        public bool Equals(T x, T y) => equals(x, y);
+        public int GetHashCode(T obj) => hash(obj);
+    }
+
     /// <summary>Ordinal string comparison, matching what generated code emits for <see cref="string"/> properties.</summary>
     public static IEqualityComparer<string?> String => StringComparer.Ordinal;
     #endregion

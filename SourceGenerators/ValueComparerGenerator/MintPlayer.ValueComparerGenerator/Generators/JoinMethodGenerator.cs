@@ -26,7 +26,6 @@ public class JoinMethodGenerator : IncrementalGenerator
 
                 return 5u;
             })
-            .WithComparer(ComparerRegistry.For<uint>())
             .Collect()
             .Select((x, ct) => x.Any() ? x.First() : 5u);
 
