@@ -213,6 +213,54 @@ public class GenericMethodGenerationTests
         run.AllSources.Should().Contain("T4");
     }
 
+    /// <summary>
+    /// The shape the producer is built for: each overload forwards its arguments as a collection
+    /// expression (<c>this.Add([t1, t2])</c>) to the decorated private method, so that method takes
+    /// a collection and the generator never implements it. The fixtures above, a generic
+    /// <c>private partial void Add&lt;T&gt;(T value)</c> with no body, are not valid input and do
+    /// not compile: C# requires a body for a partial method with an accessibility modifier, and
+    /// <c>[t1]</c> cannot infer <c>T</c>.
+    /// </summary>
+    [Theory]
+    [InlineData("private void Add(object[] values) { }")]
+    [InlineData("private static void Add(object[] values) { }")]
+    public void ItEmitsCompilableOverloads(string method)
+    {
+        var run = Run($$"""
+                public partial class Builder
+                {
+                    [GenericMethod(3)]
+                    {{method}}
+                }
+            """);
+
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        run.AllSources.Should().Contain("Add<T1, T2, T3>");
+    }
+
+    /// <summary>
+    /// A decorated partial method, declared and implemented by the user. The overloads have other
+    /// signatures, so they can never be its implementing half; copying <c>partial</c> onto them
+    /// made each one an implementation with no definition (CS0759), or, for the one-parameter
+    /// overload of a generic method, a second implementation with the wrong accessibility.
+    /// </summary>
+    [Fact]
+    public void ItEmitsCompilableOverloadsForAPartialMethod()
+    {
+        var run = Run("""
+                public partial class Builder
+                {
+                    [GenericMethod(3)]
+                    private partial void Add(object[] values);
+
+                    private partial void Add(object[] values) { }
+                }
+            """);
+
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        run.AllSources.Should().Contain("Add<T1, T2, T3>");
+    }
+
     [Fact]
     public void ItIgnoresAMethodWithoutTheAttribute()
     {

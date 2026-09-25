@@ -39,7 +39,9 @@ public class GenericMethodProducer : Producer
                         {
                             writer.Write("public ");
                             if (method.Method.MethodIsStatic) writer.Write("static ");
-                            if (method.Method.MethodIsPartial) writer.Write("partial ");
+                            // Never "partial", even when the decorated method is: an overload has
+                            // another signature, so it can never be that method's implementing
+                            // half, and a partial one is an implementation with no definition (CS0759).
                             writer.Write($"void {method.Method.MethodName}<");
                             writer.Write(string.Join(", ", Enumerable.Range(1, i).Select(i => $"T{i}")));
                             writer.Write(">( ");

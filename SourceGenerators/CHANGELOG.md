@@ -31,6 +31,9 @@ change: generated file names are not API.
   example `namespace Demo;` or `{` followed by `/// <summary>` with no indentation or blank line). It read the leading
   trivia with `ToString()`, which leaves out the doc comment's `///` exterior when the comment is the first trivia,
   so no `[Description]` was generated.
+- **`GenericMethodSourceGenerator` no longer marks the overloads it generates `partial`** when the decorated method
+  is. An overload has another signature and can never be that method's implementation, so each one failed with
+  `CS0759`.
 
 **MintPlayer.CliGenerator**
 - **A subcommand declared in another namespace than its parent now compiles.** Every command's partial half was
