@@ -74,6 +74,13 @@ jobs:
     - name: Pack
       run: dotnet pack --no-build --configuration Release /p:ContinuousIntegrationBuild=true
 
+    # Every release from 10.20.2 to 12.0.1 shipped assemblies versioned 99.9.9.0, because the
+    # packaging tests rebuilt bin/Release with their test version before this --no-build pack
+    # (#187). Check what is inside the packages before anything is pushed.
+    - name: Assert package versions
+      shell: pwsh
+      run: ./eng/Assert-PackageVersions.ps1 -Path .
+
     - name: PushNuget
       run: dotnet nuget push **/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.PUBLISH_TO_NUGET_ORG }} --skip-duplicate
 

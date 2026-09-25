@@ -25,7 +25,7 @@ public sealed class PackedFeed : IDisposable
     /// <summary>Distinctive so a stale real package can never satisfy a restore by accident.</summary>
     public const string Version = "99.9.9-packtest";
 
-    private static readonly string RepoRoot = Path.GetFullPath(
+    internal static readonly string RepoRoot = Path.GetFullPath(
         typeof(PackedFeed).Assembly
             .GetCustomAttributes<AssemblyMetadataAttribute>()
             .First(a => a.Key == "RepoRoot").Value!);
@@ -42,10 +42,11 @@ public sealed class PackedFeed : IDisposable
         Feed = Path.Combine(Root, "feed");
         Directory.CreateDirectory(Feed);
 
+        var tree = CopyTree(Path.Combine(Root, "src"));
         var log = new List<string>();
-        foreach (var project in ProjectsToPack)
+        foreach (var project in ProjectsToPack.Select(p => Path.Combine(tree, p)))
         {
-            var (exitCode, output) = Run(RepoRoot, $"pack \"{project}\" -c Release -o \"{Feed}\" -p:Version={Version} -tl:off");
+            var (exitCode, output) = Run(tree, $"pack \"{project}\" -c Release -o \"{Feed}\" -p:Version={Version} -tl:off");
             log.Add($"--- pack {Path.GetFileName(project)} (exit {exitCode}) ---{Environment.NewLine}{output}");
 
             if (exitCode != 0)
@@ -75,15 +76,58 @@ public sealed class PackedFeed : IDisposable
     /// fail with NU1102, the kind of thing an in-process test cannot see.
     /// </para>
     /// </remarks>
-    private static IEnumerable<string> ProjectsToPack =>
+    /// <summary>Relative to the repository root (and to each copy of it).</summary>
+    internal static IEnumerable<string> ProjectsToPack =>
     [
-        Path.Combine(RepoRoot, "SourceGenerators", "MintPlayer.SourceGenerators.Tools", "MintPlayer.SourceGenerators.Tools.csproj"),
-        Path.Combine(RepoRoot, "SourceGenerators", "SourceGenerators", "MintPlayer.SourceGenerators.Attributes", "MintPlayer.SourceGenerators.Attributes.csproj"),
-        Path.Combine(RepoRoot, "SourceGenerators", "ValueComparerGenerator", "MintPlayer.ValueComparerGenerator.Attributes", "MintPlayer.ValueComparerGenerator.Attributes.csproj"),
-        Path.Combine(RepoRoot, "SourceGenerators", "ValueComparers", "MintPlayer.ValueComparers.NewtonsoftJson", "MintPlayer.ValueComparers.NewtonsoftJson.csproj"),
-        Path.Combine(RepoRoot, "SourceGenerators", "SourceGenerators", "MintPlayer.SourceGenerators", "MintPlayer.SourceGenerators.csproj"),
-        Path.Combine(RepoRoot, "Assertions", "MintPlayer.Assertions", "MintPlayer.Assertions.csproj"),
+        Path.Combine("SourceGenerators", "MintPlayer.SourceGenerators.Tools", "MintPlayer.SourceGenerators.Tools.csproj"),
+        Path.Combine("SourceGenerators", "SourceGenerators", "MintPlayer.SourceGenerators.Attributes", "MintPlayer.SourceGenerators.Attributes.csproj"),
+        Path.Combine("SourceGenerators", "ValueComparerGenerator", "MintPlayer.ValueComparerGenerator.Attributes", "MintPlayer.ValueComparerGenerator.Attributes.csproj"),
+        Path.Combine("SourceGenerators", "ValueComparers", "MintPlayer.ValueComparers.NewtonsoftJson", "MintPlayer.ValueComparers.NewtonsoftJson.csproj"),
+        Path.Combine("SourceGenerators", "SourceGenerators", "MintPlayer.SourceGenerators", "MintPlayer.SourceGenerators.csproj"),
+        Path.Combine("Assertions", "MintPlayer.Assertions", "MintPlayer.Assertions.csproj"),
     ];
+
+    /// <summary>
+    /// Copies the source the packs need into <paramref name="destination"/>, without any bin/ or obj/.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Packing in the repo itself rebuilt every project's bin/Release with the 99.9.9 test stamp, and
+    /// CI's later <c>dotnet pack --no-build</c> shipped those dlls. Every release from 10.20.2 to 12.0.1
+    /// went out as AssemblyVersion 99.9.9.0 that way.
+    /// </para>
+    /// <para>
+    /// A copy, not <c>-p:ArtifactsPath</c> or <c>-p:BaseOutputPath</c>. The pack targets
+    /// (eng/sourcegenerator.targets and the others) read their payload from the hardcoded
+    /// <c>$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0</c>. Redirecting the output
+    /// leaves that path holding the repo's real build, which then gets packed with no error. Measured:
+    /// it produced a 99.9.9-packtest package full of 12.0.1.0 dlls. A copy with no bin/ or obj/ also
+    /// gives a clean tree, so no leftover build state leaks into what gets packed. The copy takes
+    /// about a second.
+    /// </para>
+    /// </remarks>
+    private static string CopyTree(string destination)
+    {
+        foreach (var dir in new[] { "SourceGenerators", "Assertions" })
+            CopyDirectory(Path.Combine(RepoRoot, dir), Path.Combine(destination, dir));
+        File.Copy(Path.Combine(RepoRoot, "nuget.config"), Path.Combine(destination, "nuget.config"));
+        return destination;
+    }
+
+    private static readonly HashSet<string> SkippedDirectories =
+        new(["bin", "obj", "TestResults", "node_modules", ".vs"], StringComparer.OrdinalIgnoreCase);
+
+    private static void CopyDirectory(string source, string destination)
+    {
+        Directory.CreateDirectory(destination);
+        foreach (var file in Directory.EnumerateFiles(source))
+            File.Copy(file, Path.Combine(destination, Path.GetFileName(file)));
+        foreach (var dir in Directory.EnumerateDirectories(source))
+        {
+            if (SkippedDirectories.Contains(Path.GetFileName(dir))) continue;
+            CopyDirectory(dir, Path.Combine(destination, Path.GetFileName(dir)));
+        }
+    }
 
 
     /// <summary>
@@ -112,8 +156,10 @@ public sealed class PackedFeed : IDisposable
 
         // Forward slashes in, native separators out. Path.Combine does NOT translate separators,
         // so a backslash-separated literal resolves on Windows and silently does not on Linux.
-        var project = Path.Combine(RepoRoot, projectRelativePath.Replace('/', Path.DirectorySeparatorChar));
-        var (exitCode, output) = Run(RepoRoot, $"pack \"{project}\" -c {configuration} -o \"{feedDir}\" -p:Version={Version} -tl:off");
+        // Its own copy, so this pack cannot pick up what the shared feed's packs built.
+        var tree = CopyTree(Path.Combine(Root, $"src-{packageId}-{configuration.ToLowerInvariant()}"));
+        var project = Path.Combine(tree, projectRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        var (exitCode, output) = Run(tree, $"pack \"{project}\" -c {configuration} -o \"{feedDir}\" -p:Version={Version} -tl:off");
 
         if (exitCode != 0)
             throw new InvalidOperationException($"{configuration} pack of '{project}' failed.{Environment.NewLine}{output}");
@@ -172,6 +218,13 @@ public sealed class PackedFeed : IDisposable
         		<add key="packtest-local" value="{Feed.Replace('\\', '/')}" />
         		<add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
         	</packageSources>
+        	<config>
+        		<!--
+        		Its own packages folder: the global one keeps whatever 99.9.9-packtest package an earlier
+        		run restored, and a restore takes that copy over the one just packed.
+        		-->
+        		<add key="globalPackagesFolder" value="{Path.Combine(Root, "packages").Replace('\\', '/')}" />
+        	</config>
         </configuration>
         """;
 

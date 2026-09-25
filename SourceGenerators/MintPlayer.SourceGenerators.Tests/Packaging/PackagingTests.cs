@@ -1,3 +1,6 @@
+using System.IO.Compression;
+using System.Reflection;
+
 namespace MintPlayer.SourceGenerators.Tests.Packaging;
 
 /// <summary>
@@ -304,6 +307,126 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
         var allText = string.Join(Environment.NewLine, emitted.Select(File.ReadAllText));
         allText.Should().Contain("Service", "the emitted constructor belongs to the decorated class");
     }
+
+    /// <summary>
+    /// A generator built on this package, referenced by an ordinary <c>ProjectReference</c> (a test project running it
+    /// in-process does this), must build. With <c>IncludeRuntimeDependency="true"</c> on the attributes dll the
+    /// package's targets add to <c>TargetPathWithTargetPlatformMoniker</c>, the referencing project gets two runtime
+    /// assemblies from one project, and <c>GenerateDepsFile</c> fails with MSB4018 "An item with the same key has
+    /// already been added" (#187).
+    /// </summary>
+    /// <remarks>
+    /// A fresh directory, so no <c>deps.json</c> from an earlier build can hide the failure; a leftover one did in the
+    /// spike.
+    /// </remarks>
+    [Fact]
+    public void APlainProjectReferenceToAGeneratorBuiltOnThePackageBuilds()
+    {
+        var root = Path.Combine(feed.Root, "plainreference");
+        var generator = Path.Combine(root, "gen");
+        var host = Path.Combine(root, "host");
+        Directory.CreateDirectory(generator);
+        Directory.CreateDirectory(host);
+
+        File.WriteAllText(Path.Combine(root, "nuget.config"), feed.NuGetConfigXml);
+
+        File.WriteAllText(Path.Combine(generator, "gen.csproj"), $"""
+            <Project Sdk="Microsoft.NET.Sdk">
+            	<PropertyGroup>
+            		<TargetFramework>netstandard2.0</TargetFramework>
+            		<LangVersion>latest</LangVersion>
+            		<IsRoslynComponent>true</IsRoslynComponent>
+            		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+            	</PropertyGroup>
+            	<ItemGroup>
+            		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" PrivateAssets="all" />
+            		<PackageReference Include="{GeneratorPackage}" Version="{PackedFeed.Version}" PrivateAssets="all" />
+            		<PackageReference Include="MintPlayer.SourceGenerators.Attributes" Version="{PackedFeed.Version}" PrivateAssets="all" GeneratePathProperty="true" />
+            	</ItemGroup>
+            </Project>
+            """);
+
+        File.WriteAllText(Path.Combine(generator, "Marker.cs"), """
+            namespace Gen;
+
+            public static class Marker
+            {
+                public const string Name = "gen";
+            }
+            """);
+
+        File.WriteAllText(Path.Combine(host, "host.csproj"), """
+            <Project Sdk="Microsoft.NET.Sdk">
+            	<PropertyGroup>
+            		<OutputType>Exe</OutputType>
+            		<TargetFramework>net11.0</TargetFramework>
+            	</PropertyGroup>
+            	<ItemGroup>
+            		<ProjectReference Include="../gen/gen.csproj" />
+            	</ItemGroup>
+            </Project>
+            """);
+
+        File.WriteAllText(Path.Combine(host, "Program.cs"), "System.Console.WriteLine(Gen.Marker.Name);");
+
+        var build = PackedFeed.Run(host, "build -c Release -tl:off");
+
+        build.Output.Should().NotContain("MSB4018", "GenerateDepsFile must not see two runtime assemblies from one project");
+        build.ExitCode.Should().Be(0, build.Output);
+    }
+
+    #endregion
+
+    #region Versions
+
+    /// <summary>
+    /// The feed's packs must not overwrite the repository's own build output. They used to pack in place with
+    /// <c>-p:Version=99.9.9-packtest</c>, rebuilding every project's <c>bin/Release</c> with that version. CI's
+    /// <c>dotnet pack --no-build</c> after the test run then shipped those dlls, so every release from 10.20.2 to
+    /// 12.0.1 carried AssemblyVersion 99.9.9.0 (#187).
+    /// </summary>
+    [Fact]
+    public void TheFeedLeavesTheRepositoryBuildOutputAlone()
+    {
+        var restamped = PackedFeed.ProjectsToPack
+            .SelectMany(project =>
+            {
+                var bin = Path.Combine(PackedFeed.RepoRoot, Path.GetDirectoryName(project)!, "bin");
+                var dll = Path.GetFileNameWithoutExtension(project) + ".dll";
+                return Directory.Exists(bin) ? Directory.GetFiles(bin, dll, SearchOption.AllDirectories) : [];
+            })
+            .Where(dll => AssemblyName.GetAssemblyName(dll).Version == PackedAssemblyVersion)
+            .ToList();
+
+        restamped.Should().BeEmpty(
+            $"packing the feed must not rebuild the repository's output with the test version:{Environment.NewLine}"
+            + string.Join(Environment.NewLine, restamped));
+    }
+
+    /// <summary>
+    /// The version passed to the pack reaches the assemblies inside the package, so the release's own version check
+    /// (<c>eng/Assert-PackageVersions.ps1</c>) compares something that moves with the package version.
+    /// </summary>
+    [Theory]
+    [InlineData("MintPlayer.SourceGenerators.Attributes", "lib/netstandard2.0/MintPlayer.SourceGenerators.Attributes.dll")]
+    [InlineData(GeneratorPackage, "analyzers/dotnet/roslyn5.9/cs/MintPlayer.SourceGenerators.dll")]
+    public void ThePackedAssembliesCarryThePackageVersion(string packageId, string entryPath)
+    {
+        var nupkg = Path.Combine(feed.Feed, $"{packageId}.{PackedFeed.Version}.nupkg");
+        var extracted = Path.Combine(feed.Root, "versions", packageId, Path.GetFileName(entryPath));
+        Directory.CreateDirectory(Path.GetDirectoryName(extracted)!);
+
+        using (var archive = ZipFile.OpenRead(nupkg))
+        {
+            var entry = archive.GetEntry(entryPath);
+            entry.Should().NotBeNull($"{packageId} must contain {entryPath}");
+            entry!.ExtractToFile(extracted, overwrite: true);
+        }
+
+        AssemblyName.GetAssemblyName(extracted).Version.Should().Be(PackedAssemblyVersion);
+    }
+
+    private static readonly Version PackedAssemblyVersion = new(PackedFeed.Version.Split('-')[0] + ".0");
 
     #endregion
 }
