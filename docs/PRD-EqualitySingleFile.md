@@ -283,3 +283,11 @@ Both resolved by the owner.
    `MintPlayer.ValueComparerGenerator`? **Resolved: lockstep, 12.0.1 for every SourceGenerators package.**
 2. **File name.** `GeneratedEquality.g.cs`, matching the `[GenerateEquality]` attribute, or `Equality.g.cs`?
    **Resolved: `GeneratedEquality.g.cs`.**
+
+## Bugs found along the way (fixed in this PR)
+
+The D4 guard's corpora exposed three bugs in other generators. Each was reproduced with a failing test first.
+
+- **DescriptionSourceGenerator dropped a column-0 summary.** A `///` summary that is the first trivia of a type (at the top of a file, or directly after `namespace X;` or `{`) lost its `///` markers, because the trivia was read with `ToString()`. The fix reads it with `ToFullString()`. Test: `XmlDocumentationTests.ItPicksUpASummaryThatIsTheFirstTrivia`.
+- **CliCommandSourceGenerator failed to compile a cross-namespace subcommand (CS0117).** Whole command trees were written inside the root command's namespace. Each command is now written in its own namespace; single-namespace output is byte-identical. Test: `CliCommandFeatureTests.ASubcommandInAnotherNamespace_IsEmittedInItsOwnNamespace`.
+- **GenericMethodSourceGenerator marked its generated overloads `partial` (CS0759).** An overload has a different signature, so it can never implement the decorated method. Overloads are no longer marked `partial`. Test: `GenericMethodGenerationTests.ItEmitsCompilableOverloadsForAPartialMethod`.
