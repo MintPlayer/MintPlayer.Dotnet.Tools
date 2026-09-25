@@ -67,6 +67,11 @@ that attribute when **loading** the generator, so the assembly must be in `analy
 Leave it out and the package does not degrade — it stops working, with
 "cannot find `[AutoValueComparer]`" naming an assembly the consumer never referenced.
 
+The Assertions generator (`Assertions/MintPlayer.Assertions.SourceGenerator`) uses it too and imports
+`valuecomparergenerator.targets`, but it is not packable: `MintPlayer.Assertions.csproj` ships the DLL
+in `analyzers/dotnet/roslyn5.9/cs` beside the generator, because that package keeps
+`analyzers/dotnet/cs` empty.
+
 Before removing anything from an analyzer payload, ask **"does the generator need this at load
 time?"** and check with `grep`. A file being absent from a sibling's `ProjectReference` list proves
 nothing about whether the generator needs it.

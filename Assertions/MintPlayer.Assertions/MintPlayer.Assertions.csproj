@@ -67,12 +67,21 @@
 		<ItemGroup>
 			<!--
 			Both from the generator's own output directory, which holds exactly its runtime
-			closure: the analyzer plus the assembly its base class lives in. One location rather
+			closure: the analyzer, the assembly its base class lives in, and the attribute
+			assembly its models are decorated with. One location rather
 			than reaching across the tree to the Tools project, so the payload cannot be assembled
 			from two builds that disagree.
 			-->
 			<_AssertionsAnalyzerAssets Include="..\MintPlayer.Assertions.SourceGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.Assertions.SourceGenerator.dll" />
 			<_AssertionsAnalyzerAssets Include="..\MintPlayer.Assertions.SourceGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Tools.dll" />
+			<!--
+			The generator's pipeline models are [AutoValueComparer] types, so Roslyn needs this
+			assembly to LOAD the generator. Leave it out and every analyzer in this package stops
+			working. It sits beside the generator in the versioned folder, not in the unversioned
+			analyzers/dotnet/cs: this package keeps that folder empty (PackagingTests pins it), and
+			the loader resolves a dependency from the analyzer's own directory.
+			-->
+			<_AssertionsAnalyzerAssets Include="..\MintPlayer.Assertions.SourceGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.ValueComparerGenerator.Attributes.dll" />
 		</ItemGroup>
 
 		<Error Condition="!Exists('%(_AssertionsAnalyzerAssets.FullPath)')"
