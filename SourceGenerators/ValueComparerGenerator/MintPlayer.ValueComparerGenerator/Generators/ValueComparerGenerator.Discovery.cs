@@ -150,7 +150,6 @@ internal static class Discovery
             Keyword = KeywordOf(type),
             Name = DeclaredName(type),
             FullName = fullName,
-            HintName = HintNameOf(type),
             Shape = shape,
             IsSealed = type.IsSealed,
             IsReadOnly = type.IsValueType && (type.IsReadOnly || properties.All(p => p.GetMethod is { IsReadOnly: true })),
@@ -243,16 +242,6 @@ internal static class Discovery
 
     public static string Identifier(string name)
         => SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None ? "@" + name : name;
-
-    private static string HintNameOf(INamedTypeSymbol type)
-    {
-        var parts = new List<string>();
-        for (INamedTypeSymbol? t = type; t is not null; t = t.ContainingType)
-            parts.Insert(0, t.Arity == 0 ? t.Name : $"{t.Name}_{t.Arity}");
-        if (type.ContainingNamespace is { IsGlobalNamespace: false } ns)
-            parts.Insert(0, ns.ToDisplayString());
-        return string.Join(".", parts) + ".Equality.g.cs";
-    }
 
     /// <summary>Chooses each property's comparison from its type symbol (the D1 table), and collects the comparer fields nesting needs.</summary>
     private sealed class EqualityPlanner(Compilation compilation)

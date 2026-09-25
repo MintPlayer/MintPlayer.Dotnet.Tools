@@ -4,23 +4,30 @@ using System.CodeDom.Compiler;
 
 namespace MintPlayer.ValueComparerGenerator.Producers;
 
-/// <summary>Emits the equality members of one model into <c>&lt;Type&gt;.Equality.g.cs</c> (PRD D1 to D4).</summary>
+/// <summary>
+/// Emits the equality members of every model into one file, <c>GeneratedEquality.g.cs</c>
+/// (PRD-GeneratedEquality D1 to D4, PRD-EqualitySingleFile D2).
+/// </summary>
 /// <remarks>
+/// <para>
+/// A fixed name, not one per model: a name derived from the type grows with namespace depth, nesting and arity, and a
+/// file name over 255 characters fails the build with <c>CS0016</c> once <c>EmitCompilerGeneratedFiles</c> is on.
+/// </para>
+/// <para>
 /// Every comparison was chosen at discovery time from the property's type symbol; this only lays out the members for
 /// the model's <see cref="EqualityShape"/> and substitutes the operands into each property's templates.
+/// </para>
 /// </remarks>
 public sealed class EqualityProducer : Producer
 {
-    private const string ObjectReferenceEquals = "global::System.Object.ReferenceEquals";
+    public const string FileName = "GeneratedEquality.g.cs";
 
-    // Locals and parameters of the generated members; a property with one of these names is qualified with this.
-    private static readonly HashSet<string> ReservedNames = new(StringComparer.Ordinal) { "other", "obj", "h", "o" };
+    private readonly EquatableArray<ClassDeclaration> models;
 
-    private readonly ClassDeclaration model;
-
-    public EqualityProducer(ClassDeclaration model) : base(model.Namespace ?? string.Empty, model.HintName)
+    /// <param name="models">Every model, sorted by <see cref="ClassDeclaration.FullName"/>. Empty means no file.</param>
+    public EqualityProducer(EquatableArray<ClassDeclaration> models) : base(string.Empty, models.IsEmpty ? string.Empty : FileName)
     {
-        this.model = model;
+        this.models = models;
     }
 
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
@@ -28,11 +35,53 @@ public sealed class EqualityProducer : Producer
         writer.WriteLine("#nullable enable");
         writer.WriteLine();
         writer.WriteLine(Header);
-        writer.WriteLine();
 
+        // Grouped by declared namespace, as CliCommandProducer does. Never a file-scoped namespace, so a namespace
+        // block and the global-namespace models (written without one) can share the file.
+        var groups = models
+            .GroupBy(static m => m.Namespace)
+            .OrderBy(static g => g.Key ?? string.Empty, StringComparer.Ordinal);
+
+        foreach (var group in groups)
+        {
+            if (group.Key is null)
+            {
+                foreach (var model in group)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    writer.WriteLine();
+                    new ModelWriter(model).Write(writer);
+                }
+                continue;
+            }
+
+            writer.WriteLine();
+            using (writer.OpenBlock($"namespace {group.Key}"))
+            {
+                var first = true;
+                foreach (var model in group)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (!first) writer.WriteLine();
+                    first = false;
+                    new ModelWriter(model).Write(writer);
+                }
+            }
+        }
+    }
+}
+
+/// <summary>Writes one model's containing types, its <c>partial</c> declaration and its members.</summary>
+internal sealed class ModelWriter(ClassDeclaration model)
+{
+    private const string ObjectReferenceEquals = "global::System.Object.ReferenceEquals";
+
+    // Locals and parameters of the generated members; a property with one of these names is qualified with this.
+    private static readonly HashSet<string> ReservedNames = new(StringComparer.Ordinal) { "other", "obj", "h", "o" };
+
+    public void Write(IndentedTextWriter writer)
+    {
         var blocks = new Stack<IDisposable>();
-        if (model.Namespace is not null)
-            blocks.Push(writer.OpenBlock($"namespace {model.Namespace}"));
         foreach (var parent in model.Parents)
             blocks.Push(writer.OpenBlock($"partial {parent.Keyword} {parent.Name}"));
 

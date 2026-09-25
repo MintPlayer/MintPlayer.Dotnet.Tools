@@ -217,7 +217,7 @@ Found by the investigation (file:line refs are against master `72d3dbe`):
 | **L2** | Does one collected file keep caching, and what does it cost? | **Done.** See the results below. |
 | **H** | Which other generators have growing or long file names? | **Done.** See P3. |
 | **P** | Can the per-model output be concatenated safely, and what depends on per-model names? | **Done.** See D2 and *Tests to change*. |
-| **S1** | Can the D4 guard use one shared corpus, or does it need a small corpus per generator? | Planned, in M1. Pass: the guard detects a deliberately per-type hint name, injected into a scratch copy of one generator, and passes on every real generator. |
+| **S1** | Can the D4 guard use one shared corpus, or does it need a small corpus per generator? | **Done: per generator.** Each generator triggers on a different attribute or shape, so each gets its own item template, repeated 1 and 5 times, one file and one namespace (`Demo.N{i}`) per item. The guard also asserts the 5-run output names all five items, so a corpus the generator ignores can't pass vacuously. `JoinMethodGenerator` has no per-type input (one assembly attribute), so its corpus varies the join count and the number of classes, without the item-name check. **Detection:** the guard copied into a scratch worktree of master (`72d3dbe`) fails exactly the `ValueComparerGenerator` case (`Demo.N1.Item1.Equality.g.cs` vs 5 names) and passes the other 8; a test-local `PerTypeHintNameGenerator` is kept as a permanent negative control. On this branch it passes on all 9 generators here and on both Assertions generators (their own test project). |
 | **S2** | After the change, is each model's text in the single file byte-identical to today's per-model file? | Planned, in M2. Method: for every snapshot fixture, split master's per-model outputs and the new single file into per-model blocks, and diff them. Pass: 0 differing lines apart from header and namespace framing. |
 | **S3** | What does `LongPathsEnabled=0` do to today's fixed-name paths over 260 (P3)? | **Not planned.** It needs a registry change on a dev machine or a CI image with long paths off. It only informs the non-goal, and the decision doesn't depend on it. |
 
@@ -244,6 +244,9 @@ Tests are batched to the end, per the house rule.
 1. **M1: the pipeline (D1), the producer (D2) and the file name (D3).**
    - Delete `HintName`/`HintNameOf`.
    - Write the D4 guard, and run S1.
+   - *Status: done.* One `EqualityProducer` over the sorted models writes `GeneratedEquality.g.cs`; `HintName`
+     and `HintNameOf` are gone. Guard in `MintPlayer.SourceGenerators.Tests/Guards/FixedFileSetGuardTests.cs` and
+     `Assertions/MintPlayer.Assertions.SourceGenerator.Tests/Generators/FixedFileSetGuardTests.cs`; S1 passed.
 2. **M2: tests.**
    - Update the tests listed above and regenerate the snapshots.
    - Run S2, the byte-identical check per model.
@@ -268,6 +271,9 @@ Tests are batched to the end, per the house rule.
 
 ## Open questions for the owner
 
+Both resolved by the owner.
+
 1. **Version.** Bump all SourceGenerators packages in lockstep to 12.0.1, as in #183/#185, or only
-   `MintPlayer.ValueComparerGenerator`? Lockstep is the default in this plan.
+   `MintPlayer.ValueComparerGenerator`? **Resolved: lockstep, 12.0.1 for every SourceGenerators package.**
 2. **File name.** `GeneratedEquality.g.cs`, matching the `[GenerateEquality]` attribute, or `Equality.g.cs`?
+   **Resolved: `GeneratedEquality.g.cs`.**

@@ -43,8 +43,6 @@ public sealed class ClassDeclaration : IEquatable<ClassDeclaration>
     /// <summary>The fully qualified name, with type parameters: <c>global::Ns.Box&lt;T&gt;</c>.</summary>
     public string FullName { get; set; } = string.Empty;
 
-    public string HintName { get; set; } = string.Empty;
-
     public EqualityShape Shape { get; set; }
 
     public bool IsSealed { get; set; }
@@ -90,7 +88,6 @@ public sealed class ClassDeclaration : IEquatable<ClassDeclaration>
             && string.Equals(Keyword, other.Keyword, StringComparison.Ordinal)
             && string.Equals(Name, other.Name, StringComparison.Ordinal)
             && string.Equals(FullName, other.FullName, StringComparison.Ordinal)
-            && string.Equals(HintName, other.HintName, StringComparison.Ordinal)
             && Shape == other.Shape
             && IsSealed == other.IsSealed
             && IsReadOnly == other.IsReadOnly
