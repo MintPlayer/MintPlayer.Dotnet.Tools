@@ -243,17 +243,20 @@ Any other generator it catches gets fixed in this PR, as in #186's "Bugs found a
 
 ### D6: the 99.9.9.0 leak (F4)
 
-1. **Isolate the packaging tests.** `PackedFeed` packs with its own `-p:BaseOutputPath=<Root>/bin/` and
-   `-p:BaseIntermediateOutputPath=<Root>/obj/`, or into a copy of the tree, so it never writes the repo's Release
-   output. Spike V1 picks the variant that restores and builds cleanly. `BaseIntermediateOutputPath` must be set before
-   the SDK props are imported, so it may need to be passed as a global property, or `MSBuildProjectExtensionsPath` may
-   be needed as well.
+1. **Isolate the packaging tests.** `PackedFeed` copies `SourceGenerators/`, `Assertions/` and `nuget.config`, without
+   bin/obj, into its own folder and packs there. Each isolated Debug/Release pack gets its own copy. Redirecting the
+   output paths is not an option (V1): the pack targets read the project's own `bin/`. The consumers it builds restore
+   into their own `globalPackagesFolder`, so a stale `99.9.9-packtest` package in the global cache can't stand in for
+   the fresh pack.
 2. **Guard the release.** After `dotnet pack` in `dotnet-build-master.yml` and `pull-request.yml`, a step (a small
    script under `eng/`) opens every `*.nupkg` and fails when any `lib/`, `analyzers/` or `tools/` assembly's
    AssemblyVersion or FileVersion doesn't match the package version. PRs run it too, so a regression is caught before
    master.
-3. **Pin it in a test.** `PackagingTests` asserts the packed dll's version equals `PackedFeed.Version`'s numeric part.
-   That proves the stamp reaches the dll, while the CI guard proves the release doesn't get the test stamp.
+3. **Pin it in tests.** `PackagingTests` asserts the packed dll's version equals `PackedFeed.Version`'s numeric part,
+   which proves the stamp reaches the dll. `TheFeedLeavesTheRepositoryBuildOutputAlone` asserts that no dll under the
+   packed projects' `bin/` carries the test version after the feed is built. The CI guard proves the release doesn't
+   get the test stamp. `eng/Assert-PackageVersions.ps1` (repo root) was run against nuget.org's 12.0.1 Attributes
+   package (3 failures) and 10.20.1 (passes).
 
 ### D7: docs and version
 
@@ -287,11 +290,11 @@ Any other generator it catches gets fixed in this PR, as in #186's "Bugs found a
 | **R1** | Does F1 reproduce, and does `false` fix it? | D1 | **Done.** See F1. |
 | **R2** | Does F2 reproduce? Are there more problems in the same producer? | D2, D3 | **Done.** See F2: CS1591, CS0121, wrong signature, CS1591 in equality output. |
 | **R3** | Does Roslyn need the Attributes dll to load the generator? | D5 | **Done: no.** Hosts that reflect do need it. See F3. |
-| **S1** | With D1 and without an Attributes `PackageReference`, does an **xunit** test project that reflects over a consuming generator's model attributes still work? The testhost might probe bin. | D1 README wording | Open. Turn repro B into an xunit project, apply `false`, add a test calling `typeof(A.Model).GetCustomAttributes()`, then do a clean `dotnet test`. **Pass:** the README note says "only for non-test hosts". **Fail:** the note says "add the PackageReference". |
-| **S2** | After D2, is an App on the internal version still ambiguous against a Lib built with 12.0.1's public class? | D7 CHANGELOG note | Open. Reuse the `f2` Lib and App: App gets an internal copy by hand, Lib keeps the public one. Build, and look for CS0121/CS0436. **Still ambiguous:** the CHANGELOG says both sides must upgrade. |
+| **S1** | With D1 and without an Attributes `PackageReference`, does an **xunit** test project that reflects over a consuming generator's model attributes still work? | D1 README wording | **Done: depends on the host.** Classic xunit 2.9.3 on the VSTest testhost passes 2/2: the dll is in bin, not in `deps.json`, and the testhost resolves it from bin. xunit.v3 4.0.1 (an exe host) fails with `FileNotFoundException` for the Attributes assembly, as the plain exe in F1 does. Without the fix, both fail with MSB4018. **Consequence:** the README says to add the `PackageReference` when the project reflects over the models' attributes. |
+| **S2** | After D2, is an App on the internal version still ambiguous against a Lib built with 12.0.1's public class? | D7 CHANGELOG note | **Done: not ambiguous.** Lib has 12.0.1's public six-argument class, and App has an internal two-argument copy. `a.Join(b)` binds to App's copy, and `a.Join(b, b, b, b, b)` to Lib's, with 0 warnings. The two shapes can't overlap, so there is no CS0121. Naming the class directly gives CS0436. **Consequence:** the two sides don't have to upgrade together, and the CHANGELOG says so. |
 | **S3** | Do Visual Studio and Rider load and run a generator whose analyzer folder lacks the Attributes dll? | — | **Dropped.** The owner decided the dll ships regardless (open question 2). |
-| **V1** | Is the 99.9.9.0 leak caused by PackedFeed overwriting Release `bin/` before `pack --no-build`? Which isolation keeps PackedFeed working? | D6.1 | Open. On a clean clone: `dotnet build -c Release`, then check a dll's version; run only the `PackagingTests` and check again; then `dotnet pack --no-build -c Release` and check the nupkg. **Confirmed** if it is 99.9.9.0 only after the tests. Then try the `BaseOutputPath`/`BaseIntermediateOutputPath` variant and the copy-the-tree variant, and keep the one after which the repo's Release bin keeps its real version and PackagingTests still pass. |
-| **V2** | Does lowering the AssemblyVersion from 99.9.9.0 to 12.0.x break a consumer that mixes generator packages built at different times? | D7 note, open question 1 | Open. Consumer X references two generator packages: G1, built against Tools 12.0.1 (asm 99.9.9.0), and G2, built against Tools packed from this branch (asm 12.0.x). Build X with `UseSharedCompilation=false`, then again on the build server. Look for CS8032, CS8784 and missing generated files, and note which Tools copy each generator loads. **Clean:** a patch or minor bump is fine. **Broken:** the CHANGELOG says so and the version bump is major. |
+| **V1** | Is the 99.9.9.0 leak caused by PackedFeed overwriting Release `bin/` before `pack --no-build`? Which isolation keeps PackedFeed working? | D6.1 | **Done: confirmed, and fixed by a tree copy.** On a clean clone: 12.0.1.0 after `dotnet build -c Release`; **99.9.9.0** after the Packaging tests, with rewritten mtimes; and the `12.0.1` nupkg from `pack --no-build` holds a 99.9.9.0 dll (both AssemblyVersion and FileVersion). `-p:ArtifactsPath`/`BaseOutputPath` **fails silently**: the pack targets read `$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0` (`eng/sourcegenerator.targets`, `valuecomparergenerator.targets`, `newtonsoftjson.targets`, the csprojs), so the 99.9.9-packtest package got the repo's 12.0.1.0 dlls with no error. Copying `SourceGenerators/`, `Assertions/` and `nuget.config` without bin/obj into the feed's folder (about 1 s) and packing there keeps the repo's bin at 12.0.1.0, with 13/13 PackagingTests passing. **Also found:** PackedFeed restored consumers through the global NuGet cache, which holds `99.9.9-packtest` packages from earlier runs (one dated 2026-09-16). A restore takes that copy over the fresh pack, so local consumer tests could test stale code. The consumers now get their own `globalPackagesFolder`. |
+| **V2** | Does lowering the AssemblyVersion from 99.9.9.0 to 12.x break a consumer that mixes generator packages built at different times? | D7 note | **Done: clean at build time, with a catch.** G1 is nuget.org MintPlayer.SourceGenerators 12.0.1 (Tools at 99.9.9.0), and G2 is ValueComparerGenerator packed at 12.1.0. Six builds (both orders, shared compilation on and off, a warm-server rerun, and a both-12.0.1 control) all exit 0 with no CS8032/CS8784/CS8785/AD0001, and every file is generated. **Catch:** Roslyn never sees two Tools copies. The SDK's `ResolvePackageFileConflicts` keeps the higher AssemblyVersion ("AssemblyVersion '99.9.9.0' is greater than '12.1.0.0'"), so G2 runs against G1's Tools. That is harmless while the API is compatible. The CHANGELOG says to upgrade every MintPlayer generator package together. |
 
 ## Milestones
 
