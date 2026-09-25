@@ -22,14 +22,14 @@
 		</PackageReference>
 
 		<!-- Roslyn host, at the version the generators are compiled against. -->
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
 		<!--
 		The generator assemblies also contain CodeFixProviders, which reference
 		Microsoft.CodeAnalysis.Workspaces (this is what the RS1038 warnings on those projects
 		are about). Reflecting over the assembly loads every type, so Workspaces has to be
 		present or GetTypes throws ReflectionTypeLoadException.
 		-->
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" />
 		<!-- ServiceRegistrationsGenerator returns nothing unless this is in the reference set. -->
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.5" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />

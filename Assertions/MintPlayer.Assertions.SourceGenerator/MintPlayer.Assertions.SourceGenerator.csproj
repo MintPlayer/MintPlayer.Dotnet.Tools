@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<!-- Ships inside the MintPlayer.Assertions package (analyzers/dotnet/cs); not packed standalone -->
+		<!-- Ships inside the MintPlayer.Assertions package (analyzers/dotnet/roslyn5.9/cs); not packed standalone -->
 		<IsPackable>false</IsPackable>
 		<Version>11.0.0-rc.2</Version>
 		<Authors>Pieterjan De Clippel</Authors>
@@ -12,8 +12,8 @@
 	<Import Project="..\..\SourceGenerators\eng\sourcegenerator.targets" />
 
 	<ItemGroup>
-		<PackageReference Update="Microsoft.CodeAnalysis" Version="5.0.0" />
-		<PackageReference Update="Microsoft.CodeAnalysis.Analyzers" Version="5.0.0" />
-		<PackageReference Update="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+		<PackageReference Update="Microsoft.CodeAnalysis" Version="5.9.0" />
+		<PackageReference Update="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" />
+		<PackageReference Update="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
 	</ItemGroup>
 </Project>

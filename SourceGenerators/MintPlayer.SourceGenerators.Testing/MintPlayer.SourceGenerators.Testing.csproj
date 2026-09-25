@@ -47,8 +47,8 @@
 		still pay for it; that is a much better trade than a confusing load failure the first time
 		someone adds a code fix.
 		-->
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" />
 	</ItemGroup>
 
 	<ItemGroup>

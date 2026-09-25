@@ -27,7 +27,7 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
     /// with no error anywhere.
     /// </summary>
     [Theory]
-    [InlineData("analyzers/dotnet/roslyn5.0/cs/MintPlayer.SourceGenerators.dll")]
+    [InlineData("analyzers/dotnet/roslyn5.9/cs/MintPlayer.SourceGenerators.dll")]
     public void TheGeneratorShipsInTheRoslynAnalyzerFolder(string expectedPath)
         => feed.EntriesOf(GeneratorPackage).Should().Contain(expectedPath);
 
@@ -40,7 +40,7 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
     /// more often, nothing at all.
     /// </remarks>
     [Theory]
-    [InlineData("analyzers/dotnet/roslyn5.0/cs/MintPlayer.SourceGenerators.Tools.dll")]
+    [InlineData("analyzers/dotnet/roslyn5.9/cs/MintPlayer.SourceGenerators.Tools.dll")]
     public void TheGeneratorsRuntimeDependencyShipsBesideIt(string expectedPath)
         => feed.EntriesOf(GeneratorPackage).Should().Contain(expectedPath);
 
@@ -87,8 +87,12 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
     {
         var entries = feed.EntriesOf(AssertionsPackage);
 
-        entries.Should().Contain("analyzers/dotnet/cs/MintPlayer.Assertions.SourceGenerator.dll");
-        entries.Should().Contain("analyzers/dotnet/cs/MintPlayer.SourceGenerators.Tools.dll");
+        entries.Should().Contain("analyzers/dotnet/roslyn5.9/cs/MintPlayer.Assertions.SourceGenerator.dll");
+        entries.Should().Contain("analyzers/dotnet/roslyn5.9/cs/MintPlayer.SourceGenerators.Tools.dll");
+
+        // The unversioned folder loads under EVERY Roslyn. With analyzers built against 5.9 that
+        // would crash an older host with CS8032 instead of letting it skip them.
+        entries.Where(e => e.StartsWith("analyzers/dotnet/cs/", StringComparison.Ordinal)).Should().BeEmpty();
     }
 
     /// <summary>
@@ -112,16 +116,16 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
     /// </remarks>
     [Theory]
     [InlineData(GeneratorPackage, "SourceGenerators/SourceGenerators/MintPlayer.SourceGenerators/MintPlayer.SourceGenerators.csproj",
-        "analyzers/dotnet/roslyn5.0/cs/MintPlayer.SourceGenerators.dll",
-        "analyzers/dotnet/roslyn5.0/cs/MintPlayer.SourceGenerators.Tools.dll",
-        "analyzers/dotnet/roslyn5.0/cs/MintPlayer.SourceGenerators.dll",
+        "analyzers/dotnet/roslyn5.9/cs/MintPlayer.SourceGenerators.dll",
+        "analyzers/dotnet/roslyn5.9/cs/MintPlayer.SourceGenerators.Tools.dll",
+        "analyzers/dotnet/roslyn5.9/cs/MintPlayer.SourceGenerators.dll",
         // [AutoValueComparer] decorates this generator's own model types, so Roslyn cannot load
         // the generator without it. Dropping this entry does not degrade the package, it disables
         // it — which an earlier revision of this file did.
         "analyzers/dotnet/cs/MintPlayer.ValueComparerGenerator.Attributes.dll")]
     [InlineData(AssertionsPackage, "Assertions/MintPlayer.Assertions/MintPlayer.Assertions.csproj",
-        "analyzers/dotnet/cs/MintPlayer.Assertions.SourceGenerator.dll",
-        "analyzers/dotnet/cs/MintPlayer.SourceGenerators.Tools.dll")]
+        "analyzers/dotnet/roslyn5.9/cs/MintPlayer.Assertions.SourceGenerator.dll",
+        "analyzers/dotnet/roslyn5.9/cs/MintPlayer.SourceGenerators.Tools.dll")]
     public void TheAnalyzerPayloadCarriesItsEssentialsInBothConfigurations(
         string packageId, string projectRelativePath, params string[] required)
     {
