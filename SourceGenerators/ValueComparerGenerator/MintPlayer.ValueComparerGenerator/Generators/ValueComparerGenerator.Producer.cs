@@ -208,12 +208,12 @@ public sealed class EqualityProducer : Producer
         writer.WriteLine();
     }
 
-    private IEnumerable<PropertyDeclaration> Compared => model.Properties.Where(p => !p.HasComparerIgnore);
+    private IEnumerable<PropertyDeclaration> Compared => model.Properties.Where(p => !p.HasEqualityIgnore);
 
     private void WriteIgnoredComments(IndentedTextWriter writer)
     {
-        foreach (var property in model.Properties.Where(p => p.HasComparerIgnore))
-            writer.WriteLine($"// {property.Name}: [ComparerIgnore]");
+        foreach (var property in model.Properties.Where(p => p.HasEqualityIgnore))
+            writer.WriteLine($"// {property.Name}: [EqualityIgnore]");
     }
 
     /// <summary>Writes <c>return prefix &amp;&amp; p1 &amp;&amp; p2 ...;</c>, one term per line.</summary>

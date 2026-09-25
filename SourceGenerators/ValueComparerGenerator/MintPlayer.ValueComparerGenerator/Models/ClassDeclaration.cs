@@ -21,7 +21,7 @@ public enum EqualityShape
     RecordStruct,
 }
 
-/// <summary>A type that gets generated equality members: an <c>[AutoValueComparer]</c> type, or a type deriving from one.</summary>
+/// <summary>A type that gets generated equality members: a <c>[GenerateEquality]</c> type, or a type deriving from one.</summary>
 /// <remarks>
 /// Carries no symbol and no location, so it is equal across compilations whenever the generated file would be.
 /// Hand-written equality, because a generator cannot generate for its own models.

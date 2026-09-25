@@ -7,7 +7,7 @@ namespace MintPlayer.ValueComparers.NewtonsoftJson;
 /// Compares <see cref="JObject"/>s by their compact serialized form (ordinal), so equal JSON compares equal.
 /// </summary>
 /// <remarks>
-/// Use it on a <c>JObject</c> property of an <c>[AutoValueComparer]</c> model:
+/// Use it on a <c>JObject</c> property of a <c>[GenerateEquality]</c> model:
 /// <c>[UseEqualityComparer(typeof(JObjectValueComparer))]</c>. The generated equality then calls
 /// <see cref="Instance"/>. Property order is significant, because the serialized form preserves it.
 /// </remarks>

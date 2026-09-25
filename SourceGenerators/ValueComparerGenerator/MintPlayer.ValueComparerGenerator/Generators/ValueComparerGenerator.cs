@@ -7,7 +7,7 @@ namespace MintPlayer.ValueComparerGenerator.Generators;
 
 /// <summary>
 /// Generates <see cref="IEquatable{T}"/>, <c>Equals(object)</c> and <c>GetHashCode()</c> directly on every
-/// <c>[AutoValueComparer]</c> type and every type deriving from one, one file per type.
+/// <c>[GenerateEquality]</c> type and every type deriving from one, one file per type.
 /// </summary>
 /// <remarks>
 /// Discovery takes two providers and never collects over all classes (PRD spike S5, strategy B):
@@ -31,7 +31,7 @@ public class ValueComparerGenerator : IncrementalGenerator
     public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {
         var rootsProvider = context.SyntaxProvider.ForAttributeWithMetadataName(
-                Discovery.AutoValueComparerMetadataName,
+                Discovery.GenerateEqualityMetadataName,
                 static (node, ct) => node is TypeDeclarationSyntax,
                 static (ctx, ct) => ctx.TargetSymbol is INamedTypeSymbol type
                     ? Discovery.Build(type, ctx.SemanticModel.Compilation, ct)
@@ -46,7 +46,7 @@ public class ValueComparerGenerator : IncrementalGenerator
                 {
                     if (ctx.SemanticModel.GetDeclaredSymbol(ctx.Node, ct) is not INamedTypeSymbol type) return null;
                     // The roots provider owns every attributed type, including derived ones.
-                    if (Discovery.HasAutoValueComparer(type)) return null;
+                    if (Discovery.HasGenerateEquality(type)) return null;
                     if (Discovery.FindHierarchyRoot(type) is null) return null;
                     if (!Discovery.IsOwningDeclaration(type, ctx.Node)) return null;
                     return Discovery.Build(type, ctx.SemanticModel.Compilation, ct);

@@ -7,7 +7,7 @@ using System.Collections.Immutable;
 namespace MintPlayer.ValueComparerGenerator.Diagnostics;
 
 /// <summary>
-/// MINT001: an <c>[AutoValueComparer]</c> model (or a type deriving from one) with a property that holds a Roslyn
+/// MINT001: a <c>[GenerateEquality]</c> model (or a type deriving from one) with a property that holds a Roslyn
 /// type, directly or through an array, a nullable, a tuple item, a generic argument or a nested plain class.
 /// </summary>
 /// <remarks>

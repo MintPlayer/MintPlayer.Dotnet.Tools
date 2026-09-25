@@ -11,13 +11,13 @@ Four files, organised by concern. They already do the right thing; do not reinve
 | File | Owns | Import when |
 |---|---|---|
 | `eng/sourcegenerator.targets` | the generator DLL, `Tools.dll`, and the generator's own `$(AssemblyName).Attributes.dll`; sets `netstandard2.0`, `IsRoslynComponent`, `IncludeBuildOutput=false` | always, in a standalone generator project |
-| `eng/valuecomparergenerator.targets` | `MintPlayer.ValueComparerGenerator.Attributes.dll` + the analyzer reference | the project uses `[AutoValueComparer]` |
+| `eng/valuecomparergenerator.targets` | `MintPlayer.ValueComparerGenerator.Attributes.dll` + the analyzer reference | the project uses `[GenerateEquality]` |
 | `eng/newtonsoftjson.targets` | `Newtonsoft.Json.dll` + `MintPlayer.ValueComparers.NewtonsoftJson.dll` | the models carry a `JObject` (compared with `[UseEqualityComparer(typeof(JObjectValueComparer))]`) |
 | `eng/filenesting.targets` | IDE file nesting | always |
 
-Need value comparers? Import `valuecomparergenerator.targets`. Need Newtonsoft in your models?
+Need generated equality (`[GenerateEquality]`)? Import `valuecomparergenerator.targets`. Need Newtonsoft in your models?
 Import `newtonsoftjson.targets`. A dependency that only *some* generators need belongs in its own
-eng file, **not** in `sourcegenerator.targets` — needing the value comparer is a property of using
+eng file, **not** in `sourcegenerator.targets` — needing generated equality is a property of using
 it, not of being a generator.
 
 ### Who imports `sourcegenerator.targets`, and who cannot
@@ -28,7 +28,7 @@ packages ship **no assembly the consumer compiles or links against**: their whol
 `analyzers/`, loaded by Roslyn at build time and never referenced by consumer code.
 
 The attributes are the apparent exception and are worth being precise about. A consumer does write
-`[Inject]` or `[AutoValueComparer]`, but those types come from a separate `*.Attributes` package
+`[Inject]` or `[GenerateEquality]`, but those types come from a separate `*.Attributes` package
 that the generator package takes a **NuGet dependency** on — that is the one with the `lib/`. The
 copies under `analyzers/dotnet/cs` exist purely so Roslyn can resolve the attributes while loading
 the generator; the consumer never binds to them.
@@ -62,10 +62,10 @@ Roslyn loads analyzers **only** from those paths. A DLL one folder away is resto
 
 ### Every generator here needs `MintPlayer.ValueComparerGenerator.Attributes.dll`
 
-All four generators decorate their own pipeline models with `[AutoValueComparer]`. Roslyn resolves
+All four generators decorate their own pipeline models with `[GenerateEquality]`. Roslyn resolves
 that attribute when **loading** the generator, so the assembly must be in `analyzers/dotnet/cs`.
 Leave it out and the package does not degrade — it stops working, with
-"cannot find `[AutoValueComparer]`" naming an assembly the consumer never referenced.
+"cannot find `[GenerateEquality]`" naming an assembly the consumer never referenced.
 
 The Assertions generator (`Assertions/MintPlayer.Assertions.SourceGenerator`) uses it too and imports
 `valuecomparergenerator.targets`, but it is not packable: `MintPlayer.Assertions.csproj` ships the DLL
@@ -157,7 +157,7 @@ slow by design.
 
 - **Inferring instead of checking.** Every wrong call here came from reasoning about the code when
   the answer was one command away: the `eng/` folder, a published `.nupkg`, or
-  `grep AutoValueComparer`.
+  `grep GenerateEquality`.
 - **Removing a payload entry as "stale residue"** without checking whether the generator loads
   without it. It did not.
 - **Putting a value-comparer concern in `sourcegenerator.targets`** instead of the eng file that

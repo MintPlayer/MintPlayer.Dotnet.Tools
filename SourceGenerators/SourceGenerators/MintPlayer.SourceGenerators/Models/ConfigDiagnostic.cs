@@ -7,7 +7,7 @@ namespace MintPlayer.SourceGenerators.Models;
 /// <summary>
 /// Represents a diagnostic for [Config], [ConnectionString], or [Options] attributes.
 /// </summary>
-[AutoValueComparer]
+[GenerateEquality]
 public partial class ConfigDiagnostic
 {
     // MINT001 objects to a Roslyn type in a model. DiagnosticDescriptor is safe: it is immutable,

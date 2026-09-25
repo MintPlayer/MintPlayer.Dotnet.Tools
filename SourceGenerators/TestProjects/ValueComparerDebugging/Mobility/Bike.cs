@@ -6,7 +6,7 @@ public partial class Context
 {
     public partial class Entities
     {
-        [AutoValueComparer]
+        [GenerateEquality]
         public partial class Bike : Vehicle
         {
             public bool HasBell { get; set; }

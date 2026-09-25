@@ -3,11 +3,11 @@ using System.Collections.Immutable;
 
 namespace MintPlayer.SourceGenerators.Tools.Benchmarks.Generated;
 
-// The B1 models, decorated with [AutoValueComparer]. The ValueComparerGenerator of this checkout runs over them at build time (it is referenced as an analyzer), so what gets measured is the
+// The B1 models, decorated with [GenerateEquality]. The ValueComparerGenerator of this checkout runs over them at build time (it is referenced as an analyzer), so what gets measured is the
 // real generated IEquatable<T> calling MintPlayer.SourceGenerators.Tools.ValueEquality. Set
 // EmitCompilerGeneratedFiles to inspect it under obj/.
 
-[AutoValueComparer]
+[GenerateEquality]
 public sealed partial class Flat
 {
     public string A { get; set; } = "";
@@ -15,28 +15,28 @@ public sealed partial class Flat
     public string C { get; set; } = "";
 }
 
-[AutoValueComparer]
+[GenerateEquality]
 public sealed partial class StringList
 {
     public string Name { get; set; } = "";
     public IReadOnlyList<string> Items { get; set; } = [];
 }
 
-[AutoValueComparer]
+[GenerateEquality]
 public sealed partial class Child
 {
     public string Name { get; set; } = "";
     public int Value { get; set; }
 }
 
-[AutoValueComparer]
+[GenerateEquality]
 public sealed partial class ChildArray
 {
     public string Name { get; set; } = "";
     public ImmutableArray<Child> Children { get; set; }
 }
 
-[AutoValueComparer]
+[GenerateEquality]
 public sealed partial class ChildPair
 {
     public string Name { get; set; } = "";
@@ -45,7 +45,7 @@ public sealed partial class ChildPair
 
 // ---- 3-level abstract tree. Only the root is decorated: the generator covers every derived type (D2). ----
 
-[AutoValueComparer]
+[GenerateEquality]
 public abstract partial class Node
 {
     public string Name { get; set; } = "";
@@ -69,7 +69,7 @@ public sealed partial class Binary : Expr
 
 // ---- Spark-like ----
 
-[AutoValueComparer]
+[GenerateEquality]
 public sealed partial class SparkProperty
 {
     public string Name { get; set; } = "";
@@ -78,7 +78,7 @@ public sealed partial class SparkProperty
     public string Label { get; set; } = "";
 }
 
-[AutoValueComparer]
+[GenerateEquality]
 public sealed partial class SparkEntity
 {
     public string Name { get; set; } = "";

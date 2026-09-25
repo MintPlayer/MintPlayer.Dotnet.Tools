@@ -3,7 +3,7 @@ using MintPlayer.ValueComparerGenerator.Attributes;
 
 namespace MintPlayer.SourceGenerators.Models;
 
-[AutoValueComparer]
+[GenerateEquality]
 public partial class ClassWithBaseDependenciesAndInjectFields
 {
     public string FileName { get; set; } = string.Empty;

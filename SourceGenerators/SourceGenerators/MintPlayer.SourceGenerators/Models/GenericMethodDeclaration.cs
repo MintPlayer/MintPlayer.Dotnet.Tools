@@ -2,7 +2,7 @@
 
 namespace MintPlayer.SourceGenerators.Models;
 
-[AutoValueComparer]
+[GenerateEquality]
 public partial class GenericMethodDeclaration
 {
     public MethodDeclaration? Method { get; set; }

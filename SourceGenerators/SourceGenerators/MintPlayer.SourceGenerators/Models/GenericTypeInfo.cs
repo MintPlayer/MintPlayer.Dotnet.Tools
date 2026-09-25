@@ -5,7 +5,7 @@ namespace MintPlayer.SourceGenerators.Models;
 /// <summary>
 /// Contains information about generic type parameters and constraints for a service registration.
 /// </summary>
-[AutoValueComparer]
+[GenerateEquality]
 public partial class GenericTypeInfo
 {
     /// <summary>

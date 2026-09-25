@@ -10,7 +10,7 @@ public static class ValueComparerDiagnostics
     public static readonly DiagnosticDescriptor UserDeclaredMember = new(
         id: "MINT002",
         title: "Equality member already declared",
-        messageFormat: "'{0}' already declares {1}; [AutoValueComparer] did not generate it{2}",
+        messageFormat: "'{0}' already declares {1}; [GenerateEquality] did not generate it{2}",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
@@ -28,8 +28,8 @@ public static class ValueComparerDiagnostics
 
     public static readonly DiagnosticDescriptor DerivedTypeNotPartial = new(
         id: "MINT003",
-        title: "Type deriving from an [AutoValueComparer] type must be partial",
-        messageFormat: "'{0}' derives from [AutoValueComparer] type '{1}' and must be partial",
+        title: "Type deriving from a [GenerateEquality] type must be partial",
+        messageFormat: "'{0}' derives from [GenerateEquality] type '{1}' and must be partial",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
@@ -37,8 +37,8 @@ public static class ValueComparerDiagnostics
 
     public static readonly DiagnosticDescriptor ModelNotPartial = new(
         id: "MINT003",
-        title: "[AutoValueComparer] type must be partial",
-        messageFormat: "'{0}' is marked [AutoValueComparer] and must be partial",
+        title: "[GenerateEquality] type must be partial",
+        messageFormat: "'{0}' is marked [GenerateEquality] and must be partial",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
@@ -56,7 +56,7 @@ public static class ValueComparerDiagnostics
     public static readonly DiagnosticDescriptor ReferenceEqualityOnly = new(
         id: "MINT005",
         title: "Property type has only reference equality",
-        messageFormat: "Property '{0}' of '{1}' compares '{2}' by reference, so equal values never compare equal. Make '{2}' equatable, mark it [AutoValueComparer], or put [UseEqualityComparer] on the property.",
+        messageFormat: "Property '{0}' of '{1}' compares '{2}' by reference, so equal values never compare equal. Make '{2}' equatable, mark it [GenerateEquality], or put [UseEqualityComparer] on the property.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
@@ -65,7 +65,7 @@ public static class ValueComparerDiagnostics
     public static readonly DiagnosticDescriptor ContainingTypeNotPartial = new(
         id: "MINT006",
         title: "Containing type must be partial",
-        messageFormat: "'{0}' is nested in '{1}', which must be partial for [AutoValueComparer] to generate the equality members of '{0}'",
+        messageFormat: "'{0}' is nested in '{1}', which must be partial for [GenerateEquality] to generate the equality members of '{0}'",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,

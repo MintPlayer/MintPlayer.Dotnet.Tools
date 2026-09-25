@@ -2,7 +2,7 @@
 
 namespace MintPlayer.Mapper.Models;
 
-[AutoValueComparer]
+[GenerateEquality]
 public partial class TypeWithMappedProperties
 {
     public TypeToMap TypeToMap { get; set; } = null!;

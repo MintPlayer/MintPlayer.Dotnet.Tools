@@ -4,7 +4,7 @@ namespace MintPlayer.SourceGenerators.Tools;
 
 /// <summary>
 /// Reflection-free structural equality for the collection shapes that incremental-pipeline models carry.
-/// The code generated for <c>[AutoValueComparer]</c> calls into this class; hand-written
+/// The code generated for <c>[GenerateEquality]</c> calls into this class; hand-written
 /// <see cref="IEquatable{T}"/> implementations can use it too.
 /// </summary>
 /// <remarks>

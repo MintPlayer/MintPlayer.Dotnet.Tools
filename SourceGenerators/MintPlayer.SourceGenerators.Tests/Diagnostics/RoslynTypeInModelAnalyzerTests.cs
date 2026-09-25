@@ -3,7 +3,7 @@ using MintPlayer.SourceGenerators.Tests._Infrastructure;
 namespace MintPlayer.SourceGenerators.Tests.Diagnostics;
 
 /// <summary>
-/// MINT001 — an <c>[AutoValueComparer]</c> model that still carries Roslyn symbols.
+/// MINT001 — a <c>[GenerateEquality]</c> model that still carries Roslyn symbols.
 /// </summary>
 /// <remarks>
 /// This is the highest-consequence analyzer in the repo. Holding an <c>ISymbol</c> in a pipeline model keeps an
@@ -11,11 +11,11 @@ namespace MintPlayer.SourceGenerators.Tests.Diagnostics;
 /// and every IDE keystroke pays for it.
 ///
 /// The rule used to trigger on <c>.WithComparer(...)</c> calls. Those are gone: models compare by value under the
-/// default comparer, so the rule now inspects the properties of every <c>[AutoValueComparer]</c> type (and every
+/// default comparer, so the rule now inspects the properties of every <c>[GenerateEquality]</c> type (and every
 /// type deriving from one). Every case of the old suite is ported to the new trigger; the cases that were about the
 /// call itself have a named replacement.
 ///
-/// The fixtures declare their own <c>AutoValueComparerAttribute</c> rather than referencing the real one: the
+/// The fixtures declare their own <c>GenerateEqualityAttribute</c> rather than referencing the real one: the
 /// analyzer matches on the attribute's name and namespace, so a local declaration reaches exactly the same code path.
 /// </remarks>
 public class RoslynTypeInModelAnalyzerTests
@@ -29,10 +29,10 @@ public class RoslynTypeInModelAnalyzerTests
         namespace MintPlayer.ValueComparerGenerator.Attributes
         {
             [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Struct)]
-            public sealed class AutoValueComparerAttribute : System.Attribute { }
+            public sealed class GenerateEqualityAttribute : System.Attribute { }
 
             [System.AttributeUsage(System.AttributeTargets.Property)]
-            public sealed class ComparerIgnoreAttribute : System.Attribute { }
+            public sealed class EqualityIgnoreAttribute : System.Attribute { }
         }
         """;
 
@@ -52,7 +52,7 @@ public class RoslynTypeInModelAnalyzerTests
         var diagnostics = await Run($$"""
             {{Preamble}}
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public partial class Model { public ISymbol? Symbol { get; set; } }
             """);
 
@@ -70,7 +70,7 @@ public class RoslynTypeInModelAnalyzerTests
         var diagnostics = await Run($$"""
             {{Preamble}}
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public partial class Model
             {
                 public string Name { get; set; } = "";
@@ -97,7 +97,7 @@ public class RoslynTypeInModelAnalyzerTests
         var diagnostics = await Run($$"""
             {{Preamble}}
 
-            [AutoValueComparer]
+            [GenerateEquality]
             {{declaration}}
             """);
 
@@ -116,7 +116,7 @@ public class RoslynTypeInModelAnalyzerTests
 
             using System.Collections.Generic;
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public partial class Model { public List<ISymbol> Symbols { get; set; } = new(); }
             """);
 
@@ -131,7 +131,7 @@ public class RoslynTypeInModelAnalyzerTests
 
             public class Inner { public ITypeSymbol? Type { get; set; } }
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public partial class Model { public Inner Inner { get; set; } = new(); }
             """);
 
@@ -144,7 +144,7 @@ public class RoslynTypeInModelAnalyzerTests
         var diagnostics = await Run($$"""
             {{Preamble}}
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public partial class Model { public ISymbol[] Symbols { get; set; } = []; }
             """);
 
@@ -162,7 +162,7 @@ public class RoslynTypeInModelAnalyzerTests
         var diagnostics = await Run($$"""
             {{Preamble}}
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public abstract partial class Base { public string Name { get; set; } = ""; }
 
             public partial class Derived : Base { public ISymbol? Symbol { get; set; } }
@@ -183,7 +183,7 @@ public class RoslynTypeInModelAnalyzerTests
         var diagnostics = await Run($$"""
             {{Preamble}}
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public partial class Node
             {
                 public Node? Next { get; set; }
@@ -206,10 +206,10 @@ public class RoslynTypeInModelAnalyzerTests
 
             using System.Collections.Generic;
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public partial class Inner { public ISymbol? Symbol { get; set; } }
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public partial class Outer
             {
                 public Inner? Inner { get; set; }
@@ -228,7 +228,7 @@ public class RoslynTypeInModelAnalyzerTests
         var diagnostics = await Run($$"""
             {{Preamble}}
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public partial class Model
             {
                 public string Name { get; set; } = "";
@@ -249,7 +249,7 @@ public class RoslynTypeInModelAnalyzerTests
         var diagnostics = await Run($$"""
             {{Preamble}}
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public partial class Model
             {
                 public static ISymbol? Shared { get; set; }
@@ -277,7 +277,7 @@ public class RoslynTypeInModelAnalyzerTests
     }
 
     /// <summary>
-    /// [ComparerIgnore] leaves a property out of equality, but the model still holds the symbol and so still pins
+    /// [EqualityIgnore] leaves a property out of equality, but the model still holds the symbol and so still pins
     /// the compilation. The rule is about what the model carries, not what it compares.
     /// </summary>
     [Fact]
@@ -286,8 +286,8 @@ public class RoslynTypeInModelAnalyzerTests
         var diagnostics = await Run($$"""
             {{Preamble}}
 
-            [AutoValueComparer]
-            public partial class Model { [ComparerIgnore] public ISymbol? Symbol { get; set; } }
+            [GenerateEquality]
+            public partial class Model { [EqualityIgnore] public ISymbol? Symbol { get; set; } }
             """);
 
         diagnostics.Should().ContainSingle().Which.Id.Should().Be("MINT001");
@@ -335,7 +335,7 @@ public class RoslynTypeInModelAnalyzerTests
         var diagnostics = await Run($$"""
             {{Preamble}}
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public partial class Model { public {{member}} { get; set; } = default!; }
             """);
 
@@ -351,7 +351,7 @@ public class RoslynTypeInModelAnalyzerTests
         var diagnostics = await Run($$"""
             {{Preamble}}
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public partial class Model { public SyntaxToken? Token { get; set; } }
             """);
 
@@ -374,7 +374,7 @@ public class RoslynTypeInModelAnalyzerTests
                 public Outer? Back { get; set; }
             }
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public partial class Outer
             {
                 public Inner? Inner { get; set; }
@@ -400,7 +400,7 @@ public class RoslynTypeInModelAnalyzerTests
         var diagnostics = await Run($$"""
             {{Preamble}}
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public partial class Model { public {{member}} { get; set; } = default!; }
             """);
 

@@ -4,7 +4,7 @@ using MintPlayer.ValueComparerGenerator.Attributes;
 
 namespace MintPlayer.Mapper.Models;
 
-[AutoValueComparer]
+[GenerateEquality]
 public partial class TypeToMap
 {
     /// <summary>

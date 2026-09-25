@@ -5,9 +5,9 @@ using MintPlayer.SourceGenerators.Tests.Snapshots;
 namespace MintPlayer.SourceGenerators.Tests.Runtime;
 
 /// <summary>
-/// Layer 2 for [AutoValueComparer]: compiles the generated equality, loads it, and asserts what Equals and
+/// Layer 2 for [GenerateEquality]: compiles the generated equality, loads it, and asserts what Equals and
 /// GetHashCode actually DO. Until these existed no test ever executed a generated comparer, which is how the P2
-/// stack overflow and the [ComparerIgnore] hash bug of #184 went unnoticed.
+/// stack overflow and the [EqualityIgnore] hash bug of #184 went unnoticed.
 /// </summary>
 /// <remarks>
 /// Each fixture comes with a small <c>Make</c> class compiled next to it, so instances are built in C# rather than
@@ -91,7 +91,7 @@ public class GeneratedEqualityBehaviourTests
     }
 
     [Fact]
-    public void AComparerIgnoreProperty_IsLeftOutOfEqualsAndOutOfTheHash()
+    public void AnEqualityIgnoreProperty_IsLeftOutOfEqualsAndOutOfTheHash()
     {
         var f = Compile(SealedClassMake, EqualityShapes.SealedClass);
 

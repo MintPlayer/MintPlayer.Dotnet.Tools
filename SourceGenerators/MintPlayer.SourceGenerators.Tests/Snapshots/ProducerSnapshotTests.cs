@@ -112,7 +112,7 @@ public class ProducerSnapshotTests
 
             namespace Demo;
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public abstract partial class Shape
             {
                 public string Name { get; set; } = "";

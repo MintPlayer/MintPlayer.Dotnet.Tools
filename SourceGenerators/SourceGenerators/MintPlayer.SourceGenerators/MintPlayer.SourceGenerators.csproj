@@ -35,7 +35,7 @@
 	referencing it.
 
 	Only this concern lives here. The generator's own attributes come from
-	eng/sourcegenerator.targets and the [AutoValueComparer] assembly from
+	eng/sourcegenerator.targets and the [GenerateEquality] assembly from
 	eng/valuecomparergenerator.targets, each imported by the projects that need them.
 	-->
 	<PropertyGroup>

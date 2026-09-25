@@ -34,7 +34,7 @@ internal class ExampleGenerator : IIncrementalGenerator
     }
 }
 
-[AutoValueComparer]
+[GenerateEquality]
 public partial class ClassDeclaration
 {
     public string? Name { get; set; }

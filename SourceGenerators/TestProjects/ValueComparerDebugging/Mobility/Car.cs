@@ -8,7 +8,7 @@ public partial class Context
 {
     public partial class Entities
     {
-        [AutoValueComparer]
+        [GenerateEquality]
         public abstract partial class Car : Vehicle
         {
             public int NumberOfDoors { get; set; }

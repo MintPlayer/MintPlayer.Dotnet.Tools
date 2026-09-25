@@ -4,7 +4,7 @@ using MintPlayer.ValueComparerGenerator.Attributes;
 
 namespace MintPlayer.SourceGenerators.Models;
 
-[AutoValueComparer]
+[GenerateEquality]
 public partial class PostConstructDiagnostic
 {
     // MINT001 objects to a Roslyn type in a model. DiagnosticDescriptor is safe: it is immutable,

@@ -14,32 +14,32 @@ namespace MintPlayer.ValueComparerGenerator.Generators;
 internal static class Discovery
 {
     public const string AttributesNamespace = "MintPlayer.ValueComparerGenerator.Attributes";
-    public const string AutoValueComparerMetadataName = AttributesNamespace + ".AutoValueComparerAttribute";
+    public const string GenerateEqualityMetadataName = AttributesNamespace + ".GenerateEqualityAttribute";
 
     public static bool IsAttribute(INamedTypeSymbol? attributeClass, string name)
         => attributeClass is not null
         && attributeClass.Name == name
         && attributeClass.ContainingNamespace?.ToDisplayString() == AttributesNamespace;
 
-    public static bool HasAutoValueComparer(INamedTypeSymbol type)
+    public static bool HasGenerateEquality(INamedTypeSymbol type)
     {
         foreach (var attribute in type.OriginalDefinition.GetAttributes())
-            if (IsAttribute(attribute.AttributeClass, "AutoValueComparerAttribute"))
+            if (IsAttribute(attribute.AttributeClass, "GenerateEqualityAttribute"))
                 return true;
         return false;
     }
 
-    /// <summary>The furthest <c>[AutoValueComparer]</c> ancestor: the root of the hierarchy, or null when there is none.</summary>
+    /// <summary>The furthest <c>[GenerateEquality]</c> ancestor: the root of the hierarchy, or null when there is none.</summary>
     public static INamedTypeSymbol? FindHierarchyRoot(INamedTypeSymbol type)
     {
         INamedTypeSymbol? root = null;
         for (var b = type.BaseType; b is not null && b.SpecialType != SpecialType.System_Object; b = b.BaseType)
-            if (HasAutoValueComparer(b)) root = b;
+            if (HasGenerateEquality(b)) root = b;
         return root;
     }
 
     /// <summary>A model is a type with the attribute, or one deriving from such a type: both get generated equality.</summary>
-    public static bool IsModel(INamedTypeSymbol type) => HasAutoValueComparer(type) || FindHierarchyRoot(type) is not null;
+    public static bool IsModel(INamedTypeSymbol type) => HasGenerateEquality(type) || FindHierarchyRoot(type) is not null;
 
     public static bool IsPartial(INamedTypeSymbol type)
     {
@@ -71,7 +71,7 @@ internal static class Discovery
 
     public static DiscoveredType? Build(INamedTypeSymbol type, Compilation compilation, CancellationToken cancellationToken)
     {
-        var hasAttribute = HasAutoValueComparer(type);
+        var hasAttribute = HasGenerateEquality(type);
         var root = FindHierarchyRoot(type);
         if (!hasAttribute && root is null) return null;
         if (type.IsStatic || type.IsFileLocal || type.TypeKind is not (TypeKind.Class or TypeKind.Struct)) return null;
@@ -277,9 +277,9 @@ internal static class Discovery
             var result = new PropertyDeclaration { Name = Identifier(property.Name) };
             var attributes = property.GetAttributes();
 
-            if (attributes.Any(a => IsAttribute(a.AttributeClass, "ComparerIgnoreAttribute")))
+            if (attributes.Any(a => IsAttribute(a.AttributeClass, "EqualityIgnoreAttribute")))
             {
-                result.HasComparerIgnore = true;
+                result.HasEqualityIgnore = true;
                 return result;
             }
 

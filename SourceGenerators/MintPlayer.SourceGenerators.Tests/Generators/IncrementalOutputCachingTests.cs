@@ -274,7 +274,7 @@ public class IncrementalOutputCachingTests
 
             __LEAD__
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public abstract partial class Shape
             {
                 public string Name { get; set; } = "";
@@ -374,7 +374,7 @@ public class IncrementalOutputCachingTests
     {
         new RelevantCase("ValueComparerGenerator", ValueComparers,
             Fixture("ValueComparerGenerator"),
-            // On the [AutoValueComparer] base. (A property added to Circle is emitted too: derived types get
+            // On the [GenerateEquality] base. (A property added to Circle is emitted too: derived types get
             // their own members now, attribute or not.)
             Find: "public string Name { get; set; } = \"\";",
             Replace: "public string Name { get; set; } = \"\";\n    public int Sides { get; set; }",

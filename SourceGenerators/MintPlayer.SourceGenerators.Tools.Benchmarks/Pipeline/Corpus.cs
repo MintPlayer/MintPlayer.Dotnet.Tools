@@ -7,7 +7,7 @@ namespace MintPlayer.SourceGenerators.Tools.Benchmarks.Pipeline;
 /// The synthetic B2 compilations. <see cref="S1"/> is exactly the corpus of spike S1 (500 files, the first 50
 /// of them <c>[Register]</c> classes with two <c>[Inject]</c> fields), so the 5-generator numbers are directly
 /// comparable to the PRD's baseline. <see cref="Full"/> keeps the 500 files and the 50 services, and turns 100
-/// of the plain files into 50 <c>[GenerateMapper]</c> pairs and 50 <c>[AutoValueComparer]</c> models, so every
+/// of the plain files into 50 <c>[GenerateMapper]</c> pairs and 50 <c>[GenerateEquality]</c> models, so every
 /// generator in the repo has inputs.
 /// </summary>
 public sealed class Corpus
@@ -114,7 +114,7 @@ public sealed class Corpus
         using MintPlayer.ValueComparerGenerator.Attributes;
         using System.Collections.Generic;
         namespace Corpus.V{{i}};
-        [AutoValueComparer]
+        [GenerateEquality]
         public sealed partial class Model{{i}}
         {
             public string Name { get; set; } = "";
@@ -132,7 +132,7 @@ public sealed class Corpus
             .Append(typeof(Microsoft.Extensions.DependencyInjection.IServiceCollection).Assembly.Location)
             .Append(typeof(MintPlayer.SourceGenerators.Attributes.RegisterAttribute).Assembly.Location)
             .Append(typeof(MintPlayer.Mapper.Attributes.GenerateMapperAttribute).Assembly.Location)
-            .Append(typeof(MintPlayer.ValueComparerGenerator.Attributes.AutoValueComparerAttribute).Assembly.Location)
+            .Append(typeof(MintPlayer.ValueComparerGenerator.Attributes.GenerateEqualityAttribute).Assembly.Location)
             .Append(typeof(MintPlayer.SourceGenerators.Tools.ValueEquality).Assembly.Location)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(p => (MetadataReference)MetadataReference.CreateFromFile(p))

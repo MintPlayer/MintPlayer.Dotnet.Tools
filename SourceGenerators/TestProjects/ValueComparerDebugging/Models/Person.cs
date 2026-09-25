@@ -7,7 +7,7 @@ public partial class Context
 {
     public partial class Models
     {
-        [AutoValueComparer]
+        [GenerateEquality]
         public partial class Person
         {
             public string FirstName { get; set; } = string.Empty;

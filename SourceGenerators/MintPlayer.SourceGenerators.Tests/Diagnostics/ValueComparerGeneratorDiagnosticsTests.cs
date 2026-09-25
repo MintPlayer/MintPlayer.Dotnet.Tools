@@ -52,7 +52,7 @@ public class ValueComparerGeneratorDiagnosticsTests
 
             namespace Demo;
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public abstract partial class Node { public string Name { get; set; } = ""; }
 
             public class Leaf : Node { public int Weight { get; set; } }
@@ -60,7 +60,7 @@ public class ValueComparerGeneratorDiagnosticsTests
 
         var error = run.Of("MINT003").Single();
         error.Severity.Should().Be(DiagnosticSeverity.Error);
-        error.GetMessage().Should().Be("'Leaf' derives from [AutoValueComparer] type 'Node' and must be partial");
+        error.GetMessage().Should().Be("'Leaf' derives from [GenerateEquality] type 'Node' and must be partial");
         LineOf(error).Should().Be(7);
         run.SourceFor("Demo.Leaf.Equality.g.cs").Should().BeNull();
         run.SourceFor("Demo.Node.Equality.g.cs").Should().NotBeNull();
@@ -74,11 +74,11 @@ public class ValueComparerGeneratorDiagnosticsTests
 
             namespace Demo;
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public sealed class Model { public string Name { get; set; } = ""; }
             """);
 
-        run.Of("MINT003").Single().GetMessage().Should().Be("'Model' is marked [AutoValueComparer] and must be partial");
+        run.Of("MINT003").Single().GetMessage().Should().Be("'Model' is marked [GenerateEquality] and must be partial");
         run.GeneratedSources.Should().BeEmpty();
     }
 
@@ -114,7 +114,7 @@ public class ValueComparerGeneratorDiagnosticsTests
                 public abstract int GetHashCode(string obj);
             }
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public sealed partial class Model
             {
                 [UseEqualityComparer({{comparer}})] public string Name { get; set; } = "";
@@ -140,7 +140,7 @@ public class ValueComparerGeneratorDiagnosticsTests
 
             public class Plain { public string Name { get; set; } = ""; }
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public sealed partial class Model
             {
                 public Plain? Direct { get; set; }
@@ -172,12 +172,12 @@ public class ValueComparerGeneratorDiagnosticsTests
             public class Plain { }
             public sealed class PlainComparer : IEqualityComparer<Plain> { public static readonly PlainComparer Instance = new(); public bool Equals(Plain? x, Plain? y) => true; public int GetHashCode(Plain obj) => 0; }
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public sealed partial class Other { }
 
             public interface IShape { }
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public sealed partial class Model
             {
                 public string Text { get; set; } = "";
@@ -189,7 +189,7 @@ public class ValueComparerGeneratorDiagnosticsTests
                 public IShape? Interface { get; set; }
                 public Uri? Uri { get; set; }
                 [UseEqualityComparer(typeof(PlainComparer))] public Plain? WithComparer { get; set; }
-                [ComparerIgnore] public Plain? Ignored { get; set; }
+                [EqualityIgnore] public Plain? Ignored { get; set; }
             }
             """);
 
@@ -207,7 +207,7 @@ public class ValueComparerGeneratorDiagnosticsTests
 
             public class Outer
             {
-                [AutoValueComparer]
+                [GenerateEquality]
                 public partial class Inner { public int X { get; set; } }
             }
             """);
@@ -228,7 +228,7 @@ public class ValueComparerGeneratorDiagnosticsTests
 
         public class Plain { }
 
-        [AutoValueComparer]
+        [GenerateEquality]
         public sealed partial class Model { public Plain? Direct { get; set; } }
         """,
         """

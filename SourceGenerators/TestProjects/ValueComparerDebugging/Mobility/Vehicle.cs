@@ -6,7 +6,7 @@ public partial class Context
 {
     public partial class Entities
     {
-        [AutoValueComparer]
+        [GenerateEquality]
         public partial class Vehicle
         {
             public string Make { get; set; }

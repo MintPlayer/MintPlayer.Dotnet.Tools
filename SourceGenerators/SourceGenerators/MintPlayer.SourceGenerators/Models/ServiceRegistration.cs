@@ -7,7 +7,7 @@ namespace MintPlayer.SourceGenerators.Models;
 /// <summary>
 /// Represents a service registration extracted from a [Register] attribute.
 /// </summary>
-[AutoValueComparer]
+[GenerateEquality]
 public partial class ServiceRegistration
 {
     /// <summary>

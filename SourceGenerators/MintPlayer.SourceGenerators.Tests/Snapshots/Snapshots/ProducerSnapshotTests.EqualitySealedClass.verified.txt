@@ -55,7 +55,7 @@ namespace Demo
         {
             if (other is null) return false;
             if (global::System.Object.ReferenceEquals(this, other)) return true;
-            // CachedText: [ComparerIgnore]
+            // CachedText: [EqualityIgnore]
             return global::System.String.Equals(Name, other.Name, global::System.StringComparison.Ordinal)
                 && global::MintPlayer.SourceGenerators.Tools.ValueEquality.List<string>(Aliases, other.Aliases)
                 && global::MintPlayer.SourceGenerators.Tools.ValueEquality.ImmutableArray<global::Demo.Child>(Children, other.Children);

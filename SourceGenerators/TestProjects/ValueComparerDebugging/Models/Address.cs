@@ -6,7 +6,7 @@ public partial class Context
 {
     public partial class Models
     {
-        [AutoValueComparer]
+        [GenerateEquality]
         public partial class Address
         {
             public string Street { get; set; } = string.Empty;

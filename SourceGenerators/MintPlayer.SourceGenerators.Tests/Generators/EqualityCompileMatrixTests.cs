@@ -105,7 +105,7 @@ public class EqualityCompileMatrixTests
             typeof(object).Assembly,
             typeof(ImmutableArray).Assembly,
             typeof(MintPlayer.SourceGenerators.Tools.ValueEquality).Assembly,
-            typeof(ValueComparerGenerator.Attributes.AutoValueComparerAttribute).Assembly,
+            typeof(ValueComparerGenerator.Attributes.GenerateEqualityAttribute).Assembly,
         };
         foreach (var a in AppDomain.CurrentDomain.GetAssemblies())
         {

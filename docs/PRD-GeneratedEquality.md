@@ -3,6 +3,10 @@
 Issue: [#184](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/184). Line numbers are against master
 `840456d`; paths are relative to `SourceGenerators/` unless stated otherwise.
 
+**Naming:** this PRD was written before the attributes were renamed, so its design, spike and measurement sections
+use the old names. In 12.0.0 `[AutoValueComparer]` is `[GenerateEquality]` and `[ComparerIgnore]` is
+`[EqualityIgnore]`, including in diagnostic messages and generated comments (Open question 3).
+
 ## Overview
 
 `[AutoValueComparer]` generates a separate `XValueComparer : ValueComparer<X>` and leaves `X` itself with reference
@@ -463,8 +467,9 @@ and `ClassListGenerator` pin old versions and are left alone unless asked.
 - Delete the 8 `.WithComparer(...)` calls. The 2 over `ImmutableArray<…>` become `EquatableArray<T>` if S2 says so.
 - Drop the `ICompilationCache` parameter from 12 `Initialize` overrides, and the stale
   `using …Tools.ValueComparers;` from 12 files.
-- **Nothing to change in the 25 models.** Their `List<string>`, `List<Model>`, `LocationKey?` and `PathSpec?`
-  properties are covered by D1 and D9.
+- **The 25 models only change their attribute:** `[AutoValueComparer]` becomes `[GenerateEquality]` (and any
+  `[ComparerIgnore]` becomes `[EqualityIgnore]`). Their `List<string>`, `List<Model>`, `LocationKey?` and
+  `PathSpec?` properties are covered by D1 and D9.
 - **Side effect:** the ~7 generators that `.Collect()` models without a comparer start caching.
 - **Check:** the published AllFeatures nupkg doesn't appear to pack Tools.dll or the Attributes dll
   (`MintPlayer.Spark.AllFeatures.csproj:54-65`). Confirm this on the actual nupkg.
@@ -472,7 +477,7 @@ and `ClassListGenerator` pin old versions and are left alone unless asked.
 **MintPlayer.AspNetCore.Tools** (Tools 11.0.0, no VCG):
 - Add the VCG packages.
 - Replace the 14 hand-written `IEquatable<T>` models (in `Models.cs`, `ClientModels.cs` and `BoundProperty.cs`) with
-  `[AutoValueComparer]` partials. That removes roughly 300 lines.
+  `[GenerateEquality]` partials. That removes roughly 300 lines.
 - Delete `SequenceComparer<T>` and its 3 `.WithComparer` calls, which become `EquatableArray<T>` or nothing.
 - Delete the `LocationKeys.AreEqual`/`PathSpecs.AreEqual` helpers, since Tools' types are now `IEquatable`.
 - Drop the `ICompilationCache` parameter from `EndpointGenerator`.
@@ -505,9 +510,12 @@ from this repo first, then open both downstream PRs.
 1. **Where does `ValueEquality` live?** *Resolved: in Tools (D5).* S6 found no consumer without a Tools reference.
 2. **Dictionary semantics.** *Resolved: order-insensitive (D6).* No model in any repo has a dictionary property, so
    nothing depended on the old, accidental behaviour.
-3. **Package name.** *Open.* `[AutoValueComparer]` no longer generates a comparer. Should the attribute be renamed
-   to `[AutoEquatable]`? The name is kept for now, since renaming is a second breaking change on top of this one.
-   The owner confirmed that the generator itself stays: it is what writes the equality members.
+3. **Package name.** *Resolved: the attributes are renamed in this same release.* `[AutoValueComparer]` no longer
+   generates a comparer, so it becomes `[GenerateEquality]` (`GenerateEqualityAttribute`), and `[ComparerIgnore]`
+   becomes `[EqualityIgnore]` (`EqualityIgnoreAttribute`), with no `[Obsolete]` aliases. `[UseEqualityComparer]`,
+   `[GenerateJoinMethods]`, `JObjectValueComparer` and the diagnostic ids `MINT001`–`MINT006` keep their names. The
+   packages keep their ids (`MintPlayer.ValueComparerGenerator`, `MintPlayer.ValueComparerGenerator.Attributes`),
+   and the owner confirmed that the generator itself stays: it is what writes the equality members.
 
 ## Implementation notes: where the code deviates from the design above
 

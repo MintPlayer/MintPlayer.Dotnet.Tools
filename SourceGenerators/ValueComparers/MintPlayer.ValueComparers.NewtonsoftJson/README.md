@@ -16,7 +16,7 @@ because the serialized form preserves it.
 ## Usage
 
 Put `[UseEqualityComparer]` on the `JObject` property of an
-[`[AutoValueComparer]`](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/blob/master/SourceGenerators/ValueComparerGenerator/MintPlayer.ValueComparerGenerator/README.md)
+[`[GenerateEquality]`](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/blob/master/SourceGenerators/ValueComparerGenerator/MintPlayer.ValueComparerGenerator/README.md)
 model:
 
 ```csharp
@@ -24,7 +24,7 @@ using MintPlayer.ValueComparerGenerator.Attributes;
 using MintPlayer.ValueComparers.NewtonsoftJson;
 using Newtonsoft.Json.Linq;
 
-[AutoValueComparer]
+[GenerateEquality]
 public partial class ConfigModel
 {
     public string Name { get; set; } = string.Empty;

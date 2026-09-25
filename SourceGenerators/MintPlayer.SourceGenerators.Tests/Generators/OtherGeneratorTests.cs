@@ -371,7 +371,7 @@ public class ValueComparerGeneratorTests
 
             namespace Demo;
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public abstract partial class Shape
             {
                 public string Name { get; set; } = "";
@@ -398,7 +398,7 @@ public class ValueComparerGeneratorTests
 
             namespace Demo;
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public sealed partial class Model { public string Name { get; set; } = ""; }
             """);
 
@@ -411,14 +411,14 @@ public class ValueComparerGeneratorTests
     }
 
     [Fact]
-    public void ItHonoursComparerIgnore_InEqualsAndInGetHashCode()
+    public void ItHonoursEqualityIgnore_InEqualsAndInGetHashCode()
     {
         var run = Run("""
             using MintPlayer.ValueComparerGenerator.Attributes;
 
             namespace Demo;
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public abstract partial class Shape
             {
                 public string Name { get; set; } = "";
@@ -426,13 +426,13 @@ public class ValueComparerGeneratorTests
 
             public partial class Circle : Shape
             {
-                [ComparerIgnore] public double Radius { get; set; }
+                [EqualityIgnore] public double Radius { get; set; }
             }
             """);
 
         run.Errors.Should().BeEmpty(run.ErrorText);
         var circle = run.SourceFor("Demo.Circle.Equality.g.cs")!;
-        circle.Should().Contain("// Radius: [ComparerIgnore]");
+        circle.Should().Contain("// Radius: [EqualityIgnore]");
         // The #184 bug: the hash used to include ignored properties.
         circle.Should().NotContain("Radius.GetHashCode()");
         circle.Should().NotContain("Radius ==");
@@ -446,9 +446,9 @@ public class ValueComparerGeneratorTests
 
             namespace Demo;
 
-            [AutoValueComparer] public partial record R(string Name);
-            [AutoValueComparer] public partial struct S { public int X { get; set; } }
-            [AutoValueComparer] public partial record struct RS(int X);
+            [GenerateEquality] public partial record R(string Name);
+            [GenerateEquality] public partial struct S { public int X { get; set; } }
+            [GenerateEquality] public partial record struct RS(int X);
             """);
 
         run.Errors.Should().BeEmpty(run.ErrorText);
@@ -467,7 +467,7 @@ public class ValueComparerGeneratorTests
 
             namespace Demo;
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public sealed partial class Box<T> { public T? Value { get; set; } }
             """);
 
@@ -482,7 +482,7 @@ public class ValueComparerGeneratorTests
         var run = Run("""
             using MintPlayer.ValueComparerGenerator.Attributes;
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public sealed partial class Global { public int X { get; set; } }
             """);
 
@@ -512,7 +512,7 @@ public class ValueComparerGeneratorTests
 
             namespace Demo;
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public abstract partial class Shape { public string Name { get; set; } = ""; }
 
             public partial class Circle : Shape { }

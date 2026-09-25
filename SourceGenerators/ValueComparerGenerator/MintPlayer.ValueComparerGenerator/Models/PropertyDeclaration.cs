@@ -12,7 +12,7 @@ public sealed class PropertyDeclaration : IEquatable<PropertyDeclaration>
     public string Name { get; set; } = string.Empty;
     public string EqualsExpression { get; set; } = string.Empty;
     public string HashExpression { get; set; } = string.Empty;
-    public bool HasComparerIgnore { get; set; }
+    public bool HasEqualityIgnore { get; set; }
 
     public bool Equals(PropertyDeclaration? other)
     {
@@ -21,7 +21,7 @@ public sealed class PropertyDeclaration : IEquatable<PropertyDeclaration>
         return string.Equals(Name, other.Name, StringComparison.Ordinal)
             && string.Equals(EqualsExpression, other.EqualsExpression, StringComparison.Ordinal)
             && string.Equals(HashExpression, other.HashExpression, StringComparison.Ordinal)
-            && HasComparerIgnore == other.HasComparerIgnore;
+            && HasEqualityIgnore == other.HasEqualityIgnore;
     }
 
     public override bool Equals(object? obj) => Equals(obj as PropertyDeclaration);
@@ -32,7 +32,7 @@ public sealed class PropertyDeclaration : IEquatable<PropertyDeclaration>
         h = ValueEquality.Combine(h, StringComparer.Ordinal.GetHashCode(Name));
         h = ValueEquality.Combine(h, StringComparer.Ordinal.GetHashCode(EqualsExpression));
         h = ValueEquality.Combine(h, StringComparer.Ordinal.GetHashCode(HashExpression));
-        h = ValueEquality.Combine(h, HasComparerIgnore ? 1 : 0);
+        h = ValueEquality.Combine(h, HasEqualityIgnore ? 1 : 0);
         return h;
     }
 

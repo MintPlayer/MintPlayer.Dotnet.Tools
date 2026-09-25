@@ -8,7 +8,7 @@ namespace MintPlayer.SourceGenerators.Tools.Tests;
 /// <remarks>
 /// Ported one to one from <c>TupleValueComparerTests</c> (and the tuple case of <c>ComparerRegistryResolutionTests</c>).
 /// A <see cref="ValueTuple"/> already compares item by item through <see cref="EqualityComparer{T}.Default"/>, which
-/// is right for every item with value equality: strings, primitives and <c>[AutoValueComparer]</c> models. The
+/// is right for every item with value equality: strings, primitives and <c>[GenerateEquality]</c> models. The
 /// generator only steps in when an item is a collection; then it builds a
 /// <see cref="ValueEquality.DelegateComparer{T}"/> that inlines the item comparisons, which the last region tests.
 /// </remarks>

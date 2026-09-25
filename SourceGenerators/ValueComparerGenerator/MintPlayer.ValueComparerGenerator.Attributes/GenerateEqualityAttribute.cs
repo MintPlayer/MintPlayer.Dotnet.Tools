@@ -9,6 +9,6 @@ namespace MintPlayer.ValueComparerGenerator.Attributes;
 /// Works on classes (sealed, non-sealed, abstract), records, structs and record structs.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]
-public class AutoValueComparerAttribute : Attribute
+public class GenerateEqualityAttribute : Attribute
 {
 }

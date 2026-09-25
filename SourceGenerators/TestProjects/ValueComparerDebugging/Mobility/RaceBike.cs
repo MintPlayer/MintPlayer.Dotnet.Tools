@@ -6,7 +6,7 @@ public partial class Context
 {
     public partial class Entities
     {
-        [AutoValueComparer]
+        [GenerateEquality]
         public partial class RaceBike : Bike
         {
             public int TopSpeed { get; set; } // in km/h

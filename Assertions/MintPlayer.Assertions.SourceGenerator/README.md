@@ -3,7 +3,7 @@
 Roslyn analyzers and code fixes that ship inside the `MintPlayer.Assertions` package
 (`analyzers/dotnet/roslyn5.9/cs`, beside `MintPlayer.SourceGenerators.Tools.dll` and
 `MintPlayer.ValueComparerGenerator.Attributes.dll` — the generator's pipeline models are
-`[AutoValueComparer]` types, so Roslyn needs that assembly to load it). They catch the assertion mistakes that make a test silently pass, and
+`[GenerateEquality]` types, so Roslyn needs that assembly to load it). They catch the assertion mistakes that make a test silently pass, and
 offer a one-click migration from FluentAssertions.
 
 There is no analyzer test infrastructure in this repo; the diagnostics are validated live —

@@ -1,9 +1,9 @@
-# Value-comparer generator
+# Value-equality generator
 Generates value equality for the models of your incremental source generators, so that every pipeline step caches.
 
 Roslyn compares the output of every incremental step with `EqualityComparer<T>.Default`. A plain class compares by
 reference, so a model that the transform builds anew on every run always looks changed, and everything downstream
-re-runs on every keystroke. Put `[AutoValueComparer]` on the model and the generator writes `IEquatable<T>`,
+re-runs on every keystroke. Put `[GenerateEquality]` on the model and the generator writes `IEquatable<T>`,
 `Equals(object)` and `GetHashCode()` on the type itself: the model is value-equal everywhere, in any step, inside a
 `Combine` tuple, as a property of another model, in a `HashSet` and in `Assert.Equal`. No comparer is passed anywhere.
 
@@ -18,18 +18,18 @@ using MintPlayer.ValueComparerGenerator.Attributes;
 
 namespace Demo;
 
-[AutoValueComparer]
+[GenerateEquality]
 public sealed partial class CliOption
 {
     public string Name { get; set; } = "";
     public IReadOnlyList<string> Aliases { get; set; } = new List<string>();
     public ImmutableArray<Child> Children { get; set; }
 
-    [ComparerIgnore]
+    [EqualityIgnore]
     public string CachedText { get; set; } = "";
 }
 
-[AutoValueComparer]
+[GenerateEquality]
 public sealed partial class Child
 {
     public string Value { get; set; } = "";
@@ -45,7 +45,7 @@ partial class CliOption : global::System.IEquatable<global::Demo.CliOption>
     {
         if (other is null) return false;
         if (global::System.Object.ReferenceEquals(this, other)) return true;
-        // CachedText: [ComparerIgnore]
+        // CachedText: [EqualityIgnore]
         return global::System.String.Equals(Name, other.Name, global::System.StringComparison.Ordinal)
             && global::MintPlayer.SourceGenerators.Tools.ValueEquality.List<string>(Aliases, other.Aliases)
             && global::MintPlayer.SourceGenerators.Tools.ValueEquality.ImmutableArray<global::Demo.Child>(Children, other.Children);
@@ -91,15 +91,15 @@ list all compare structurally.
 Sealed and non-sealed classes, abstract hierarchies, records (sealed or derived), structs, record structs, generic
 types, and types nested in any of these.
 
-- **Hierarchies.** Every type deriving from an `[AutoValueComparer]` type gets its own members too, whether or not it
+- **Hierarchies.** Every type deriving from a `[GenerateEquality]` type gets its own members too, whether or not it
   carries the attribute, so it must be `partial` as well. An instance is never equal to an instance of another
   runtime type.
 - **Equality you wrote yourself.** A member the type already declares (`Equals(T)`, `Equals(object)`,
   `GetHashCode()`) is not generated (`MINT002`).
 
 ## Attributes
-- `[AutoValueComparer]` on a class, record or struct: generate the members.
-- `[ComparerIgnore]` on a property: leave it out of `Equals` and `GetHashCode`.
+- `[GenerateEquality]` on a class, record or struct: generate the members.
+- `[EqualityIgnore]` on a property: leave it out of `Equals` and `GetHashCode`.
 - `[UseEqualityComparer(typeof(C))]` on a property: compare it with `C`, an `IEqualityComparer<TProperty>` with a
   static `Instance` or a public parameterless constructor. For example
   `[UseEqualityComparer(typeof(JObjectValueComparer))]` from
@@ -113,7 +113,7 @@ types, and types nested in any of these.
 | `MINT002` | Info (Warning when only one of `Equals(object)`/`GetHashCode()` is declared) | The type declares an equality member itself, so it was not generated. |
 | `MINT003` | Error | A model, or a type deriving from one, is not `partial`. |
 | `MINT004` | Error | The `[UseEqualityComparer]` type is not an `IEqualityComparer<T>` of the property type, or cannot be created. |
-| `MINT005` | Warning | A property type has only reference equality (a class that neither overrides `Equals` nor implements `IEquatable<T>`, and is not a model or a supported collection). Make it equatable, mark it `[AutoValueComparer]`, or use `[UseEqualityComparer]`. |
+| `MINT005` | Warning | A property type has only reference equality (a class that neither overrides `Equals` nor implements `IEquatable<T>`, and is not a model or a supported collection). Make it equatable, mark it `[GenerateEquality]`, or use `[UseEqualityComparer]`. |
 | `MINT006` | Error | A type containing a model is not `partial`. |
 
 ## Using the models in a pipeline
@@ -150,6 +150,10 @@ The ValueComparerGenerator package contains a source-generator that will generat
 ## Breaking changes in 12.0.0
 The full list, with a migration guide, is in the [changelog](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/blob/master/SourceGenerators/CHANGELOG.md).
 
+- **The attributes are renamed**, because they no longer generate comparers: `[AutoValueComparer]` is now
+  `[GenerateEquality]` (`GenerateEqualityAttribute`) and `[ComparerIgnore]` is now `[EqualityIgnore]`
+  (`EqualityIgnoreAttribute`). There are no aliases. `[UseEqualityComparer]` and `[GenerateJoinMethods]` keep their
+  names, and the package ids stay `MintPlayer.ValueComparerGenerator` and `MintPlayer.ValueComparerGenerator.Attributes`.
 - The generator no longer emits an `XValueComparer` class, a `[ValueComparer]` tag, or the `.WithComparer()` /
   `.WithNullableComparer()` extension methods. The members are generated on the model itself. Delete every
   `.WithComparer()`/`.WithNullableComparer()` call; where a step builds a new collection, return `EquatableArray<T>`.

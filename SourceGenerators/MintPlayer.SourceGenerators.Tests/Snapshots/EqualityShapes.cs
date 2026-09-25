@@ -1,7 +1,7 @@
 namespace MintPlayer.SourceGenerators.Tests.Snapshots;
 
 /// <summary>
-/// A fixture for every shape [AutoValueComparer] generates (PRD D1 to D4). The snapshots, the S3 compile matrix and
+/// A fixture for every shape [GenerateEquality] generates (PRD D1 to D4). The snapshots, the S3 compile matrix and
 /// the runtime behaviour tests all use these, so all three look at the same code.
 /// </summary>
 /// <remarks>
@@ -31,16 +31,16 @@ internal static class EqualityShapes
 
         namespace Demo
         {
-            [AutoValueComparer]
+            [GenerateEquality]
             public sealed partial class CliOption
             {
                 public string Name { get; set; } = "";
                 public IReadOnlyList<string> Aliases { get; set; } = new List<string>();
                 public ImmutableArray<Child> Children { get; set; }
-                [ComparerIgnore] public string CachedText { get; set; } = "";
+                [EqualityIgnore] public string CachedText { get; set; } = "";
             }
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public sealed partial class Child
             {
                 public string Value { get; set; } = "";
@@ -53,7 +53,7 @@ internal static class EqualityShapes
 
         namespace Demo
         {
-            [AutoValueComparer]
+            [GenerateEquality]
             public partial class Point
             {
                 public int X { get; set; }
@@ -68,7 +68,7 @@ internal static class EqualityShapes
 
         namespace Demo
         {
-            [AutoValueComparer]
+            [GenerateEquality]
             public abstract partial class Node
             {
                 public string Name { get; set; } = "";
@@ -84,7 +84,7 @@ internal static class EqualityShapes
                 public string Color { get; set; } = "";
             }
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public partial class Branch : Node
             {
                 public double Length { get; set; }
@@ -98,7 +98,7 @@ internal static class EqualityShapes
 
         namespace Demo
         {
-            [AutoValueComparer]
+            [GenerateEquality]
             public partial record Person(string Name, int Age)
             {
                 public List<string> Tags { get; init; } = new List<string>();
@@ -112,7 +112,7 @@ internal static class EqualityShapes
 
         namespace Demo
         {
-            [AutoValueComparer]
+            [GenerateEquality]
             public sealed partial record Tagged(string Name)
             {
                 public IReadOnlyList<string> Tags { get; init; } = new List<string>();
@@ -126,7 +126,7 @@ internal static class EqualityShapes
 
         namespace Demo
         {
-            [AutoValueComparer]
+            [GenerateEquality]
             public abstract partial record Animal(string Name);
 
             public partial record Dog(string Name, string Breed) : Animal(Name)
@@ -143,7 +143,7 @@ internal static class EqualityShapes
 
         namespace Demo
         {
-            [AutoValueComparer]
+            [GenerateEquality]
             public partial struct Range
             {
                 public int Start { get; set; }
@@ -151,7 +151,7 @@ internal static class EqualityShapes
                 public string[]? Labels { get; set; }
             }
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public readonly partial struct Span
             {
                 public Span(int length) => Length = length;
@@ -166,7 +166,7 @@ internal static class EqualityShapes
 
         namespace Demo
         {
-            [AutoValueComparer]
+            [GenerateEquality]
             public partial record struct Coordinate(double Lat, double Lon)
             {
                 public List<string>? Names { get; set; }
@@ -180,7 +180,7 @@ internal static class EqualityShapes
 
         namespace Demo
         {
-            [AutoValueComparer]
+            [GenerateEquality]
             public partial class Box<T>
             {
                 public T? Value { get; set; }
@@ -203,14 +203,14 @@ internal static class EqualityShapes
             {
                 public partial struct Middle
                 {
-                    [AutoValueComparer]
+                    [GenerateEquality]
                     public sealed partial class Inner
                     {
                         public string Text { get; set; } = "";
                     }
                 }
 
-                [AutoValueComparer]
+                [GenerateEquality]
                 public partial record struct Pair(int A, int B);
             }
         }
@@ -225,7 +225,7 @@ internal static class EqualityShapes
 
         namespace Demo
         {
-            [AutoValueComparer]
+            [GenerateEquality]
             public sealed partial class Handmade
             {
                 public string Name { get; set; } = "";
@@ -235,7 +235,7 @@ internal static class EqualityShapes
                 public override int GetHashCode() => Name.GetHashCode();
             }
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public sealed partial class HalfMade
             {
                 public string Name { get; set; } = "";
@@ -266,7 +266,7 @@ internal static class EqualityShapes
                 public int GetHashCode(string obj) => obj.Length;
             }
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public sealed partial class Account
             {
                 [UseEqualityComparer(typeof(CaseInsensitive))] public string Email { get; set; } = "";
@@ -285,14 +285,14 @@ internal static class EqualityShapes
         {
             public enum Kind : long { None, Some }
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public sealed partial class Item
             {
                 public string Name { get; set; } = "";
                 public Kind Kind { get; set; }
             }
 
-            [AutoValueComparer]
+            [GenerateEquality]
             public sealed partial class Holder
             {
                 public Item? Single { get; set; }

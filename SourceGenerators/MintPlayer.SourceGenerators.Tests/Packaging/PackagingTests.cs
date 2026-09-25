@@ -90,7 +90,7 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
         entries.Should().Contain("analyzers/dotnet/roslyn5.9/cs/MintPlayer.Assertions.SourceGenerator.dll");
         entries.Should().Contain("analyzers/dotnet/roslyn5.9/cs/MintPlayer.SourceGenerators.Tools.dll");
 
-        // The generator's own models are [AutoValueComparer] types. Beside the generator rather
+        // The generator's own models are [GenerateEquality] types. Beside the generator rather
         // than in analyzers/dotnet/cs, so the unversioned folder below stays empty.
         entries.Should().Contain("analyzers/dotnet/roslyn5.9/cs/MintPlayer.ValueComparerGenerator.Attributes.dll");
 
@@ -123,14 +123,14 @@ public class PackagingTests(PackedFeed feed) : IClassFixture<PackedFeed>
         "analyzers/dotnet/roslyn5.9/cs/MintPlayer.SourceGenerators.dll",
         "analyzers/dotnet/roslyn5.9/cs/MintPlayer.SourceGenerators.Tools.dll",
         "analyzers/dotnet/roslyn5.9/cs/MintPlayer.SourceGenerators.dll",
-        // [AutoValueComparer] decorates this generator's own model types, so Roslyn cannot load
+        // [GenerateEquality] decorates this generator's own model types, so Roslyn cannot load
         // the generator without it. Dropping this entry does not degrade the package, it disables
         // it — which an earlier revision of this file did.
         "analyzers/dotnet/cs/MintPlayer.ValueComparerGenerator.Attributes.dll")]
     [InlineData(AssertionsPackage, "Assertions/MintPlayer.Assertions/MintPlayer.Assertions.csproj",
         "analyzers/dotnet/roslyn5.9/cs/MintPlayer.Assertions.SourceGenerator.dll",
         "analyzers/dotnet/roslyn5.9/cs/MintPlayer.SourceGenerators.Tools.dll",
-        // Same reason as for MintPlayer.SourceGenerators above: its models use [AutoValueComparer].
+        // Same reason as for MintPlayer.SourceGenerators above: its models use [GenerateEquality].
         "analyzers/dotnet/roslyn5.9/cs/MintPlayer.ValueComparerGenerator.Attributes.dll")]
     public void TheAnalyzerPayloadCarriesItsEssentialsInBothConfigurations(
         string packageId, string projectRelativePath, params string[] required)

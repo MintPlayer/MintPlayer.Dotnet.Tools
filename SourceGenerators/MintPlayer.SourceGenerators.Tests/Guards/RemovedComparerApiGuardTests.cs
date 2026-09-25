@@ -11,7 +11,8 @@ namespace MintPlayer.SourceGenerators.Tests.Guards;
 /// <c>ICompilationCache</c> and the <c>.WithComparer()</c> pipeline operators with equality generated on the
 /// model itself. The types are deleted, so production code that names them no longer compiles; this test also
 /// catches what the compiler cannot: a comment, a commented-out call, or a fixture string that still teaches the
-/// old API.
+/// old API. The same release renamed <c>[AutoValueComparer]</c> to <c>[GenerateEquality]</c> and
+/// <c>[ComparerIgnore]</c> to <c>[EqualityIgnore]</c>, without aliases, so the old attribute names are forbidden too.
 /// </para>
 /// <para>
 /// Test projects (<c>*.Tests</c>) are excluded: they legitimately name the removed APIs in assertions that the
@@ -28,6 +29,8 @@ public class RemovedComparerApiGuardTests
         ("ValueComparer<", new Regex(@"\bValueComparer<", RegexOptions.Compiled)),
         ("ICompilationCache", new Regex(@"ICompilationCache", RegexOptions.Compiled)),
         ("[ValueComparer(", new Regex(@"\[ValueComparer\(", RegexOptions.Compiled)),
+        ("[AutoValueComparer", new Regex(@"\[AutoValueComparer\b", RegexOptions.Compiled)),
+        ("[ComparerIgnore", new Regex(@"\[ComparerIgnore\b", RegexOptions.Compiled)),
     ];
 
     /// <summary>The source roots that ship code built on Tools.</summary>

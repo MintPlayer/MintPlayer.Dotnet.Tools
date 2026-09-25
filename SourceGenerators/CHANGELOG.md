@@ -9,7 +9,7 @@ Issue [#184](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/184), 
 [#185](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/pull/185). The design, spikes and measurements are in
 [`docs/PRD-GeneratedEquality.md`](../docs/PRD-GeneratedEquality.md).
 
-`[AutoValueComparer]` now generates `IEquatable<T>`, `Equals(object)` and `GetHashCode()` **on the model type
+`[GenerateEquality]` (formerly `[AutoValueComparer]`) now generates `IEquatable<T>`, `Equals(object)` and `GetHashCode()` **on the model type
 itself**. Models are value-equal under `EqualityComparer<T>.Default`, which Roslyn uses for every incremental step,
 so `.WithComparer()` is no longer needed anywhere. The value-comparer runtime is removed, with **no backward
 compatibility**.
@@ -28,15 +28,20 @@ compatibility**.
 - **`LocationKey` is now `sealed`.**
 
 **MintPlayer.ValueComparerGenerator** / **.Attributes**
+- **`AutoValueComparerAttribute` is renamed to `GenerateEqualityAttribute`**: write `[GenerateEquality]` instead of
+  `[AutoValueComparer]`. The attribute no longer generates a comparer, so the old name was wrong.
+- **`ComparerIgnoreAttribute` is renamed to `EqualityIgnoreAttribute`**: write `[EqualityIgnore]` instead of
+  `[ComparerIgnore]`. There are no `[Obsolete]` aliases for either attribute. `[UseEqualityComparer]`,
+  `[GenerateJoinMethods]`, the package ids and the diagnostic ids `MINT001`–`MINT006` are unchanged.
 - **No more comparer output.** The generator no longer emits `XValueComparer` classes, the `[ValueComparer]` tag, or
   the `.WithComparer()` / `.WithNullableComparer()` extension methods.
-- **Every `partial` type deriving from an `[AutoValueComparer]` type gets equality members**, whether or not it
+- **Every `partial` type deriving from a `[GenerateEquality]` type gets equality members**, whether or not it
   carries the attribute. That covers a transitive grandchild too. A non-`partial` derived type is an error
   (`MINT003`), and so is a non-`partial` containing type (`MINT006`).
 - **Dictionaries compare order-insensitively.** They used to compare order-sensitively over boxed pairs, by accident.
 - **Runtime registration is replaced.** `ComparerRegistry.Register` becomes `[UseEqualityComparer(typeof(C))]` on
   the property.
-- **`MINT001` has a new trigger.** It inspects the properties of `[AutoValueComparer]` models, instead of
+- **`MINT001` has a new trigger.** It inspects the properties of `[GenerateEquality]` models, instead of
   `.WithComparer()` calls.
 
 **MintPlayer.ValueComparers.NewtonsoftJson**
@@ -52,7 +57,7 @@ compatibility**.
   collections.
 - **In Tools: `EquatableArray<T>`,** returned from a pipeline step that builds a new collection.
 - **Model shapes:** records, sealed and derived records, structs, record structs, generic models, and models nested
-  in any of these. `[AutoValueComparer]` is now allowed on structs.
+  in any of these. `[GenerateEquality]` is now allowed on structs.
 - **Model hierarchies:** equality uses an exact-type check plus `protected virtual EqualsCore`/`HashCore`. That
   replaces the derived-type `switch`, which could overflow the stack.
 - **`[UseEqualityComparer(typeof(C))]`** for property types without value equality, such as `JObject`.
@@ -67,7 +72,7 @@ compatibility**.
 - **Strings no longer go through reflection.** String properties were compared char by char through reflection:
   about 5 µs and 10 KB per compare for a model with 3 strings. Generated equality takes about 30 ns and allocates
   nothing.
-- **`[ComparerIgnore]` properties are no longer hashed.** They were, which made equal models hash differently.
+- **`[EqualityIgnore]` properties are no longer hashed.** `[ComparerIgnore]` properties were, which made equal models hash differently.
 - **No stack overflow in hierarchies.** Comparing two instances of a derived type without its own attribute used to
   overflow the stack.
 - **Consistent hashes.** Several hand-written comparers had no hash override, so equal values had different hashes.
@@ -77,17 +82,18 @@ compatibility**.
 
 ### Migrating a generator
 1. Bump all MintPlayer source-generator packages to 12.0.0.
-2. Delete every `.WithComparer(...)`, `.WithNullableComparer()` and `ComparerRegistry.For<T>()` call.
-3. Where a `Select` builds a new collection (a filter or projection after `Collect()`, or `ToArray()`), return
+2. Replace `[AutoValueComparer]` with `[GenerateEquality]` and `[ComparerIgnore]` with `[EqualityIgnore]`.
+3. Delete every `.WithComparer(...)`, `.WithNullableComparer()` and `ComparerRegistry.For<T>()` call.
+4. Where a `Select` builds a new collection (a filter or projection after `Collect()`, or `ToArray()`), return
    `EquatableArray<T>` (`.ToEquatableArray()`). A `Collect()` of equatable models can stay an `ImmutableArray<T>`.
-4. Remove the `ICompilationCache` parameter from your `Initialize` override, and delete
+5. Remove the `ICompilationCache` parameter from your `Initialize` override, and delete
    `using MintPlayer.SourceGenerators.Tools.ValueComparers;`.
-5. Replace hand-written `ValueComparer<T>` subclasses with `[AutoValueComparer]`, or with hand-written
+6. Replace hand-written `ValueComparer<T>` subclasses with `[GenerateEquality]`, or with hand-written
    `IEquatable<T>` using `ValueEquality`. Replace comparer registrations with `[UseEqualityComparer]`.
-6. Make every type deriving from an `[AutoValueComparer]` type `partial`, and every containing type of a model too.
-7. Fix any `MINT001`/`MINT005` the build reports. Either property can otherwise never compare as unchanged, so the
+7. Make every type deriving from a `[GenerateEquality]` type `partial`, and every containing type of a model too.
+8. Fix any `MINT001`/`MINT005` the build reports. Either property can otherwise never compare as unchanged, so the
    step never caches.
 
 ### Other packages in this repository
-- **MintPlayer.Assertions** (`11.0.0-rc.4`): its source generator's models use `[AutoValueComparer]`, so its
+- **MintPlayer.Assertions** (`11.0.0-rc.4`): its source generator's models use `[GenerateEquality]`, so its
   analyzer payload now also ships `MintPlayer.ValueComparerGenerator.Attributes.dll`.

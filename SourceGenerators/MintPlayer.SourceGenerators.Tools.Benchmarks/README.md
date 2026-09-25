@@ -7,7 +7,7 @@ It measures the **current implementation only**. The before/after comparison aga
 runtime was measured once and is recorded in that PRD, under "B1/B2: benchmarks (measured)"; it is not
 re-measured here.
 
-- **B1, per-call equality.** It measures the real `[AutoValueComparer]` output of this checkout's generator
+- **B1, per-call equality.** It measures the real `[GenerateEquality]` output of this checkout's generator
   (`Generated/Models.cs`), called through `EqualityComparer<T>.Default`.
   - It covers six shapes. Each shape has an equal pair, a pair differing in the last property, and
     `GetHashCode`.

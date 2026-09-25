@@ -2,7 +2,7 @@
 
 namespace MintPlayer.Mapper.Models;
 
-[AutoValueComparer]
+[GenerateEquality]
 public partial class ClassDeclaration
 {
     public string? Name { get; set; }

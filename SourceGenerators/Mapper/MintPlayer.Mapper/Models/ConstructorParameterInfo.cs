@@ -2,7 +2,7 @@ using MintPlayer.ValueComparerGenerator.Attributes;
 
 namespace MintPlayer.Mapper.Models;
 
-[AutoValueComparer]
+[GenerateEquality]
 public partial class ConstructorParameterInfo
 {
     public string ParameterName { get; set; }

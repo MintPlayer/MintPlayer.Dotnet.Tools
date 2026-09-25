@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace MintPlayer.SourceGenerators.Tools.Tests;
 
 /// <summary>
-/// <see cref="ValueEquality"/>: the reflection-free helper that generated <c>[AutoValueComparer]</c> equality and the
+/// <see cref="ValueEquality"/>: the reflection-free helper that generated <c>[GenerateEquality]</c> equality and the
 /// hand-written <see cref="IEquatable{T}"/> models call into.
 /// </summary>
 /// <remarks>

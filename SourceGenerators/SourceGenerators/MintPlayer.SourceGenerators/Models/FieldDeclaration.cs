@@ -2,7 +2,7 @@
 
 namespace MintPlayer.SourceGenerators.Models;
 
-[AutoValueComparer]
+[GenerateEquality]
 public partial class FieldDeclaration
 {
     public string? Name { get; set; }
