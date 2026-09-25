@@ -16,6 +16,8 @@ base_dir="$1"
 head_dir="$2"
 summary="$3"
 tolerance="${BYTES_TOLERANCE_PERCENT:-5}"
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
 
 # One line per benchmark: DisplayInfo (method, job and parameters) <TAB> median ns <TAB> bytes/op.
 extract() {
@@ -33,22 +35,22 @@ extract() {
   jq -r '.Benchmarks[] | [.DisplayInfo, (.Statistics.Median // "NA"), (.Memory.BytesAllocatedPerOperation // "NA")] | @tsv' $files
 }
 
-extract "$base_dir" | sort > base.tsv
-extract "$head_dir" | sort > head.tsv
+extract "$base_dir" | sort > "$work/base.tsv"
+extract "$head_dir" | sort > "$work/head.tsv"
 
-if [ ! -s head.tsv ]; then
+if [ ! -s "$work/head.tsv" ]; then
   echo "::error::The head run produced no BenchmarkDotNet JSON results. A missing result is a failure, not a pass."
   exit 1
 fi
 
-broken=$(awk -F'\t' '$2 == "NA" || $3 == "NA" { print $1 }' head.tsv)
+broken=$(awk -F'\t' '$2 == "NA" || $3 == "NA" { print $1 }' "$work/head.tsv")
 if [ -n "$broken" ]; then
   echo "::error::These head benchmarks produced no result (BenchmarkDotNet exits 0 regardless). See the log artifact:"
   echo "$broken"
   exit 1
 fi
 # A base row without a result cannot serve as a reference; drop it so the head row reports as new.
-awk -F'\t' '$2 != "NA" && $3 != "NA"' base.tsv > base.clean.tsv && mv base.clean.tsv base.tsv
+awk -F'\t' '$2 != "NA" && $3 != "NA"' "$work/base.tsv" > "$work/base.clean.tsv" && mv "$work/base.clean.tsv" "$work/base.tsv"
 
 {
   echo '## Source-generator benchmarks: head vs base'
@@ -61,7 +63,7 @@ awk -F'\t' '$2 != "NA" && $3 != "NA"' base.tsv > base.clean.tsv && mv base.clean
 
 failures=0
 while IFS=$'\t' read -r name head_ns head_bytes; do
-  base_line=$(awk -F'\t' -v n="$name" '$1 == n { print; exit }' base.tsv)
+  base_line=$(awk -F'\t' -v n="$name" '$1 == n { print; exit }' "$work/base.tsv")
   if [ -z "$base_line" ]; then
     printf '| %s | - | %.1f ns | - | - | %s | new |\n' "$name" "$head_ns" "$head_bytes" >> "$summary"
     continue
@@ -75,9 +77,9 @@ while IFS=$'\t' read -r name head_ns head_bytes; do
     else print "ok" }')
   case "$verdict" in FAIL*) failures=$((failures + 1)) ;; esac
   printf '| %s | %.1f ns | %.1f ns | %s | %s | %s | %s |\n' "$name" "$base_ns" "$head_ns" "$ratio" "$base_bytes" "$head_bytes" "$verdict" >> "$summary"
-done < head.tsv
+done < "$work/head.tsv"
 
-removed=$(comm -23 <(cut -f1 base.tsv) <(cut -f1 head.tsv) || true)
+removed=$(comm -23 <(cut -f1 "$work/base.tsv") <(cut -f1 "$work/head.tsv") || true)
 if [ -n "$removed" ]; then
   echo '' >> "$summary"
   echo 'Benchmarks on the base that the head no longer has:' >> "$summary"
