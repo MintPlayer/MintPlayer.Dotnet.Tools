@@ -425,7 +425,9 @@ Tests are batched at the end, per the house rule. Intermediate milestones are ve
    `MINT002` to `MINT005`. Run S3 here.
    - *Status: done. `MINT006` (non-partial containing type) was added, following S5. S3 passed in all 37 cases.*
 4. **M3, S4 oracle run and benchmarks B1/B2.** Results are recorded here.
-   - *Status: S4 done, with 0 deviations. B1/B2: see [B1/B2](#b1b2-benchmarks-measured).*
+   - *Status: done. S4 found 0 deviations. B1 passes: 0 B allocated, 44x to 599x faster on net11.0. B2 passes: 12%
+     to 43% fewer bytes per run, and no slower. See [B1/B2](#b1b2-benchmarks-measured). Design A was not
+     benchmarked.*
 5. **M4, deletion.**
    - Everything under D9, plus hand-written `IEquatable` for the 12 bootstrap types.
    - Remove the 26 + 10 comparer call sites, and switch collection-valued steps to `EquatableArray<T>`.
