@@ -5,7 +5,7 @@
 
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
-MINT001 | Correctness | Error | WithComparerRoslynTypeAnalyzer
+MINT001 | Correctness | Error | RoslynTypeInModelAnalyzer
 MINT002 | ValueComparerGenerator | Info | ValueComparerDiagnostics
 MINT003 | ValueComparerGenerator | Error | ValueComparerDiagnostics
 MINT004 | ValueComparerGenerator | Error | ValueComparerDiagnostics

@@ -571,10 +571,12 @@ internal static class Discovery
         }
 
         /// <summary>MINT005: a class compared by reference, which never caches.</summary>
+        /// <remarks>Roslyn types are left to MINT001, which rejects them outright; reporting both would say the same thing twice.</remarks>
         private bool IsReferenceOnly(INamedTypeSymbol type)
             => type.TypeKind == TypeKind.Class
             && type.SpecialType is not (SpecialType.System_Object or SpecialType.System_String)
             && !type.IsRecord
+            && !Diagnostics.RoslynTypeInModelAnalyzer.IsRoslynType(type)
             && !IsModel(type)
             && !HasOwnEquality(type);
 

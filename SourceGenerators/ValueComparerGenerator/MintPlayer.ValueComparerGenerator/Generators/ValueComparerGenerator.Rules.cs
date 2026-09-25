@@ -14,8 +14,11 @@ public static class ValueComparerDiagnostics
         category: Category,
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
-        description: "A member that the type declares itself is never generated. IEquatable<T> is still added when the type declares Equals(T). " +
-            "When the type declares only one of Equals(object) and GetHashCode(), the diagnostic is raised as a warning instead: the generated other half compares the generated property list, which may not be what the declared one compares.");
+        description: """
+            A member that the type declares itself is never generated. IEquatable<T> is still added when the type declares Equals(T).
+            When the type declares only one of Equals(object) and GetHashCode(), the diagnostic is raised as a warning instead:
+            the generated other half compares the generated property list, which may not be what the declared one compares.
+            """);
 
     /// <summary>
     /// The warning variant of <see cref="UserDeclaredMember"/>. Same descriptor, raised with a Warning effective
