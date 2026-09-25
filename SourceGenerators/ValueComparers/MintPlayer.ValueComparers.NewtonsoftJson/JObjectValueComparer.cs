@@ -1,35 +1,32 @@
-﻿using MintPlayer.SourceGenerators.Tools.Polyfills;
-using MintPlayer.SourceGenerators.Tools.ValueComparers;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace MintPlayer.ValueComparers.NewtonsoftJson;
 
 /// <summary>
-/// Value Comparer for JObject types
+/// Compares <see cref="JObject"/>s by their compact serialized form (ordinal), so equal JSON compares equal.
 /// </summary>
-public sealed class JObjectValueComparer : ValueComparer<JObject>
+/// <remarks>
+/// Use it on a <c>JObject</c> property of an <c>[AutoValueComparer]</c> model:
+/// <c>[UseEqualityComparer(typeof(JObjectValueComparer))]</c>. The generated equality then calls
+/// <see cref="Instance"/>. Property order is significant, because the serialized form preserves it.
+/// </remarks>
+public sealed class JObjectValueComparer : IEqualityComparer<JObject?>
 {
-    protected override bool AreEqual(JObject x, JObject y)
+    public static readonly JObjectValueComparer Instance = new();
+
+    public bool Equals(JObject? x, JObject? y)
     {
-        return IsEquals(x.ToString(Formatting.None), y.ToString(Formatting.None));
+        if (ReferenceEquals(x, y)) return true;
+        if (x is null || y is null) return false;
+        return string.Equals(x.ToString(Formatting.None), y.ToString(Formatting.None), StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// Hashes the same normalized JSON that <see cref="AreEqual"/> compares. Without this
-    /// the base implementation falls through to JObject's own GetHashCode, which is not
-    /// structural — so two objects this comparer calls equal produced different hashes,
-    /// breaking the IEqualityComparer contract and silently losing entries in any
-    /// dictionary or set keyed on it (including the incremental-generator caches this
-    /// comparer exists to serve).
+    /// Hashes the same normalized JSON that <see cref="Equals(JObject, JObject)"/> compares. JObject's own
+    /// GetHashCode is not structural, so two objects this comparer calls equal would otherwise hash differently,
+    /// breaking the <see cref="IEqualityComparer{T}"/> contract.
     /// </summary>
-    protected override void AddHash(ref HashCodeCompat h, JObject? obj)
-    {
-        h.Add(obj is null ? null : obj.ToString(Formatting.None));
-    }
-
-    public static void Register()
-    {
-        ComparerRegistry.TryRegister(typeof(JObject), new JObjectValueComparer());
-    }
+    public int GetHashCode(JObject? obj)
+        => obj is null ? 0 : StringComparer.Ordinal.GetHashCode(obj.ToString(Formatting.None));
 }

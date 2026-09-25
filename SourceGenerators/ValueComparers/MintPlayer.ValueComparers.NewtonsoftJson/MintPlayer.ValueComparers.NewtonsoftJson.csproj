@@ -8,10 +8,10 @@
 	</PropertyGroup>
 
 	<PropertyGroup>
-		<Version>11.0.0</Version>
+		<Version>12.0.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
-		<Description>Value-comparer for Newtonsoft.Json JObject, so incremental source generators carrying JObject in their models still cache correctly</Description>
+		<Description>An IEqualityComparer for Newtonsoft.Json JObject, for [UseEqualityComparer] on incremental-generator models, so models carrying a JObject still cache correctly</Description>
 		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/SourceGenerators/ValueComparers/MintPlayer.ValueComparers.NewtonsoftJson</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
@@ -25,10 +25,6 @@
 
 	<ItemGroup>
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<ProjectReference Include="..\..\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj" />
 	</ItemGroup>
 
 	<!-- The package README is the canonical docs; ship it to NuGet. -->
