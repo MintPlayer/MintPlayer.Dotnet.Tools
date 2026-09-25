@@ -148,6 +148,8 @@ If you want to join more than 5 providers, you can apply the `[assembly: Generat
 The ValueComparerGenerator package contains a source-generator that will generate the necessary extension methods for you.
 
 ## Breaking changes in 12.0.0
+The full list, with a migration guide, is in the [changelog](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/blob/master/SourceGenerators/CHANGELOG.md).
+
 - The generator no longer emits an `XValueComparer` class, a `[ValueComparer]` tag, or the `.WithComparer()` /
   `.WithNullableComparer()` extension methods. The members are generated on the model itself. Delete every
   `.WithComparer()`/`.WithNullableComparer()` call; where a step builds a new collection, return `EquatableArray<T>`.

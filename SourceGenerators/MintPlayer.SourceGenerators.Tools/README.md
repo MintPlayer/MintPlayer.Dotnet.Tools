@@ -145,6 +145,8 @@ Rules of thumb for your models: no `ISymbol`, `SyntaxNode`, `SyntaxTokenList`, `
 To prove it, `MintPlayer.SourceGenerators.Testing` runs a generator twice and reports the run reason of every output step.
 
 ## Breaking changes in 12.0.0
+The full list, with a migration guide, is in the [changelog](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/blob/master/SourceGenerators/CHANGELOG.md).
+
 The value-comparer runtime is removed, with no backward compatibility. Models are value-equal by themselves now.
 
 - **Removed:** `ValueComparer<T>`, `ComparerRegistry`, `[ValueComparer]`, the whole

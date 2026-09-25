@@ -42,6 +42,7 @@ It is a plain `IEqualityComparer<JObject?>`, so it also works anywhere else a co
 `ValueEquality.List(a, b, JObjectValueComparer.Instance)`.
 
 ## Breaking changes in 12.0.0
+The full list, with a migration guide, is in the [changelog](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/blob/master/SourceGenerators/CHANGELOG.md).
 
 - `JObjectValueComparer` no longer derives from `ValueComparer<JObject>` (which is deleted from
   MintPlayer.SourceGenerators.Tools). It is a sealed `IEqualityComparer<JObject?>` with a static `Instance`.

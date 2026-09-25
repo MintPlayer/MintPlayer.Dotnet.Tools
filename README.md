@@ -26,7 +26,7 @@ This repository contains several .NET source generators ([overview](SourceGenera
     - Allows you to use the `[Inject]` attribute, removing the constructor completely
     - Contains an interface-implementation analyzer
 - [MintPlayer.Mapper](SourceGenerators/Mapper/MintPlayer.Mapper/README.md): Automatically generates mapper-extension-methods for you. It has support for property-name remapping and property-type remapping
-- [MintPlayer.ValueComparerGenerator](SourceGenerators/ValueComparerGenerator/MintPlayer.ValueComparerGenerator/README.md): Makes it easier to write your own source-generators by generating the value-comparers for you
+- [MintPlayer.ValueComparerGenerator](SourceGenerators/ValueComparerGenerator/MintPlayer.ValueComparerGenerator/README.md): Generates value equality (`IEquatable<T>`) on your source-generator models, so every incremental step caches without `.WithComparer()`
 - [MintPlayer.CliGenerator](SourceGenerators/Cli/MintPlayer.CliGenerator/README.md): Builds a `System.CommandLine` command tree from your classes, with DI wiring
 - [MintPlayer.SourceGenerators.Tools](SourceGenerators/MintPlayer.SourceGenerators.Tools/README.md): The toolkit those generators are built on — use it to write your own
 

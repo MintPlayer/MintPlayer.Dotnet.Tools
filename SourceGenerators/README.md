@@ -15,6 +15,8 @@ to NuGet.
 Each generator also publishes a `*.Attributes` companion holding just the attributes you decorate
 with. Referencing the generator brings it along, so you rarely reference one directly.
 
+Changes and breaking changes across these packages are recorded in [CHANGELOG.md](CHANGELOG.md).
+
 ## Layout
 
 `eng/` holds the shared MSBuild for every generator project (`sourcegenerator.targets` defines the

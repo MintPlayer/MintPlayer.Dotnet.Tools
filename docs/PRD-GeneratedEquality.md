@@ -417,11 +417,15 @@ Tests are batched at the end, per the house rule. Intermediate milestones are ve
 
 1. **M0, spikes S1, S2, S5 and S6.** Findings are recorded here. If S2 contradicts D5, revise the design before
    writing code.
+   - *Status: done. S2 confirmed D5; see [Spike results](#spike-results).*
 2. **M1, `ValueEquality` and `EquatableArray<T>` in Tools**, with the old runtime still present, so that S4 can use
    it as the oracle.
+   - *Status: done.*
 3. **M2, the new producer.** Covers D1 to D4, `ForAttributeWithMetadataName` discovery, `[UseEqualityComparer]`, and
    `MINT002` to `MINT005`. Run S3 here.
+   - *Status: done. `MINT006` (non-partial containing type) was added, following S5. S3 passed in all 37 cases.*
 4. **M3, S4 oracle run and benchmarks B1/B2.** Results are recorded here.
+   - *Status: S4 done, with 0 deviations. B1/B2: see [B1/B2](#b1b2-benchmarks-measured).*
 5. **M4, deletion.**
    - Everything under D9, plus hand-written `IEquatable` for the 12 bootstrap types.
    - Remove the 26 + 10 comparer call sites, and switch collection-valued steps to `EquatableArray<T>`.
@@ -435,10 +439,17 @@ Tests are batched at the end, per the house rule. Intermediate milestones are ve
    - Update the ValueComparerGenerator README (generated members, no `.WithComparer()`, `[UseEqualityComparer]`)
      and add a Tools CHANGELOG/breaking-change note for 12.0.0.
    - Bump the versions to 12.0.0.
-   - *Status: done except the full-suite run. Every SourceGenerators package moves to 12.0.0 in lockstep, as in
-     #183; MintPlayer.Assertions, which ships Tools in its analyzer payload, moves to 11.0.0-rc.4. The breaking
-     changes are listed in the Tools, ValueComparerGenerator and NewtonsoftJson READMEs.*
-7. **M6, downstream**, after 12.0.0 is published (see below).
+   - *Status: done.*
+     - *Versions: every SourceGenerators package moves to 12.0.0 in lockstep, as in #183.
+       MintPlayer.Assertions, which ships Tools in its analyzer payload, moves to 11.0.0-rc.4.*
+     - *Changelog: the breaking changes and a migration guide are in `SourceGenerators/CHANGELOG.md`. The
+       Tools, ValueComparerGenerator and NewtonsoftJson READMEs link to it.*
+     - *Tests: the full solution passes locally in Release, and CI passes on #185.*
+7. **M5b, the Assertions source generator.** Added at the owner's request. It moves from hand-written
+   `IEquatable<T>` models to `[AutoValueComparer]`, and its analyzer payload ships
+   `MintPlayer.ValueComparerGenerator.Attributes.dll`, which the owner accepted.
+8. **M6, downstream**, after 12.0.0 is published (see below). *Status: not started, since it depends on the
+   publish.*
 
 ## Downstream migration
 
@@ -489,11 +500,44 @@ from this repo first, then open both downstream PRs.
 
 ## Open questions for the owner
 
-1. **Where does `ValueEquality` live?** D5 puts it in Tools. The alternative emits an `internal` helper into each
-   consuming assembly. It is only worth it if S6 finds a consumer without Tools.
-2. **Dictionary semantics:** order-insensitive (D6), or keep today's accidental order-sensitive behaviour?
-3. **Package name:** `[AutoValueComparer]` no longer generates a comparer. Rename the attribute to `[AutoEquatable]`?
-   This design keeps the name, since renaming is a second breaking change on top of this one; the owner decides.
+1. **Where does `ValueEquality` live?** *Resolved: in Tools (D5).* S6 found no consumer without a Tools reference.
+2. **Dictionary semantics.** *Resolved: order-insensitive (D6).* No model in any repo has a dictionary property, so
+   nothing depended on the old, accidental behaviour.
+3. **Package name.** *Open.* `[AutoValueComparer]` no longer generates a comparer. Should the attribute be renamed
+   to `[AutoEquatable]`? The name is kept for now, since renaming is a second breaking change on top of this one.
+   The owner confirmed that the generator itself stays: it is what writes the equality members.
+
+## Implementation notes: where the code deviates from the design above
+
+None of these changes behaviour that any existing model relies on; S4 found 0 differences.
+
+- **`IList<T>` and `ICollection<T>` use `ValueEquality.Sequence`, not `List`.** `IList<T>` doesn't implement
+  `IReadOnlyList<T>`, and an extra overload would be ambiguous for `List<T>`. `Sequence` still takes the indexed
+  path at runtime.
+- **`float`/`double` compare with `.Equals`, not `==`,** so `NaN` equals itself, as it did with the old comparer.
+- **`[UseEqualityComparer]` goes through a cached `static readonly IEqualityComparer<T>` field** (`C.Instance` or
+  `new C()`). That handles explicit interface implementations.
+- **One descriptor for both MINT002 severities.** The "only one of `Equals(object)`/`GetHashCode()`" case uses the
+  same descriptor raised at Warning severity: a second descriptor with the same id trips RS2001.
+- **`MINT003` also covers a non-partial attributed type,** not only a non-partial derived type.
+- **Records and record structs don't list `IEquatable<T>`,** because the compiler already adds it.
+- **Struct members are `readonly` only when that causes no defensive copy** (CS8656).
+- **Base classes:**
+  - A class root also compares properties inherited from non-model base classes.
+  - A record root with a plain base record delegates to `base.Equals`.
+  - Derived types skip `override` properties.
+- **Global-namespace models get no namespace block.** The old generator put them in `RootNamespace`.
+- **`MINT001`:**
+  - It is now `RoslynTypeInModelAnalyzer`. It looks through arrays, nullables, tuples, generic arguments and plain
+    classes, but not into nested models, so each bad property is reported once.
+  - It still fires on `[ComparerIgnore]` properties, because holding a symbol pins the compilation either way.
+  - `MINT005` skips Roslyn types, so the two don't report the same property.
+- **Equality changes for Tools types:**
+  - `PathSpecElement` equality now includes `GenericTypeParameters`, which the old comparer left out.
+  - `LocationKey` is sealed.
+- **`newtonsoftjson.targets` is no longer imported by MintPlayer.SourceGenerators.** The import only existed to
+  register the JObject comparer.
+- **The AC3 guard test skips `*.Tests` projects,** because their assertions legitimately name the removed APIs.
 
 ## Spike results
 
