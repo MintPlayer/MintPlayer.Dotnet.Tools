@@ -1,6 +1,5 @@
 ﻿using Microsoft.CodeAnalysis;
 using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.SourceGenerators.Tools.ValueComparers;
 using MintPlayer.ValueComparerGenerator.Attributes;
 using MintPlayer.ValueComparerGenerator.Models;
 
@@ -13,7 +12,7 @@ public class JoinMethodGenerator : IncrementalGenerator
     //{
     //}
 
-    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<ICompilationCache> cacheProvider)
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {
         var numberOfJoinMethodsProvider = context.SyntaxProvider.ForAttributeWithMetadataName(
             typeof(GenerateJoinMethodsAttribute).FullName,

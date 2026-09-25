@@ -1,7 +1,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.SourceGenerators.Tools.ValueComparers;
 using MintPlayer.ValueComparerGenerator.Models;
 
 namespace MintPlayer.ValueComparerGenerator.Generators;
@@ -29,7 +28,7 @@ public class ValueComparerGenerator : IncrementalGenerator
     /// <summary>The step that feeds the producers. Tests assert it stays cached when only a diagnostic moved.</summary>
     public const string ModelsStep = "ValueComparerGenerator.Models";
 
-    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<ICompilationCache> cacheProvider)
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {
         var rootsProvider = context.SyntaxProvider.ForAttributeWithMetadataName(
                 Discovery.AutoValueComparerMetadataName,

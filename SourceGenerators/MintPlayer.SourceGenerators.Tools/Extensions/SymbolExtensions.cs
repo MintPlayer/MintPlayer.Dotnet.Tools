@@ -1,7 +1,6 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using MintPlayer.SourceGenerators.Tools.ValueComparers;
 using System.CodeDom.Compiler;
 
 namespace MintPlayer.SourceGenerators.Tools;
@@ -194,8 +193,11 @@ internal class PathSpecStack : IDisposablePathSpecStack
     }
 }
 
-[ValueComparer(typeof(PathSpecValueComparer))]
-public class PathSpec
+/// <summary>
+/// The namespace and containing types of a type symbol. Compares by value, so a pipeline model holding a
+/// <see cref="PathSpec"/> stays equal to its previous run under <see cref="EqualityComparer{T}.Default"/>.
+/// </summary>
+public class PathSpec : IEquatable<PathSpec>
 {
     public string? ContainingNamespace { get; set; }
     public PathSpecElement[] Parents
@@ -208,10 +210,31 @@ public class PathSpec
         }
     } = [];
     public bool AllPartial { get; private set; }
+
+    public bool Equals(PathSpec? other)
+    {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
+        return other.GetType() == GetType()
+            && string.Equals(ContainingNamespace, other.ContainingNamespace, StringComparison.Ordinal)
+            && ValueEquality.Array(Parents, other.Parents)
+            && AllPartial == other.AllPartial;
+    }
+
+    public override bool Equals(object? obj) => Equals(obj as PathSpec);
+
+    public override int GetHashCode()
+    {
+        var h = 17;
+        h = ValueEquality.Combine(h, ContainingNamespace is null ? 0 : StringComparer.Ordinal.GetHashCode(ContainingNamespace));
+        h = ValueEquality.Combine(h, ValueEquality.ArrayHash(Parents));
+        h = ValueEquality.Combine(h, AllPartial ? 1 : 0);
+        return h;
+    }
 }
 
-[ValueComparer(typeof(PathSpecElementValueComparer))]
-public class PathSpecElement
+/// <summary>One containing type of a <see cref="PathSpec"/>. Compares by value.</summary>
+public class PathSpecElement : IEquatable<PathSpecElement>
 {
     public string? Name { get; set; }
     public EPathSpecType Type { get; set; }
@@ -221,6 +244,29 @@ public class PathSpecElement
     /// Generic type parameters for the parent type, e.g., "&lt;TOuter&gt;"
     /// </summary>
     public string? GenericTypeParameters { get; set; }
+
+    public bool Equals(PathSpecElement? other)
+    {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
+        return other.GetType() == GetType()
+            && string.Equals(Name, other.Name, StringComparison.Ordinal)
+            && Type == other.Type
+            && IsPartial == other.IsPartial
+            && string.Equals(GenericTypeParameters, other.GenericTypeParameters, StringComparison.Ordinal);
+    }
+
+    public override bool Equals(object? obj) => Equals(obj as PathSpecElement);
+
+    public override int GetHashCode()
+    {
+        var h = 17;
+        h = ValueEquality.Combine(h, Name is null ? 0 : StringComparer.Ordinal.GetHashCode(Name));
+        h = ValueEquality.Combine(h, (int)Type);
+        h = ValueEquality.Combine(h, IsPartial ? 1 : 0);
+        h = ValueEquality.Combine(h, GenericTypeParameters is null ? 0 : StringComparer.Ordinal.GetHashCode(GenericTypeParameters));
+        return h;
+    }
 }
 
 public enum EPathSpecType

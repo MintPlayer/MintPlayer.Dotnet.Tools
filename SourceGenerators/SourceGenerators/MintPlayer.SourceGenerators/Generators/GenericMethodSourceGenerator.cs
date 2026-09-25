@@ -2,8 +2,6 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.SourceGenerators.Tools.ValueComparers;
-using MintPlayer.ValueComparers.NewtonsoftJson;
 
 namespace MintPlayer.SourceGenerators.Generators;
 
@@ -15,7 +13,7 @@ public class GenericMethodSourceGenerator : IncrementalGenerator
     //    NewtonsoftJsonComparers.Register();
     //}
 
-    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<ICompilationCache> cacheProvider)
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {
         var methodsProvider = context.SyntaxProvider.CreateSyntaxProvider(
             static (node, ct) =>
@@ -68,7 +66,6 @@ public class GenericMethodSourceGenerator : IncrementalGenerator
             })
             // The transform allocates a new model on every run; without the generated comparer the
             // collected array compared by reference and never matched the previous one.
-            .WithNullableComparer()
             .Collect();
 
         var methodsSourceProvider = methodsProvider

@@ -1,7 +1,6 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using MintPlayer.SourceGenerators.Tools.Models;
-using MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 namespace MintPlayer.SourceGenerators.Tools;
 
@@ -9,15 +8,10 @@ public abstract partial class IncrementalGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        // 1) Flow the Compilation as a handle to the cache
-        var cacheProvider = context.CompilationProvider
-            .Select(static (compilation, _) => ComparerCacheHub.Get(compilation))
-            .WithComparer(ReferenceEqualityComparer<ICompilationCache>.Instance);
-
-
+        // AnalyzerInfo, LangVersion and Settings implement IEquatable<T>, so every step below compares by
+        // value under the default comparer Roslyn uses; no explicit comparer is needed.
         var analyzerInfo = context.AnalyzerConfigOptionsProvider
-            .Select(static (p, ct) => AnalyzerInfo.FromGlobalOptions(p.GlobalOptions))
-            .WithComparer(ComparerRegistry.For<AnalyzerInfo>());
+            .Select(static (p, ct) => AnalyzerInfo.FromGlobalOptions(p.GlobalOptions));
 
         // Read from the parse options, not by walking CompilationProvider.SyntaxTrees: every tree of a
         // project shares them, and the compilation is a new object on every edit, so the walk re-ran on
@@ -62,18 +56,15 @@ public abstract partial class IncrementalGenerator : IIncrementalGenerator
                         };
                     }
                 }))
-            .WithComparer(ComparerRegistry.For<LangVersion>())
             .Collect()
-            .Select(static (p, ct) => p.OrderBy(x => x.Weight).FirstOrDefault())
-            .WithComparer(ComparerRegistry.For<LangVersion>());
+            .Select(static (p, ct) => p.OrderBy(x => x.Weight).FirstOrDefault());
 
         var settingsProvider = analyzerInfo
             .Combine(languageVersionProvider)
-            .Select(static (p, ct) => Settings.FromAnalyzerAndLangVersion(p.Left, p.Right))
-            .WithComparer(ComparerRegistry.For<Settings>());
+            .Select(static (p, ct) => Settings.FromAnalyzerAndLangVersion(p.Left, p.Right));
 
-        Initialize(context, settingsProvider, cacheProvider);
+        Initialize(context, settingsProvider);
     }
 
-    public abstract void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<ICompilationCache> valueComparerCacheProvider);
+    public abstract void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider);
 }

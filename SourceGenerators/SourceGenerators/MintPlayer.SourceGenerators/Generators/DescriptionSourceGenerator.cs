@@ -2,7 +2,6 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.SourceGenerators.Tools.ValueComparers;
 using System.Net;
 using System.Text.RegularExpressions;
 
@@ -11,7 +10,7 @@ namespace MintPlayer.SourceGenerators.Generators;
 [Generator(LanguageNames.CSharp)]
 public partial class DescriptionSourceGenerator : IncrementalGenerator
 {
-    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<ICompilationCache> valueComparerCacheProvider)
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {
         var xmlCommentProvider = context.SyntaxProvider.CreateSyntaxProvider(
             static (node, ct) => node is ClassDeclarationSyntax
@@ -52,7 +51,6 @@ public partial class DescriptionSourceGenerator : IncrementalGenerator
 
                 return default;
             })
-            .WithNullableComparer()
             .Where(static item => item is { MarkupText: not null, TypeName: not null, TypeKind: not null, PathSpec.AllPartial: true, IsPartial: true })
             .Collect();
 

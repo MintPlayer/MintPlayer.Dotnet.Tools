@@ -12,7 +12,7 @@ Four files, organised by concern. They already do the right thing; do not reinve
 |---|---|---|
 | `eng/sourcegenerator.targets` | the generator DLL, `Tools.dll`, and the generator's own `$(AssemblyName).Attributes.dll`; sets `netstandard2.0`, `IsRoslynComponent`, `IncludeBuildOutput=false` | always, in a standalone generator project |
 | `eng/valuecomparergenerator.targets` | `MintPlayer.ValueComparerGenerator.Attributes.dll` + the analyzer reference | the project uses `[AutoValueComparer]` |
-| `eng/newtonsoftjson.targets` | `Newtonsoft.Json.dll` + `MintPlayer.ValueComparers.NewtonsoftJson.dll` | the models need Newtonsoft comparers |
+| `eng/newtonsoftjson.targets` | `Newtonsoft.Json.dll` + `MintPlayer.ValueComparers.NewtonsoftJson.dll` | the models carry a `JObject` (compared with `[UseEqualityComparer(typeof(JObjectValueComparer))]`) |
 | `eng/filenesting.targets` | IDE file nesting | always |
 
 Need value comparers? Import `valuecomparergenerator.targets`. Need Newtonsoft in your models?

@@ -3,7 +3,6 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.Assertions.SourceGenerator.Helpers;
 using MintPlayer.Assertions.SourceGenerator.Models;
 using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 namespace MintPlayer.Assertions.SourceGenerator.Generators;
 
@@ -18,7 +17,7 @@ public class GenerateAssertionGenerator : IncrementalGenerator
     private const string GenerateAssertionAttribute = "MintPlayer.Assertions.GenerateAssertionAttribute";
     private const string AssertionExtensionsSuffix = "AssertionExtensions";
 
-    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<ICompilationCache> valueComparerCacheProvider)
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {
         var methodProvider = context.SyntaxProvider.ForAttributeWithMetadataName(
             GenerateAssertionAttribute,

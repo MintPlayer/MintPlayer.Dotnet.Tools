@@ -24,8 +24,6 @@ internal class ExampleGenerator : IIncrementalGenerator
                     };
                     return default;
                 })
-                .WithNullableComparer()
-                //.WithComparer(ComparerRegistry.For<ClassDeclaration>())
                 .Collect();
 
             

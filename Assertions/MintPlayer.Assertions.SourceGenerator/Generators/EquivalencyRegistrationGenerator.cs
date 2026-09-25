@@ -3,7 +3,6 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.Assertions.SourceGenerator.Helpers;
 using MintPlayer.Assertions.SourceGenerator.Models;
 using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 namespace MintPlayer.Assertions.SourceGenerator.Generators;
 
@@ -21,7 +20,7 @@ public class EquivalencyRegistrationGenerator : IncrementalGenerator
     private const string AssertEquivalencyAttribute = "MintPlayer.Assertions.AssertEquivalencyAttribute";
     private const string RegistryTypeName = "MintPlayer.Assertions.Equivalency.EquivalencyRegistry";
 
-    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<ICompilationCache> valueComparerCacheProvider)
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {
         // (a) Call sites: <expr>.Should().BeEquivalentTo(expectation)
         var callSiteProvider = context.SyntaxProvider.CreateSyntaxProvider(

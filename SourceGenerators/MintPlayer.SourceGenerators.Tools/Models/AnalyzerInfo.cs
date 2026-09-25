@@ -2,8 +2,7 @@
 
 namespace MintPlayer.SourceGenerators.Tools.Models;
 
-[ValueComparer(typeof(AnalyzerInfoComparer))]
-internal class AnalyzerInfo
+internal sealed class AnalyzerInfo : IEquatable<AnalyzerInfo>
 {
     private AnalyzerInfo() { }
 
@@ -62,4 +61,53 @@ internal class AnalyzerInfo
             UsingMicrosoftNETSdkWeb = usingMicrosoftNETSdkWeb,
         };
     }
+
+    public bool Equals(AnalyzerInfo? other)
+    {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
+        return S(RootNamespace, other.RootNamespace)
+            && S(ProjectTypeGuids, other.ProjectTypeGuids)
+            && S(EnforceExtendedAnalyzerRules, other.EnforceExtendedAnalyzerRules)
+            && S(TargetFrameworkIdentifier, other.TargetFrameworkIdentifier)
+            && S(TargetFramework, other.TargetFramework)
+            && S(TargetPlatformMinVersion, other.TargetPlatformMinVersion)
+            && S(TargetFrameworkVersion, other.TargetFrameworkVersion)
+            && S(EnableCodeStyleSeverity, other.EnableCodeStyleSeverity)
+            && S(InvariantGlobalization, other.InvariantGlobalization)
+            && S(PlatformNeutralAssembly, other.PlatformNeutralAssembly)
+            && S(EffectiveAnalysisLevelStyle, other.EffectiveAnalysisLevelStyle)
+            && S(ProjectDir, other.ProjectDir)
+            && S(EnableCOMHosting, other.EnableCOMHosting)
+            && S(EnableGeneratedCOMIinterfaceCOMImportInterop, other.EnableGeneratedCOMIinterfaceCOMImportInterop)
+            && S(SupportedPlatformList, other.SupportedPlatformList)
+            && S(UsingMicrosoftNETSdkWeb, other.UsingMicrosoftNETSdkWeb);
+    }
+
+    public override bool Equals(object? obj) => Equals(obj as AnalyzerInfo);
+
+    public override int GetHashCode()
+    {
+        var h = 17;
+        h = ValueEquality.Combine(h, H(RootNamespace));
+        h = ValueEquality.Combine(h, H(ProjectTypeGuids));
+        h = ValueEquality.Combine(h, H(EnforceExtendedAnalyzerRules));
+        h = ValueEquality.Combine(h, H(TargetFrameworkIdentifier));
+        h = ValueEquality.Combine(h, H(TargetFramework));
+        h = ValueEquality.Combine(h, H(TargetPlatformMinVersion));
+        h = ValueEquality.Combine(h, H(TargetFrameworkVersion));
+        h = ValueEquality.Combine(h, H(EnableCodeStyleSeverity));
+        h = ValueEquality.Combine(h, H(InvariantGlobalization));
+        h = ValueEquality.Combine(h, H(PlatformNeutralAssembly));
+        h = ValueEquality.Combine(h, H(EffectiveAnalysisLevelStyle));
+        h = ValueEquality.Combine(h, H(ProjectDir));
+        h = ValueEquality.Combine(h, H(EnableCOMHosting));
+        h = ValueEquality.Combine(h, H(EnableGeneratedCOMIinterfaceCOMImportInterop));
+        h = ValueEquality.Combine(h, H(SupportedPlatformList));
+        h = ValueEquality.Combine(h, H(UsingMicrosoftNETSdkWeb));
+        return h;
+    }
+
+    private static bool S(string? x, string? y) => string.Equals(x, y, StringComparison.Ordinal);
+    private static int H(string? x) => x is null ? 0 : StringComparer.Ordinal.GetHashCode(x);
 }

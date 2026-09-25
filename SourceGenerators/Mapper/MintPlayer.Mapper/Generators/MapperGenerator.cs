@@ -2,14 +2,13 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 namespace MintPlayer.Mapper.Generators;
 
 [Generator(LanguageNames.CSharp)]
 public class MapperGenerator : IncrementalGenerator
 {
-    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<ICompilationCache> cacheProvider)
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {
         var typesToMapProvider = context.SyntaxProvider
             .ForAttributeWithMetadataName(
@@ -120,8 +119,7 @@ public class MapperGenerator : IncrementalGenerator
                 }
             )
             .Where(static (i) => i is { })
-            .SelectMany(static (i, ct) => i)
-            .WithComparer();
+            .SelectMany(static (i, ct) => i);
 
         //var mapperConversionMethodsProvider = context.SyntaxProvider
         //    .ForAttributeWithMetadataName(
@@ -161,7 +159,6 @@ public class MapperGenerator : IncrementalGenerator
         //        }
         //    )
         //    .Where(static (m) => m is not null)
-        //    .WithNullableComparer()
         //    .Collect();
 
         var distinctTypesToMapProvider = typesToMapProvider
@@ -175,7 +172,6 @@ public class MapperGenerator : IncrementalGenerator
                     // on every enumeration by both producers.
                     .ToArray()
             })
-            .WithComparer()
             .Collect();
 
         var staticClassesProvider = context.SyntaxProvider
@@ -229,18 +225,15 @@ public class MapperGenerator : IncrementalGenerator
                 }
             )
             .Where(static (m) => m is { ConversionMethods.Length: > 0 })
-            .WithNullableComparer()
             .Collect();
 
         var conversionMethodsWithMissingStateProvider = staticClassesProvider
             .SelectMany(static (c, ct) => c.SelectMany(cl => cl is null ? [] : cl.ConversionMethods.Where(m => m.SourceState is null || m.DestinationState is null)))
-            .Where(static (m) => m.SourceType == m.DestinationType)
-            .WithComparer();
+            .Where(static (m) => m.SourceType == m.DestinationType);
 
         var conversionMethodsWithUnnecessaryStateProvider = staticClassesProvider
             .SelectMany(static (c, ct) => c.SelectMany(cl => cl is null ? [] : cl.ConversionMethods.Where(m => m.SourceState is not null || m.DestinationState is not null)))
-            .Where(static (m) => m.SourceType != m.DestinationType)
-            .WithComparer();
+            .Where(static (m) => m.SourceType != m.DestinationType);
 
 
         var typesToMapSourceProvider = distinctTypesToMapProvider

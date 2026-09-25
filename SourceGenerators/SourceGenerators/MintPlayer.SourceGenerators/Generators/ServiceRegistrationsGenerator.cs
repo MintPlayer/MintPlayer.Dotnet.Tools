@@ -4,14 +4,13 @@ using Microsoft.Extensions.DependencyInjection;
 using MintPlayer.SourceGenerators.Attributes;
 using MintPlayer.SourceGenerators.Models;
 using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.SourceGenerators.Tools.ValueComparers;
 
 namespace MintPlayer.SourceGenerators.Generators;
 
 [Generator(LanguageNames.CSharp)]
 public class ServiceRegistrationsGenerator : IncrementalGenerator
 {
-    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<ICompilationCache> cacheProvider)
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {
         var classesWithRegisterAttributeProvider = context.SyntaxProvider
             .CreateSyntaxProvider(
@@ -169,19 +168,16 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                                 return default;
                             })
                             .NotNull()
-                            .ToArray();
+                            .ToEquatableArray();
                         }
                     }
                     return default;
                 }
             )
-            // Arrays compare by reference, and the transform allocates a new one on every run, so
-            // without a structural comparer every class in an edited file counted as changed.
-            .WithComparer(ComparerRegistry.For<ServiceRegistration[]>())
+            // An EquatableArray, not a plain array: arrays compare by reference, and the transform
+            // allocates a new one on every run, so every class in an edited file counted as changed.
             .SelectMany((x, ct) => x)
-            .WithComparer()
-            .Collect()
-            .WithComparer();
+            .Collect();
 
         // Provider for assembly-level [Register] attributes (for third-party types)
         var assemblyLevelRegisterAttributeProvider = context.CompilationProvider
@@ -190,13 +186,13 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                 var serviceLifetimeSymbol = compilation.GetTypeByMetadataName("Microsoft.Extensions.DependencyInjection.ServiceLifetime");
                 var generatedAccessibilitySymbol = compilation.GetTypeByMetadataName("MintPlayer.SourceGenerators.Attributes.EGeneratedAccessibility");
 
-                if (serviceLifetimeSymbol is null) return Array.Empty<ServiceRegistration>();
+                if (serviceLifetimeSymbol is null) return EquatableArray<ServiceRegistration>.Empty;
 
                 var attrs = compilation.Assembly.GetAttributes()
                     .Where(a => a.AttributeClass?.Name == nameof(RegisterAttribute))
                     .ToArray();
 
-                if (attrs.Length == 0) return Array.Empty<ServiceRegistration>();
+                if (attrs.Length == 0) return EquatableArray<ServiceRegistration>.Empty;
 
                 return attrs.Select(attr =>
                 {
@@ -281,11 +277,11 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                     return default;
                 })
                 .Where(r => r is not null)
-                .ToArray()!;
-            })
+                .Select(r => r!)
+                .ToEquatableArray();
+            });
             // A CompilationProvider.Select re-runs on every edit, so its result must compare by value
-            // for anything downstream to be served from cache.
-            .WithComparer(ComparerRegistry.For<ServiceRegistration[]>());
+            // for anything downstream to be served from cache: hence EquatableArray, not an array.
 
         var knowsDependencyInjectionAbstractionsProvider = context.CompilationProvider
             .Select((compilation, ct) => compilation.GetTypeByMetadataName("Microsoft.Extensions.DependencyInjection.IServiceCollection") is not null);
@@ -318,13 +314,13 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                     DefaultMethodName = defaultMethodName,
                     DefaultAccessibility = defaultAccessibility
                 };
-            })
-            .WithComparer();
+            });
 
-        // Combine class-level and assembly-level registrations
+        // Combine class-level and assembly-level registrations. The concatenation is a new
+        // collection on every run, so it is an EquatableArray to compare by value.
         var allRegistrationsProvider = classesWithRegisterAttributeProvider
             .Combine(assemblyLevelRegisterAttributeProvider)
-            .Select(static (combined, ct) => combined.Left.Concat(combined.Right).ToArray());
+            .Select(static (combined, ct) => combined.Left.Concat(combined.Right).ToEquatableArray());
 
         var registerAttributeSourceProvider = allRegistrationsProvider
             .Join(knowsDependencyInjectionAbstractionsProvider)

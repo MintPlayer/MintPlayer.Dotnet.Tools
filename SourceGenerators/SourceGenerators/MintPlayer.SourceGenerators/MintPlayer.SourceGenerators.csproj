@@ -70,7 +70,6 @@
 	</ItemGroup>
 
 	<Import Project="..\..\eng\sourcegenerator.targets" />
-	<Import Project="..\..\eng\newtonsoftjson.targets" />
 	<Import Project="..\..\eng\valuecomparergenerator.targets" />
 	<ItemGroup>
 	  <PackageReference Remove="Microsoft.CodeAnalysis" />
