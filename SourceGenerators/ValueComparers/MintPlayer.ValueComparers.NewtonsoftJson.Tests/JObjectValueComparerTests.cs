@@ -1,4 +1,3 @@
-using MintPlayer.SourceGenerators.Tools.ValueComparers;
 using MintPlayer.ValueComparers.NewtonsoftJson;
 using Newtonsoft.Json.Linq;
 
@@ -6,7 +5,7 @@ namespace MintPlayer.ValueComparers.NewtonsoftJson.Tests;
 
 public class JObjectValueComparerTests
 {
-    private static readonly JObjectValueComparer Comparer = new();
+    private static readonly JObjectValueComparer Comparer = JObjectValueComparer.Instance;
 
     [Fact]
     public void Equals_ForIdenticalObjects_IsTrue()
@@ -87,25 +86,34 @@ public class JObjectValueComparerTests
     public void Equals_DistinguishesNullFromAbsent()
         => Comparer.Equals(JObject.Parse("{ 'a': null }"), new JObject()).Should().BeFalse();
 
+    /// <summary>
+    /// Replaces the registry-discovery test. [UseEqualityComparer] resolves the comparer through a static
+    /// Instance (MINT004 checks for it), so that member must exist and be a stable singleton.
+    /// </summary>
     [Fact]
-    public void Register_MakesTheComparerDiscoverableThroughTheRegistry()
+    public void Instance_IsAStableSingleton_ForUseEqualityComparer()
     {
-        JObjectValueComparer.Register();
+        var instance = typeof(JObjectValueComparer).GetField(nameof(JObjectValueComparer.Instance), System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
 
-        // TryRegister is idempotent (TryAdd), so calling it twice must not throw. This
-        // also covers the case where something else registered it first.
-        JObjectValueComparer.Register();
-
-        ComparerRegistry.TryGet<JObject>(out var registered).Should().BeTrue();
-        registered.Should().BeOfType<JObjectValueComparer>();
+        instance.Should().NotBeNull();
+        instance!.GetValue(null).Should().BeSameAs(JObjectValueComparer.Instance);
     }
 
+    /// <summary>
+    /// Replaces the registry-resolution test: instead of being found through a registry, the comparer is passed
+    /// wherever an <see cref="IEqualityComparer{T}"/> is accepted. A set keyed on it treats equal JSON as one entry.
+    /// </summary>
     [Fact]
-    public void For_ReturnsTheRegisteredComparer_AfterRegistration()
+    public void Instance_WorksAsAnIEqualityComparer_ForSetsAndDictionaries()
     {
-        JObjectValueComparer.Register();
+        var set = new HashSet<JObject?>(JObjectValueComparer.Instance)
+        {
+            JObject.Parse("{ 'a': 1 }"),
+            JObject.Parse("{ 'a': 1 }"),
+            JObject.Parse("{ 'a': 2 }"),
+        };
 
-        ComparerRegistry.For<JObject>().Should().BeOfType<JObjectValueComparer>();
+        set.Count.Should().Be(2);
     }
 
     [Fact]

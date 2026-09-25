@@ -67,11 +67,12 @@ public sealed class PackedFeed : IDisposable
     /// the restore, and any omission fails with NU1102 rather than anything pointing at the cause.
     /// </para>
     /// <para>
-    /// MintPlayer.SourceGenerators.Tools is in the list for a non-obvious reason: the generator
-    /// itself references it with <c>PrivateAssets="all"</c> and ships it inside the analyzer
-    /// folder, so it is NOT a direct dependency — but
-    /// MintPlayer.ValueComparers.NewtonsoftJson references it normally, which makes it a
-    /// transitive one. That is exactly the kind of thing an in-process test cannot see.
+    /// MintPlayer.SourceGenerators.Tools and MintPlayer.ValueComparers.NewtonsoftJson are in the list
+    /// although, since 12.0.0, neither is in the closure: the generator references Tools with
+    /// <c>PrivateAssets="all"</c> and ships it inside the analyzer folder, and it no longer imports the
+    /// Newtonsoft comparer (which used to make Tools a transitive dependency). Packing them anyway is
+    /// cheap, and it keeps the feed able to satisfy a dependency that comes back — which would otherwise
+    /// fail with NU1102, the kind of thing an in-process test cannot see.
     /// </para>
     /// </remarks>
     private static IEnumerable<string> ProjectsToPack =>
@@ -153,9 +154,9 @@ public sealed class PackedFeed : IDisposable
     /// A nuget.config pointing at the local feed, with nuget.org kept as a fallback.
     /// </summary>
     /// <remarks>
-    /// Unlike TokenReplacer's equivalent this does NOT clear the remote source. The generator
-    /// package chain reaches MintPlayer.ValueComparers.NewtonsoftJson, which depends on
-    /// Newtonsoft.Json — a third-party package the test cannot produce. In practice it is already
+    /// Unlike TokenReplacer's equivalent this does NOT clear the remote source. The packed
+    /// MintPlayer.ValueComparers.NewtonsoftJson depends on Newtonsoft.Json, and the consumer
+    /// fixtures restore third-party packages the test cannot produce. In practice they are already
     /// in the machine's global packages folder (the repo itself references it), so restore is
     /// usually offline anyway; nuget.org is there so a cold machine fails slowly rather than
     /// confusingly.

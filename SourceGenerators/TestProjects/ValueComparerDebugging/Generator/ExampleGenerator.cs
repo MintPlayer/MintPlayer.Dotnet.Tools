@@ -24,8 +24,6 @@ internal class ExampleGenerator : IIncrementalGenerator
                     };
                     return default;
                 })
-                .WithNullableComparer()
-                //.WithComparer(ComparerRegistry.For<ClassDeclaration>())
                 .Collect();
 
             
@@ -36,7 +34,7 @@ internal class ExampleGenerator : IIncrementalGenerator
     }
 }
 
-[AutoValueComparer]
+[GenerateEquality]
 public partial class ClassDeclaration
 {
     public string? Name { get; set; }

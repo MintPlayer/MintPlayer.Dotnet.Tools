@@ -1,40 +1,57 @@
 # MintPlayer.ValueComparers.NewtonsoftJson
 
-A value-comparer for `Newtonsoft.Json.Linq.JObject`, for use in incremental source generators.
+An `IEqualityComparer<JObject>` for `Newtonsoft.Json.Linq.JObject`, for use in incremental source generators.
 
 ## Why this exists
 
 An incremental generator only skips work when it can tell that its inputs are unchanged, and it
-decides that with `IEqualityComparer<T>`. `JObject` compares by reference, so a model carrying one
+decides that with `EqualityComparer<T>.Default`. `JObject` compares by reference, so a model carrying one
 looks different on every single run — the generator re-runs, and the caching that makes
 incremental generators fast is silently lost.
 
-This package registers a comparer that compares two `JObject`s by their compact serialized form,
-so equal JSON compares equal.
+`JObjectValueComparer` compares two `JObject`s by their compact serialized form (ordinal), so equal JSON
+compares equal, and hashes that same form so equal objects hash equally. Property order is significant,
+because the serialized form preserves it.
 
 ## Usage
 
-Register once, from a module initializer in your generator:
+Put `[UseEqualityComparer]` on the `JObject` property of an
+[`[GenerateEquality]`](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/blob/master/SourceGenerators/ValueComparerGenerator/MintPlayer.ValueComparerGenerator/README.md)
+model:
 
 ```csharp
+using MintPlayer.ValueComparerGenerator.Attributes;
 using MintPlayer.ValueComparers.NewtonsoftJson;
+using Newtonsoft.Json.Linq;
 
-internal static class Comparers
+[GenerateEquality]
+public partial class ConfigModel
 {
-    [ModuleInitializer]
-    internal static void Register() => JObjectValueComparer.Register();
+    public string Name { get; set; } = string.Empty;
+
+    [UseEqualityComparer(typeof(JObjectValueComparer))]
+    public JObject? Settings { get; set; }
 }
 ```
 
-From then on, anything that resolves comparers through
-`MintPlayer.SourceGenerators.Tools`' `ComparerRegistry` — including the comparers written by
-[MintPlayer.ValueComparerGenerator](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/blob/master/SourceGenerators/ValueComparerGenerator/MintPlayer.ValueComparerGenerator/README.md)
-— will use it for `JObject` members.
+The generated `Equals`/`GetHashCode` call `JObjectValueComparer.Instance` for that property. Nothing needs
+to be registered.
 
-`Register()` uses `TryRegister`, so it will not overwrite a comparer you registered yourself, and
-calling it more than once is harmless.
+It is a plain `IEqualityComparer<JObject?>`, so it also works anywhere else a comparer is accepted:
+`new HashSet<JObject?>(JObjectValueComparer.Instance)`, a dictionary, or as the element comparer of
+`ValueEquality.List(a, b, JObjectValueComparer.Instance)`.
+
+## Breaking changes in 12.0.0
+The full list, with a migration guide, is in the [changelog](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/blob/master/SourceGenerators/CHANGELOG.md).
+
+- `JObjectValueComparer` no longer derives from `ValueComparer<JObject>` (which is deleted from
+  MintPlayer.SourceGenerators.Tools). It is a sealed `IEqualityComparer<JObject?>` with a static `Instance`.
+- `JObjectValueComparer.Register()` is gone, together with the registry it registered into. Replace the
+  module initializer that called it with `[UseEqualityComparer(typeof(JObjectValueComparer))]` on each
+  `JObject` property.
+- The package no longer depends on MintPlayer.SourceGenerators.Tools.
 
 ## Related packages
 
-- [MintPlayer.SourceGenerators.Tools](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/blob/master/SourceGenerators/MintPlayer.SourceGenerators.Tools/README.md) — the base `ValueComparer<T>` and the registry this plugs into
-- [MintPlayer.ValueComparerGenerator](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/blob/master/SourceGenerators/ValueComparerGenerator/MintPlayer.ValueComparerGenerator/README.md) — generates value-comparers for your own model types
+- [MintPlayer.ValueComparerGenerator](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/blob/master/SourceGenerators/ValueComparerGenerator/MintPlayer.ValueComparerGenerator/README.md) — generates value equality for your own model types
+- [MintPlayer.SourceGenerators.Tools](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/blob/master/SourceGenerators/MintPlayer.SourceGenerators.Tools/README.md) — `ValueEquality` and `EquatableArray<T>`

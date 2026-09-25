@@ -2,7 +2,7 @@ using MintPlayer.ValueComparerGenerator.Attributes;
 
 namespace MintPlayer.CliGenerator.Models;
 
-[AutoValueComparer]
+[GenerateEquality]
 internal sealed partial class CliArgumentDefinition
 {
     public string PropertyName { get; set; } = null!;

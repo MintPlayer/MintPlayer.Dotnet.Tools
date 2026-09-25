@@ -3,7 +3,7 @@ using MintPlayer.ValueComparerGenerator.Attributes;
 
 namespace MintPlayer.CliGenerator.Models;
 
-[AutoValueComparer]
+[GenerateEquality]
 internal sealed partial class CliOptionDefinition
 {
     public string PropertyName { get; set; } = null!;

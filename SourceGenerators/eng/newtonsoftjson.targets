@@ -44,7 +44,7 @@
 		<Error Condition="'@(_NewtonsoftJsonPackageAssets)' == ''"
 		       Text="Newtonsoft.Json was not found under '$(PkgNewtonsoft_Json)'. Check that the PackageReference sets GeneratePathProperty and has been restored; packing without it produces a generator that fails to load." />
 		<Error Condition="!Exists('%(_NewtonsoftJsonComparerAssets.FullPath)')"
-		       Text="MintPlayer.ValueComparers.NewtonsoftJson.dll was not found in bin\$(Configuration)\netstandard2.0. This generator registers the Newtonsoft.Json value comparers, so packing without it produces a generator that fails to load." />
+		       Text="MintPlayer.ValueComparers.NewtonsoftJson.dll was not found in bin\$(Configuration)\netstandard2.0. This generator compares JObject properties with it ([UseEqualityComparer(typeof(JObjectValueComparer))]), so packing without it produces a generator that fails to load." />
 
 		<ItemGroup>
 			<TfmSpecificPackageFile Include="@(_NewtonsoftJsonPackageAssets);@(_NewtonsoftJsonComparerAssets)" PackagePath="analyzers/dotnet/roslyn5.9/cs" />

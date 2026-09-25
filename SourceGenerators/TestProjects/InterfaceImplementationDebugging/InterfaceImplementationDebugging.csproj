@@ -12,4 +12,9 @@
 		<ProjectReference Include="..\..\SourceGenerators\MintPlayer.SourceGenerators\MintPlayer.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
 	</ItemGroup>
 
+	<!-- The fixture implements a Newtonsoft interface. It used to arrive transitively through the generator's Newtonsoft comparer, which it no longer references. -->
+	<ItemGroup>
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+	</ItemGroup>
+
 </Project>

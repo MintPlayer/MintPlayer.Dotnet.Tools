@@ -3,7 +3,7 @@ using MintPlayer.ValueComparerGenerator.Attributes;
 
 namespace MintPlayer.SourceGenerators.Models;
 
-[AutoValueComparer]
+[GenerateEquality]
 public partial class MethodDeclaration
 {
     public string? MethodName { get; set; }

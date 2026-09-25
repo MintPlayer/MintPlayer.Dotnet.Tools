@@ -6,7 +6,7 @@ namespace MintPlayer.SourceGenerators.Models;
 /// <summary>
 /// Holds assembly-level configuration for service registration generation.
 /// </summary>
-[AutoValueComparer]
+[GenerateEquality]
 public partial class AssemblyRegistrationConfig
 {
     /// <summary>

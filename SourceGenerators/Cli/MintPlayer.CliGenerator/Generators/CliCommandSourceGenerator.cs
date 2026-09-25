@@ -4,7 +4,6 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.CliGenerator.Extensions;
 using MintPlayer.CliGenerator.Models;
 using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.SourceGenerators.Tools.ValueComparers;
 using System.CodeDom.Compiler;
 using System.Collections.Immutable;
 
@@ -13,25 +12,25 @@ namespace MintPlayer.CliGenerator.Generators;
 [Generator(LanguageNames.CSharp)]
 public sealed class CliCommandSourceGenerator : IncrementalGenerator
 {
-    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<ICompilationCache> cacheProvider)
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {
         var commandDefinitionsProvider = context.SyntaxProvider
             .CreateSyntaxProvider(static (node, _) => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 }, Transform)
             .Where(static definition => definition is not null)
             .Select(static (definition, _) => definition!)
-            .WithComparer()
             .Collect();
 
+        // BuildCommandTrees builds a new collection on every run, so it is an EquatableArray: an
+        // ImmutableArray compares by reference and would report Modified even when the trees are equal.
         var commandTreesProvider = commandDefinitionsProvider
-            .Select(static (definitions, _) => BuildCommandTrees(definitions))
-            .WithComparer();
+            .Select(static (definitions, _) => BuildCommandTrees(definitions).ToEquatableArray());
 
         var producerProvider = commandTreesProvider
             .Combine(settingsProvider)
             .Select(static Producer (tuple, _) =>
             {
                 var rootNamespace = tuple.Right.RootNamespace ?? string.Empty;
-                var trees = tuple.Left;
+                var trees = tuple.Left.AsImmutableArray();
                 return new CliCommandProducer(trees, rootNamespace);
             });
 

@@ -4,7 +4,7 @@ using MintPlayer.SourceGenerators.Tools;
 
 namespace MintPlayer.CliGenerator.Models;
 
-[AutoValueComparer]
+[GenerateEquality]
 internal sealed partial class CliCommandDefinition
 {
     public string Namespace { get; set; } = null!;

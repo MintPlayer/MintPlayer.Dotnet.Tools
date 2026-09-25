@@ -3,13 +3,21 @@
 	<PropertyGroup>
 		<!-- Ships inside the MintPlayer.Assertions package (analyzers/dotnet/roslyn5.9/cs); not packed standalone -->
 		<IsPackable>false</IsPackable>
-		<Version>11.0.0-rc.3</Version>
+		<Version>11.0.0-rc.4</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>Compiler extensions for MintPlayer.Assertions: source generators (reflection-free equivalency member accessors, [GenerateAssertion] custom assertions) and analyzers with code fixes (un-awaited assertions, vacuous Should(), undisposed AssertionScope, FluentAssertions migration)</Description>
 	</PropertyGroup>
 
 	<Import Project="..\..\SourceGenerators\eng\sourcegenerator.targets" />
+
+	<!--
+	The pipeline models (Models\*.cs) are [GenerateEquality] types. This brings the attribute
+	assembly (copied into bin\...\netstandard2.0, where MintPlayer.Assertions' pack picks it up)
+	and the generator that writes their Equals/GetHashCode. This project is not packable, so the
+	pack target the file also adds never runs here; MintPlayer.Assertions.csproj ships the DLL.
+	-->
+	<Import Project="..\..\SourceGenerators\eng\valuecomparergenerator.targets" />
 
 	<ItemGroup>
 		<PackageReference Update="Microsoft.CodeAnalysis" Version="5.9.0" />

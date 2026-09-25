@@ -12,7 +12,7 @@
 	</Target>
 
 	<PropertyGroup>
-		<Version>11.0.0</Version>
+		<Version>12.0.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains several source generators</Description>
@@ -35,7 +35,7 @@
 	referencing it.
 
 	Only this concern lives here. The generator's own attributes come from
-	eng/sourcegenerator.targets and the [AutoValueComparer] assembly from
+	eng/sourcegenerator.targets and the [GenerateEquality] assembly from
 	eng/valuecomparergenerator.targets, each imported by the projects that need them.
 	-->
 	<PropertyGroup>
@@ -70,7 +70,6 @@
 	</ItemGroup>
 
 	<Import Project="..\..\eng\sourcegenerator.targets" />
-	<Import Project="..\..\eng\newtonsoftjson.targets" />
 	<Import Project="..\..\eng\valuecomparergenerator.targets" />
 	<ItemGroup>
 	  <PackageReference Remove="Microsoft.CodeAnalysis" />

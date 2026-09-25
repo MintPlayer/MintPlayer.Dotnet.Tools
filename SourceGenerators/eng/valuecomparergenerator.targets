@@ -10,10 +10,10 @@
 	</ItemGroup>
 
 	<!--
-	A generator that decorates its own pipeline models with [AutoValueComparer] carries that
+	A generator that decorates its own pipeline models with [GenerateEquality] carries that
 	attribute assembly into its own package, because Roslyn resolves it when LOADING the generator
 	— not when the consumer compiles. Leave it out and the consumer gets
-	"cannot find [AutoValueComparer]" naming an assembly they never referenced, or the generator
+	"cannot find [GenerateEquality]" naming an assembly they never referenced, or the generator
 	simply fails to load and produces nothing.
 
 	This belongs here rather than in sourcegenerator.targets: needing it is a property of using the
@@ -39,7 +39,7 @@
 		</ItemGroup>
 
 		<Error Condition="!Exists('%(_ValueComparerAttributes.FullPath)')"
-		       Text="MintPlayer.ValueComparerGenerator.Attributes.dll was not found in bin\$(Configuration)\netstandard2.0. This generator uses [AutoValueComparer], so packing without it produces a generator Roslyn cannot load." />
+		       Text="MintPlayer.ValueComparerGenerator.Attributes.dll was not found in bin\$(Configuration)\netstandard2.0. This generator uses [GenerateEquality], so packing without it produces a generator Roslyn cannot load." />
 
 		<ItemGroup>
 			<TfmSpecificPackageFile Include="@(_ValueComparerAttributes)" PackagePath="analyzers/dotnet/cs" />

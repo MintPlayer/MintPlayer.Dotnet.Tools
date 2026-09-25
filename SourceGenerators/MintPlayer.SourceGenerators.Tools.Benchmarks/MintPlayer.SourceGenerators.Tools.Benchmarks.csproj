@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework Condition="'$(OS)' != 'Windows_NT'">net11.0</TargetFramework>
+		<!--
+		net481 only on Windows: it is there for B1's net481 job (Visual Studio runs analyzers in-process on
+		.NET Framework). CI builds the solution on Linux, where it would only cost build time.
+		-->
+		<TargetFrameworks Condition="'$(OS)' == 'Windows_NT'">net11.0;net481</TargetFrameworks>
+		<LangVersion>15</LangVersion>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<IsPackable>false</IsPackable>
+		<IsTestProject>false</IsTestProject>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="BenchmarkDotNet" Version="0.14.0" />
+	</ItemGroup>
+
+	<!-- B1: the real generated IEquatable<T>, from this branch's generator and Tools. -->
+	<ItemGroup>
+		<ProjectReference Include="..\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj" />
+	</ItemGroup>
+	<Import Project="..\eng\valuecomparergenerator.targets" />
+
+	<!-- B2 is net11.0 only. ImplicitUsings adds System.Net.Http, which net481 does not reference by default. -->
+	<ItemGroup Condition="'$(TargetFramework)' == 'net481'">
+		<Compile Remove="Pipeline\**" />
+		<Using Remove="System.Net.Http" />
+	</ItemGroup>
+
+	<!--
+	B2: the generators run in-process through CSharpGeneratorDriver, loaded from their own bin folders
+	(see Pipeline/GeneratorBuilds.cs). These references only make sure they are built first;
+	ValueComparerGenerator is already built through the analyzer reference that valuecomparergenerator.targets adds.
+	-->
+	<ItemGroup Condition="'$(TargetFramework)' != 'net481'">
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+		<!-- The generator assemblies also hold code fixes, whose base types are in Workspaces. -->
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" />
+
+		<ProjectReference Include="..\SourceGenerators\MintPlayer.SourceGenerators\MintPlayer.SourceGenerators.csproj"
+		                  ReferenceOutputAssembly="false" />
+		<ProjectReference Include="..\Mapper\MintPlayer.Mapper\MintPlayer.Mapper.csproj"
+		                  ReferenceOutputAssembly="false" />
+
+		<!-- The corpus compilations reference the attribute assemblies. -->
+		<ProjectReference Include="..\SourceGenerators\MintPlayer.SourceGenerators.Attributes\MintPlayer.SourceGenerators.Attributes.csproj" />
+		<ProjectReference Include="..\Mapper\MintPlayer.Mapper.Attributes\MintPlayer.Mapper.Attributes.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<AssemblyMetadata Include="RepoRoot" Value="$(MSBuildProjectDirectory)\..\..\" />
+		<AssemblyMetadata Include="Configuration" Value="$(Configuration)" />
+	</ItemGroup>
+
+</Project>

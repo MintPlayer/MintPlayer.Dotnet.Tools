@@ -98,7 +98,7 @@
 
 			One rule, uniformly: a generator ships the attributes package it triggers on. Anything
 			else a particular generator needs in analyzers/dotnet/cs is that feature's business —
-			the [AutoValueComparer] dependency, for instance, is added by
+			the [GenerateEquality] dependency, for instance, is added by
 			eng/valuecomparergenerator.targets, which only the projects that actually use it import.
 			-->
 			<_GeneratorAttributeAssets Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).Attributes.dll" />

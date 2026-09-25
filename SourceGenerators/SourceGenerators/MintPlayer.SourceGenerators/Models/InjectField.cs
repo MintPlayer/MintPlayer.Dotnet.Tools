@@ -2,7 +2,7 @@
 
 namespace MintPlayer.SourceGenerators.Models;
 
-[AutoValueComparer]
+[GenerateEquality]
 public partial class InjectField
 {
     public string? Type { get; set; }

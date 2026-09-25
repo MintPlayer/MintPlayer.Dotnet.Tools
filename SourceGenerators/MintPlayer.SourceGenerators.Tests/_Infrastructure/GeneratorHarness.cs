@@ -55,8 +55,8 @@ internal static class GeneratorHarness
         typeof(Attributes.RegisterAttribute),
         typeof(Mapper.Attributes.GenerateMapperAttribute),
         typeof(CliGenerator.Attributes.CliCommandAttribute),
-        typeof(Tools.ValueComparerAttribute),
-        typeof(ValueComparerGenerator.Attributes.AutoValueComparerAttribute),
+        typeof(Tools.ValueEquality),
+        typeof(ValueComparerGenerator.Attributes.GenerateEqualityAttribute),
     ];
 
     private static readonly Dictionary<string, Testing.GeneratorHarness> _harnesses =

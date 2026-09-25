@@ -3,22 +3,13 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
-using MintPlayer.SourceGenerators.Tools.ValueComparers;
-using MintPlayer.ValueComparers.NewtonsoftJson;
 
 namespace MintPlayer.SourceGenerators.Generators;
 
 [Generator(LanguageNames.CSharp)]
 public class ClassNamesSourceGenerator : IncrementalGenerator
 {
-    [System.Runtime.CompilerServices.ModuleInitializer]
-    internal static void Initialize()
-    {
-        // Register built-in comparers
-        JObjectValueComparer.Register();
-    }
-
-    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider, IncrementalValueProvider<ICompilationCache> cacheProvider)
+    public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {
         var classDeclarationsProvider = context.SyntaxProvider
             .CreateSyntaxProvider(
@@ -42,7 +33,6 @@ public class ClassNamesSourceGenerator : IncrementalGenerator
                     }
                 }
             )
-            .WithNullableComparer()
             .Collect();
 
         var fieldDeclarationsProvider = context.SyntaxProvider
@@ -76,7 +66,6 @@ public class ClassNamesSourceGenerator : IncrementalGenerator
                     return default;
                 }
             )
-            .WithNullableComparer()
             .Collect();
 
         var classNamesSourceProvider = classDeclarationsProvider

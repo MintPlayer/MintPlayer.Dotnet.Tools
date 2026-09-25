@@ -71,13 +71,6 @@
 		<ProjectReference Include="..\Mapper\MintPlayer.Mapper.Attributes\MintPlayer.Mapper.Attributes.csproj" />
 		<ProjectReference Include="..\ValueComparerGenerator\MintPlayer.ValueComparerGenerator.Attributes\MintPlayer.ValueComparerGenerator.Attributes.csproj" />
 		<ProjectReference Include="..\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj" />
-		<!--
-		MintPlayer.SourceGenerators' <Module> initializer registers the JObject comparer, so
-		this assembly (and its Newtonsoft.Json dependency) must be resolvable or the very
-		first Assembly.Load of the generator throws TypeInitializationException.
-		-->
-		<ProjectReference Include="..\ValueComparers\MintPlayer.ValueComparers.NewtonsoftJson\MintPlayer.ValueComparers.NewtonsoftJson.csproj" />
-
 		<ProjectReference Include="..\..\Assertions\MintPlayer.Assertions\MintPlayer.Assertions.csproj" />
 	</ItemGroup>
 

@@ -5,7 +5,7 @@ namespace MintPlayer.SourceGenerators.Models;
 /// <summary>
 /// Represents a field marked with [Config] attribute.
 /// </summary>
-[AutoValueComparer]
+[GenerateEquality]
 public partial class ConfigField
 {
     /// <summary>
@@ -67,7 +67,7 @@ public partial class ConfigField
 /// <summary>
 /// Represents a field marked with [ConnectionString] attribute.
 /// </summary>
-[AutoValueComparer]
+[GenerateEquality]
 public partial class ConnectionStringField
 {
     /// <summary>
@@ -90,7 +90,7 @@ public partial class ConnectionStringField
 /// <summary>
 /// Represents a field marked with [Options] attribute.
 /// </summary>
-[AutoValueComparer]
+[GenerateEquality]
 public partial class OptionsField
 {
     /// <summary>
