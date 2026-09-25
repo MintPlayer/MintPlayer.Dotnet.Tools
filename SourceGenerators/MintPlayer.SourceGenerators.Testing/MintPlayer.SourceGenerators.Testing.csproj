@@ -23,7 +23,7 @@
 	</PropertyGroup>
 
 	<PropertyGroup>
-		<Version>11.0.0-rc.2</Version>
+		<Version>11.0.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>Test source generators, analyzers and code fixes in-process, so a coverage collector actually attributes the generator's own code. Loads the component from the test host's output directory rather than through Roslyn's analyzer path, where instrumentation never reaches it.</Description>
