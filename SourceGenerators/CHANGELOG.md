@@ -32,6 +32,12 @@ change: generated file names are not API.
   trivia with `ToString()`, which leaves out the doc comment's `///` exterior when the comment is the first trivia,
   so no `[Description]` was generated.
 
+**MintPlayer.CliGenerator**
+- **A subcommand declared in another namespace than its parent now compiles.** Every command's partial half was
+  written inside its root command's namespace block, so a subcommand elsewhere got a second, unrelated class in the
+  root's namespace, and the parent's `RegisterCliCommandTree` and `BuildCliCommand` calls failed with `CS0117`. Each
+  command is now emitted in its own namespace. Output for a tree in one namespace is unchanged.
+
 ## 12.0.0
 
 Issue [#184](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/184), PR

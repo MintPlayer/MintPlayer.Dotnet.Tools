@@ -208,6 +208,49 @@ public class CliCommandFeatureTests
     }
 
     /// <summary>
+    /// A subcommand declared in another namespace than its parent. The partial half of each command
+    /// has to be emitted in that command's own namespace: writing it inside the root's namespace
+    /// block declared a second, unrelated class there, and the root's call to
+    /// <c>global::Demo.Build.BuildCommand.RegisterCliCommandTree</c> failed with CS0117.
+    /// </summary>
+    [Fact]
+    public void ASubcommandInAnotherNamespace_IsEmittedInItsOwnNamespace()
+    {
+        var run = GeneratorHarness.Run("CliCommandSourceGenerator", [Root, """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using MintPlayer.CliGenerator.Attributes;
+
+            namespace Demo.Build;
+
+            [CliCommand("build")]
+            [CliParentCommand(typeof(global::Demo.RootCommand))]
+            public partial class BuildCommand : ICliCommand
+            {
+                public Task<int> Execute(CancellationToken cancellationToken) => Task.FromResult(0);
+            }
+            """, """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using MintPlayer.CliGenerator.Attributes;
+
+            namespace Other.Clean;
+
+            [CliCommand("clean")]
+            [CliParentCommand(typeof(global::Demo.Build.BuildCommand))]
+            public partial class CleanCommand : ICliCommand
+            {
+                public Task<int> Execute(CancellationToken cancellationToken) => Task.FromResult(0);
+            }
+            """], generatorAssemblyName: "MintPlayer.CliGenerator");
+
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        run.AllSources.Should().Contain("namespace Demo.Build");
+        run.AllSources.Should().Contain("namespace Other.Clean");
+        run.AllSources.Should().Contain("\"clean\"");
+    }
+
+    /// <summary>
     /// Pins the behaviour that cost the first draft of this file: a <c>[CliCommand]</c> that is
     /// neither nested nor given a <c>[CliParentCommand]</c> vanishes from the generated tree, with
     /// no diagnostic to say so.
