@@ -1,3 +1,5 @@
+using MintPlayer.SourceGenerators.Tools;
+
 namespace MintPlayer.Assertions.SourceGenerator.Models;
 
 /// <summary>A type for which reflection-free equivalency accessors must be registered.</summary>
