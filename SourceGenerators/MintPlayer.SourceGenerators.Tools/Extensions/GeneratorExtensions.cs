@@ -24,13 +24,21 @@ public static class GeneratorExtensions
     }
 
     /// <summary>
-    /// Registers one output per <see cref="Producer"/> in <paramref name="providers"/>, for a generator that
-    /// emits a variable number of files. Each producer caches independently.
+    /// Registers one output per <see cref="Producer"/> in each of <paramref name="providers"/>, for a generator
+    /// that emits a variable number of files. Each producer caches independently.
     /// </summary>
     /// <param name="context">context parameter from the <see cref="IIncrementalGenerator.Initialize(IncrementalGeneratorInitializationContext)"/> method</param>
-    /// <param name="providers">The producers to be registered; each must have a distinct <see cref="Producer.Filename"/></param>
-    public static void ProduceCode(this IncrementalGeneratorInitializationContext context, IncrementalValuesProvider<Producer> providers)
-        => context.RegisterSourceOutput(providers, static (c, p) => p?.Produce(c));
+    /// <param name="providers">The producers to be registered; every producer across all of them must have a distinct <see cref="Producer.Filename"/></param>
+    /// <remarks>
+    /// Each provider gets its own output step. They are deliberately not merged into one: joining two
+    /// <see cref="IncrementalValuesProvider{TValues}"/> needs <c>Collect()</c>, and a collected array changes
+    /// whenever any one producer does, which would regenerate every file on every change.
+    /// </remarks>
+    public static void ProduceCode(this IncrementalGeneratorInitializationContext context, params IncrementalValuesProvider<Producer>[] providers)
+    {
+        foreach (var provider in providers)
+            context.RegisterSourceOutput(provider, static (c, p) => p?.Produce(c));
+    }
 
 
     /// <summary>

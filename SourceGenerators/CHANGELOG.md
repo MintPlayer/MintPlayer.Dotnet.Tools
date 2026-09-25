@@ -56,6 +56,8 @@ compatibility**.
   `ImmutableArray<T>`, lists, sequences and dictionaries. It also has composable comparer instances for nested
   collections.
 - **In Tools: `EquatableArray<T>`,** returned from a pipeline step that builds a new collection.
+- **In Tools: `ProduceCode(params IncrementalValuesProvider<Producer>[])`.** Several multi-value providers can be
+  registered in one call, as single-value providers already could. Each provider keeps its own output step.
 - **Model shapes:** records, sealed and derived records, structs, record structs, generic models, and models nested
   in any of these. `[GenerateEquality]` is now allowed on structs.
 - **Model hierarchies:** equality uses an exact-type check plus `protected virtual EqualsCore`/`HashCore`. That

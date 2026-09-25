@@ -55,8 +55,7 @@ public class ValueComparerGenerator : IncrementalGenerator
             .Where(static t => t is not null)
             .Select(static (t, ct) => t!);
 
-        context.ProduceCode(Producers(rootsProvider));
-        context.ProduceCode(Producers(derivedProvider));
+        context.ProduceCode(Producers(rootsProvider), Producers(derivedProvider));
 
         // Diagnostics are selected per type before collecting, so the collected array only changes when a
         // diagnostic does, and a compilation with nothing to report never combines with the compilation at all.
