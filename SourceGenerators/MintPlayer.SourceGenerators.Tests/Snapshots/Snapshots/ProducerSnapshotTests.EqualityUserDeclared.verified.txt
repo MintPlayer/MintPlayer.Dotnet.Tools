@@ -14,6 +14,7 @@ namespace Demo
 {
     partial class HalfMade : global::System.IEquatable<global::Demo.HalfMade>
     {
+        /// <inheritdoc/>
         public bool Equals(global::Demo.HalfMade? other)
         {
             if (other is null) return false;
@@ -21,6 +22,7 @@ namespace Demo
             return global::System.String.Equals(Name, other.Name, global::System.StringComparison.Ordinal);
         }
         
+        /// <inheritdoc/>
         public override int GetHashCode()
         {
             unchecked

@@ -113,7 +113,7 @@ internal sealed class ModelWriter(ClassDeclaration model)
     {
         if (model.EmitEqualsT)
         {
-            using (writer.OpenBlock($"public bool Equals({model.FullName}? other)"))
+            using (writer.OpenBlock(Documented(writer, $"public bool Equals({model.FullName}? other)")))
             {
                 writer.WriteLine("if (other is null) return false;");
                 writer.WriteLine($"if ({ObjectReferenceEquals}(this, other)) return true;");
@@ -132,7 +132,7 @@ internal sealed class ModelWriter(ClassDeclaration model)
     {
         if (model.EmitEqualsT)
         {
-            using (writer.OpenBlock($"public bool Equals({model.FullName}? other)"))
+            using (writer.OpenBlock(Documented(writer, $"public bool Equals({model.FullName}? other)")))
             {
                 writer.WriteLine("if (other is null) return false;");
                 writer.WriteLine($"if ({ObjectReferenceEquals}(this, other)) return true;");
@@ -145,13 +145,13 @@ internal sealed class ModelWriter(ClassDeclaration model)
 
         if (model.EmitGetHashCode)
         {
-            writer.WriteLine("public override int GetHashCode() => HashCore();");
+            writer.WriteLine(Documented(writer, "public override int GetHashCode() => HashCore();"));
             writer.WriteLine();
         }
 
         if (model.EmitEqualsCore)
         {
-            using (writer.OpenBlock($"protected virtual bool EqualsCore({model.FullName} other)"))
+            using (writer.OpenBlock(Documented(writer, $"protected virtual bool EqualsCore({model.FullName} other)")))
                 WriteReturnEquals(writer, "other", prefix: null);
             writer.WriteLine();
         }
@@ -164,13 +164,13 @@ internal sealed class ModelWriter(ClassDeclaration model)
     {
         if (model.EmitEqualsT)
         {
-            writer.WriteLine($"public bool Equals({model.FullName}? other) => base.Equals(other);");
+            writer.WriteLine(Documented(writer, $"public bool Equals({model.FullName}? other) => base.Equals(other);"));
             writer.WriteLine();
         }
 
         if (model.EmitEqualsCore)
         {
-            using (writer.OpenBlock($"protected override bool EqualsCore({model.CoreTypeFullName} other)"))
+            using (writer.OpenBlock(Documented(writer, $"protected override bool EqualsCore({model.CoreTypeFullName} other)")))
             {
                 if (Compared.Any())
                 {
@@ -195,7 +195,7 @@ internal sealed class ModelWriter(ClassDeclaration model)
     {
         if (model.EmitEqualsT)
         {
-            using (writer.OpenBlock($"public {(model.IsSealed ? "" : "virtual ")}bool Equals({model.FullName}? other)"))
+            using (writer.OpenBlock(Documented(writer, $"public {(model.IsSealed ? "" : "virtual ")}bool Equals({model.FullName}? other)")))
             {
                 writer.WriteLine("if (other is null) return false;");
                 writer.WriteLine($"if ({ObjectReferenceEquals}(this, other)) return true;");
@@ -217,7 +217,7 @@ internal sealed class ModelWriter(ClassDeclaration model)
     {
         if (model.EmitEqualsT)
         {
-            using (writer.OpenBlock($"public {(model.IsSealed ? "" : "virtual ")}bool Equals({model.FullName}? other)"))
+            using (writer.OpenBlock(Documented(writer, $"public {(model.IsSealed ? "" : "virtual ")}bool Equals({model.FullName}? other)")))
             {
                 writer.WriteLine($"if ({ObjectReferenceEquals}(this, other)) return true;");
                 WriteReturnEquals(writer, "other", prefix: $"other is not null && base.Equals(({model.BaseRecordFullName}?)other)");
@@ -235,14 +235,14 @@ internal sealed class ModelWriter(ClassDeclaration model)
 
         if (model.EmitEqualsT)
         {
-            using (writer.OpenBlock($"public {readOnly}bool Equals({model.FullName} other)"))
+            using (writer.OpenBlock(Documented(writer, $"public {readOnly}bool Equals({model.FullName} other)")))
                 WriteReturnEquals(writer, "other", prefix: null);
             writer.WriteLine();
         }
 
         if (model.Shape == EqualityShape.Struct && model.EmitEqualsObject)
         {
-            writer.WriteLine($"public override {readOnly}bool Equals(object? obj) => obj is {model.FullName} other && Equals(other);");
+            writer.WriteLine(Documented(writer, $"public override {readOnly}bool Equals(object? obj) => obj is {model.FullName} other && Equals(other);"));
             writer.WriteLine();
         }
 
@@ -253,7 +253,7 @@ internal sealed class ModelWriter(ClassDeclaration model)
     private void WriteEqualsObject(IndentedTextWriter writer)
     {
         if (!model.EmitEqualsObject) return;
-        writer.WriteLine($"public override bool Equals(object? obj) => Equals(obj as {model.FullName});");
+        writer.WriteLine(Documented(writer, $"public override bool Equals(object? obj) => Equals(obj as {model.FullName});"));
         writer.WriteLine();
     }
 
@@ -298,7 +298,7 @@ internal sealed class ModelWriter(ClassDeclaration model)
     /// <summary>Hashes exactly the properties <see cref="WriteReturnEquals"/> compares, so the two always agree.</summary>
     private void WriteHash(IndentedTextWriter writer, string signature, string seed)
     {
-        using (writer.OpenBlock(signature))
+        using (writer.OpenBlock(Documented(writer, signature)))
         using (writer.OpenBlock("unchecked"))
         {
             writer.WriteLine($"int h = {seed};");
@@ -306,6 +306,22 @@ internal sealed class ModelWriter(ClassDeclaration model)
                 writer.WriteLine($"h = h * 31 + {Parenthesize(property.HashExpression.Replace("$V$", Self(property.Name)))};");
             writer.WriteLine("return h;");
         }
+    }
+
+    /// <summary>
+    /// Writes the doc comment for a generated member and returns its <paramref name="signature"/>, so a consumer
+    /// building with <c>GenerateDocumentationFile</c> gets no CS1591 from generated code, which it can neither
+    /// document nor suppress (#187). Overrides and interface implementations inherit their docs; the virtual
+    /// <c>EqualsCore</c>/<c>HashCore</c> a hierarchy root introduces have nothing to inherit, so they get a summary.
+    /// </summary>
+    private static string Documented(IndentedTextWriter writer, string signature)
+    {
+        writer.WriteLine(signature.Contains(" virtual bool EqualsCore(")
+            ? "/// <summary>Compares the members this type and its bases declare with those of <paramref name=\"other\"/>.</summary>"
+            : signature.Contains(" virtual int HashCore(")
+                ? "/// <summary>Hashes the members <c>EqualsCore</c> compares.</summary>"
+                : "/// <inheritdoc/>");
+        return signature;
     }
 
     private static string Self(string name) => ReservedNames.Contains(name) ? "this." + name : name;

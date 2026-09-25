@@ -37,6 +37,12 @@ public class GenericMethodProducer : Producer
                     {
                         for (int i = 1; i < method.Count + 1; i++)
                         {
+                            // A summary rather than <inheritdoc cref> to the decorated method: that method is
+                            // private, takes one collection instead of these parameters, and a cref to a name
+                            // these overloads share is ambiguous (CS0419).
+                            writer.WriteLine(i == 1
+                                ? $"/// <summary>Calls <c>{method.Method.MethodName}</c> with the argument as a one-element collection.</summary>"
+                                : $"/// <summary>Calls <c>{method.Method.MethodName}</c> with the {i} arguments as one collection.</summary>");
                             writer.Write("public ");
                             if (method.Method.MethodIsStatic) writer.Write("static ");
                             // Never "partial", even when the decorated method is: an overload has

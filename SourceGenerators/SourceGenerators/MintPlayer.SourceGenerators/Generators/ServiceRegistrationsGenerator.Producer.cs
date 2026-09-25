@@ -56,6 +56,7 @@ public class RegistrationsProducer : Producer, IConditionalDiagnosticReporter
             writer.WriteLine();
             using (writer.OpenBlock($"namespace {RootNamespace}"))
             {
+                writer.WriteLine("/// <summary>Extension methods that register this project's <c>[Register]</c> services.</summary>");
                 using (writer.OpenBlock("public static class DependencyInjectionExtensionMethods"))
                 {
                     foreach (var methodGroup in serviceRegistrations.Where(sr => sr is not null && !sr.HasError).GroupBy(sr => sr.MethodNameHint))
@@ -112,6 +113,7 @@ public class RegistrationsProducer : Producer, IConditionalDiagnosticReporter
     /// </summary>
     private void GenerateNonGenericMethod(IndentedTextWriter writer, string methodName, string accessibilityString, List<ServiceRegistration> services, CancellationToken cancellationToken)
     {
+        writer.WriteLine("/// <summary>Registers the services marked with <c>[Register]</c> for this method, and returns the service collection.</summary>");
         using (writer.OpenBlock($"{accessibilityString} static global::Microsoft.Extensions.DependencyInjection.IServiceCollection {methodName}(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)"))
         {
             writer.WriteLine("return services");
@@ -228,6 +230,8 @@ public class RegistrationsProducer : Producer, IConditionalDiagnosticReporter
 
         // Build method signature
         var methodSignature = $"{accessibilityString} static global::Microsoft.Extensions.DependencyInjection.IServiceCollection {methodName}{typeParamList}(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)";
+
+        writer.WriteLine("/// <summary>Registers the generic services marked with <c>[Register]</c> for this method with the given type arguments, and returns the service collection.</summary>");
 
         // Add constraint clauses
         if (genericInfo.ConstraintClauses.Length > 0)

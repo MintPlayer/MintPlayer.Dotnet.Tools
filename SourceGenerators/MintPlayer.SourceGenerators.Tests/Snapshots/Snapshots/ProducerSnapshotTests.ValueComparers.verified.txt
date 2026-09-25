@@ -14,8 +14,10 @@ namespace Demo
 {
     partial class Circle : global::System.IEquatable<global::Demo.Circle>
     {
+        /// <inheritdoc/>
         public bool Equals(global::Demo.Circle? other) => base.Equals(other);
         
+        /// <inheritdoc/>
         protected override bool EqualsCore(global::Demo.Shape other)
         {
             if (!base.EqualsCore(other)) return false;
@@ -23,6 +25,7 @@ namespace Demo
             return Radius.Equals(o.Radius);
         }
         
+        /// <inheritdoc/>
         protected override int HashCore()
         {
             unchecked
@@ -36,6 +39,7 @@ namespace Demo
     
     partial class Shape : global::System.IEquatable<global::Demo.Shape>
     {
+        /// <inheritdoc/>
         public bool Equals(global::Demo.Shape? other)
         {
             if (other is null) return false;
@@ -43,15 +47,19 @@ namespace Demo
             return other.GetType() == GetType() && EqualsCore(other);
         }
         
+        /// <inheritdoc/>
         public override bool Equals(object? obj) => Equals(obj as global::Demo.Shape);
         
+        /// <inheritdoc/>
         public override int GetHashCode() => HashCore();
         
+        /// <summary>Compares the members this type and its bases declare with those of <paramref name="other"/>.</summary>
         protected virtual bool EqualsCore(global::Demo.Shape other)
         {
             return global::System.String.Equals(Name, other.Name, global::System.StringComparison.Ordinal);
         }
         
+        /// <summary>Hashes the members <c>EqualsCore</c> compares.</summary>
         protected virtual int HashCore()
         {
             unchecked

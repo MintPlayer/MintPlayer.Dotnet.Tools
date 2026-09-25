@@ -3,6 +3,7 @@ namespace Demo
 {
     partial class Consumer
     {
+        /// <summary>Initializes a new instance of <see cref="Consumer"/> with its injected dependencies.</summary>
         public Consumer(global::Demo.IA a, global::Demo.IB b)
         {
             this.a = a;

@@ -17,6 +17,7 @@ namespace Demo
         private static readonly global::System.Collections.Generic.IEqualityComparer<string> s_valueEquality0 = global::Demo.CaseInsensitive.Instance;
         private static readonly global::System.Collections.Generic.IEqualityComparer<string> s_valueEquality1 = new global::Demo.ByLength();
         
+        /// <inheritdoc/>
         public bool Equals(global::Demo.Account? other)
         {
             if (other is null) return false;
@@ -25,8 +26,10 @@ namespace Demo
                 && s_valueEquality1.Equals(Code, other.Code);
         }
         
+        /// <inheritdoc/>
         public override bool Equals(object? obj) => Equals(obj as global::Demo.Account);
         
+        /// <inheritdoc/>
         public override int GetHashCode()
         {
             unchecked

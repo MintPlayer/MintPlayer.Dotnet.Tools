@@ -12,8 +12,10 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Demo
 {
+    /// <summary>Extension methods that register this project's <c>[Register]</c> services.</summary>
     public static class DependencyInjectionExtensionMethods
     {
+        /// <summary>Registers the services marked with <c>[Register]</c> for this method, and returns the service collection.</summary>
         public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection AddTestInput(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)
         {
             return services

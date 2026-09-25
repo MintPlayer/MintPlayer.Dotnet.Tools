@@ -25,10 +25,12 @@ public class ClassNamesProducer : Producer, IConditionalDiagnosticReporter
         writer.WriteLine();
         using (writer.OpenBlock($"namespace {RootNamespace}"))
         {
+            writer.WriteLine("/// <summary>The name of every class declared in this project, as a constant.</summary>");
             using (writer.OpenBlock("public static class ClassNames"))
             {
                 foreach (var declaration in declarations)
                 {
+                    writer.WriteLine($"/// <summary>The name of the <c>{declaration.Name}</c> class.</summary>");
                     writer.WriteLine($"public const string {declaration.Name} = \"{declaration.Name}\";");
                 }
             }
@@ -57,6 +59,7 @@ public class ClassNameListProducer : Producer, IConditionalDiagnosticReporter
         writer.WriteLine();
         using (writer.OpenBlock($"namespace {RootNamespace}"))
         {
+            writer.WriteLine("/// <summary>The names of the classes declared in this project.</summary>");
             using (writer.OpenBlock("public static class ClassNameList"))
             {
                 var list = string.Join(", ", declarations.Select(d => $"\"{d.Name}\""));
@@ -65,6 +68,7 @@ public class ClassNameListProducer : Producer, IConditionalDiagnosticReporter
                 // implicitly-typed array" — so this emitted uncompilable code for any
                 // compilation with no matching classes. An explicitly-typed array is valid
                 // whether or not there are elements.
+                writer.WriteLine("/// <summary>A new array holding the name of every class declared in this project.</summary>");
                 writer.WriteLine($"public static string[] List => new string[] {{ {list} }};");
             }
         }

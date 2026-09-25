@@ -13,13 +13,28 @@ using System.Linq;
 
 namespace Demo
 {
+    /// <summary>Maps objects between the type pairs declared with <c>[GenerateMapper]</c>.</summary>
     public interface IMapper
     {
+        /// <summary>Maps a <typeparamref name="TSource"/> to a new <typeparamref name="TDest"/>.</summary>
+        /// <typeparam name="TSource">The type of the object to map.</typeparam>
+        /// <typeparam name="TDest">The type to map to.</typeparam>
+        /// <param name="source">The object to map.</param>
+        /// <returns>The new object, or <see langword="default"/> when <paramref name="source"/> is <see langword="null"/>.</returns>
+        /// <exception cref="global::System.NotSupportedException">No mapping exists from the type of <paramref name="source"/> to <typeparamref name="TDest"/>.</exception>
         TDest? Map<TSource, TDest>(TSource? source);
+        /// <summary>Copies the mapped properties of a <typeparamref name="TSource"/> onto an existing <typeparamref name="TDest"/>.</summary>
+        /// <typeparam name="TSource">The type of the object to read from.</typeparam>
+        /// <typeparam name="TDest">The type of the object to write to.</typeparam>
+        /// <param name="source">The object to read from. Nothing happens when it is <see langword="null"/>.</param>
+        /// <param name="destination">The object to write to.</param>
+        /// <exception cref="global::System.NotSupportedException">No mapping exists between the types of <paramref name="source"/> and <paramref name="destination"/>.</exception>
         void Map<TSource, TDest>(TSource? source, TDest destination);
     }
+    /// <summary>The generated <see cref="IMapper"/>, dispatching to the <c>MapperExtensions</c> methods.</summary>
     public class Mapper : IMapper
     {
+        /// <inheritdoc/>
         public TDest? Map<TSource, TDest>(TSource? source)
         {
             if (source is null)
@@ -54,6 +69,7 @@ namespace Demo
             
             return (TDest?)result;
         }
+        /// <inheritdoc/>
         public void Map<TSource, TDest>(TSource? source, TDest destination)
         {
             if (source is null) return;
@@ -101,8 +117,17 @@ using System.Linq;
 
 namespace Demo
 {
+    /// <summary>Generated extension methods that map between the type pairs declared with <c>[GenerateMapper]</c>.</summary>
     public static class MapperExtensions
     {
+        /// <summary>Converts a value with the registered <c>[MapperConversion]</c> method for <typeparamref name="TSource"/> to <typeparamref name="TDest"/>.</summary>
+        /// <typeparam name="TSource">The type of the value to convert.</typeparam>
+        /// <typeparam name="TDest">The type to convert to.</typeparam>
+        /// <param name="source">The value to convert.</param>
+        /// <param name="sourceState">The state of the source value, for state-aware conversion methods.</param>
+        /// <param name="destState">The state of the destination value, for state-aware conversion methods.</param>
+        /// <returns>The converted value, or <see langword="default"/> when <paramref name="source"/> is <see langword="null"/>.</returns>
+        /// <exception cref="global::System.NotSupportedException">No conversion method is registered for this pair of types.</exception>
         public static TDest? ConvertProperty<TSource, TDest>(TSource? source, int? sourceState = null, int? destState = null)
         {
             if (source is null)
@@ -117,6 +142,9 @@ namespace Demo
             }
             return (TDest?)result;
         }
+        /// <summary>Copies the mapped properties of a <c>Demo.PersonDto</c> onto an existing <c>Demo.Person</c>.</summary>
+        /// <param name="input">The object to read from.</param>
+        /// <param name="output">The object to write to.</param>
         internal static void MapToPerson(this global::Demo.PersonDto input, global::Demo.Person output)
         {
             if ((input is { } inValue) && (output is { }))
@@ -125,6 +153,9 @@ namespace Demo
                 output.Name = input.Name;
             }
         }
+        /// <summary>Maps a <c>Demo.PersonDto</c> to a new <c>Demo.Person</c>.</summary>
+        /// <param name="input">The object to map.</param>
+        /// <returns>The new object, or <see langword="default"/> when <paramref name="input"/> is <see langword="null"/>.</returns>
         internal static global::Demo.Person MapToPerson(this global::Demo.PersonDto input)
         {
             if (input is null) return default;
@@ -135,6 +166,9 @@ namespace Demo
                 Name = input.Name,
             };
         }
+        /// <summary>Copies the mapped properties of a <c>Demo.Person</c> onto an existing <c>Demo.PersonDto</c>.</summary>
+        /// <param name="input">The object to read from.</param>
+        /// <param name="output">The object to write to.</param>
         internal static void MapToPersonDto(this global::Demo.Person input, global::Demo.PersonDto output)
         {
             if ((input is { } inValue) && (output is { }))
@@ -143,6 +177,9 @@ namespace Demo
                 output.Name = input.Name;
             }
         }
+        /// <summary>Maps a <c>Demo.Person</c> to a new <c>Demo.PersonDto</c>.</summary>
+        /// <param name="input">The object to map.</param>
+        /// <returns>The new object, or <see langword="default"/> when <paramref name="input"/> is <see langword="null"/>.</returns>
         internal static global::Demo.PersonDto MapToPersonDto(this global::Demo.Person input)
         {
             if (input is null) return default;
@@ -153,10 +190,16 @@ namespace Demo
                 Name = input.Name,
             };
         }
+        /// <summary>Maps each <c>Demo.PersonDto</c> in a sequence to a new <c>Demo.Person</c>.</summary>
+        /// <param name="input">The objects to map.</param>
+        /// <returns>The mapped objects, in the same order.</returns>
         internal static global::System.Collections.Generic.IEnumerable<global::Demo.Person> MapToPerson(this global::System.Collections.Generic.IEnumerable<global::Demo.PersonDto> input)
         {
             return input.Select(x => x.MapToPerson());
         }
+        /// <summary>Maps each <c>Demo.Person</c> in a sequence to a new <c>Demo.PersonDto</c>.</summary>
+        /// <param name="input">The objects to map.</param>
+        /// <returns>The mapped objects, in the same order.</returns>
         internal static global::System.Collections.Generic.IEnumerable<global::Demo.PersonDto> MapToPersonDto(this global::System.Collections.Generic.IEnumerable<global::Demo.Person> input)
         {
             return input.Select(x => x.MapToPersonDto());

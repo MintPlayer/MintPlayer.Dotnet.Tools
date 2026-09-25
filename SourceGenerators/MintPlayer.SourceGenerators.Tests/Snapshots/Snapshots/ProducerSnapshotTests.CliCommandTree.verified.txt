@@ -38,19 +38,31 @@ namespace Demo
 
 namespace Demo
 {
+    /// <summary>Registers, builds and invokes the <c>RootCommand</c> command tree.</summary>
     public static class RootCommandCliExtensions
     {
+        /// <summary>Registers <c>RootCommand</c> and all of its subcommands as scoped services.</summary>
+        /// <param name="services">The service collection to add the commands to.</param>
+        /// <returns>The same service collection, for chaining.</returns>
         public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection AddRootCommand(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)
         {
             global::Demo.RootCommand.RegisterCliCommandTree(services);
             return services;
         }
         
+        /// <summary>Builds the <c>RootCommand</c> root command, with its options, arguments and subcommands.</summary>
+        /// <param name="serviceProvider">The service provider the command handlers are resolved from.</param>
+        /// <returns>The root command.</returns>
         public static global::System.CommandLine.RootCommand BuildRootCommand(this global::System.IServiceProvider serviceProvider)
         {
             return global::Demo.RootCommand.BuildCliRootCommand(serviceProvider);
         }
         
+        /// <summary>Parses <paramref name="args"/> against the <c>RootCommand</c> command tree and invokes the matching command.</summary>
+        /// <param name="host">The host whose services the command handlers are resolved from.</param>
+        /// <param name="args">The command-line arguments.</param>
+        /// <returns>The exit code of the invoked command.</returns>
+        /// <exception cref="global::MintPlayer.CliGenerator.Attributes.ParseCommandException">The arguments could not be parsed.</exception>
         public static async global::System.Threading.Tasks.Task<int> InvokeRootCommandAsync(this global::Microsoft.Extensions.Hosting.IHost host, string[] args)
         {
             var command = global::Demo.RootCommand.BuildCliRootCommand(host.Services);

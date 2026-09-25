@@ -14,6 +14,7 @@ namespace Demo
 {
     partial struct Range : global::System.IEquatable<global::Demo.Range>
     {
+        /// <inheritdoc/>
         public readonly bool Equals(global::Demo.Range other)
         {
             return Start == other.Start
@@ -21,8 +22,10 @@ namespace Demo
                 && global::MintPlayer.SourceGenerators.Tools.ValueEquality.Array<string>(Labels, other.Labels);
         }
         
+        /// <inheritdoc/>
         public override readonly bool Equals(object? obj) => obj is global::Demo.Range other && Equals(other);
         
+        /// <inheritdoc/>
         public override readonly int GetHashCode()
         {
             unchecked
@@ -38,13 +41,16 @@ namespace Demo
     
     partial struct Span : global::System.IEquatable<global::Demo.Span>
     {
+        /// <inheritdoc/>
         public readonly bool Equals(global::Demo.Span other)
         {
             return Length == other.Length;
         }
         
+        /// <inheritdoc/>
         public override readonly bool Equals(object? obj) => obj is global::Demo.Span other && Equals(other);
         
+        /// <inheritdoc/>
         public override readonly int GetHashCode()
         {
             unchecked
