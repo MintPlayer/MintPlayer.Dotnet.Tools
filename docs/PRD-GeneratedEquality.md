@@ -427,6 +427,7 @@ Tests are batched at the end, per the house rule. Intermediate milestones are ve
    - Remove the 26 + 10 comparer call sites, and switch collection-valued steps to `EquatableArray<T>`.
    - Change the `IncrementalGenerator.Initialize` signature, and fix all 11 overrides.
    - Retarget `MINT001`, and port the NewtonsoftJson package.
+   - *Status: done. `MINT001` is now `RoslynTypeInModelAnalyzer`.*
 6. **M5, tests and docs.**
    - Snapshot tests of the generated file for every S3 shape.
    - Port the comparer tests, and add runtime-equality tests for generated models, which would have caught P2.
@@ -434,6 +435,9 @@ Tests are batched at the end, per the house rule. Intermediate milestones are ve
    - Update the ValueComparerGenerator README (generated members, no `.WithComparer()`, `[UseEqualityComparer]`)
      and add a Tools CHANGELOG/breaking-change note for 12.0.0.
    - Bump the versions to 12.0.0.
+   - *Status: done except the full-suite run. Every SourceGenerators package moves to 12.0.0 in lockstep, as in
+     #183; MintPlayer.Assertions, which ships Tools in its analyzer payload, moves to 11.0.0-rc.4. The breaking
+     changes are listed in the Tools, ValueComparerGenerator and NewtonsoftJson READMEs.*
 7. **M6, downstream**, after 12.0.0 is published (see below).
 
 ## Downstream migration
