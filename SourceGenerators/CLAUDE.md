@@ -76,6 +76,17 @@ Before removing anything from an analyzer payload, ask **"does the generator nee
 time?"** and check with `grep`. A file being absent from a sibling's `ProjectReference` list proves
 nothing about whether the generator needs it.
 
+### A generator emits a fixed set of files
+
+**Never derive a hint name from a type or resource name.** Collect the inputs and write one file (or
+a fixed few), as `CliCommandProducer` and `EqualityProducer` do. A per-type name grows with namespace
+depth, nesting and arity; once it passes 255 characters, a consumer building with
+`EmitCompilerGeneratedFiles=true` fails with `CS0016` (it happened: 12.0.0's per-model
+`<Type>.Equality.g.cs`, see `docs/PRD-EqualitySingleFile.md`). `Guards/FixedFileSetGuardTests` in
+`MintPlayer.SourceGenerators.Tests` (and its twin in the Assertions generator tests) runs every
+generator over one input and over five and fails if the set of hint names differs. A new generator
+needs a corpus there.
+
 ## The evaluation-time glob trap
 
 **Never collect pack assets with a static `ItemGroup` that points at another project's output.**

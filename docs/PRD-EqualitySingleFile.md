@@ -255,6 +255,9 @@ Tests are batched to the end, per the house rule.
      the 14 snapshots are regenerated; S2 passed. New: no models → no file, declaration and file order don't change
      the text, and a model in a 304-character namespace still emits only `GeneratedEquality.g.cs`.
 3. **M3: docs, changelog and version (D5).**
+   - *Status: done.* README, `PRD-GeneratedEquality.md` D1 note, both code comments, the `CLAUDE.md` rule and a
+     `12.0.1` CHANGELOG entry. All 11 SourceGenerators packages are 12.0.1; MintPlayer.Assertions keeps its own
+     version, since only its tests changed.
 4. **M4: verification and PR.**
    - Full Release build and test run.
    - The PR's `sourcegenerators-benchmark` job compares against master, the first real head-vs-base run. The gate

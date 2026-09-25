@@ -3,6 +3,27 @@
 This changelog covers every package under `SourceGenerators/`. They are versioned in lockstep, so one entry applies
 to all of them.
 
+## 12.0.1
+
+The design and spikes are in [`docs/PRD-EqualitySingleFile.md`](../docs/PRD-EqualitySingleFile.md). Not a breaking
+change: generated file names are not API.
+
+### Changed
+
+**MintPlayer.ValueComparerGenerator**
+- **All generated equality members now go into one file, `GeneratedEquality.g.cs`,** instead of one
+  `<Namespace>.<Type>.Equality.g.cs` per model. A per-model name grows with namespace depth, nesting and generic
+  arity. Once it passed 255 characters, a consumer building with `EmitCompilerGeneratedFiles=true` failed with
+  `CS0016: Could not write to output file`. The members generated for each model are unchanged, byte for byte. The
+  models are ordered by fully qualified name (ordinal), so the file is identical across machines and runs. A
+  compilation with no models gets no file.
+
+### Added
+
+- **A guard that every generator emits a fixed set of files** (`FixedFileSetGuardTests`, in the SourceGenerators
+  and the Assertions generator test projects). It runs each generator over one decorated input and over five, and
+  fails if the set of hint names differs.
+
 ## 12.0.0
 
 Issue [#184](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/184), PR

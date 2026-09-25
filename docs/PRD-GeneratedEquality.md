@@ -133,6 +133,10 @@ This is latent today, because Roslyn's driver only calls `Equals`. It becomes li
 The generator emits one file per model (`<Type>.Equality.g.cs`), keeping the `#nullable enable` header and
 `global::` qualification of every name. The model's partial gets these members:
 
+> **Superseded in 12.0.1:** every model now goes into one file, `GeneratedEquality.g.cs`, because a per-model file
+> name over 255 characters fails the build with `CS0016`. The members are unchanged. See
+> [`PRD-EqualitySingleFile.md`](PRD-EqualitySingleFile.md).
+
 - `IEquatable<T>` in the base list.
 - `Equals(T?)`, which begins with the null and `ReferenceEquals` shortcuts.
 - `Equals(object?)`, except for records and record structs, where the compiler synthesizes it.
