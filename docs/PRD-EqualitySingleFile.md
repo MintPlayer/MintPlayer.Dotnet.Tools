@@ -218,7 +218,7 @@ Found by the investigation (file:line refs are against master `72d3dbe`):
 | **H** | Which other generators have growing or long file names? | **Done.** See P3. |
 | **P** | Can the per-model output be concatenated safely, and what depends on per-model names? | **Done.** See D2 and *Tests to change*. |
 | **S1** | Can the D4 guard use one shared corpus, or does it need a small corpus per generator? | **Done: per generator.** Each generator triggers on a different attribute or shape, so each gets its own item template, repeated 1 and 5 times, one file and one namespace (`Demo.N{i}`) per item. The guard also asserts the 5-run output names all five items, so a corpus the generator ignores can't pass vacuously. `JoinMethodGenerator` has no per-type input (one assembly attribute), so its corpus varies the join count and the number of classes, without the item-name check. **Detection:** the guard copied into a scratch worktree of master (`72d3dbe`) fails exactly the `ValueComparerGenerator` case (`Demo.N1.Item1.Equality.g.cs` vs 5 names) and passes the other 8; a test-local `PerTypeHintNameGenerator` is kept as a permanent negative control. On this branch it passes on all 9 generators here and on both Assertions generators (their own test project). |
-| **S2** | After the change, is each model's text in the single file byte-identical to today's per-model file? | Planned, in M2. Method: for every snapshot fixture, split master's per-model outputs and the new single file into per-model blocks, and diff them. Pass: 0 differing lines apart from header and namespace framing. |
+| **S2** | After the change, is each model's text in the single file byte-identical to today's per-model file? | **Done: identical.** All 14 snapshots (13 `Equality*` plus `ValueComparers`) were cut into model blocks, from the namespace-level `partial …` line to its closing brace, for master's committed `verified.txt` (`git show master:…`, one model per file) and for the regenerated single file. The block multisets are equal for every snapshot: 26 models, 0 differing, and each new snapshot holds exactly one file, `GeneratedEquality.g.cs`. A deliberately altered block is reported as a difference, so the comparison is not vacuous. |
 | **S3** | What does `LongPathsEnabled=0` do to today's fixed-name paths over 260 (P3)? | **Not planned.** It needs a registry change on a dev machine or a CI image with long paths off. It only informs the non-goal, and the decision doesn't depend on it. |
 
 ### L2 results (measured)
@@ -251,6 +251,9 @@ Tests are batched to the end, per the house rule.
    - Update the tests listed above and regenerate the snapshots.
    - Run S2, the byte-identical check per model.
    - Add the new tests.
+   - *Status: done.* The listed tests assert the single file (per-model assertions scoped to the model's block);
+     the 14 snapshots are regenerated; S2 passed. New: no models → no file, declaration and file order don't change
+     the text, and a model in a 304-character namespace still emits only `GeneratedEquality.g.cs`.
 3. **M3: docs, changelog and version (D5).**
 4. **M4: verification and PR.**
    - Full Release build and test run.
