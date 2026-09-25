@@ -7,12 +7,12 @@
 
 	<Target Name="GetDependencyTargetPathsMintPlayerCliGenerator">
 		<ItemGroup>
-			<TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)\..\MintPlayer.CliGenerator.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.CliGenerator.Attributes.dll" IncludeRuntimeDependency="true" />
+			<TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)\..\MintPlayer.CliGenerator.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.CliGenerator.Attributes.dll" IncludeRuntimeDependency="false" />
 		</ItemGroup>
 	</Target>
 
 	<PropertyGroup>
-		<Version>12.0.1</Version>
+		<Version>12.1.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>System.CommandLine command tree source generator with dependency injection helpers</Description>

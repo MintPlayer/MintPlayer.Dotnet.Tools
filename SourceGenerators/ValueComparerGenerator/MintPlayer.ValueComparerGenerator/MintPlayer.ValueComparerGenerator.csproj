@@ -7,12 +7,12 @@
 
 	<Target Name="GetDependencyTargetPathsValueComparerGenerator">
 		<ItemGroup>
-			<TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)\..\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.ValueComparerGenerator.Attributes.dll" IncludeRuntimeDependency="true" />
+			<TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)\..\MintPlayer.ValueComparerGenerator.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.ValueComparerGenerator.Attributes.dll" IncludeRuntimeDependency="false" />
 		</ItemGroup>
 	</Target>
 
 	<PropertyGroup>
-		<Version>12.0.1</Version>
+		<Version>12.1.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains a source generator that generates value equality (IEquatable) on your incremental-generator models</Description>

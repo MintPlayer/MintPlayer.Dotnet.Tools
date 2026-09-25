@@ -8,7 +8,7 @@
 	</PropertyGroup>
 
 	<PropertyGroup>
-		<Version>12.0.1</Version>
+		<Version>12.1.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>An IEqualityComparer for Newtonsoft.Json JObject, for [UseEqualityComparer] on incremental-generator models, so models carrying a JObject still cache correctly</Description>
