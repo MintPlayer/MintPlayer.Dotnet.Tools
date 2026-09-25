@@ -643,6 +643,9 @@ Recorded because the ratio matters when judging the work:
   check too permissive for a method group.
 - `MintPlayer.ValueComparerGenerator.Attributes.dll` was removed from the payload as "stale
   residue". It is required at generator load time; removing it disables the package.
+  *(Corrected by #187: at the time, the value-comparer runtime reflected over model attributes, so the missing dll
+  failed at comparison time, not load time. Since #185 Roslyn loads and runs the generator without it; it still ships
+  for hosts that discover analyzers by reflection. See `PRD-ValueComparerGenerator-DownstreamFindings.md` F3.)*
 - Windows-only path separators in a test theory; an over-broad `catch` in the probe; `.Single()`
   contradicting a documented contract; a silently ignored parameter.
 
