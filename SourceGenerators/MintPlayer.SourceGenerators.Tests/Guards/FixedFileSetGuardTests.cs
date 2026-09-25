@@ -172,7 +172,8 @@ public class FixedFileSetGuardTests
         var five = Run(c, 5);
 
         // No compile assertion: this guards file names only, and whether each generator's output compiles is the job
-        // of its own tests. (GenericMethod's output for a private partial method, for one, does not.)
+        // of its own tests. (The GenericMethod corpus, for one, declares a body-less private partial method, which is
+        // not valid C#; the generator does not supply the decorated method's body.)
         one.GeneratedSources.Should().NotBeEmpty($"the {c.Generator} corpus must make the generator emit something");
 
         if (c.ExpectItemNames)
