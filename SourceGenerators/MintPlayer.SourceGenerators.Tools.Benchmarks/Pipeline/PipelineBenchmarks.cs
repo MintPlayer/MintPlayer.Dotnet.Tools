@@ -33,6 +33,7 @@ public sealed record PipelineScenario(GeneratorBuild Build, string Set, string[]
 /// </summary>
 [MemoryDiagnoser]
 [Config(typeof(PipelineConfig))]
+[MedianColumn, MinColumn]
 public class PipelineBenchmarks
 {
     private GeneratorDriver driver = null!;

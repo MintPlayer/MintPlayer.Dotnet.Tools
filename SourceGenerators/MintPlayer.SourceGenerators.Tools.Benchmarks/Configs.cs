@@ -30,7 +30,13 @@ public sealed class EqualityConfig : ManualConfig
         var job = Job.Default.WithWarmupCount(5).WithIterationCount(15);
         AddJob(job.WithId("net11.0"));
         if (Runtimes.Net481Enabled)
+        {
             AddJob(job.WithRuntime(ClrRuntime.Net481).WithId("net481"));
+            // Measured on BenchmarkDotNet 0.14 with the .NET 11 SDK: without this option the net481 child
+            // (built into a GUID-named folder) exits with -1 before printing anything, and every net481 row is
+            // NA. With it (the build goes to a folder named after the job), the same benchmarks run fine.
+            WithOptions(ConfigOptions.KeepBenchmarkFiles);
+        }
     }
 }
 
