@@ -7,7 +7,7 @@ namespace MintPlayer.ValueComparerGenerator.Generators;
 
 /// <summary>
 /// Generates <see cref="IEquatable{T}"/>, <c>Equals(object)</c> and <c>GetHashCode()</c> directly on every
-/// <c>[GenerateEquality]</c> type and every type deriving from one, one file per type.
+/// <c>[GenerateEquality]</c> type and every type deriving from one, all in one file, <c>GeneratedEquality.g.cs</c>.
 /// </summary>
 /// <remarks>
 /// Discovery takes two providers and never collects over all classes (PRD spike S5, strategy B):
@@ -55,7 +55,17 @@ public class ValueComparerGenerator : IncrementalGenerator
             .Where(static t => t is not null)
             .Select(static (t, ct) => t!);
 
-        context.ProduceCode(Producers(rootsProvider), Producers(derivedProvider));
+        // One file for every model (PRD-EqualitySingleFile D1). The combined step returns an equatable array, so
+        // an unrelated edit leaves it Cached; a plain collection would report Modified and rebuild the file.
+        var modelsProvider = Models(rootsProvider).Collect()
+            .Combine(Models(derivedProvider).Collect())
+            .Select(static (p, ct) => p.Left.Concat(p.Right)
+                // Defensive: the roots provider owns every attributed type, so the two don't overlap today.
+                .DistinctBy(static m => m.FullName)
+                .OrderBy(static m => m.FullName, StringComparer.Ordinal)
+                .ToEquatableArray());
+
+        context.ProduceCode(modelsProvider.Select(static Producer (m, ct) => new Producers.EqualityProducer(m)));
 
         // Diagnostics are selected per type before collecting, so the collected array only changes when a
         // diagnostic does, and a compilation with nothing to report never combines with the compilation at all.
@@ -67,12 +77,13 @@ public class ValueComparerGenerator : IncrementalGenerator
         context.ReportDiagnostics(diagnosticsProvider);
     }
 
-    private static IncrementalValuesProvider<Producer> Producers(IncrementalValuesProvider<DiscoveredType> provider)
+    /// <summary>The models of one provider, per item, so <see cref="ModelsStep"/> still tracks each type on its own.</summary>
+    private static IncrementalValuesProvider<ClassDeclaration> Models(IncrementalValuesProvider<DiscoveredType> provider)
         => provider
             .Select(static (t, ct) => t.Model)
             .WithTrackingName(ModelsStep)
             .Where(static m => m is not null)
-            .Select(static Producer (m, ct) => new Producers.EqualityProducer(m!));
+            .Select(static (m, ct) => m!);
 }
 
 internal sealed class ValueComparerDiagnosticReporter(EquatableArray<DiagnosticInfo> diagnostics) : IConditionalDiagnosticReporter

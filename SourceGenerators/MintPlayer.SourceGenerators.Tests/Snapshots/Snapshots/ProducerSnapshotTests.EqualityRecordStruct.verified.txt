@@ -1,4 +1,4 @@
-//---- Demo.Coordinate.Equality.g.cs ----
+//---- GeneratedEquality.g.cs ----
 #nullable enable
 
 //-----------------------------------------------------------------------------------//

@@ -12,6 +12,23 @@ public class ValueComparerGeneratorDiagnosticsTests
 
     private static int LineOf(Diagnostic diagnostic) => diagnostic.Location.GetLineSpan().StartLinePosition.Line;
 
+    private const string EqualityFile = "GeneratedEquality.g.cs";
+
+    /// <summary>
+    /// One model's declaration in the shared equality file, from its <c>partial</c> line to its closing brace, so an
+    /// assertion about one model isn't satisfied, or broken, by another model's members.
+    /// </summary>
+    private static string ModelBlock(string source, string declaration)
+    {
+        var lines = source.Split('\n').Select(l => l.TrimEnd('\r')).ToList();
+        var start = lines.FindIndex(l => l.TrimStart().StartsWith(declaration, StringComparison.Ordinal));
+        start.Should().BeGreaterThanOrEqualTo(0, $"the equality file must declare '{declaration}'");
+
+        var close = new string(' ', lines[start].Length - lines[start].TrimStart().Length) + "}";
+        var end = lines.FindIndex(start, l => l == close);
+        return string.Join("\n", lines.Skip(start).Take(end - start + 1));
+    }
+
     [Fact]
     public void MINT002_NamesEveryMemberTheTypeDeclaresItself_AsInfo()
     {
@@ -26,7 +43,7 @@ public class ValueComparerGeneratorDiagnosticsTests
         infos.Should().AllSatisfy(d => d.Location.IsInSource.Should().BeTrue());
 
         // IEquatable<T> is still added, and nothing the user wrote is generated a second time.
-        var generated = run.SourceFor("Demo.Handmade.Equality.g.cs")!;
+        var generated = ModelBlock(run.SourceFor(EqualityFile)!, "partial class Handmade");
         generated.Should().Contain("global::System.IEquatable<global::Demo.Handmade>");
         generated.Should().NotContain("bool Equals(");
         generated.Should().NotContain("GetHashCode()");
@@ -40,7 +57,7 @@ public class ValueComparerGeneratorDiagnosticsTests
         var warning = run.Of("MINT002").Single(d => d.GetMessage().Contains("'HalfMade'"));
         warning.Severity.Should().Be(DiagnosticSeverity.Warning);
         warning.GetMessage().Should().Contain("GetHashCode()");
-        run.SourceFor("Demo.HalfMade.Equality.g.cs")!.Should().Contain("public override int GetHashCode()");
+        ModelBlock(run.SourceFor(EqualityFile)!, "partial class HalfMade").Should().Contain("public override int GetHashCode()");
         run.Errors.Should().BeEmpty(run.ErrorText);
     }
 
@@ -62,8 +79,9 @@ public class ValueComparerGeneratorDiagnosticsTests
         error.Severity.Should().Be(DiagnosticSeverity.Error);
         error.GetMessage().Should().Be("'Leaf' derives from [GenerateEquality] type 'Node' and must be partial");
         LineOf(error).Should().Be(7);
-        run.SourceFor("Demo.Leaf.Equality.g.cs").Should().BeNull();
-        run.SourceFor("Demo.Node.Equality.g.cs").Should().NotBeNull();
+        var generated = run.SourceFor(EqualityFile)!;
+        generated.Should().Contain("partial class Node");
+        generated.Should().NotContain("partial class Leaf");
     }
 
     [Fact]

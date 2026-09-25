@@ -36,7 +36,7 @@ public sealed partial class Child
 }
 ```
 
-generates (one `<Type>.Equality.g.cs` per model):
+generates (every model's members go into one file, `GeneratedEquality.g.cs`):
 
 ```csharp
 partial class CliOption : global::System.IEquatable<global::Demo.CliOption>

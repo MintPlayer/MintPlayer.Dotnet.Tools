@@ -26,7 +26,11 @@ public partial class DescriptionSourceGenerator : IncrementalGenerator
                 if (ctx.SemanticModel.GetDeclaredSymbol(ctx.Node, ct) is INamedTypeSymbol symbol)
                 {
                     //var xml = symbol?.GetDocumentationCommentXml(expandIncludes: true, cancellationToken: ct);
-                    var xml = ctx.Node.GetLeadingTrivia().ToString();
+                    // ToFullString, not ToString: ToString leaves out the first trivia's own
+                    // leading trivia, and for a doc comment that is the "///" exterior. A summary
+                    // at column 0 directly below the previous line was then read without its
+                    // prefixes, and SanitizeMarkup found nothing.
+                    var xml = ctx.Node.GetLeadingTrivia().ToFullString();
                     if (string.IsNullOrWhiteSpace(xml) || xml.All(c => c is '\r' or '\n')) return default;
                     if (SanitizeMarkup(xml) is not { Length: > 0 } sanitized) return default;
 

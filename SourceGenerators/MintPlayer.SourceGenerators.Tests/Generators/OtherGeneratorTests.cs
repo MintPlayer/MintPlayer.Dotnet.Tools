@@ -359,8 +359,14 @@ public class CliCommandSourceGeneratorTests
 
 public class ValueComparerGeneratorTests
 {
+    /// <summary>The one file every model's equality goes into (PRD-EqualitySingleFile).</summary>
+    private const string EqualityFile = "GeneratedEquality.g.cs";
+
     private static GeneratorRun Run(string source, string? rootNamespace = "TestRoot")
-        => GeneratorHarness.Run("ValueComparerGenerator", [source], rootNamespace,
+        => RunFiles([source], rootNamespace);
+
+    private static GeneratorRun RunFiles(string[] sources, string? rootNamespace = "TestRoot")
+        => GeneratorHarness.Run("ValueComparerGenerator", sources, rootNamespace,
             generatorAssemblyName: "MintPlayer.ValueComparerGenerator");
 
     [Fact]
@@ -384,10 +390,12 @@ public class ValueComparerGeneratorTests
             """);
 
         run.Errors.Should().BeEmpty(run.ErrorText);
-        run.GeneratedSources.Select(s => s.HintName).Should().Contain("Demo.Shape.Equality.g.cs");
+        run.GeneratedSources.Select(s => s.HintName).Should().Equal(EqualityFile);
+        var generated = run.SourceFor(EqualityFile)!;
+        generated.Should().Contain("partial class Shape");
         // Circle has no attribute of its own, and still gets its members: without them it would inherit
         // Shape's EqualsCore and compare only Name.
-        run.SourceFor("Demo.Circle.Equality.g.cs")!.Should().Contain("protected override bool EqualsCore(global::Demo.Shape other)");
+        generated.Should().Contain("protected override bool EqualsCore(global::Demo.Shape other)");
     }
 
     [Fact]
@@ -431,7 +439,7 @@ public class ValueComparerGeneratorTests
             """);
 
         run.Errors.Should().BeEmpty(run.ErrorText);
-        var circle = run.SourceFor("Demo.Circle.Equality.g.cs")!;
+        var circle = run.SourceFor(EqualityFile)!;
         circle.Should().Contain("// Radius: [EqualityIgnore]");
         // The #184 bug: the hash used to include ignored properties.
         circle.Should().NotContain("Radius.GetHashCode()");
@@ -452,11 +460,11 @@ public class ValueComparerGeneratorTests
             """);
 
         run.Errors.Should().BeEmpty(run.ErrorText);
-        run.GeneratedSources.Select(s => s.HintName).Should().Contain("Demo.R.Equality.g.cs");
-        run.GeneratedSources.Select(s => s.HintName).Should().Contain("Demo.S.Equality.g.cs");
-        run.GeneratedSources.Select(s => s.HintName).Should().Contain("Demo.RS.Equality.g.cs");
-        run.SourceFor("Demo.R.Equality.g.cs")!.Should().Contain("partial record R");
-        run.SourceFor("Demo.RS.Equality.g.cs")!.Should().Contain("partial record struct RS");
+        run.GeneratedSources.Select(s => s.HintName).Should().Equal(EqualityFile);
+        var generated = run.SourceFor(EqualityFile)!;
+        generated.Should().Contain("partial record R");
+        generated.Should().Contain("partial struct S");
+        generated.Should().Contain("partial record struct RS");
     }
 
     [Fact]
@@ -473,21 +481,159 @@ public class ValueComparerGeneratorTests
 
         run.Errors.Should().BeEmpty(run.ErrorText);
         // The old generator concatenated this into Box<T>ValueComparer, which does not compile.
-        run.SourceFor("Demo.Box_1.Equality.g.cs")!.Should().Contain("partial class Box<T> : global::System.IEquatable<global::Demo.Box<T>>");
+        run.SourceFor(EqualityFile)!.Should().Contain("partial class Box<T> : global::System.IEquatable<global::Demo.Box<T>>");
     }
 
     [Fact]
     public void ATypeInTheGlobalNamespace_IsNotMovedIntoTheRootNamespace()
     {
-        var run = Run("""
+        var run = RunFiles(["""
             using MintPlayer.ValueComparerGenerator.Attributes;
 
             [GenerateEquality]
             public sealed partial class Global { public int X { get; set; } }
+            """, """
+            using MintPlayer.ValueComparerGenerator.Attributes;
+
+            namespace Demo;
+
+            [GenerateEquality]
+            public sealed partial class Local { public int X { get; set; } }
+            """]);
+
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        // Both share the one file, so the assertion is about Global's declaration, not the whole file: it sits at the
+        // top level, before the one namespace block, which holds Local.
+        var lines = run.SourceFor(EqualityFile)!.Split('\n').Select(l => l.TrimEnd('\r')).ToList();
+        var global = lines.IndexOf("partial class Global : global::System.IEquatable<global::Global>");
+        var ns = lines.IndexOf("namespace Demo");
+        global.Should().BeGreaterThanOrEqualTo(0, "the global model is written with no namespace and no indentation");
+        ns.Should().BeGreaterThan(global);
+        lines.Should().Contain("    partial class Local : global::System.IEquatable<global::Demo.Local>");
+        lines.Count(l => l.StartsWith("namespace ", StringComparison.Ordinal)).Should().Be(1);
+    }
+
+    /// <summary>No models, no file: the producer's filename is empty, so nothing is added, not an empty file.</summary>
+    [Fact]
+    public void WithNoModels_ItEmitsNoEqualityFile()
+    {
+        var run = Run("""
+            using MintPlayer.ValueComparerGenerator.Attributes;
+
+            namespace Demo;
+
+            public sealed partial class NotAModel { public int X { get; set; } }
             """);
 
         run.Errors.Should().BeEmpty(run.ErrorText);
-        run.SourceFor("Global.Equality.g.cs")!.Should().NotContain("namespace");
+        run.SourceFor(EqualityFile).Should().BeNull();
+        run.GeneratedSources.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The same models, declared in other files and in another order, give the same text: the models are sorted by
+    /// fully qualified name, ordinally, so the file doesn't depend on the order the driver sees the trees in.
+    /// </summary>
+    [Fact]
+    public void TheEqualityFile_DoesNotDependOnDeclarationOrFileOrder()
+    {
+        const string first = """
+            using MintPlayer.ValueComparerGenerator.Attributes;
+
+            namespace Demo.Zeta
+            {
+                [GenerateEquality] public sealed partial class Omega { public int X { get; set; } }
+                [GenerateEquality] public sealed partial class Alpha { public int X { get; set; } }
+            }
+
+            [GenerateEquality] public sealed partial class TopLevel { public int X { get; set; } }
+            """;
+
+        const string second = """
+            using MintPlayer.ValueComparerGenerator.Attributes;
+
+            namespace Demo.Alpha
+            {
+                [GenerateEquality] public abstract partial class Shape { public string Name { get; set; } = ""; }
+                [GenerateEquality] public partial record Point(int X, int Y);
+            }
+            """;
+
+        const string third = """
+            namespace Demo.Alpha
+            {
+                public partial class Circle : Shape { public double Radius { get; set; } }
+            }
+            """;
+
+        // The same declarations, each file's in reverse order.
+        const string firstReversed = """
+            using MintPlayer.ValueComparerGenerator.Attributes;
+
+            [GenerateEquality] public sealed partial class TopLevel { public int X { get; set; } }
+
+            namespace Demo.Zeta
+            {
+                [GenerateEquality] public sealed partial class Alpha { public int X { get; set; } }
+                [GenerateEquality] public sealed partial class Omega { public int X { get; set; } }
+            }
+            """;
+
+        const string secondReversed = """
+            using MintPlayer.ValueComparerGenerator.Attributes;
+
+            namespace Demo.Alpha
+            {
+                [GenerateEquality] public partial record Point(int X, int Y);
+                [GenerateEquality] public abstract partial class Shape { public string Name { get; set; } = ""; }
+            }
+            """;
+
+        var run = RunFiles([first, second, third]);
+        var shuffled = RunFiles([third, secondReversed, firstReversed]);
+
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        shuffled.Errors.Should().BeEmpty(shuffled.ErrorText);
+        run.GeneratedSources.Select(s => s.HintName).Should().Equal(EqualityFile);
+
+        var text = run.SourceFor(EqualityFile)!;
+        shuffled.SourceFor(EqualityFile).Should().Be(text);
+
+        // Global namespace first, then Demo.Alpha (Circle, Point, Shape), then Demo.Zeta (Alpha, Omega).
+        string[] order =
+        [
+            "partial class TopLevel", "namespace Demo.Alpha", "partial class Circle", "partial record Point",
+            "partial class Shape", "namespace Demo.Zeta", "partial class Alpha", "partial class Omega",
+        ];
+        order.Select(d => text.IndexOf(d, StringComparison.Ordinal)).Should().BeInAscendingOrder();
+        order.Select(d => text.IndexOf(d, StringComparison.Ordinal)).Should().NotContain(-1);
+    }
+
+    /// <summary>
+    /// The CS0016 regression (PRD-EqualitySingleFile P1): a model whose fully qualified name alone passes 255
+    /// characters still lands in the one fixed-name file, instead of a file named after it.
+    /// </summary>
+    [Fact]
+    public void AModelInAVeryLongNamespace_StillEmitsOnlyTheFixedFile()
+    {
+        var ns = "Demo." + string.Join(".", Enumerable.Range(1, 30).Select(i => $"Segment{i:D2}"));
+        ns.Length.Should().BeGreaterThan(290);
+
+        var run = Run($$"""
+            using MintPlayer.ValueComparerGenerator.Attributes;
+
+            namespace {{ns}};
+
+            public static partial class Outer
+            {
+                [GenerateEquality]
+                public sealed partial class Model<TKey, TValue> { public TKey? Key { get; set; } public TValue? Value { get; set; } }
+            }
+            """);
+
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        run.GeneratedSources.Select(s => s.HintName).Should().Equal(EqualityFile);
+        run.SourceFor(EqualityFile)!.Should().Contain($"namespace {ns}");
     }
 
     [Fact]

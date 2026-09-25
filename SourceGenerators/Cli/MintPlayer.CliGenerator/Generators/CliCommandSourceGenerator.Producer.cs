@@ -33,9 +33,13 @@ internal sealed class CliCommandProducer : Producer
 
         // Group commands by their ACTUAL declared namespace for partial class generation
         // Important: Use the symbol's namespace directly, NOT the fallback to RootNamespace
-        // A partial class MUST be in the same namespace as the original declaration
+        // A partial class MUST be in the same namespace as the original declaration.
+        // Every node is grouped on its own namespace, not its root's: a subcommand declared in
+        // another namespace, written inside the root's namespace block, declared a second,
+        // unrelated class there, and the parent's calls into it failed with CS0117.
         var groups = commandTrees
-            .GroupBy(tree => string.IsNullOrEmpty(tree.Command.Namespace) ? null : tree.Command.Namespace)
+            .SelectMany(tree => Flatten(tree, isRoot: true))
+            .GroupBy(node => string.IsNullOrEmpty(node.Tree.Command.Namespace) ? null : node.Tree.Command.Namespace)
             .OrderBy(group => group.Key ?? string.Empty);
 
         foreach (var group in groups)
@@ -45,9 +49,9 @@ internal sealed class CliCommandProducer : Producer
             if (group.Key is null)
             {
                 // Global namespace - no namespace block
-                foreach (var tree in group)
+                foreach (var node in group)
                 {
-                    WriteCommandNode(writer, tree, isRoot: true);
+                    WriteCommandNode(writer, node.Tree, node.IsRoot);
                     writer.WriteLine();
                 }
             }
@@ -55,9 +59,9 @@ internal sealed class CliCommandProducer : Producer
             {
                 using (writer.OpenBlock($"namespace {group.Key}"))
                 {
-                    foreach (var tree in group)
+                    foreach (var node in group)
                     {
-                        WriteCommandNode(writer, tree, isRoot: true);
+                        WriteCommandNode(writer, node.Tree, node.IsRoot);
                         writer.WriteLine();
                     }
                 }
@@ -95,6 +99,19 @@ internal sealed class CliCommandProducer : Producer
         }
     }
 
+    /// <summary>The tree's nodes, depth first, parents before their children.</summary>
+    private static IEnumerable<(CliCommandTree Tree, bool IsRoot)> Flatten(CliCommandTree tree, bool isRoot)
+    {
+        yield return (tree, isRoot);
+        foreach (var child in tree.Children)
+        {
+            foreach (var node in Flatten(child, isRoot: false))
+            {
+                yield return node;
+            }
+        }
+    }
+
     private void WriteCommandNode(IndentedTextWriter writer, CliCommandTree node, bool isRoot)
     {
         using (writer.OpenPathSpec(node.Command.PathSpec))
@@ -105,12 +122,6 @@ internal sealed class CliCommandProducer : Producer
                 writer.WriteLine();
                 WriteBuildMethod(writer, node, isRoot);
             }
-        }
-
-        foreach (var child in node.Children)
-        {
-            writer.WriteLine();
-            WriteCommandNode(writer, child, isRoot: false);
         }
     }
 

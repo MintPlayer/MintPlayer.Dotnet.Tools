@@ -3,6 +3,44 @@
 This changelog covers every package under `SourceGenerators/`. They are versioned in lockstep, so one entry applies
 to all of them.
 
+## 12.0.1
+
+The design and spikes are in [`docs/PRD-EqualitySingleFile.md`](../docs/PRD-EqualitySingleFile.md). Not a breaking
+change: generated file names are not API.
+
+### Changed
+
+**MintPlayer.ValueComparerGenerator**
+- **All generated equality members now go into one file, `GeneratedEquality.g.cs`,** instead of one
+  `<Namespace>.<Type>.Equality.g.cs` per model. A per-model name grows with namespace depth, nesting and generic
+  arity. Once it passed 255 characters, a consumer building with `EmitCompilerGeneratedFiles=true` failed with
+  `CS0016: Could not write to output file`. The members generated for each model are unchanged, byte for byte. The
+  models are ordered by fully qualified name (ordinal), so the file is identical across machines and runs. A
+  compilation with no models gets no file.
+
+### Added
+
+- **A guard that every generator emits a fixed set of files** (`FixedFileSetGuardTests`, in the SourceGenerators
+  and the Assertions generator test projects). It runs each generator over one decorated input and over five, and
+  fails if the set of hint names differs.
+
+### Fixed
+
+**MintPlayer.SourceGenerators**
+- **`DescriptionSourceGenerator` no longer drops a summary at column 0 directly below the previous line** (for
+  example `namespace Demo;` or `{` followed by `/// <summary>` with no indentation or blank line). It read the leading
+  trivia with `ToString()`, which leaves out the doc comment's `///` exterior when the comment is the first trivia,
+  so no `[Description]` was generated.
+- **`GenericMethodSourceGenerator` no longer marks the overloads it generates `partial`** when the decorated method
+  is. An overload has another signature and can never be that method's implementation, so each one failed with
+  `CS0759`.
+
+**MintPlayer.CliGenerator**
+- **A subcommand declared in another namespace than its parent now compiles.** Every command's partial half was
+  written inside its root command's namespace block, so a subcommand elsewhere got a second, unrelated class in the
+  root's namespace, and the parent's `RegisterCliCommandTree` and `BuildCliCommand` calls failed with `CS0117`. Each
+  command is now emitted in its own namespace. Output for a tree in one namespace is unchanged.
+
 ## 12.0.0
 
 Issue [#184](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/184), PR
