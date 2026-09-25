@@ -15,4 +15,11 @@ internal sealed class ListValueComparer<TValue> : ValueComparer<List<TValue>>
 
         return true;
     }
+
+    protected override void AddHash(ref Polyfills.HashCodeCompat h, List<TValue>? obj)
+    {
+        if (obj is null) { h.Add(0); return; }
+        foreach (var item in obj)
+            AddHash(ref h, item);
+    }
 }

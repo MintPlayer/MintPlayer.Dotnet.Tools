@@ -50,15 +50,13 @@ public class GenericMethodSourceGenerator : IncrementalGenerator
                                 {
                                     MethodName = symbol.Name,
                                     ClassName = classSymbol.Name,
-                                    MethodModifiers = methodDeclaration.Modifiers,
-                                    ClassModifiers = classDeclaration.Modifiers,
+                                    ClassIsPartial = classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
+                                    ClassIsStatic = classDeclaration.Modifiers.Any(SyntaxKind.StaticKeyword),
+                                    MethodIsPrivate = methodDeclaration.Modifiers.Any(SyntaxKind.PrivateKeyword),
+                                    MethodIsPartial = methodDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
+                                    MethodIsStatic = methodDeclaration.Modifiers.Any(SyntaxKind.StaticKeyword),
                                     ContainingNamespace = pathSpec?.ContainingNamespace,
                                     PathSpec = pathSpec,
-                                    //ClassIsPartial = classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
-                                    //MethodIsPartial = methodDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword),
-                                    //ClassIsStatic = classDeclaration.Modifiers.Any(SyntaxKind.StaticKeyword),
-                                    //MethodIsStatic = methodDeclaration.Modifiers.Any(SyntaxKind.StaticKeyword),
-                                    //GenericMethodAttribute =
                                 },
                                 Count = countValue,
                             };
@@ -68,6 +66,9 @@ public class GenericMethodSourceGenerator : IncrementalGenerator
 
                 return default;
             })
+            // The transform allocates a new model on every run; without the generated comparer the
+            // collected array compared by reference and never matched the previous one.
+            .WithNullableComparer()
             .Collect();
 
         var methodsSourceProvider = methodsProvider

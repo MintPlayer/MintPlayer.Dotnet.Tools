@@ -12,7 +12,7 @@
 	</Target>
 
 	<PropertyGroup>
-		<Version>10.22.0</Version>
+		<Version>11.0.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package contains several source generators</Description>
@@ -74,8 +74,8 @@
 	<Import Project="..\..\eng\valuecomparergenerator.targets" />
 	<ItemGroup>
 	  <PackageReference Remove="Microsoft.CodeAnalysis" />
-	  <PackageReference Update="Microsoft.CodeAnalysis.Analyzers" Version="5.0.0" />
-	  <PackageReference Update="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+	  <PackageReference Update="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" />
+	  <PackageReference Update="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
 	</ItemGroup>
 
 	<!--
@@ -93,7 +93,7 @@
 	exactly this reason; see their csproj comments before removing either.
 	-->
 	<ItemGroup>
-	  <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0"
+	  <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0"
 	                    PrivateAssets="all" ExcludeAssets="runtime" />
 	</ItemGroup>
 	<!-- The package README is the canonical docs for this generator; ship it to NuGet. -->

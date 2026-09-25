@@ -42,7 +42,11 @@ public abstract class Producer
 
     protected abstract void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken);
 
-    public void Produce(SourceProductionContext context, Compilation compilation)
+    /// <summary>Kept for source compatibility. The compilation was never used.</summary>
+    [Obsolete("The compilation is not used. Call Produce(SourceProductionContext), or better, register through context.ProduceCode(...).")]
+    public void Produce(SourceProductionContext context, Compilation compilation) => Produce(context);
+
+    public void Produce(SourceProductionContext context)
     {
         context.CancellationToken.ThrowIfCancellationRequested();
         if (string.IsNullOrEmpty(Filename)) return;

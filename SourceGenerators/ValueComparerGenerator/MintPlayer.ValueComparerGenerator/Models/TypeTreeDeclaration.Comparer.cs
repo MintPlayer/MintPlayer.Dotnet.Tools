@@ -45,6 +45,9 @@ public class BaseTypeValueComparer : ValueComparer<BaseType>
     {
         if (!IsEquals(x.Name, y.Name)) return false;
         if (!IsEquals(x.FullName, y.FullName)) return false;
+        // The producer reads IsAbstract and IsInternal, so a change to either must count as a change.
+        if (!IsEquals(x.IsAbstract, y.IsAbstract)) return false;
+        if (!IsEquals(x.IsInternal, y.IsInternal)) return false;
         if (!IsEquals(x.IsPartial, y.IsPartial)) return false;
         if (!IsEquals(x.PathSpec, y.PathSpec)) return false;
         if (!IsEquals(x.Properties, y.Properties)) return false;
@@ -57,6 +60,8 @@ public class BaseTypeValueComparer : ValueComparer<BaseType>
     {
         AddHash(ref h, obj?.Name);
         AddHash(ref h, obj?.FullName);
+        AddHash(ref h, obj?.IsAbstract);
+        AddHash(ref h, obj?.IsInternal);
         AddHash(ref h, obj?.IsPartial);
         AddHash(ref h, obj?.PathSpec);
         AddHash(ref h, obj?.Properties);

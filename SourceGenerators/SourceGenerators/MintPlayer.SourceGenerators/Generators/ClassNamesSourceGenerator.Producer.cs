@@ -4,13 +4,15 @@ using System.CodeDom.Compiler;
 
 namespace MintPlayer.SourceGenerators.Generators;
 
-public class ClassNamesProducer : Producer, IDiagnosticReporter
+public class ClassNamesProducer : Producer, IConditionalDiagnosticReporter
 {
     private readonly IEnumerable<Models.ClassDeclaration> declarations;
     public ClassNamesProducer(IEnumerable<Models.ClassDeclaration> declarations, string rootNamespace) : base(rootNamespace, "ClassNames.g.cs")
     {
         this.declarations = declarations;
     }
+
+    public bool HasDiagnostics => false;
 
     public IEnumerable<Diagnostic> GetDiagnostics(Compilation compilation)
     {
@@ -34,13 +36,15 @@ public class ClassNamesProducer : Producer, IDiagnosticReporter
     }
 }
 
-public class ClassNameListProducer : Producer, IDiagnosticReporter
+public class ClassNameListProducer : Producer, IConditionalDiagnosticReporter
 {
     private readonly IEnumerable<Models.ClassDeclaration> declarations;
     public ClassNameListProducer(IEnumerable<Models.ClassDeclaration> declarations, string rootNamespace) : base(rootNamespace, "ClassNameList.g.cs")
     {
         this.declarations = declarations;
     }
+
+    public bool HasDiagnostics => false;
 
     public IEnumerable<Diagnostic> GetDiagnostics(Compilation compilation)
     {

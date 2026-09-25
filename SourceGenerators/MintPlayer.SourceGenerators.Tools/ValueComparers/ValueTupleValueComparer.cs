@@ -12,6 +12,15 @@ internal sealed class ValueTupleValueComparer<T1, T2> : ValueComparer<(T1, T2)>
 
         return true;
     }
+
+    // Hash the items the way AreEqual compares them. The default hashes the tuple itself, which
+    // falls back to each item's own GetHashCode — by reference for a model class — so two tuples
+    // this comparer calls equal could hash differently.
+    protected override void AddHash(ref Polyfills.HashCodeCompat h, (T1, T2) obj)
+    {
+        AddHash(ref h, obj.Item1);
+        AddHash(ref h, obj.Item2);
+    }
 }
 
 internal sealed class ValueTupleValueComparer<T1, T2, T3> : ValueComparer<(T1, T2, T3)>
@@ -28,6 +37,13 @@ internal sealed class ValueTupleValueComparer<T1, T2, T3> : ValueComparer<(T1, T
             return false;
 
         return true;
+    }
+
+    protected override void AddHash(ref Polyfills.HashCodeCompat h, (T1, T2, T3) obj)
+    {
+        AddHash(ref h, obj.Item1);
+        AddHash(ref h, obj.Item2);
+        AddHash(ref h, obj.Item3);
     }
 }
 
@@ -48,6 +64,14 @@ internal sealed class ValueTupleValueComparer<T1, T2, T3, T4> : ValueComparer<(T
             return false;
 
         return true;
+    }
+
+    protected override void AddHash(ref Polyfills.HashCodeCompat h, (T1, T2, T3, T4) obj)
+    {
+        AddHash(ref h, obj.Item1);
+        AddHash(ref h, obj.Item2);
+        AddHash(ref h, obj.Item3);
+        AddHash(ref h, obj.Item4);
     }
 }
 
@@ -71,6 +95,15 @@ internal sealed class ValueTupleValueComparer<T1, T2, T3, T4, T5> : ValueCompare
             return false;
 
         return true;
+    }
+
+    protected override void AddHash(ref Polyfills.HashCodeCompat h, (T1, T2, T3, T4, T5) obj)
+    {
+        AddHash(ref h, obj.Item1);
+        AddHash(ref h, obj.Item2);
+        AddHash(ref h, obj.Item3);
+        AddHash(ref h, obj.Item4);
+        AddHash(ref h, obj.Item5);
     }
 }
 
@@ -97,5 +130,15 @@ internal sealed class ValueTupleValueComparer<T1, T2, T3, T4, T5, T6> : ValueCom
             return false;
 
         return true;
+    }
+
+    protected override void AddHash(ref Polyfills.HashCodeCompat h, (T1, T2, T3, T4, T5, T6) obj)
+    {
+        AddHash(ref h, obj.Item1);
+        AddHash(ref h, obj.Item2);
+        AddHash(ref h, obj.Item3);
+        AddHash(ref h, obj.Item4);
+        AddHash(ref h, obj.Item5);
+        AddHash(ref h, obj.Item6);
     }
 }

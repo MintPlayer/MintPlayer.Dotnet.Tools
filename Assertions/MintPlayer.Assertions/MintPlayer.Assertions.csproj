@@ -9,7 +9,7 @@
 		<IsAotCompatible>true</IsAotCompatible>
 
 		<IsPackable>true</IsPackable>
-		<Version>11.0.0-rc.1</Version>
+		<Version>11.0.0-rc.3</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>Fluent assertion library for .NET. Free forever (Apache-2.0), AOT/trimming-safe, with source-generated object-graph equivalency and first-class analyzers.</Description>
@@ -79,7 +79,7 @@
 		       Text="%(_AssertionsAnalyzerAssets.Filename)%(_AssertionsAnalyzerAssets.Extension) was not found in MintPlayer.Assertions.SourceGenerator\bin\$(Configuration)\netstandard2.0. Packing would ship the assertion library with analyzers that cannot load, and no error to tell anyone." />
 
 		<ItemGroup>
-			<TfmSpecificPackageFile Include="@(_AssertionsAnalyzerAssets)" PackagePath="analyzers/dotnet/cs" />
+			<TfmSpecificPackageFile Include="@(_AssertionsAnalyzerAssets)" PackagePath="analyzers/dotnet/roslyn5.9/cs" />
 		</ItemGroup>
 	</Target>
 

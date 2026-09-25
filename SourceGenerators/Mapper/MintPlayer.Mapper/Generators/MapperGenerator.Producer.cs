@@ -6,7 +6,7 @@ using System.Collections.Immutable;
 
 namespace MintPlayer.Mapper.Generators;
 
-public sealed class MapperProducer : Producer, IDiagnosticReporter
+public sealed class MapperProducer : Producer, IConditionalDiagnosticReporter
 {
     private readonly IEnumerable<TypeWithMappedProperties> typesToMap;
     private readonly IEnumerable<ClassDeclaration> staticClasses;
@@ -15,6 +15,8 @@ public sealed class MapperProducer : Producer, IDiagnosticReporter
         this.typesToMap = typesToMap;
         this.staticClasses = staticClasses;
     }
+
+    public bool HasDiagnostics => typesToMap.Any(t => t.TypeToMap.HasError);
 
     public IEnumerable<Diagnostic> GetDiagnostics(Compilation compilation)
     {

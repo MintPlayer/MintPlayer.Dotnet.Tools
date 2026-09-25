@@ -9,7 +9,7 @@ using System.Text;
 
 namespace MintPlayer.SourceGenerators.Generators;
 
-public class RegistrationsProducer : Producer, IDiagnosticReporter
+public class RegistrationsProducer : Producer, IConditionalDiagnosticReporter
 {
     private const string MethodPrefix = "Add";
     private const string DefaultMethodNameFallback = "Services";
@@ -30,6 +30,8 @@ public class RegistrationsProducer : Producer, IDiagnosticReporter
         this.knowsDependencyInjectionAbstractions = knowsDependencyInjectionAbstractions;
         this.assemblyConfig = assemblyConfig;
     }
+
+    public bool HasDiagnostics => serviceRegistrations.Any(r => r.HasError);
 
     public IEnumerable<Diagnostic> GetDiagnostics(Compilation compilation)
     {

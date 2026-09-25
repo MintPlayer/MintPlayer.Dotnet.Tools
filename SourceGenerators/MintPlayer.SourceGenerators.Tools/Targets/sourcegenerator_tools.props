@@ -21,22 +21,22 @@
 	be taken — the property was declared empty and nothing set it — and whose two branches referenced
 	identical package versions, differing only in ROSLYN_4_* constants that nothing tested.
 
-	5.0.0 is the floor: every SDK that can build net10.0 or net11.0 ships Roslyn 5.x, and the whole
-	solution compiles against 5.0.0. For reference: .NET 10.0.112 -> Roslyn 5.0.0, .NET 10.0.401 ->
-	5.9.0, .NET 11 rc.1 -> 5.11.0. A host below 5.0 finds no analyzers/dotnet/roslyn5.0/cs folder and skips
-	the generator, rather than loading an assembly it cannot resolve and failing with CS8032.
+	5.9.0 is the floor, the latest stable Roslyn on nuget.org at the time it was chosen. For reference:
+	.NET 10.0.112 -> Roslyn 5.0.0, .NET 10.0.401 -> 5.9.0, .NET 11 rc.1 -> 5.11.0 — so this needs
+	.NET SDK 10.0.4xx or later. An older host finds no analyzers/dotnet/roslyn5.9/cs folder it qualifies
+	for and skips the generator, rather than loading an assembly it cannot resolve and failing with CS8032.
 	-->
 	<ItemGroup>
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" PrivateAssets="all" />
-		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<!-- Put the assets for this project in the correct package path -->
 
-		<!-- Roslyn 5.0 — see eng/sourcegenerator.targets for why this is the minimum -->
-		<None Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/roslyn5.0/cs" Visible="true" />
-		<None Include="$(PkgMintPlayer_SourceGenerators_Tools)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn5.0/cs" Visible="true" />
+		<!-- Roslyn 5.9 — see eng/sourcegenerator.targets for why this is the minimum -->
+		<None Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\netstandard2.0\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/roslyn5.9/cs" Visible="true" />
+		<None Include="$(PkgMintPlayer_SourceGenerators_Tools)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn5.9/cs" Visible="true" />
 
 		<!-- Attributes assembly, if exists -->
 		<None Condition="'$(Configuration)' == 'Release' " Include="$(MSBuildProjectDirectory)..\$(MSBuildProjectName).Attributes\bin\$(Configuration)\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="true" />
@@ -44,7 +44,7 @@
 
 	<!-- Microsoft.Extensions.DependencyInjection.Abstractions (only when referenced in the package project) -->
 	<ItemGroup Condition="'$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)' != ''">
-		<!-- Roslyn 5.0 — see eng/sourcegenerator.targets for why this is the minimum -->
-		<None Include="$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn5.0/cs" Visible="true" />
+		<!-- Roslyn 5.9 — see eng/sourcegenerator.targets for why this is the minimum -->
+		<None Include="$(PkgMicrosoft_Extensions_DependencyInjection_Abstractions)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/roslyn5.9/cs" Visible="true" />
 	</ItemGroup>
 </Project>

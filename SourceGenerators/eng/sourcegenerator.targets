@@ -24,7 +24,8 @@
 	difference between them was a set of ROSLYN_4_* DefineConstants that no source file in this
 	repository ever tested. It was a dual build in appearance only.
 
-	5.0.0 is the floor, and it is chosen rather than inherited. Measured Roslyn by SDK:
+	5.9.0 is the floor, and it is chosen rather than inherited: it was raised from 5.0.0 to the latest
+	stable Roslyn on nuget.org, knowingly giving up .NET SDKs before 10.0.4xx. Measured Roslyn by SDK:
 
 	    .NET 10.0.112   Roslyn 5.0.0     <- the oldest SDK that can build net10.0
 	    .NET 10.0.401   Roslyn 5.9.0
@@ -34,18 +35,17 @@
 	weight for this repository now that net8.0/net9.0 are gone — there is no SDK that both builds our
 	TFMs and runs a 4.x compiler. That is why this is ONE build rather than a 4.x/5.x dual build.
 
-	The generators were pinned to 5.3.0, which excluded .NET 10.0.112 for no reason: the whole
-	solution compiles unchanged against 5.0.0, so 5.3.0 bought nothing and cost the oldest supported
-	SDK. Lowering the floor widens reach across exactly the matrix we support.
-
-	Advertising roslyn4.0/roslyn4.9 was worse than either: it told a 5.0.0 host "this is for you",
-	which loaded a 5.3.0-built assembly and failed with CS8032. A host below the advertised version
-	now finds no matching folder and skips the generator instead of crashing on it.
+	History: the generators were once pinned to 5.3.0 while advertising roslyn4.0/roslyn4.9, which told
+	a 5.0.0 host "this is for you", loaded a 5.3.0-built assembly and failed with CS8032. The floor was
+	then lowered to 5.0.0 to reach .NET 10.0.112, and later raised to 5.9.0 by choice. Whatever the
+	floor, the rule is the same: the analyzer folder must name the version the generator was BUILT
+	against, so a host below it finds no matching folder and skips the generator instead of crashing.
+	That includes the Assertions package, which ships its analyzers itself rather than through this file.
 	-->
 	<ItemGroup>
-		<PackageReference Include="Microsoft.CodeAnalysis" Version="5.0.0" PrivateAssets="all" />
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" PrivateAssets="all" />
-		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+		<PackageReference Include="Microsoft.CodeAnalysis" Version="5.9.0" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
 	</ItemGroup>
 
 	<PropertyGroup>
@@ -55,7 +55,7 @@
 		this name IS the minimum supported Roslyn version. Five shipped build/*.props files repeat
 		it; they must move together with this.
 		-->
-		<RoslynPackagePath>analyzers/dotnet/roslyn5.0/cs</RoslynPackagePath>
+		<RoslynPackagePath>analyzers/dotnet/roslyn5.9/cs</RoslynPackagePath>
 	</PropertyGroup>
 
 	<ItemGroup>

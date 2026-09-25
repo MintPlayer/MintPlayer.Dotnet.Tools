@@ -50,7 +50,6 @@ public class MapperGenerator : IncrementalGenerator
                                     AreBothDecorated = destType1.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute"),
                                     AppliedOn = Models.EAppliedOn.Assembly,
                                     HasError = false,
-                                    Location = attr1.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation().AsKey(),
 
                                     DeclaredProperties = ProcessProperties(sourceType).ToArray(),
                                     MappingProperties = ProcessProperties(destType1).ToArray(),
@@ -63,6 +62,9 @@ public class MapperGenerator : IncrementalGenerator
                                 {
                                     AppliedOn = Models.EAppliedOn.Assembly,
                                     HasError = true,
+                                    // Only a model that reports a diagnostic carries its location. It is
+                                    // line-based, so on a clean model it changed whenever code above the
+                                    // attribute grew, and re-ran both output steps for nothing.
                                     Location = attr1.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation().AsKey(),
                                 };
                             }
@@ -98,7 +100,6 @@ public class MapperGenerator : IncrementalGenerator
                                     AreBothDecorated = destType2.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute"),
                                     AppliedOn = Models.EAppliedOn.Class,
                                     HasError = false,
-                                    Location = attr2.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation().AsKey(),
 
                                     DeclaredProperties = ProcessProperties(typeSymbol).ToArray(),
                                     MappingProperties = ProcessProperties(destType2).ToArray(),
@@ -170,6 +171,9 @@ public class MapperGenerator : IncrementalGenerator
                 MappedProperties = i.DeclaredProperties
                     .Select(dp => (Source: dp, Destination: i.MappingProperties.FirstOrDefault(mp => mp.Alias == dp.Alias)))
                     .Where(p => p.Source is { IsStatic: false } && p.Destination is { IsStatic: false })
+                    // Materialized: a deferred Where compares by reference, and was re-evaluated
+                    // on every enumeration by both producers.
+                    .ToArray()
             })
             .WithComparer()
             .Collect();
@@ -211,7 +215,12 @@ public class MapperGenerator : IncrementalGenerator
                                     StateType = m.Attribute.AttributeConstructor?.ContainingType?.TypeArguments.FirstOrDefault()?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
                                     StateTypeName = m.Attribute.AttributeConstructor?.ContainingType?.TypeArguments.FirstOrDefault()?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
 
-                                    AttributeLocation = (m.Attribute.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation()).AsKey(),
+                                    // Only the conversions the state checks below single out keep their
+                                    // location; on any other it is a line number that changes whenever
+                                    // code above the class grows, and would re-run the Mappers.g.cs output.
+                                    AttributeLocation = HasStateMismatch(m.Method, m.Attribute)
+                                        ? (m.Attribute.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation()).AsKey()
+                                        : null,
                                 })
                                 .ToArray(),
                         };
@@ -251,6 +260,23 @@ public class MapperGenerator : IncrementalGenerator
 
         context.ProduceCode(typesToMapSourceProvider, mapperEntrypointSourceProvider);
         context.ReportDiagnostics(typesToMapDiagnosticProvider);
+    }
+
+    /// <summary>
+    /// Whether a conversion method is one that <c>conversionMethodsWithMissingStateProvider</c> or
+    /// <c>conversionMethodsWithUnnecessaryStateProvider</c> selects: a same-type conversion without both
+    /// states, or a cross-type conversion with one.
+    /// </summary>
+    private static bool HasStateMismatch(IMethodSymbol method, AttributeData attribute)
+    {
+        var format = SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included);
+        var sameType = method.Parameters[0].Type.ToDisplayString(format) == method.ReturnType.ToDisplayString(format);
+        var hasSourceState = attribute.ConstructorArguments.Length >= 1 && attribute.ConstructorArguments[0].Value is int;
+        var hasDestinationState = attribute.ConstructorArguments.Length >= 2 && attribute.ConstructorArguments[1].Value is int;
+
+        return sameType
+            ? !hasSourceState || !hasDestinationState
+            : hasSourceState || hasDestinationState;
     }
 
     private static string CreateMethodName(TypedConstant preferred, INamedTypeSymbol type)

@@ -6,7 +6,7 @@ using MintPlayer.SourceGenerators.Tools;
 namespace MintPlayer.Assertions.SourceGenerator.Generators;
 
 /// <summary>Reports MPAG001 for [GenerateAssertion] methods whose shape cannot be generated.</summary>
-internal sealed class UnsupportedAssertionReporter : IDiagnosticReporter
+internal sealed class UnsupportedAssertionReporter : IConditionalDiagnosticReporter
 {
     private readonly EquatableArray<AssertionMethodDeclaration> declarations;
 
@@ -14,6 +14,8 @@ internal sealed class UnsupportedAssertionReporter : IDiagnosticReporter
     {
         this.declarations = declarations;
     }
+
+    public bool HasDiagnostics => declarations.Any();
 
     public IEnumerable<Diagnostic> GetDiagnostics(Compilation compilation)
     {

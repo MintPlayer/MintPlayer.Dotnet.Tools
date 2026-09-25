@@ -90,6 +90,28 @@ internal static class GeneratorHarness
             referenceTypes,
             h => h.RunGeneratorTwice(generatorTypeName, initialSources.ToArray(), modifiedSources.ToArray()));
 
+    /// <summary>
+    /// <see cref="Testing.GeneratorHarness.RunKeystroke"/> with this project's probing and references:
+    /// the second run replaces only the edited tree, as an IDE does.
+    /// </summary>
+    public static IncrementalGeneratorResult RunKeystroke(
+        string generatorTypeName,
+        IEnumerable<string> sources,
+        int editIndex,
+        Func<string, string> edit,
+        string? generatorAssemblyName = null)
+        => Probe(
+            generatorAssemblyName,
+            rootNamespace: "TestRoot",
+            referenceTypes: null,
+            h => h.RunKeystroke(generatorTypeName, sources.ToArray(), editIndex, edit));
+
+    /// <summary>Every <c>[Generator]</c> in every generator assembly this project tests, with its assembly name.</summary>
+    public static IReadOnlyList<(string Assembly, Type Generator)> AllGenerators()
+        => KnownGeneratorAssemblies
+            .SelectMany(name => _harnesses[name].GeneratorTypes().Select(t => (name, t)))
+            .ToList();
+
     public static Task<IReadOnlyList<Diagnostic>> RunAnalyzerAsync(
         string analyzerTypeName,
         IEnumerable<string> sources,

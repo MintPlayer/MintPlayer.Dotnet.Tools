@@ -18,7 +18,7 @@ public class GenericMethodProducer : Producer
         foreach (var method in Methods)
         {
             if (method?.Method is null) continue;
-            if (method.Method.ClassModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PartialKeyword) && method.Method.MethodModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PrivateKeyword))
+            if (method.Method.ClassIsPartial && method.Method.MethodIsPrivate)
             {
                 writer.WriteLine(Header);
                 writer.WriteLine();
@@ -28,7 +28,7 @@ public class GenericMethodProducer : Producer
                 using (writer.OpenPathSpec(method.Method.PathSpec))
                 {
                     writer.Write("public ");
-                    if (method.Method.ClassModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.StaticKeyword)) writer.Write("static ");
+                    if (method.Method.ClassIsStatic) writer.Write("static ");
                     writer.Write("partial ");
                     writer.Write($"class {method.Method.ClassName}");
                     writer.WriteLine();
@@ -38,8 +38,8 @@ public class GenericMethodProducer : Producer
                         for (int i = 1; i < method.Count + 1; i++)
                         {
                             writer.Write("public ");
-                            if (method.Method.MethodModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.StaticKeyword)) writer.Write("static ");
-                            if (method.Method.MethodModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PartialKeyword)) writer.Write("partial ");
+                            if (method.Method.MethodIsStatic) writer.Write("static ");
+                            if (method.Method.MethodIsPartial) writer.Write("partial ");
                             writer.Write($"void {method.Method.MethodName}<");
                             writer.Write(string.Join(", ", Enumerable.Range(1, i).Select(i => $"T{i}")));
                             writer.Write(">( ");
@@ -52,7 +52,7 @@ public class GenericMethodProducer : Producer
 
                             using (writer.OpenBlock(string.Empty))
                             {
-                                if (method.Method.MethodModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.StaticKeyword) || method.Method.ClassModifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.StaticKeyword))
+                                if (method.Method.MethodIsStatic || method.Method.ClassIsStatic)
                                     writer.Write($"{method.Method.ClassName}.{method.Method.MethodName}([");
                                 else
                                     writer.Write($"this.{method.Method.MethodName}([");
