@@ -3,7 +3,9 @@
     Fails when a packed assembly's version doesn't match the version of the package that ships it.
 
 .DESCRIPTION
-    Every release from 10.20.2 to 12.0.1 shipped assemblies versioned 99.9.9.0 (#187): the packaging
+    The SourceGenerators releases 10.20.2-12.0.1 and MintPlayer.Assertions 1.0.1-11.0.0-rc.4 shipped
+    assemblies versioned 99.9.9.0 (#187; the per-version list is in
+    docs/PRD-ValueComparerGenerator-DownstreamFindings.md, F4): the packaging
     tests packed the repository's own projects in place with -p:Version=99.9.9-packtest, and CI's
     `dotnet pack --no-build` after the test run packed those rebuilt dlls under the real package
     version. Nothing checked what was inside the package.

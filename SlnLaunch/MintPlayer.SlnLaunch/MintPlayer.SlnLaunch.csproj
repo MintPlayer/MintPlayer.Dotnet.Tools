@@ -6,7 +6,7 @@
 		<LangVersion>15</LangVersion>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
-		<Version>11.0.0-rc.1</Version>
+		<Version>11.0.0-rc.2</Version>
 		<PackageId>MintPlayer.SlnLaunch</PackageId>
 		<IsPackable>true</IsPackable>
 	</PropertyGroup>

@@ -17,7 +17,7 @@ reported, and one unrelated problem was found along the way. That problem is the
 | F1 | `IncludeRuntimeDependency="true"` breaks `GenerateDepsFile` (MSB4018) for a plain `ProjectReference` to a consuming generator | **Confirmed and reproduced.** The same line is in **eight** places, not one. |
 | F2 | `JoinMethods.g.cs` puts an empty public type in `Microsoft.CodeAnalysis` of the consumer's assembly (CS1591) | **Confirmed.** Also, the Join overloads it is meant to hold have the **wrong signature**, generated equality members raise the same CS1591, and public copies are ambiguous across assemblies (CS0121). |
 | F3 | The docs claim the Attributes dll is needed when the generator loads | **Confirmed wrong.** Roslyn loads and runs the generator without it. A host that finds generators by reflection does fail without it. |
-| F4 | *(found along the way)* Every published package from 10.20.2 to 12.0.1 ships assemblies versioned **99.9.9.0** | **Confirmed on nuget.org.** The likely mechanism is the packaging tests overwriting the Release build that CI then packs. Spike V1 confirms it. |
+| F4 | *(found along the way)* 37 published versions across 11 packages (SourceGenerators 10.20.2–12.0.1, Assertions 1.0.1–11.0.0-rc.4) ship assemblies versioned **99.9.9.0** | **Confirmed on nuget.org.** The likely mechanism is the packaging tests overwriting the Release build that CI then packs. Spike V1 confirms it. |
 
 **Decision:** fix all four in one PR.
 
@@ -170,6 +170,34 @@ consistent with the first affected release.
   older assembly. The main case is a downstream generator package built against Tools 12.0.1 and loaded next to a
   consumer's Tools 12.0.2 (spike V2).
 
+### F4 audit: exactly which published versions
+
+Audited on 2026-09-26: every version of the repo's 45 packages published since 2026-08-25, plus the last one
+before as a control (153 versions, `eng/Assert-PackageVersions.ps1` on each nupkg, fresh from nuget.org). 37 are
+affected.
+
+| Package | Restamped versions | Last clean | What is 99.9.9.0 |
+| --- | --- | --- | --- |
+| MintPlayer.SourceGenerators | 10.21.1, 10.22.0, 11.0.0, 12.0.0, 12.0.1 | 10.21.0 | own generator dll, bundled Tools and attributes |
+| MintPlayer.ValueComparerGenerator | 10.20.2, 11.0.0, 12.0.0, 12.0.1 | 10.20.1 | own generator dll, bundled Tools and attributes |
+| MintPlayer.Mapper | 10.21.1, 11.0.0, 12.0.0, 12.0.1 | 10.21.0 | bundled `MintPlayer.SourceGenerators.Tools.dll` |
+| MintPlayer.CliGenerator | 10.21.1, 11.0.0, 12.0.0, 12.0.1 | 10.21.0 | bundled `MintPlayer.SourceGenerators.Tools.dll` |
+| MintPlayer.SourceGenerators.Tools | 11.0.0, 12.0.0, 12.0.1 | 10.21.0 | own dll |
+| MintPlayer.SourceGenerators.Attributes | 11.0.0, 12.0.0, 12.0.1 | 10.20.1 | own dll |
+| MintPlayer.ValueComparerGenerator.Attributes | 11.0.0, 12.0.0, 12.0.1 | 10.20.1 | own dll |
+| MintPlayer.ValueComparers.NewtonsoftJson | 11.0.0, 12.0.0, 12.0.1 | 10.20.2 | own dll |
+| MintPlayer.Assertions | 1.0.1, 1.1.0, 11.0.0-rc.1, 11.0.0-rc.3, 11.0.0-rc.4 | 1.0.0 | own library and generator, bundled Tools and attributes |
+| MintPlayer.Solve | 10.0.1, 11.0.0-rc.1 | 10.0.0 | only the bundled `MintPlayer.SourceGenerators.Attributes.dll` under `tools/` |
+| MintPlayer.SlnLaunch | 11.0.0-rc.1 | 10.0.1 | only the bundled `MintPlayer.SourceGenerators.Attributes.dll` under `tools/` |
+
+The other 34 packages are clean, including CliGenerator.Attributes, Mapper.Attributes and SourceGenerators.Testing:
+they are outside `PackedFeed`'s pack closure. Assertions is in it (`ProjectsToPack`). Solve and SlnLaunch are dotnet
+tools that copy the restamped attributes dll into their output. A tool binds to its own folder, so for them it is
+cosmetic, but it is fixed by the same change.
+
+Assertions, Solve and SlnLaunch version separately and CI pushes with `--skip-duplicate`, so this PR bumps them
+(Assertions 11.0.0-rc.5, Solve and SlnLaunch 11.0.0-rc.2) to get a clean build published.
+
 ## Goals
 
 1. A plain `ProjectReference` to a generator that uses any of our generator packages builds. There is no MSB4018.
@@ -187,7 +215,7 @@ consistent with the first affected release.
   (open question 2).
 - **The Tools package's own public `Microsoft.CodeAnalysis.IncrementalValueProviderExtensions`.** That is a library type
   the consumer references on purpose. It is not generated into the consumer's assembly.
-- **Republishing or unlisting 10.20.2 to 12.0.1.** The fix ships as 12.1.0. The old versions are **deprecated**, not
+- **Republishing or unlisting the affected versions (F4 table).** The fix ships as 12.1.0. The old versions are **deprecated**, not
   unlisted (M7).
 
 ## Design
@@ -318,7 +346,7 @@ Tests are batched to the end, per the house rule. Verify each milestone by readi
      trivia.
 8. **M7: after the 12.1.0 release (owner).**
    - Check that the nuget.org 12.1.0 dlls report AssemblyVersion 12.1.0.0.
-   - Deprecate 10.20.2 through 12.0.1 of every affected package on nuget.org, with reason "critical bugs" and the
+   - Deprecate exactly the versions in the F4 audit table on nuget.org, except Solve and SlnLaunch (cosmetic), with reason "critical bugs" and the
      message "Assemblies carry AssemblyVersion 99.9.9.0; use 12.1.0 or later".
    - Deprecation is done in the nuget.org UI or through its API, not with the `dotnet` CLI. So this step needs the
      owner's nuget.org account.
@@ -344,7 +372,7 @@ All four were resolved by the owner.
    That is the owner's convention for every generator package. The dll stays even if S3 passes, so S3 is dropped.
 3. **The `<Error>` in `eng/valuecomparergenerator.targets`.** **Resolved: it stays an error, and its reason is
    corrected** (D5).
-4. **The affected releases on nuget.org (10.20.2 to 12.0.1).** **Resolved: deprecate them** once 12.1.0 is
+4. **The affected releases on nuget.org (the F4 audit table).** **Resolved: deprecate them** once 12.1.0 is
    published, with a message pointing at 12.1.0 (M7).
 
 **About the Join overloads (F2):** the owner confirmed they should become internal. Tools ships the arity 2–5

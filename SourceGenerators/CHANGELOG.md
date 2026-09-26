@@ -12,7 +12,8 @@ plus a version leak found while investigating them. The investigation, the spike
 ### Fixed
 
 **Every package**
-- **Assemblies carry their own version again.** Every release from 10.20.2 to 12.0.1 shipped assemblies with
+- **Assemblies carry their own version again.** 37 published versions (SourceGenerators 10.20.2–12.0.1, and
+  MintPlayer.Assertions; listed per package in the PRD's F4 audit) shipped assemblies with
   AssemblyVersion **99.9.9.0**. The packaging tests packed the repository's own projects in place with
   `-p:Version=99.9.9-packtest`, and the release's `dotnet pack --no-build` after the test run packed those rebuilt
   dlls. The packaging tests now pack into their own folder, and CI fails any PR or release whose packed assemblies

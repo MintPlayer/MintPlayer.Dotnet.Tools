@@ -74,7 +74,8 @@ jobs:
     - name: Pack
       run: dotnet pack --no-build --configuration Release /p:ContinuousIntegrationBuild=true
 
-    # Every release from 10.20.2 to 12.0.1 shipped assemblies versioned 99.9.9.0, because the
+    # The SourceGenerators releases 10.20.2-12.0.1 and MintPlayer.Assertions 1.0.1-11.0.0-rc.4
+    # shipped assemblies versioned 99.9.9.0, because the
     # packaging tests rebuilt bin/Release with their test version before this --no-build pack
     # (#187). Check what is inside the packages before anything is pushed.
     - name: Assert package versions

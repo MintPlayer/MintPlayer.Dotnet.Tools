@@ -96,7 +96,7 @@ generator with a plain `ProjectReference` gets two runtime assemblies from one p
 
 `PackedFeed` packs into its own artifacts folder. When it packed in place with
 `-p:Version=99.9.9-packtest`, CI's `dotnet pack --no-build` after the test run shipped the rebuilt
-dlls, and every release from 10.20.2 to 12.0.1 carried AssemblyVersion 99.9.9.0 (#187).
+dlls: every release of the SourceGenerators packages from 10.20.2 to 12.0.1, and MintPlayer.Assertions 1.0.1 to 11.0.0-rc.4, carried AssemblyVersion 99.9.9.0 (#187).
 `eng/Assert-PackageVersions.ps1` (repo root) now fails any PR or release whose assemblies don't
 match the package version.
 
@@ -197,8 +197,8 @@ slow by design.
   package (then, at comparison time). The reason was written down wrong ("Roslyn needs it to load the
   generator") and stood until #187 measured it; record the measured reason, not the assumed one.
 - **Packing the repo's own projects in place with a test version.** CI's `pack --no-build` shipped
-  the restamped dlls as 99.9.9.0 in every release from 10.20.2 to 12.0.1, and nothing looked inside
-  the packages.
+  the restamped dlls as 99.9.9.0 in 37 published versions across 11 packages, and nothing looked
+  inside the packages.
 - **Putting a value-comparer concern in `sourcegenerator.targets`** instead of the eng file that
   owns it.
 - **Leaving the old mechanism in place** beside the new one. NuGet de-duplicates identical pack
