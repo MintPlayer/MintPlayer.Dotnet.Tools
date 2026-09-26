@@ -321,8 +321,12 @@ internal sealed class CliCommandProducer : Producer
 
     private void WriteRootExtensions(IndentedTextWriter writer, CliCommandDefinition command)
     {
+        writer.WriteLine($"/// <summary>Registers, builds and invokes the <c>{command.TypeName}</c> command tree.</summary>");
         using (writer.OpenBlock($"public static class {command.TypeName}CliExtensions"))
         {
+            writer.WriteLine($"/// <summary>Registers <c>{command.TypeName}</c> and all of its subcommands as scoped services.</summary>");
+            writer.WriteLine("/// <param name=\"services\">The service collection to add the commands to.</param>");
+            writer.WriteLine("/// <returns>The same service collection, for chaining.</returns>");
             using (writer.OpenBlock($"public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection Add{command.TypeName}(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)"))
             {
                 writer.WriteLine($"{command.FullyQualifiedName}.RegisterCliCommandTree(services);");
@@ -330,12 +334,20 @@ internal sealed class CliCommandProducer : Producer
             }
             writer.WriteLine();
 
+            writer.WriteLine($"/// <summary>Builds the <c>{command.TypeName}</c> root command, with its options, arguments and subcommands.</summary>");
+            writer.WriteLine("/// <param name=\"serviceProvider\">The service provider the command handlers are resolved from.</param>");
+            writer.WriteLine("/// <returns>The root command.</returns>");
             using (writer.OpenBlock($"public static global::System.CommandLine.RootCommand Build{command.TypeName}(this global::System.IServiceProvider serviceProvider)"))
             {
                 writer.WriteLine($"return {command.FullyQualifiedName}.BuildCliRootCommand(serviceProvider);");
             }
             writer.WriteLine();
 
+            writer.WriteLine($"/// <summary>Parses <paramref name=\"args\"/> against the <c>{command.TypeName}</c> command tree and invokes the matching command.</summary>");
+            writer.WriteLine("/// <param name=\"host\">The host whose services the command handlers are resolved from.</param>");
+            writer.WriteLine("/// <param name=\"args\">The command-line arguments.</param>");
+            writer.WriteLine("/// <returns>The exit code of the invoked command.</returns>");
+            writer.WriteLine("/// <exception cref=\"global::MintPlayer.CliGenerator.Attributes.ParseCommandException\">The arguments could not be parsed.</exception>");
             using (writer.OpenBlock($"public static async global::System.Threading.Tasks.Task<int> Invoke{command.TypeName}Async(this global::Microsoft.Extensions.Hosting.IHost host, string[] args)"))
             {
                 writer.WriteLine($"var command = {command.FullyQualifiedName}.BuildCliRootCommand(host.Services);");

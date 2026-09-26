@@ -14,6 +14,7 @@ namespace Demo
 {
     partial record Tagged
     {
+        /// <inheritdoc/>
         public bool Equals(global::Demo.Tagged? other)
         {
             if (other is null) return false;
@@ -23,6 +24,7 @@ namespace Demo
                 && global::MintPlayer.SourceGenerators.Tools.ValueEquality.List<string>(Tags, other.Tags);
         }
         
+        /// <inheritdoc/>
         public override int GetHashCode()
         {
             unchecked

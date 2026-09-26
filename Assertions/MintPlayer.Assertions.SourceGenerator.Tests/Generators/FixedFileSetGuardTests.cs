@@ -24,7 +24,7 @@ public class FixedFileSetGuardTests
         public override string ToString() => Generator;
     }
 
-    private static readonly Case[] Cases =
+    internal static readonly Case[] Cases =
     [
         new("GenerateAssertionGenerator", """
             public static class Item{i}Predicates

@@ -10,11 +10,18 @@
 	</ItemGroup>
 
 	<!--
-	A generator that decorates its own pipeline models with [GenerateEquality] carries that
-	attribute assembly into its own package, because Roslyn resolves it when LOADING the generator
-	— not when the consumer compiles. Leave it out and the consumer gets
-	"cannot find [GenerateEquality]" naming an assembly they never referenced, or the generator
-	simply fails to load and produces nothing.
+	A generator that decorates its own pipeline models with [GenerateEquality] ships that attribute
+	assembly beside itself in analyzers/dotnet/cs, as every generator package here ships its
+	attribute assemblies.
+
+	The measured reason (#187, docs/PRD-ValueComparerGenerator-DownstreamFindings.md F3): Roslyn's
+	own loader does NOT need it. AnalyzerFileReference finds generators by reading metadata, and
+	[GenerateEquality] is only a custom-attribute blob on internal model types, which nothing
+	resolves while loading or running the generator; a csc build without the dll emits the same
+	files. What does need it is anything that reflects over the generator's types: a host that finds
+	generators with GetCustomAttributes/IsDefined throws FileNotFoundException on the types that
+	carry [GenerateEquality], and so does any future code that reads attributes off a model. So the
+	dll ships, and packing without it is an error.
 
 	This belongs here rather than in sourcegenerator.targets: needing it is a property of using the
 	value comparer, not of being a generator. Only the projects that import this file get it.
@@ -39,7 +46,7 @@
 		</ItemGroup>
 
 		<Error Condition="!Exists('%(_ValueComparerAttributes.FullPath)')"
-		       Text="MintPlayer.ValueComparerGenerator.Attributes.dll was not found in bin\$(Configuration)\netstandard2.0. This generator uses [GenerateEquality], so packing without it produces a generator Roslyn cannot load." />
+		       Text="MintPlayer.ValueComparerGenerator.Attributes.dll was not found in bin\$(Configuration)\netstandard2.0. This generator uses [GenerateEquality], and a generator package ships its attribute assemblies beside it in analyzers/dotnet/cs: without it, any host that discovers the generator by reflection fails to load its types." />
 
 		<ItemGroup>
 			<TfmSpecificPackageFile Include="@(_ValueComparerAttributes)" PackagePath="analyzers/dotnet/cs" />

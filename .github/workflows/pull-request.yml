@@ -78,3 +78,12 @@ jobs:
         finish: true
         # A coverage-service outage must never be the reason a PR cannot merge.
         fail-ci-if-error: false
+
+    # The same pack and version check as dotnet-build-master.yml, so a change that makes the
+    # test run restamp bin/Release fails here rather than in a release (#187).
+    - name: Pack
+      run: dotnet pack --no-build --configuration Release /p:ContinuousIntegrationBuild=true
+
+    - name: Assert package versions
+      shell: pwsh
+      run: ./eng/Assert-PackageVersions.ps1 -Path .

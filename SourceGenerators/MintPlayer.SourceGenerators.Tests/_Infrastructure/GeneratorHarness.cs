@@ -99,11 +99,12 @@ internal static class GeneratorHarness
         IEnumerable<string> sources,
         int editIndex,
         Func<string, string> edit,
-        string? generatorAssemblyName = null)
+        string? generatorAssemblyName = null,
+        IEnumerable<Type>? referenceTypes = null)
         => Probe(
             generatorAssemblyName,
             rootNamespace: "TestRoot",
-            referenceTypes: null,
+            referenceTypes,
             h => h.RunKeystroke(generatorTypeName, sources.ToArray(), editIndex, edit));
 
     /// <summary>Every <c>[Generator]</c> in every generator assembly this project tests, with its assembly name.</summary>

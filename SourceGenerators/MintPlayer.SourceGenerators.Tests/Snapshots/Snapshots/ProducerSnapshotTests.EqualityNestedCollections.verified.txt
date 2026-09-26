@@ -19,6 +19,7 @@ namespace Demo
         private static readonly global::System.Collections.Generic.IEqualityComparer<(string Key, global::System.Collections.Generic.List<int> Values)> s_valueEquality2 = new global::MintPlayer.SourceGenerators.Tools.ValueEquality.DelegateComparer<(string Key, global::System.Collections.Generic.List<int> Values)>((x, y) => (global::System.String.Equals(x.Item1, y.Item1, global::System.StringComparison.Ordinal) && global::MintPlayer.SourceGenerators.Tools.ValueEquality.List<int>(x.Item2, y.Item2)), x => unchecked((17 * 31 + ((x.Item1 is null ? 0 : global::System.StringComparer.Ordinal.GetHashCode(x.Item1)))) * 31 + (global::MintPlayer.SourceGenerators.Tools.ValueEquality.ListHash<int>(x.Item2))));
         private static readonly global::System.Collections.Generic.IEqualityComparer<string[]> s_valueEquality3 = global::MintPlayer.SourceGenerators.Tools.ValueEquality.ArrayComparer<string>.Instance;
         
+        /// <inheritdoc/>
         public bool Equals(global::Demo.Holder? other)
         {
             if (other is null) return false;
@@ -36,8 +37,10 @@ namespace Demo
                 && Ratio.Equals(other.Ratio);
         }
         
+        /// <inheritdoc/>
         public override bool Equals(object? obj) => Equals(obj as global::Demo.Holder);
         
+        /// <inheritdoc/>
         public override int GetHashCode()
         {
             unchecked
@@ -61,6 +64,7 @@ namespace Demo
     
     partial class Item : global::System.IEquatable<global::Demo.Item>
     {
+        /// <inheritdoc/>
         public bool Equals(global::Demo.Item? other)
         {
             if (other is null) return false;
@@ -69,8 +73,10 @@ namespace Demo
                 && Kind == other.Kind;
         }
         
+        /// <inheritdoc/>
         public override bool Equals(object? obj) => Equals(obj as global::Demo.Item);
         
+        /// <inheritdoc/>
         public override int GetHashCode()
         {
             unchecked

@@ -144,8 +144,21 @@ var sourceProvider = typeProvider
 ```
 
 By using this extension method, you can avoid the nested tuples that would require you to write `p.Left.Left.Left.Left.Right` to access a value.
-If you want to join more than 5 providers, you can apply the `[assembly: GenerateJoinMethods(n)]` attribute on a namespace.
-The ValueComparerGenerator package contains a source-generator that will generate the necessary extension methods for you.
+If you want to join more than 5 providers, apply `[assembly: GenerateJoinMethods(n)]`. The ValueComparerGenerator
+package then generates the overloads for 6 to `n` providers into `JoinMethods.g.cs`. They chain the same way:
+`previous.Join(next)`. The generated class is `internal`, so every generator project gets its own copy and none of
+them is exposed to projects that reference it. Without the attribute, nothing is generated.
+
+## Running your generator in-process from a test project
+A test project can reference a generator that uses `[GenerateEquality]` with a plain `<ProjectReference>`, to run it
+in-process. The attributes dll is added to that project's bin folder, but not to its `deps.json`. The generated
+equality code doesn't need it. Code that reflects over the models' attributes, such as `GetCustomAttributes()`, does.
+The classic VSTest testhost resolves the dll from bin anyway. Exe-hosted runners (xunit.v3, Microsoft.Testing.Platform)
+and ordinary apps throw `FileNotFoundException`. If your project reflects over the models' attributes, add:
+
+```xml
+<PackageReference Include="MintPlayer.ValueComparerGenerator.Attributes" Version="12.1.0" />
+```
 
 ## Breaking changes in 12.0.0
 The full list, with a migration guide, is in the [changelog](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/blob/master/SourceGenerators/CHANGELOG.md).

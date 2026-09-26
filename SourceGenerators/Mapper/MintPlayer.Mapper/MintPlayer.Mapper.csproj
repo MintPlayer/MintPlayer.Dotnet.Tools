@@ -6,12 +6,12 @@
 
 	<Target Name="GetDependencyTargetPathsMintPlayerMapper">
 		<ItemGroup>
-			<TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)\..\MintPlayer.Mapper.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.Mapper.Attributes.dll" IncludeRuntimeDependency="true" />
+			<TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)\..\MintPlayer.Mapper.Attributes\bin\$(Configuration)\netstandard2.0\MintPlayer.Mapper.Attributes.dll" IncludeRuntimeDependency="false" />
 		</ItemGroup>
 	</Target>
 
 	<PropertyGroup>
-		<Version>12.0.1</Version>
+		<Version>12.1.0</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>This package automatically generates mappers for you</Description>

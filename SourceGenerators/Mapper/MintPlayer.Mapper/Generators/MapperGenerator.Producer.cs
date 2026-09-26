@@ -43,8 +43,17 @@ public sealed class MapperProducer : Producer, IConditionalDiagnosticReporter
 
         using (writer.OpenBlock($"namespace {RootNamespace}"))
         {
+            writer.WriteLine("/// <summary>Generated extension methods that map between the type pairs declared with <c>[GenerateMapper]</c>.</summary>");
             using (writer.OpenBlock("public static class MapperExtensions"))
             {
+                writer.WriteLine("/// <summary>Converts a value with the registered <c>[MapperConversion]</c> method for <typeparamref name=\"TSource\"/> to <typeparamref name=\"TDest\"/>.</summary>");
+                writer.WriteLine("/// <typeparam name=\"TSource\">The type of the value to convert.</typeparam>");
+                writer.WriteLine("/// <typeparam name=\"TDest\">The type to convert to.</typeparam>");
+                writer.WriteLine("/// <param name=\"source\">The value to convert.</param>");
+                writer.WriteLine("/// <param name=\"sourceState\">The state of the source value, for state-aware conversion methods.</param>");
+                writer.WriteLine("/// <param name=\"destState\">The state of the destination value, for state-aware conversion methods.</param>");
+                writer.WriteLine("/// <returns>The converted value, or <see langword=\"default\"/> when <paramref name=\"source\"/> is <see langword=\"null\"/>.</returns>");
+                writer.WriteLine("/// <exception cref=\"global::System.NotSupportedException\">No conversion method is registered for this pair of types.</exception>");
                 using (writer.OpenBlock("public static TDest? ConvertProperty<TSource, TDest>(TSource? source, int? sourceState = null, int? destState = null)"))
                 {
                     using (writer.OpenBlock("if (source is null)", false))
@@ -89,6 +98,10 @@ public sealed class MapperProducer : Producer, IConditionalDiagnosticReporter
                 foreach (var type in typesToMap.Where(t => !t.TypeToMap.HasError))
                 {
                     var accessModifier = Math.Min(type.TypeToMap.DeclaredTypeAccessibility, type.TypeToMap.MappingTypeAccessibility) < 6 ? "internal" : "public";
+                    var declaredDoc = DocType(type.TypeToMap.DeclaredType);
+                    var mappingDoc = DocType(type.TypeToMap.MappingType);
+
+                    WriteCopyDoc(writer, mappingDoc, declaredDoc);
                     using (writer.OpenBlock($"{accessModifier} static void {type.TypeToMap.PreferredDeclaredMethodName}(this {type.TypeToMap.MappingType} input, {type.TypeToMap.DeclaredType} output)"))
                     {
                         using (writer.OpenBlock("if ((input is { } inValue) && (output is { }))"))
@@ -100,6 +113,7 @@ public sealed class MapperProducer : Producer, IConditionalDiagnosticReporter
                         }
                     }
 
+                    WriteCreateDoc(writer, mappingDoc, declaredDoc);
                     using (writer.OpenBlock($"{accessModifier} static {type.TypeToMap.DeclaredType} {type.TypeToMap.PreferredDeclaredMethodName}(this {type.TypeToMap.MappingType} input)"))
                     {
                         writer.WriteLine("if (input is null) return default;");
@@ -115,6 +129,7 @@ public sealed class MapperProducer : Producer, IConditionalDiagnosticReporter
 
                     if (!type.TypeToMap.AreBothDecorated)
                     {
+                        WriteCopyDoc(writer, declaredDoc, mappingDoc);
                         using (writer.OpenBlock($"{accessModifier} static void {type.TypeToMap.PreferredMappingMethodName}(this {type.TypeToMap.DeclaredType} input, {type.TypeToMap.MappingType} output)"))
                         {
                             using (writer.OpenBlock("if ((input is { } inValue) && (output is { }))"))
@@ -126,6 +141,7 @@ public sealed class MapperProducer : Producer, IConditionalDiagnosticReporter
                             }
                         }
 
+                        WriteCreateDoc(writer, declaredDoc, mappingDoc);
                         using (writer.OpenBlock($"{accessModifier} static {type.TypeToMap.MappingType} {type.TypeToMap.PreferredMappingMethodName}(this {type.TypeToMap.DeclaredType} input)"))
                         {
                             writer.WriteLine("if (input is null) return default;");
@@ -140,17 +156,45 @@ public sealed class MapperProducer : Producer, IConditionalDiagnosticReporter
                         }
                     }
 
+                    WriteSequenceDoc(writer, mappingDoc, declaredDoc);
                     using (writer.OpenBlock($"{accessModifier} static global::System.Collections.Generic.IEnumerable<{type.TypeToMap.DeclaredType}> {type.TypeToMap.PreferredDeclaredMethodName}(this global::System.Collections.Generic.IEnumerable<{type.TypeToMap.MappingType}> input)"))
                         writer.WriteLine($"return input.Select(x => x.{type.TypeToMap.PreferredDeclaredMethodName}());");
 
                     if (!type.TypeToMap.AreBothDecorated)
                     {
+                        WriteSequenceDoc(writer, declaredDoc, mappingDoc);
                         using (writer.OpenBlock($"{accessModifier} static global::System.Collections.Generic.IEnumerable<{type.TypeToMap.MappingType}> {type.TypeToMap.PreferredMappingMethodName}(this global::System.Collections.Generic.IEnumerable<{type.TypeToMap.DeclaredType}> input)"))
                             writer.WriteLine($"return input.Select(x => x.{type.TypeToMap.PreferredMappingMethodName}());");
                     }
                 }
             }
         }
+    }
+
+    // XML doc comments for the emitted mapping methods. Type names go in <c> rather than a cref:
+    // a generic or nested name would need cref syntax ({T}) that the plain type string doesn't have.
+    private static string DocType(string type)
+        => type.Replace("global::", string.Empty).Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+
+    private static void WriteCopyDoc(IndentedTextWriter writer, string fromType, string toType)
+    {
+        writer.WriteLine($"/// <summary>Copies the mapped properties of a <c>{fromType}</c> onto an existing <c>{toType}</c>.</summary>");
+        writer.WriteLine("/// <param name=\"input\">The object to read from.</param>");
+        writer.WriteLine("/// <param name=\"output\">The object to write to.</param>");
+    }
+
+    private static void WriteCreateDoc(IndentedTextWriter writer, string fromType, string toType)
+    {
+        writer.WriteLine($"/// <summary>Maps a <c>{fromType}</c> to a new <c>{toType}</c>.</summary>");
+        writer.WriteLine("/// <param name=\"input\">The object to map.</param>");
+        writer.WriteLine("/// <returns>The new object, or <see langword=\"default\"/> when <paramref name=\"input\"/> is <see langword=\"null\"/>.</returns>");
+    }
+
+    private static void WriteSequenceDoc(IndentedTextWriter writer, string fromType, string toType)
+    {
+        writer.WriteLine($"/// <summary>Maps each <c>{fromType}</c> in a sequence to a new <c>{toType}</c>.</summary>");
+        writer.WriteLine("/// <param name=\"input\">The objects to map.</param>");
+        writer.WriteLine("/// <returns>The mapped objects, in the same order.</returns>");
     }
 
     // Helper methods for type checks
@@ -431,14 +475,29 @@ public sealed class MapperEntrypointProducer : Producer
 
         using (writer.OpenBlock($"namespace {RootNamespace}"))
         {
+            writer.WriteLine("/// <summary>Maps objects between the type pairs declared with <c>[GenerateMapper]</c>.</summary>");
             using (writer.OpenBlock("public interface IMapper"))
             {
+                writer.WriteLine("/// <summary>Maps a <typeparamref name=\"TSource\"/> to a new <typeparamref name=\"TDest\"/>.</summary>");
+                writer.WriteLine("/// <typeparam name=\"TSource\">The type of the object to map.</typeparam>");
+                writer.WriteLine("/// <typeparam name=\"TDest\">The type to map to.</typeparam>");
+                writer.WriteLine("/// <param name=\"source\">The object to map.</param>");
+                writer.WriteLine("/// <returns>The new object, or <see langword=\"default\"/> when <paramref name=\"source\"/> is <see langword=\"null\"/>.</returns>");
+                writer.WriteLine("/// <exception cref=\"global::System.NotSupportedException\">No mapping exists from the type of <paramref name=\"source\"/> to <typeparamref name=\"TDest\"/>.</exception>");
                 writer.WriteLine("TDest? Map<TSource, TDest>(TSource? source);");
+                writer.WriteLine("/// <summary>Copies the mapped properties of a <typeparamref name=\"TSource\"/> onto an existing <typeparamref name=\"TDest\"/>.</summary>");
+                writer.WriteLine("/// <typeparam name=\"TSource\">The type of the object to read from.</typeparam>");
+                writer.WriteLine("/// <typeparam name=\"TDest\">The type of the object to write to.</typeparam>");
+                writer.WriteLine("/// <param name=\"source\">The object to read from. Nothing happens when it is <see langword=\"null\"/>.</param>");
+                writer.WriteLine("/// <param name=\"destination\">The object to write to.</param>");
+                writer.WriteLine("/// <exception cref=\"global::System.NotSupportedException\">No mapping exists between the types of <paramref name=\"source\"/> and <paramref name=\"destination\"/>.</exception>");
                 writer.WriteLine("void Map<TSource, TDest>(TSource? source, TDest destination);");
             }
 
+            writer.WriteLine("/// <summary>The generated <see cref=\"IMapper\"/>, dispatching to the <c>MapperExtensions</c> methods.</summary>");
             using (writer.OpenBlock("public class Mapper : IMapper"))
             {
+                writer.WriteLine("/// <inheritdoc/>");
                 using (writer.OpenBlock("public TDest? Map<TSource, TDest>(TSource? source)"))
                 {
                     using (writer.OpenBlock("if (source is null)", false))
@@ -480,6 +539,7 @@ public sealed class MapperEntrypointProducer : Producer
                     writer.WriteLine("return (TDest?)result;");
                 }
 
+                writer.WriteLine("/// <inheritdoc/>");
                 using (writer.OpenBlock("public void Map<TSource, TDest>(TSource? source, TDest destination)"))
                 {
                     writer.WriteLine("if (source is null) return;");

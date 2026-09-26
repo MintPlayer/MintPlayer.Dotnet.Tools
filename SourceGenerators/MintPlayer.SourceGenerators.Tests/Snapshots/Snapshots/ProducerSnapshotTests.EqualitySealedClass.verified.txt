@@ -14,6 +14,7 @@ namespace Demo
 {
     partial class Child : global::System.IEquatable<global::Demo.Child>
     {
+        /// <inheritdoc/>
         public bool Equals(global::Demo.Child? other)
         {
             if (other is null) return false;
@@ -21,8 +22,10 @@ namespace Demo
             return global::System.String.Equals(Value, other.Value, global::System.StringComparison.Ordinal);
         }
         
+        /// <inheritdoc/>
         public override bool Equals(object? obj) => Equals(obj as global::Demo.Child);
         
+        /// <inheritdoc/>
         public override int GetHashCode()
         {
             unchecked
@@ -36,6 +39,7 @@ namespace Demo
     
     partial class CliOption : global::System.IEquatable<global::Demo.CliOption>
     {
+        /// <inheritdoc/>
         public bool Equals(global::Demo.CliOption? other)
         {
             if (other is null) return false;
@@ -46,8 +50,10 @@ namespace Demo
                 && global::MintPlayer.SourceGenerators.Tools.ValueEquality.ImmutableArray<global::Demo.Child>(Children, other.Children);
         }
         
+        /// <inheritdoc/>
         public override bool Equals(object? obj) => Equals(obj as global::Demo.CliOption);
         
+        /// <inheritdoc/>
         public override int GetHashCode()
         {
             unchecked

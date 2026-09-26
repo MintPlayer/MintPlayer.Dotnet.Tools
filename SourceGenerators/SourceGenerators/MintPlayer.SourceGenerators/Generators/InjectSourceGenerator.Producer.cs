@@ -117,6 +117,12 @@ internal class InjectProducer : Producer, IConditionalDiagnosticReporter
         List<string> baseConstructorArgs,
         bool needsIConfiguration)
     {
+        // A cref to a generic type needs its type parameters in braces (Foo{T}); the syntax-derived parameter list can
+        // carry attributes, so a generic type is named in <c> instead of risking an unresolvable cref (CS1574).
+        var typeReference = string.IsNullOrEmpty(classInfo.GenericTypeParameters)
+            ? $"<see cref=\"{classInfo.ClassName}\"/>"
+            : $"<c>{classInfo.ClassName}</c>";
+        writer.WriteLine($"/// <summary>Initializes a new instance of {typeReference} with its injected dependencies.</summary>");
         writer.WriteLine($"public {classInfo.ClassName}({string.Join(", ", constructorParams)})");
         if (baseConstructorArgs.Any())
             writer.IndentSingleLine($": base({string.Join(", ", baseConstructorArgs)})");

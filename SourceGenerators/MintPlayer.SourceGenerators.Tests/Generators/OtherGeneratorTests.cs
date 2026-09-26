@@ -1,3 +1,4 @@
+using Microsoft.CodeAnalysis;
 using MintPlayer.SourceGenerators.Tests._Infrastructure;
 
 namespace MintPlayer.SourceGenerators.Tests.Generators;
@@ -678,6 +679,85 @@ public class JoinMethodGeneratorTests
 
             public class Thing { }
             """], generatorAssemblyName: "MintPlayer.ValueComparerGenerator");
+
+        run.Errors.Should().BeEmpty(run.ErrorText);
+    }
+
+    /// <summary>
+    /// MintPlayer.SourceGenerators.Tools ships the Join overloads up to arity 5, so without
+    /// <c>[GenerateJoinMethods(n)]</c> there is nothing to generate. 12.0.1 still emitted an empty public class, which
+    /// raised CS1591 in every documented consumer (#187).
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void WithoutTheAttribute_ItEmitsNothing(bool referencesRoslyn)
+    {
+        var run = GeneratorHarness.Run("JoinMethodGenerator", ["""
+            namespace Demo;
+
+            public class Thing { }
+            """],
+            referenceTypes: referencesRoslyn ? [typeof(IncrementalValueProvider<>)] : null,
+            generatorAssemblyName: "MintPlayer.ValueComparerGenerator");
+
+        run.GeneratedSources.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void WithoutARoslynReference_ItEmitsNothing_EvenWithTheAttribute()
+    {
+        var run = GeneratorHarness.Run("JoinMethodGenerator", ["""
+            [assembly: MintPlayer.ValueComparerGenerator.Attributes.GenerateJoinMethods(7)]
+
+            namespace Demo;
+            """], generatorAssemblyName: "MintPlayer.ValueComparerGenerator");
+
+        run.GeneratedSources.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The generated overloads are internal: public copies in two assemblies made every call in the referencing one
+    /// ambiguous (CS0121), and put a public type in the consumer's <c>Microsoft.CodeAnalysis</c> namespace (#187).
+    /// </summary>
+    [Fact]
+    public void TheGeneratedOverloadsAreInternal()
+    {
+        var run = GeneratorHarness.Run("JoinMethodGenerator", ["""
+            [assembly: MintPlayer.ValueComparerGenerator.Attributes.GenerateJoinMethods(7)]
+
+            namespace Demo;
+            """],
+            referenceTypes: [typeof(IncrementalValueProvider<>)],
+            generatorAssemblyName: "MintPlayer.ValueComparerGenerator");
+
+        run.SourceFor("JoinMethods.g.cs").Should().Contain("internal static partial class IncrementalValueProviderAdditionalEx")
+            .And.NotContain("public static class");
+    }
+
+    /// <summary>
+    /// Arity 6 and up chain exactly like the arity 2–5 overloads in Tools: <c>previous.Join(next)</c>. 12.0.1 made them
+    /// take <c>previous</c> plus five more providers and ignored all but the last (#187).
+    /// </summary>
+    [Fact]
+    public void TheGeneratedOverloadsChainWithOneArgument()
+    {
+        var run = GeneratorHarness.Run("JoinMethodGenerator", ["""
+            using Microsoft.CodeAnalysis;
+
+            [assembly: MintPlayer.ValueComparerGenerator.Attributes.GenerateJoinMethods(7)]
+
+            namespace Demo;
+
+            public static class Pipeline
+            {
+                public static IncrementalValueProvider<(int, string, int, string, int, string, int)> All(
+                    IncrementalValueProvider<int> i, IncrementalValueProvider<string> s)
+                    => i.Join(s).Join(i).Join(s).Join(i).Join(s).Join(i);
+            }
+            """],
+            referenceTypes: [typeof(IncrementalValueProvider<>)],
+            generatorAssemblyName: "MintPlayer.ValueComparerGenerator");
 
         run.Errors.Should().BeEmpty(run.ErrorText);
     }

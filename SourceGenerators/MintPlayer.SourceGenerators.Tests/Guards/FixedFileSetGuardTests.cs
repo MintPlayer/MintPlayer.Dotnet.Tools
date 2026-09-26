@@ -56,7 +56,7 @@ public class FixedFileSetGuardTests
         public override string ToString() => Generator;
     }
 
-    private static readonly Case[] Cases =
+    internal static readonly Case[] Cases =
     [
         new("ClassNamesSourceGenerator", SourceGenerators, "", """
             public class Item{i} { }
@@ -223,13 +223,20 @@ public class FixedFileSetGuardTests
         HintNames(five).Should().NotBeEquivalentTo(HintNames(one));
     }
 
-    private static GeneratorRun Run(Case c, int count)
+    internal static GeneratorRun Run(Case c, int count)
     {
-        var sources = c.Generator == "JoinMethodGenerator"
+        var isJoin = c.Generator == "JoinMethodGenerator";
+        var sources = isJoin
             ? [$"[assembly: MintPlayer.ValueComparerGenerator.Attributes.GenerateJoinMethods({6 + count})]", .. c.Corpus(count)]
             : c.Corpus(count);
 
-        return GeneratorHarness.Run(c.Generator, sources, generatorAssemblyName: c.Assembly);
+        // The Join overloads extend Roslyn's IncrementalValueProvider, so JoinMethodGenerator emits nothing for a
+        // compilation that doesn't reference Roslyn.
+        return GeneratorHarness.Run(
+            c.Generator,
+            sources,
+            referenceTypes: isJoin ? [typeof(IncrementalValueProvider<>)] : null,
+            generatorAssemblyName: c.Assembly);
     }
 
     private static List<string> HintNames(GeneratorRun run) => run.GeneratedSources.Select(s => s.HintName).ToList();

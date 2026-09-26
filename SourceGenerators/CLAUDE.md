@@ -30,8 +30,8 @@ packages ship **no assembly the consumer compiles or links against**: their whol
 The attributes are the apparent exception and are worth being precise about. A consumer does write
 `[Inject]` or `[GenerateEquality]`, but those types come from a separate `*.Attributes` package
 that the generator package takes a **NuGet dependency** on — that is the one with the `lib/`. The
-copies under `analyzers/dotnet/cs` exist purely so Roslyn can resolve the attributes while loading
-the generator; the consumer never binds to them.
+copies under `analyzers/dotnet/cs` belong to the generator's own payload, for whatever reflects over
+the generator's types (see below); the consumer never binds to them.
 
 So `netstandard2.0`, `IsRoslynComponent`, `DevelopmentDependency=true` and
 `IncludeBuildOutput=false` are all exactly right here, and a `lib/` folder would be wrong.
@@ -62,19 +62,43 @@ Roslyn loads analyzers **only** from those paths. A DLL one folder away is resto
 
 ### Every generator here needs `MintPlayer.ValueComparerGenerator.Attributes.dll`
 
-All four generators decorate their own pipeline models with `[GenerateEquality]`. Roslyn resolves
-that attribute when **loading** the generator, so the assembly must be in `analyzers/dotnet/cs`.
-Leave it out and the package does not degrade — it stops working, with
-"cannot find `[GenerateEquality]`" naming an assembly the consumer never referenced.
+All four generators decorate their own pipeline models with `[GenerateEquality]`, so the assembly
+ships in `analyzers/dotnet/cs`, and packing without it is an `<Error>`. Be precise about **why**
+(measured in #187, `docs/PRD-ValueComparerGenerator-DownstreamFindings.md` F3):
+
+- Roslyn's loader does **not** need it. `AnalyzerFileReference` finds generators by reading metadata,
+  and the attribute is only a blob on internal model types; a `csc` build without the dll emits the
+  same files. (Before #185 it *was* needed, at comparison time: the value-comparer runtime called
+  `GetCustomAttribute` on the models.)
+- A host that finds generators **by reflection** (`GetCustomAttributes`, `IsDefined` over all types)
+  throws `FileNotFoundException` on every model type. So does any future code that reads attributes
+  off a model. That is why it ships.
 
 The Assertions generator (`Assertions/MintPlayer.Assertions.SourceGenerator`) uses it too and imports
 `valuecomparergenerator.targets`, but it is not packable: `MintPlayer.Assertions.csproj` ships the DLL
 in `analyzers/dotnet/roslyn5.9/cs` beside the generator, because that package keeps
 `analyzers/dotnet/cs` empty.
 
-Before removing anything from an analyzer payload, ask **"does the generator need this at load
-time?"** and check with `grep`. A file being absent from a sibling's `ProjectReference` list proves
+Before removing anything from an analyzer payload, ask **"what needs this, and when?"** and check
+with `grep` and a build that lacks it. A file being absent from a sibling's `ProjectReference` list proves
 nothing about whether the generator needs it.
+
+### Never set `IncludeRuntimeDependency="true"` on an analyzer-folder dependency
+
+The `GetDependencyTargetPaths*` targets add attribute dlls to `TargetPathWithTargetPlatformMoniker`
+for the analyzer payload. With `IncludeRuntimeDependency="true"`, a project that references the
+generator with a plain `ProjectReference` gets two runtime assemblies from one project and fails in
+`GenerateDepsFile` with MSB4018 "An item with the same key has already been added" (#187). Use
+`false`, as `eng/sourcegenerator.targets` does. A clean build is needed to see it: a leftover
+`deps.json` hides it.
+
+### Never pack or build into the repository's own `bin/` with a test version
+
+`PackedFeed` packs into its own artifacts folder. When it packed in place with
+`-p:Version=99.9.9-packtest`, CI's `dotnet pack --no-build` after the test run shipped the rebuilt
+dlls: every release of the SourceGenerators packages from 10.20.2 to 12.0.1, and MintPlayer.Assertions 1.0.1 to 11.0.0-rc.4, carried AssemblyVersion 99.9.9.0 (#187).
+`eng/Assert-PackageVersions.ps1` (repo root) now fails any PR or release whose assemblies don't
+match the package version.
 
 ### A generator emits a fixed set of files
 
@@ -169,8 +193,12 @@ slow by design.
 - **Inferring instead of checking.** Every wrong call here came from reasoning about the code when
   the answer was one command away: the `eng/` folder, a published `.nupkg`, or
   `grep GenerateEquality`.
-- **Removing a payload entry as "stale residue"** without checking whether the generator loads
-  without it. It did not.
+- **Removing a payload entry as "stale residue"** without checking what needs it. It broke the
+  package (then, at comparison time). The reason was written down wrong ("Roslyn needs it to load the
+  generator") and stood until #187 measured it; record the measured reason, not the assumed one.
+- **Packing the repo's own projects in place with a test version.** CI's `pack --no-build` shipped
+  the restamped dlls as 99.9.9.0 in 37 published versions across 11 packages, and nothing looked
+  inside the packages.
 - **Putting a value-comparer concern in `sourcegenerator.targets`** instead of the eng file that
   owns it.
 - **Leaving the old mechanism in place** beside the new one. NuGet de-duplicates identical pack

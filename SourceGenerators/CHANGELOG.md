@@ -3,6 +3,63 @@
 This changelog covers every package under `SourceGenerators/`. They are versioned in lockstep, so one entry applies
 to all of them.
 
+## 12.1.0
+
+Fixes the findings reported downstream in [#187](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/187),
+plus a version leak found while investigating them. The investigation, the spikes and the design are in
+[`docs/PRD-ValueComparerGenerator-DownstreamFindings.md`](../docs/PRD-ValueComparerGenerator-DownstreamFindings.md).
+
+### Fixed
+
+**Every package**
+- **Assemblies carry their own version again.** 37 published versions (SourceGenerators 10.20.2–12.0.1, and
+  MintPlayer.Assertions; listed per package in the PRD's F4 audit) shipped assemblies with
+  AssemblyVersion **99.9.9.0**. The packaging tests packed the repository's own projects in place with
+  `-p:Version=99.9.9-packtest`, and the release's `dotnet pack --no-build` after the test run packed those rebuilt
+  dlls. The packaging tests now pack into their own folder, and CI fails any PR or release whose packed assemblies
+  don't match the package version (`eng/Assert-PackageVersions.ps1`). Those releases are deprecated on nuget.org.
+- **A plain `ProjectReference` to a generator built on these packages builds.** The packages' `build/*.targets` added
+  their attributes dll to the referencing generator's target path with `IncludeRuntimeDependency="true"`. A project
+  referencing that generator normally, such as a test project running it in-process, then failed in
+  `GenerateDepsFile` with MSB4018 "An item with the same key has already been added". It is now `false`, as for every
+  other analyzer-folder dependency. Such a project gets the attributes dll in bin but not in its `deps.json`. If it
+  reflects over the models' attributes and doesn't run under the VSTest testhost, it needs a `PackageReference` to the
+  attributes package (see the ValueComparerGenerator README).
+- **No generated file raises CS1591.** A consumer building with `GenerateDocumentationFile` got a missing-XML-comment
+  warning for every public member a generator emitted. Generated code can't be documented or suppressed by the
+  consumer. Every generator now documents what it emits. A new guard (`DocumentedOutputGuardTests`, in both generator
+  test projects) compiles each generator's output with documentation diagnostics on.
+
+**MintPlayer.ValueComparerGenerator**
+- **`JoinMethods.g.cs` is emitted only when it has something in it**: `[assembly: GenerateJoinMethods(n)]` with
+  `n >= 6`, in a project that references Roslyn. Every generator project without the attribute used to get an empty
+  **public** class `Microsoft.CodeAnalysis.IncrementalValueProviderAdditionalEx`.
+- **The generated class is `internal static partial`.** A public copy in two assemblies made calls in the referencing
+  one ambiguous (CS0121), and it put a public type in the consumer's `Microsoft.CodeAnalysis` namespace.
+- **The overloads for 6 providers and up chain like the ones in Tools**: `previous.Join(next)`. They took `previous`
+  plus five more providers and ignored all but the last, so `a.Join(b)` didn't compile past arity 5.
+
+### Breaking changes
+
+- **Arity 6+ `Join` callers:** the old six-argument form no longer exists. Write `a.Join(b)`. A library built with
+  12.0.1 or earlier still exposes its public copy. Extension calls in either shape stay unambiguous, so a referencing
+  project and its library don't have to upgrade together. Naming the class directly
+  (`IncrementalValueProviderAdditionalEx.Join(...)`) across such a pair gives CS0436.
+- **AssemblyVersion drops from 99.9.9.0 to 12.1.0.0.** This matters when a project mixes generator packages from
+  before and after the fix, measured in the PRD's spike V2. Each generator package bundles
+  `MintPlayer.SourceGenerators.Tools.dll`. The SDK's `ResolvePackageFileConflicts` keeps only the copy with the
+  highest AssemblyVersion, and that is the bogus **99.9.9.0** from the older package. Every generator in the project
+  then runs against the older Tools. It builds cleanly today, because the Tools API is compatible. A future generator
+  that needs a newer Tools API won't load next to a 10.20.2–12.0.1 package, so upgrade every MintPlayer generator
+  package together.
+
+### Changed
+
+- The docs, the `eng/valuecomparergenerator.targets` error text and `CLAUDE.md` gave the wrong reason why
+  `MintPlayer.ValueComparerGenerator.Attributes.dll` ships beside a generator that uses `[GenerateEquality]`. Measured:
+  Roslyn loads and runs the generator without it, but a host that discovers generators by reflection throws
+  `FileNotFoundException` on the model types. The dll still ships, and packing without it is still an error.
+
 ## 12.0.1
 
 The design and spikes are in [`docs/PRD-EqualitySingleFile.md`](../docs/PRD-EqualitySingleFile.md). Not a breaking

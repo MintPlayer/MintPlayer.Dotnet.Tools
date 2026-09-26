@@ -289,6 +289,8 @@ public class IncrementalOutputCachingTests
             """),
 
         new("JoinMethodGenerator", ValueComparers, """
+            [assembly: MintPlayer.ValueComparerGenerator.Attributes.GenerateJoinMethods(7)]
+
             namespace Demo;
 
             __LEAD__
@@ -314,7 +316,9 @@ public class IncrementalOutputCachingTests
     public void AnIrrelevantEdit_IsServedFromCache(Case c)
     {
         var run = GeneratorHarness.RunKeystroke(
-            c.Generator, c.Sources, c.EditIndex, _ => c.Edited, generatorAssemblyName: c.Assembly);
+            c.Generator, c.Sources, c.EditIndex, _ => c.Edited, generatorAssemblyName: c.Assembly,
+            // The Join overloads extend Roslyn's IncrementalValueProvider; without Roslyn there is nothing to emit.
+            referenceTypes: c.Generator == "JoinMethodGenerator" ? [typeof(IncrementalValueProvider<>)] : null);
 
         // Guard: a generator that emits nothing, or registers no output, is vacuously "cached".
         run.First.GeneratedSources.Should().NotBeEmpty(

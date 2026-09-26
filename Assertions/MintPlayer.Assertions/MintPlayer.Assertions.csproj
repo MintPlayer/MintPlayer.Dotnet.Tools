@@ -9,7 +9,7 @@
 		<IsAotCompatible>true</IsAotCompatible>
 
 		<IsPackable>true</IsPackable>
-		<Version>11.0.0-rc.4</Version>
+		<Version>11.0.0-rc.5</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>Fluent assertion library for .NET. Free forever (Apache-2.0), AOT/trimming-safe, with source-generated object-graph equivalency and first-class analyzers.</Description>
@@ -75,9 +75,10 @@
 			<_AssertionsAnalyzerAssets Include="..\MintPlayer.Assertions.SourceGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.Assertions.SourceGenerator.dll" />
 			<_AssertionsAnalyzerAssets Include="..\MintPlayer.Assertions.SourceGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Tools.dll" />
 			<!--
-			The generator's pipeline models are [GenerateEquality] types, so Roslyn needs this
-			assembly to LOAD the generator. Leave it out and every analyzer in this package stops
-			working. It sits beside the generator in the versioned folder, not in the unversioned
+			The generator's pipeline models are [GenerateEquality] types, so this assembly ships beside
+			it. Roslyn's own loader reads metadata and runs the generator without it, but any host that
+			finds analyzers by reflection (GetCustomAttributes/IsDefined over the types) throws
+			FileNotFoundException on those models (#187, measured). It sits beside the generator in the versioned folder, not in the unversioned
 			analyzers/dotnet/cs: this package keeps that folder empty (PackagingTests pins it), and
 			the loader resolves a dependency from the analyzer's own directory.
 			-->

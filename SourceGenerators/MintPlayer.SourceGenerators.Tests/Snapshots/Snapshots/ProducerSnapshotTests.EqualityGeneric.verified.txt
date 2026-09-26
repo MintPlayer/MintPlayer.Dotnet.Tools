@@ -14,6 +14,7 @@ namespace Demo
 {
     partial class Box<T> : global::System.IEquatable<global::Demo.Box<T>>
     {
+        /// <inheritdoc/>
         public bool Equals(global::Demo.Box<T>? other)
         {
             if (other is null) return false;
@@ -21,16 +22,20 @@ namespace Demo
             return other.GetType() == GetType() && EqualsCore(other);
         }
         
+        /// <inheritdoc/>
         public override bool Equals(object? obj) => Equals(obj as global::Demo.Box<T>);
         
+        /// <inheritdoc/>
         public override int GetHashCode() => HashCore();
         
+        /// <summary>Compares the members this type and its bases declare with those of <paramref name="other"/>.</summary>
         protected virtual bool EqualsCore(global::Demo.Box<T> other)
         {
             return global::System.Collections.Generic.EqualityComparer<T?>.Default.Equals(Value, other.Value)
                 && global::MintPlayer.SourceGenerators.Tools.ValueEquality.List<T>(Items, other.Items);
         }
         
+        /// <summary>Hashes the members <c>EqualsCore</c> compares.</summary>
         protected virtual int HashCore()
         {
             unchecked
@@ -45,8 +50,10 @@ namespace Demo
     
     partial class IntBox : global::System.IEquatable<global::Demo.IntBox>
     {
+        /// <inheritdoc/>
         public bool Equals(global::Demo.IntBox? other) => base.Equals(other);
         
+        /// <inheritdoc/>
         protected override bool EqualsCore(global::Demo.Box<int> other)
         {
             if (!base.EqualsCore(other)) return false;
@@ -54,6 +61,7 @@ namespace Demo
             return global::System.String.Equals(Label, o.Label, global::System.StringComparison.Ordinal);
         }
         
+        /// <inheritdoc/>
         protected override int HashCore()
         {
             unchecked
