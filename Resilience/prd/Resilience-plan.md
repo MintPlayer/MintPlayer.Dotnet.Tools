@@ -29,6 +29,12 @@ is recorded in "Spike results" below.
 **Go/no-go after M0:** if S1 fails its stop condition, the plan ends there with a written recommendation:
 use Fences, or pin Polly 8.8.0.
 
+**M0 status: ✅ complete (2026-09-30). GO.**
+
+- S1, S2 and S4–S8 pass.
+- S3 fails for interceptors. Its technique moves to the MPR0002 code fix (M5).
+- Results are in "Spike results" below.
+
 ## Milestone 1 — Runtime core ⏳
 
 - `Outcome<T>`, `ResilienceContext` + pool, `ResiliencePropertyKey<T>`, `TimeProvider` plumbing.
@@ -297,7 +303,7 @@ Details in `Resilience/spikes/S3/RESULTS.md`, covering 31 shapes on net10 + net1
   assignment (CS9137), whereas `buildTransitive/*.targets` survives. Keep this in mind for any
   package-set property.
 
-### S4 — PASS on correctness; throughput pending the sequential BDN run (2026-09-29)
+### S4 — PASS (2026-09-29; throughput measured 2026-09-30)
 
 Details in `Resilience/spikes/S4/RESULTS.md`.
 
@@ -334,14 +340,23 @@ Details in `Resilience/spikes/S4/RESULTS.md`.
 only on close. Without that, a call admitted right after closing could re-trip the circuit on the old
 failures. It is only observable through the break-duration generator's arguments.
 
-**Pending:** LockFree must be ≥ Locked at 16 threads (the real test; beating Polly is expected, since
-Polly also pays for its whole pipeline).
+**Throughput** (BDN, 2026-09-30): mean time per closed-state `TryEnter` + `Record`, all 0 B.
 
-- **Risk:** the 5 % failure case, where each failure sums up to 480 counters.
-- **If LockFree loses to Locked:** keep the lock.
-- **If only the failure case loses:** use fewer stripes, or keep a running total per window.
+| Threads | Failures | Polly | Locked (Polly's logic, under a lock) | **LockFree** |
+|---|---|---:|---:|---:|
+| 1 | 0 % | 146 ns | 49 ns | **25 ns** |
+| 1 | 5 % | 147 ns | 50 ns | **33 ns** |
+| 4 | 0 % | 351 ns | 151 ns | **8 ns** |
+| 4 | 5 % | 359 ns | 127 ns | **11 ns** |
+| 16 | 0 % | 361 ns | 163 ns | **5 ns** |
+| 16 | 5 % | 350 ns | 140 ns | **11 ns** |
 
-### S5 — PASS on bytes and on the safety question; timing pending the sequential BDN run (2026-09-29)
+- **Pass.** LockFree beats Locked in every case, and by 12–32× under contention.
+- **The feared 5 % failure case** costs about 2× the failure-free case, but is still 12× faster than
+  Locked.
+- **Decision:** the lock-free controller ships (M2).
+
+### S5 — PASS (2026-09-29; timing measured 2026-09-30)
 
 Details in `Resilience/spikes/S5/RESULTS.md`. The table shows bytes per rejected call, over 200k calls:
 
@@ -379,10 +394,23 @@ on every rejection (`RateLimiterResilienceStrategy.cs:77`).
 - Our own limiters (the adaptive concurrency limit, and a native fixed/sliding window) are written
   lease-free in M3.
 
-**Timing:** `TryExecuteAsync` on an open circuit measured about 212–232 ns with a Stopwatch while other
-spikes were running. The BDN run is pending.
+**Timing** (BenchmarkDotNet, sequential run, .NET 11), mean time per rejected call:
 
-### S6 — PASS on correctness and allocation; the ≤ 5 ns gate is pending the sequential BDN run (2026-09-29)
+| Variant | Circuit open | Concurrency limiter | Fixed-window limiter |
+|---|---:|---:|---:|
+| **Ours `TryExecuteAsync`** | **59 ns** | **30 ns** | **47 ns** |
+| Ours `ExecuteAsync` (fresh throw) | 2,682 ns | 2,598 ns | 2,633 ns |
+| Polly `ExecuteOutcomeAsync` | 158 ns | 36,135 ns | 39,970 ns |
+| Polly `ExecuteAsync` (throws) | 3,710 ns | 58,141 ns | 57,014 ns |
+
+- **The ≤ 250 ns target is met with 4× headroom.** It is 2.7× faster than even Polly's non-throwing
+  path.
+- **Rate-limited rejections:** 30–47 ns against Polly's 36–58 µs, which is 800–1,900× faster. The gap
+  is Polly's per-rejection stack walk.
+- **A cached throw is no faster than a fresh one** (2,673 vs 2,682 ns), which confirms the decision to
+  allocate per throw.
+
+### S6 — PASS (2026-09-29; timing measured 2026-09-30)
 
 Details in `Resilience/spikes/S6/RESULTS.md`.
 
@@ -419,9 +447,19 @@ hoisted into the pooled state machine for free).
 - A static pipeline means one configuration per process. This is accepted, and documented. Use the
   non-static DI form for per-container configuration.
 - **Decision:** variant B. C copies ~64 B per execution for no measurable gain.
-- The BDN timing (B vs A) will be confirmed in the sequential run.
+**Timing** (BDN, 2026-09-30), sync-completing callback, all 0 B:
 
-### S8 — PASS on allocation and event parity; the ≤ 120 ns gate is pending the sequential BDN run (2026-09-29)
+| Variant | Mean |
+|---|---|
+| A (constants) | 178.2 ns |
+| B (class snapshot) | 182.7 ns (**+4.5 ns**) |
+| C (struct snapshot) | 181.8 ns (+3.6 ns) |
+
+- **Pass, narrowly.** The ≤ 5 ns gate is met.
+- **The difference is within the error bars** (±3.6 ns), so treat it as "a few ns".
+- **Reload stays opt-in per pipeline**, as planned.
+
+### S8 — PASS (2026-09-29; timing measured 2026-09-30)
 
 Details in `Resilience/spikes/S8/RESULTS.md`, including the names table.
 
@@ -459,8 +497,20 @@ Details in `Resilience/spikes/S8/RESULTS.md`, including the names table.
 - **Decision for M1:** make the interpreter generic over a telemetry struct, so the no-op version is
   JIT-eliminated.
 
-**Pending:** `Ours_On − Ours_Off` must be ≤ 120 ns, compared with `Polly_On − Polly_Off`, in the
-`Sink=MeterNoOp` row. This comes from the sequential BDN run.
+**Timing** (BDN, 2026-09-30), happy path. The overhead is On − Off:
+
+| Listener | Ours off | Ours on | **Ours overhead** | Polly off | Polly on | Polly overhead |
+|---|---:|---:|---:|---:|---:|---:|
+| **Meter, no-op** (the gate row) | 187 ns | 267 ns | **+80 ns** | 693 ns | 935 ns | +243 ns (48 B) |
+| Real OpenTelemetry SDK | 175 ns | 674 ns | +498 ns | 694 ns | 1,519 ns | +825 ns (48 B) |
+| Meter + logging at Information | 178 ns | 331 ns | +153 ns | 735 ns | 1,106 ns | +370 ns (48 B) |
+| One retry, meter no-op | 328 ns | 480 ns | +152 ns | 1,181 ns | 1,643 ns | +462 ns (96 B) |
+
+- **Pass.** The overhead is +80 ns against the ≤ 120 ns gate, 3× less than Polly's, at 0 B.
+  `Ours_On_Lean` (without the redundant executing counter) is +65 ns.
+- **Runtime telemetry off costs nothing measurable:** 181–189 ns, the same as compiled-out.
+- **With telemetry on, our whole pipeline still costs less than Polly's with telemetry off** in every
+  row: 267 vs 693 ns, and 674 vs 694 ns with the real OpenTelemetry SDK.
 
 ### S7 — PASS (2026-09-29)
 

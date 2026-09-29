@@ -195,7 +195,7 @@ var pipeline = new ResiliencePipelineBuilder<HttpResponseMessage>()
 |---|---|
 | Retry | Constant / linear / exponential / decorrelated-jitter backoff, `MaxDelay`, `DelayGenerator`, `OnRetry`, `Retry-After` aware (reuse `MintPlayer.Http` `GetRetryAfter`). |
 | Timeout | Pooled CTS (`TryReset`), `TimeProvider`, `OnTimeout`. |
-| Circuit breaker | Failure ratio over a sliding window, minimum throughput, break duration (generator), half-open probing, manual control, state provider. The state controller is lock-free if S4 passes. |
+| Circuit breaker | Failure ratio over a sliding window, minimum throughput, break duration (generator), half-open probing, manual control, state provider. The state controller is lock-free (S4): a CAS on packed state plus per-core striped health counters, 12–32× faster than a lock under contention. |
 | Fallback | Value, or a delegate over the outcome. |
 | Hedging | Max hedged attempts, delay, action generator; pooled execution contexts. |
 | Rate / concurrency limiter | Wraps `System.Threading.RateLimiting` (the lease cost is intrinsic). |
