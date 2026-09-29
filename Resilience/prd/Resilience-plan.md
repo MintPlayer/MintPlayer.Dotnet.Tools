@@ -80,14 +80,18 @@ manual reset.
 **Done when:** the sample `CatalogPipeline` from PRD §2.1 generates, compiles and passes the analyzers
 clean.
 
-## Milestone 5 — Interceptors ⏳
+## Milestone 5 — Closure analyzer + code fix ⏳
 
-- Closure lowering at generated-pipeline call sites, within the boundary S3 defined.
-- The package `.props` sets `InterceptorsNamespaces`.
-- MPR0002 for capturing lambdas on runtime pipelines.
+Interceptors are dropped (S3).
 
-**Done when:** a capturing call site in the sample compiles to the intercepted path (verified in the
-generated source).
+- **MPR0002 (info/suggestion):** a capturing lambda passed to any pipeline's `Execute*`.
+- **Code fix:** rewrites the call to the `static (state, ct) => …` overload, with a state tuple. It is
+  offered only inside S3's verified boundary, and is based on `spikes/S3/S3.Generator/SiteAnalyzer.cs`.
+- **Out-of-boundary shapes get no fix**, including mutated captures, since the naive rewrite gave wrong
+  results in S3.
+
+**Done when:** code-fix tests cover all 31 S3 shapes. Every in-boundary shape becomes 0 B with the same
+results, and every out-of-boundary shape has no fix offered.
 
 ## Milestone 6 — DI, registry, reload, telemetry ⏳
 
@@ -244,6 +248,54 @@ No silent corruption was observed; a stale token is detected.
     passed to `Task.WhenAll` / `WhenAny` without `.AsTask()`. It is modelled on CA2012, but as an error
     and scoped to our API.
   - Document the rule in the README's migration section.
+
+### S3 — FAIL for interceptors; the technique moves to a code fix (2026-09-29)
+
+Details in `Resilience/spikes/S3/RESULTS.md`, covering 31 shapes on net10 + net11.
+
+**Why interceptors can't remove the closure:**
+
+- An interceptor swaps only the call target. The caller has already built the display class and
+  delegate when it evaluates the argument.
+- A signature that takes state is rejected (CS9144).
+- Escape analysis doesn't remove the allocation either.
+- Measured: the interceptor ran on all 200k calls and saved 0 B.
+
+**Bytes per call:** plain / intercepted / source-rewritten to static + state, net10 (net11):
+
+| Capture | Plain | Intercepted | Rewritten |
+|---|---|---|---|
+| Captured local | 88 (80) | 88 (80) | **0** |
+| `this` only | 64 (56) | 64 (56) | **0** |
+| 2 locals + `this` | 104 (96) | 104 (96) | **0** |
+| Async lambda / call site inside an `async` method | 88 (80) | 88 (80) | **0** |
+
+**Rewrite boundary** (results verified identical to the closure):
+
+- **In boundary:** a non-static lambda that captures only locals, value parameters or class `this`,
+  where:
+  - nothing it captures is written anywhere in the enclosing member;
+  - the captured state is not used in nested functions;
+  - there is no `base.` access and no call to a non-static local function.
+- **Mutated captures must not be rewritten.** The naive rewrite gave wrong results (1 vs 2, 10 vs 11,
+  11 vs 12).
+- **Already rejected by the compiler:** struct `this`, ref/Span locals, and `ref`/`in`/`out` parameters.
+
+**Decisions:**
+
+- Interceptors are dropped. Closure removal is the MPR0002 code fix (M5 rewritten; PRD §1.2, §1.3, §2.1,
+  §2.6, §4 and §5 corrected).
+- The differentiator is honest now: every library allocates for a closure, and we offer a correct
+  one-click rewrite.
+
+**Other findings:**
+
+- **Compiler floor:** a generator built against Roslyn 5.9 needs **SDK ≥ 10.0.4xx**. It fails with
+  CS9057 on 10.0.112.
+- **Caching:** `InterceptableLocation.Data` embeds the file checksum, which is moot now.
+- **Packaging:** `InterceptorsNamespaces` from a package `.props` is overwritten by a user's csproj
+  assignment (CS9137), whereas `buildTransitive/*.targets` survives. Keep this in mind for any
+  package-set property.
 
 ### S4 — PASS on correctness; throughput pending the sequential BDN run (2026-09-29)
 

@@ -2,8 +2,8 @@
 
 A source-generated resilience library for .NET: retry, timeout, circuit breaker, fallback, hedging and
 rate limiting. It covers what Polly v8 (`Polly.Core`) offers, but composes the pipeline at compile time,
-so there is no per-strategy delegate hop and nothing is boxed per layer, it is AOT-clean, and call sites
-with closures do not allocate.
+so there is no per-strategy delegate hop and nothing is boxed per layer, and it is AOT-clean. A code fix
+rewrites capturing call sites so they do not allocate.
 
 **License: Apache-2.0** (repo standard). There is no maintenance fee and no EULA on the binaries.
 
@@ -56,7 +56,7 @@ tooling for that:
 | License / fee | BSD-3 source, OSMF EULA on binaries from ~Nov 2026 | BSD-3 | Apache-2.0 |
 | Pipeline composition | runtime, one delegate hop + state tuple per strategy | same (fork) | **compile time, one flat method** |
 | Async state-machine boxes when the callback really suspends | one per layer | same | **one per pipeline, pooled** |
-| Closure at call site (`ExecuteAsync(ct => Foo(id, ct))`) | allocates; docs say rewrite with static lambda + state by hand | same | **removed by interceptor** |
+| Closure at call site (`ExecuteAsync(ct => Foo(id, ct))`) | allocates; docs say rewrite with static lambda + state by hand | same | allocates too, but **an analyzer + one-click code fix** does the rewrite (0 B after the fix) |
 | Rejection (open circuit, rate limited, timeout) | throws (~5 µs, ~1.3 KB for open CB) | same | **`Outcome` result, no throw, when you use the Try API** |
 | Native AOT | works, but boxes a `StateWrapper` per hop (24 B) | same | **no boxing; trimming/AOT clean by design** |
 | Predicates | `Func<Args, ValueTask<bool>>` per outcome | same | compile-time `is`/switch, synchronous `bool` |
@@ -84,8 +84,12 @@ state, a callback that **completes synchronously**, the happy path, no exception
    measured on async hedging). We box **one** per pipeline, and zero with
    `PoolingAsyncValueTaskMethodBuilder`. **This is the headline win**, because it is the path production
    code actually takes.
-3. **Closure call sites:** Polly allocates 64–100 B per call. We allocate 0 B, with no change to how
-   users write the call.
+3. **Closure call sites:** a capturing lambda allocates 56–104 B per call in *any* library. The caller
+   builds the delegate before the call, so no library, and no interceptor, can avoid it (plan S3).
+   - MPR0002 flags these call sites and offers a code fix that rewrites them to a static lambda + state
+     tuple: 0 B.
+   - The rewrite applies within the boundary S3 verified. Anything outside it is left untouched,
+     because a naive rewrite changes results.
 4. **Rejected calls:** Polly takes ~5 µs and ~1.3 KB for an open circuit. We target ≤ 250 ns and 0 B
    through the `Outcome` API. Rejection is exactly when a system is under stress.
 
@@ -123,7 +127,7 @@ public sealed partial class CatalogPipeline   // not `static`: it must be usable
 
 // Call sites
 var r1 = await CatalogPipeline.ExecuteAsync(static (id, ct) => client.GetAsync($"/items/{id}", ct), id, ct);
-var r2 = await CatalogPipeline.ExecuteAsync(ct => client.GetAsync($"/items/{id}", ct), ct); // closure → intercepted, 0 B
+var r2 = await CatalogPipeline.ExecuteAsync(ct => client.GetAsync($"/items/{id}", ct), ct); // closure: MPR0002 + code fix → r1's form
 Outcome<HttpResponseMessage> o = await CatalogPipeline.TryExecuteAsync(...);                // never throws on rejection
 ```
 
@@ -327,7 +331,7 @@ documentation instead of a table of differences. A parity test pins these values
 | Id | Rule |
 |---|---|
 | MPR0001 | Polly v8 `ResiliencePipelineBuilder` usage detected. Code fix converts it to a `[ResiliencePipeline]` class when all options are constant. |
-| MPR0002 | Capturing lambda passed to a runtime (non-generated) pipeline. Suggests the generated pipeline or a `static` lambda + state. |
+| MPR0002 | Capturing lambda passed to any pipeline's `Execute*` (allocates 56–104 B/call). The code fix rewrites it to a `static` lambda + state tuple, within the boundary verified in S3. |
 | MPR0003 | Non-idempotent-looking callback (HTTP POST without idempotency key) under retry/hedging. Warning only. |
 | MPR0004 | Invalid attribute combination (e.g. inner timeout ≥ outer timeout, retry outside a total timeout of 0). |
 | MPR0005 | `ExecuteAsync` result not awaited. |
@@ -368,7 +372,8 @@ must retry, open the circuit and time out on the same scripted fault sequence be
    mean, 0 B.
 2. **Async-suspending callback** (`await Task.Yield()`), same pipeline: allocations ≤ 1 pooled box. The
    target is ≤ 10 % of Polly's bytes. Polly's number is measured in S1.
-3. **Closure call site** via the generated pipeline: 0 B. Polly's is measured.
+3. **Closure call sites:** the MPR0002 code fix turns every S3 in-boundary shape into a 0 B call, with
+   results identical to the original closure (tests on net10 + net11).
 4. **Open-circuit rejection** via `TryExecuteAsync`: ≤ 250 ns, 0 B. Polly `ExecuteAsync`: ~5.1 µs /
    1.3 KB.
 5. **Circuit breaker under contention** (16 threads, closed): throughput ≥ Polly's (lock-based).
@@ -383,10 +388,14 @@ must retry, open the circuit and time out on the same scripted fault sequence be
 - **Competitive risk.** If Microsoft forks or replaces Polly inside `dotnet/extensions`, the ecosystem
   consolidates there. Mitigation: the differentiators in §1.2 hold regardless. Track
   dotnet/extensions#7719.
-- **Interceptors.** Stable since .NET 9.0.2xx, but they require `<InterceptorsNamespaces>` opt-in in the
-  consumer project (can be set from the package's `.props`). Capturing lambdas that mutate captured
-  locals, or capture `ref`/`this` in structs, cannot be lowered to static + state. Those fall back to the
-  normal overload (S3 defines the exact boundary).
+- **Interceptors are dropped** (plan S3). They swap only the call target, and the closure is allocated
+  before the call.
+- **Closure removal is the MPR0002 code fix** instead, limited to S3's verified boundary:
+  - it applies to a non-static lambda capturing only locals, value parameters or class `this`;
+  - nothing it captures may be written anywhere in the enclosing member;
+  - no nested use of the captured state, no `base.` access, and no calls to non-static local functions.
+- **Compiler floor:** a generator built against Roslyn 5.9 needs **SDK ≥ 10.0.4xx**. It fails with
+  CS9057 on 10.0.1xx. Document this in the README.
 - **Pooling async builder hazards.** A `ValueTask` from a pooled builder must not be awaited twice. User
   code that stores and re-awaits the task would break. This is the reason for an opt-out (S2).
 - **Attribute order as semantics.** Relying on the declaration order of attributes needs verification.
