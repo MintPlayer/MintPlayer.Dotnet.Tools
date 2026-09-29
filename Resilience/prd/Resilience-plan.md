@@ -68,7 +68,9 @@ manual reset.
   - packed under `analyzers/dotnet/roslyn5.9/cs` in the core package (the Assertions
     `TargetsForTfmSpecificContentInPackage` pattern).
 - Emits the flat method from S1 per `[ResiliencePipeline]` class. Covers:
-  - `[RetryWhen]` / `[FallbackWith]` hooks;
+  - `[RetryWhen]` / `[FallbackWith]` / `[OnRetry]` hooks;
+  - both the static form and the non-static DI form (a constructor with injected services and instance
+    hooks; S7);
   - `ExecuteAsync` / `TryExecuteAsync` / sync `Execute` overloads;
   - the pooling builder per S2;
   - reloadable pipelines per S6.
@@ -101,7 +103,10 @@ generated source).
   - `IHttpClientBuilder.AddResilienceHandler<T>()` / `AddResilienceHandler(key)`;
   - `AddStandardResilienceHandler()` and `AddStandardHedgingHandler()` with Microsoft's defaults (PRD
     §2.5).
-- Request cloning and content buffering per attempt.
+- Request replay with parity to Microsoft (S7):
+  - retry re-sends the same message;
+  - hedging snapshots it;
+  - non-replayable content fails fast with a clear error.
 - Per-request override and opt-out via `HttpRequestMessage.Options`.
 - `Retry-After` honoured via `MintPlayer.Http`.
 
@@ -235,6 +240,60 @@ No silent corruption was observed; a stale token is detected.
     passed to `Task.WhenAll` / `WhenAny` without `.AsTask()`. It is modelled on CA2012, but as an error
     and scoped to our API.
   - Document the rule in the README's migration section.
+
+### S7 — PASS (2026-09-29)
+
+Details in `Resilience/spikes/S7/RESULTS.md`, with three before/after snippets.
+
+**Preset defaults:**
+
+- Verified against the dotnet/extensions source (398edf6) and Polly (`git diff 8.8.0` is empty on every
+  file that holds a default).
+- PRD §2.5 is corrected: 3 *retries* = 4 attempts, status ≥ 500, and the connection-timeout OCE is
+  handled.
+- The circuit breaker uses a different predicate from retry.
+- The `Retry-After` nuances and the hedging preset's two-handler shape are now documented.
+
+**Request replay:**
+
+- The PRD's claim that Microsoft clones the request was wrong. The standard handler re-sends the same
+  `HttpRequestMessage`; only hedging snapshots it.
+- **Decision (parity):** do the same, and fail fast on non-replayable content.
+
+**Naming:**
+
+- **Decision:** mirror Polly v8 type, option, extension and exception names one-for-one.
+- The PRD names `ResiliencePipeline.For<T>()`, `RetryOptions`, `MaxAttempts` and `SamplingSeconds` are
+  replaced.
+- Attributes use `…Ms` integer properties, because a `TimeSpan` is not a valid attribute argument.
+
+**Migration diff:** 9 items, on one screen (the Pass criterion):
+
+1. Namespace swap.
+2. Predicates are synchronous `bool`; `PredicateBuilder` converts implicitly.
+3. Delay generators are synchronous.
+4. Events and `FallbackAction` stay `ValueTask`.
+5. The argument structs are the same.
+6. Attributes use `…Ms` values and `nameof` hooks.
+7. The returned `ValueTask` is pooled (MPR0006).
+8. `TryExecuteAsync` returns an `Outcome` on rejection.
+9. The rest are additions.
+
+**MPR0001 feasibility:**
+
+- **Mechanical conversion to a `[ResiliencePipeline]` class:** a single fluent chain or a static
+  configure lambda, with every value a constant or `TimeSpan.FromX(const)`, predicates as
+  `PredicateBuilder` chains or non-capturing lambdas, and hooks that don't capture.
+- **Conversion to the runtime builder:** config or options values, captured lambdas, conditional
+  builders, reload.
+- **No fix:** awaiting predicates, custom strategies, telemetry plumbing, Polly types in the user's
+  public API.
+
+**Gap found:**
+
+- Real hooks log through an injected `ILogger`, so 2 of the 3 snippets need a non-static declarative
+  pipeline.
+- **Decision:** the DI form is added to PRD §2.1 and M4.
 
 ## Outcome
 

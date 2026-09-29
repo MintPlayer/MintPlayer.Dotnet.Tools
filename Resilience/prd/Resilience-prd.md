@@ -109,10 +109,10 @@ failures, and AOT.
 
 ```csharp
 [ResiliencePipeline]
-[Timeout(Seconds = 10)]                                   // outer: total budget
-[Retry(MaxAttempts = 3, Backoff = Backoff.Exponential, DelayMs = 200, UseJitter = true)]
-[CircuitBreaker(FailureRatio = 0.5, SamplingSeconds = 30, MinimumThroughput = 10, BreakSeconds = 15)]
-[Timeout(Seconds = 2)]                                    // inner: per attempt
+[Timeout(TimeoutMs = 10_000)]                             // outer: total budget
+[Retry(MaxRetryAttempts = 3, BackoffType = DelayBackoffType.Exponential, DelayMs = 200, UseJitter = true)]
+[CircuitBreaker(FailureRatio = 0.5, SamplingDurationMs = 30_000, MinimumThroughput = 10, BreakDurationMs = 15_000)]
+[Timeout(TimeoutMs = 2_000)]                              // inner: per attempt
 public static partial class CatalogPipeline
 {
     // Optional predicate hooks, discovered by convention/attribute. They are synchronous, and the
@@ -140,24 +140,50 @@ Outcome<HttpResponseMessage> o = await CatalogPipeline.TryExecuteAsync(...);    
 - **`[AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]`** on the generated method (see
   S2).
 
-### 2.2 Runtime builder (dynamic / config-driven)
-
-For pipelines only known at runtime (from config, or with reload), there is a builder with Polly-shaped
-names:
+**Non-static (DI) form.** Real `OnRetry` / `OnFallback` hooks log through an injected `ILogger` (plan S7).
+A declarative pipeline can therefore also be a non-static `partial class` with a constructor. It is
+registered as a singleton by `AddResiliencePipeline<T>()`. Its hooks are instance methods and can use
+injected services; circuit-breaker state lives on the instance.
 
 ```csharp
-var pipeline = ResiliencePipeline.For<HttpResponseMessage>()
+[ResiliencePipeline]
+[Retry(MaxRetryAttempts = 3, BackoffType = DelayBackoffType.Exponential, DelayMs = 200)]
+public partial class OrdersPipeline(ILogger<OrdersPipeline> logger)
+{
+    [OnRetry] ValueTask LogRetry(OnRetryArguments<HttpResponseMessage> args)
+    {
+        logger.LogWarning("Retry {Attempt}", args.AttemptNumber);
+        return default;
+    }
+}
+```
+
+### 2.2 Runtime builder (dynamic / config-driven)
+
+For pipelines only known at runtime (from config, or with reload), there is a builder. **Type, option,
+extension and exception names mirror Polly v8 one-for-one** (plan S7), so migrating is mostly a
+namespace swap:
+
+```csharp
+var pipeline = new ResiliencePipelineBuilder<HttpResponseMessage>()
     .AddTimeout(TimeSpan.FromSeconds(10))
-    .AddRetry(new RetryOptions<HttpResponseMessage> { MaxAttempts = 3, ShouldHandle = ... })
-    .AddCircuitBreaker(new CircuitBreakerOptions { ... })
+    .AddRetry(new RetryStrategyOptions<HttpResponseMessage> { MaxRetryAttempts = 3, ShouldHandle = ... })
+    .AddCircuitBreaker(new CircuitBreakerStrategyOptions<HttpResponseMessage> { ... })
     .Build();
 ```
 
-- **Composition is generic-struct nesting**, e.g. `Pipeline<T, Timeout<Retry<CircuitBreaker<Terminal>>>>`.
-  The JIT specializes the whole chain, so the builder path also avoids delegate hops. The generated and
-  runtime paths share the same strategy structs.
-- **Fallback:** where the generic chain cannot be expressed (fully dynamic strategy lists), use a classic
-  array-of-components pipeline, like the Assertions reflection fallback. This is decided in S1.
+- **Execution is a single async interpreter method** (one pooled box) over strategies that expose
+  synchronous hooks (`Before` / `After` / `ShouldRetry`), not a chain of async layers. S1 measured a
+  struct-nested chain: it was as fast as flat code but boxed once per layer when the callback suspended.
+- **Hedging keeps its own async executor**, since its allocations are intrinsic.
+- **The generated and runtime paths share the same strategy state types** (breaker controller, CTS pool,
+  limiters).
+- **Deliberate differences from Polly:**
+  - predicates (`ShouldHandle`) and delay generators are synchronous. `PredicateBuilder` converts
+    implicitly;
+  - the returned `ValueTask` is pooled (MPR0006);
+  - `TryExecuteAsync` returns an `Outcome` on rejection.
+  - Events and `FallbackAction` stay `ValueTask`-returning, as in Polly.
 
 ### 2.3 Strategies (v1 surface)
 
@@ -196,7 +222,7 @@ var pipeline = ResiliencePipeline.For<HttpResponseMessage>()
 services.AddHttpClient<CatalogClient>()
         .AddResilienceHandler<CatalogPipeline>();          // generated pipeline
 services.AddHttpClient("github")
-        .AddStandardResilienceHandler(o => o.Retry.MaxAttempts = 5);
+        .AddStandardResilienceHandler(o => o.Retry.MaxRetryAttempts = 5);
 
 // Without DI: the same handler type, composed by hand
 var http = new HttpClient(new ResilienceHandler<CatalogPipeline>(new SocketsHttpHandler()));
@@ -210,9 +236,16 @@ var http = new HttpClient(new ResilienceHandler<CatalogPipeline>(new SocketsHttp
    one plain `client.GetAsync` silently skips resilience.
 2. **No API surface to duplicate.** An extension approach means mirroring `GetAsync` / `PostAsync` /
    `SendAsync` / `GetFromJsonAsync` × overloads, and keeping that in step with the BCL.
-3. **Retries need to rebuild the request.** An `HttpRequestMessage` cannot be sent twice. The handler
-   clones the request and buffers the content per attempt in one place (the same approach as
-   Microsoft's handler). Extension methods would have to reimplement that everywhere.
+3. **Request replay lives in one place.** Below `HttpClient`, a handler may re-send the same
+   `HttpRequestMessage`. **Microsoft's standard handler does exactly that** (plan S7); only its hedging
+   handler snapshots the request. For parity we do the same:
+   - retry re-sends the same message;
+   - hedging snapshots it;
+   - non-replayable content (a forward-only `StreamContent`) is detected, and the pipeline fails fast
+     with a clear error instead of silently sending an empty body (Microsoft's hedging throws there
+     too).
+
+   Extension methods would have to reimplement this at every call site.
 4. **No closures anyway.** Inside the handler the callback is always `static (s, ct) => s.inner.SendAsync(s.req, ct)`
    with `(request, base)` passed as state. So the interceptor machinery is not needed on this path, and
    it is 0 B by construction.
@@ -226,18 +259,30 @@ otherwise-retrying client.
 **Standard preset: decided to copy Microsoft's defaults exactly.** `AddStandardResilienceHandler`
 matches `Microsoft.Extensions.Http.Resilience` in both order and values:
 
-| Order | Strategy | Default |
-|---|---|---|
-| 1 | Rate limiter | concurrency 1000, queue 0 |
-| 2 | Total timeout | 30 s |
-| 3 | Retry | 3 attempts, exponential, 2 s base, jitter, handles 408/429/5xx + `HttpRequestException` + attempt timeout, honours `Retry-After` |
-| 4 | Circuit breaker | failure ratio 10 %, min throughput 100, sampling 30 s, break 5 s |
-| 5 | Attempt timeout | 10 s |
+| Order | Strategy | Default | Handles |
+|---|---|---|---|
+| 1 | Rate limiter | `ConcurrencyLimiter`, 1000 permits, queue 0 | n/a |
+| 2 | Total timeout | 30 s | n/a |
+| 3 | Retry | `MaxRetryAttempts` 3 (= 4 attempts), exponential, `Delay` 2 s, `UseJitter` true, `MaxDelay` null, `ShouldRetryAfterHeader` true | status ≥ 500, 408, 429; `HttpRequestException`; `TimeoutRejectedException`; connection-timeout OCE. All HTTP methods, POST included. |
+| 4 | Circuit breaker | ratio 0.1, min throughput 100, sampling 30 s, break 5 s | ≥ 500 / 408 / 429, `HttpRequestException`, `TimeoutRejectedException` (not the connection-timeout OCE) |
+| 5 | Attempt timeout | 10 s | n/a |
+
+- **Validation:** attempt timeout ≤ total timeout, and sampling ≥ 2 × attempt timeout.
+- **The handler sets `HttpClient.Timeout = Infinite`.**
+- **`Retry-After` handling:**
+  - it replaces the backoff delay;
+  - it is not capped by `MaxDelay`;
+  - a past date means 0.
+- **Hedging preset:**
+  - outer handler: total timeout 30 s, hedging with `MaxHedgedAttempts` 1 (range 1–10) and `Delay` 2 s;
+  - inner handler, per authority: rate limiter, the same circuit breaker, attempt timeout 10 s;
+  - the hedging predicate also handles `BrokenCircuitException`.
+- **Source:** verified against the dotnet/extensions source (398edf6) and Polly 8.8.0. The file and
+  line references are in `Resilience/spikes/S7/RESULTS.md`.
 
 `AddStandardHedgingHandler` mirrors Microsoft's hedging preset the same way. The reason: a team switching
 over should see identical production behaviour, and "same defaults as Microsoft" is one sentence of
-documentation instead of a table of differences. The values above are from memory. S7 verifies them
-against the Microsoft source, and a parity test pins them.
+documentation instead of a table of differences. A parity test pins these values.
 
 ### 2.6 Analyzers
 
