@@ -36,9 +36,12 @@ public static class CtsPool
     [ThreadStatic] private static PooledCts? t_cached;
     private static readonly ConcurrentQueue<PooledCts> s_queue = new();
 
+    /// <summary>S2 switch: false = shared queue only, to isolate thread-static cache misses.</summary>
+    public static bool UseThreadStatic = true;
+
     public static PooledCts Rent(TimeSpan timeout, CancellationToken parent)
     {
-        var p = t_cached;
+        var p = UseThreadStatic ? t_cached : null;
         if (p is not null) t_cached = null;
         else if (!s_queue.TryDequeue(out p)) p = new PooledCts();
 
@@ -53,7 +56,7 @@ public static class CtsPool
         p.Registration.Dispose();
         p.Registration = default;
         if (!p.Cts.TryReset()) { p.Cts.Dispose(); return; }
-        if (t_cached is null) t_cached = p;
+        if (UseThreadStatic && t_cached is null) t_cached = p;
         else s_queue.Enqueue(p);
     }
 }

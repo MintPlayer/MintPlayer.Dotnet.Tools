@@ -189,6 +189,53 @@ Then open the single PR.
    - Strategy attributes split over two declarations → error diagnostic (new rule next to MPR0004).
      Explicit `Order =` is not needed.
 
+### S2 — PASS (2026-09-29)
+
+Code: `Resilience/spikes/S2`. It measures exact bytes per operation with
+`GC.GetTotalAllocatedBytes(precise: true)` over 200,000 operations, after a 20,000-operation warm-up.
+
+**Allocations** (bytes/op; the async callback's own box is 104 B in every case):
+
+| Case | Sequential | 16 concurrent |
+|---|---|---|
+| Callback only | 104 | 104 |
+| Plain builder wrapper | 240 (+136) | 240 |
+| **Pooled builder wrapper** | **104 (+0)** | **104** |
+| Pooled builder + 2 pooled CTS | 104 (+0) | 104 |
+| Flat pipeline, plain builder | 280 (+176) | 280 |
+| **Flat pipeline, pooled builder** | **104 (+0)** | **104** |
+
+- The results are identical with the CTS thread-static cache off (shared queue only).
+- **The S1 "71 B" was a BenchmarkDotNet artifact.** Steady-state cost is exactly 0 B above the
+  callback, including under contention.
+- **Correctness:** 64 × 20,000 concurrent pooled executions gave 0 wrong results.
+
+**Misuse** (plain builder vs pooled builder):
+
+| Misuse | Plain builder | Pooled builder |
+|---|---|---|
+| Await the same `ValueTask` twice (immediately, or after the box was re-rented) | works | `InvalidOperationException` |
+| `.Result` before completion | works | `InvalidOperationException` |
+| Two concurrent awaiters | works | **process crash**: the throw happens inside `OnCompleted` on the thread pool and cannot be caught |
+| `.AsTask()` once, then await the `Task` twice | works | works |
+
+No silent corruption was observed; a stale token is detected.
+
+**Decision:**
+
+- **The pooling builder is ON by default**, for generated pipelines and the runtime interpreter. It is
+  the difference between 176 B and 0 B per async call.
+- **Opt-out:** `[ResiliencePipeline(PooledAsync = false)]` and `RuntimeBuilder.UsePooledAsync(false)`.
+- **Why it isn't free:** Polly's `ValueTask` is not pooled, so code migrated from Polly that breaks the
+  `ValueTask` rules (double await, `.Result`, several awaiters) worked before and will now throw or
+  crash.
+- **Required mitigations, added to M4:**
+  - A new analyzer rule, **MPR0006** (error): a result of a pipeline `Execute*Async` stored and then
+    awaited more than once, read via `.Result` / `.GetAwaiter().GetResult()` without being awaited, or
+    passed to `Task.WhenAll` / `WhenAny` without `.AsTask()`. It is modelled on CA2012, but as an error
+    and scoped to our API.
+  - Document the rule in the README's migration section.
+
 ## Outcome
 
 _(filled in at completion: defects found, benchmarks, target met / not met)_

@@ -248,6 +248,8 @@ against the Microsoft source, and a parity test pins them.
 | MPR0003 | Non-idempotent-looking callback (HTTP POST without idempotency key) under retry/hedging. Warning only. |
 | MPR0004 | Invalid attribute combination (e.g. inner timeout ≥ outer timeout, retry outside a total timeout of 0). |
 | MPR0005 | `ExecuteAsync` result not awaited. |
+| MPR0006 | Pooled `ValueTask` misuse: awaited twice, `.Result` without an await, or passed to `WhenAll`/`WhenAny` without `.AsTask()` (error; see plan S2). |
+| MPR0007 | Strategy attributes split across `partial` declarations: their order would be undefined (error; see plan S1). |
 
 ---
 
