@@ -39,13 +39,50 @@
 	</ItemGroup>
 
 	<!--
-	M4 slot: the source generator (MintPlayer.Resilience.SourceGenerator, netstandard2.0) ships INSIDE
-	this package, the MintPlayer.Assertions way:
-	  - a ProjectReference with OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all";
+	The source generator (MintPlayer.Resilience.SourceGenerator, netstandard2.0) ships INSIDE this package,
+	the MintPlayer.Assertions way, so one PackageReference gives the runtime and [ResiliencePipeline]:
+	  - a ProjectReference with OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all"
+	    (build ordering, and the analyzers run on this library's own code);
 	  - a TargetsForTfmSpecificContentInPackage target that packs the generator's own bin output under
 	    analyzers/dotnet/roslyn5.9/cs.
-	See Assertions/MintPlayer.Assertions/MintPlayer.Assertions.csproj for the exact target and its traps.
+	This package must NOT import eng/sourcegenerator.targets: IncludeBuildOutput=false and
+	DevelopmentDependency=true would strip lib/ and mark a runtime dependency as build-only (SourceGenerators/CLAUDE.md).
 	-->
+	<ItemGroup>
+		<ProjectReference Include="..\MintPlayer.Resilience.SourceGenerator\MintPlayer.Resilience.SourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+	</ItemGroup>
+
+	<PropertyGroup>
+		<TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);AddResilienceAnalyzers</TargetsForTfmSpecificContentInPackage>
+	</PropertyGroup>
+
+	<!--
+	Collected in a TARGET, not a static ItemGroup: an Include pointing at another project's bin is resolved at
+	evaluation time, before that project is built, so on a clean tree it matches nothing and the package ships
+	without its generator, silently. Every file is named explicitly and taken from the generator's own output
+	directory (its exact runtime closure), and a missing one is an <Error>, never a warning. Not conditioned on
+	$(Configuration): a plain `dotnet pack` is Debug.
+	-->
+	<Target Name="AddResilienceAnalyzers">
+		<ItemGroup>
+			<_ResilienceAnalyzerAssets Include="..\MintPlayer.Resilience.SourceGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.Resilience.SourceGenerator.dll" />
+			<!-- The generator's base class (IncrementalGenerator, Producer) lives here. -->
+			<_ResilienceAnalyzerAssets Include="..\MintPlayer.Resilience.SourceGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.SourceGenerators.Tools.dll" />
+			<!--
+			The pipeline models are [GenerateEquality] types: Roslyn's loader does not need this assembly, but a host
+			that finds analyzers by reflection throws FileNotFoundException without it (#187, measured). Beside the
+			generator in the versioned folder, so analyzers/dotnet/cs stays empty, as in MintPlayer.Assertions.
+			-->
+			<_ResilienceAnalyzerAssets Include="..\MintPlayer.Resilience.SourceGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.ValueComparerGenerator.Attributes.dll" />
+		</ItemGroup>
+
+		<Error Condition="!Exists('%(_ResilienceAnalyzerAssets.FullPath)')"
+		       Text="%(_ResilienceAnalyzerAssets.Filename)%(_ResilienceAnalyzerAssets.Extension) was not found in MintPlayer.Resilience.SourceGenerator\bin\$(Configuration)\netstandard2.0. Packing would ship MintPlayer.Resilience with a generator that cannot load, and no error to tell anyone." />
+
+		<ItemGroup>
+			<TfmSpecificPackageFile Include="@(_ResilienceAnalyzerAssets)" PackagePath="analyzers/dotnet/roslyn5.9/cs" />
+		</ItemGroup>
+	</Target>
 
 	<ItemGroup>
 		<InternalsVisibleTo Include="MintPlayer.Resilience.Tests" />

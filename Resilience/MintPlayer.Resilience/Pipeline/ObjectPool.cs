@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.ComponentModel;
 
 namespace MintPlayer.Resilience.Pipeline;
 
@@ -54,7 +55,9 @@ internal sealed class ObjectPool<T>(Func<T> factory)
 /// with <see cref="CancellationTokenSource.TryReset"/>. Shared by the runtime interpreter and (M4) the
 /// generated pipelines.
 /// </summary>
-internal sealed class CancellationTokenSourcePool
+/// <remarks>Public only for generated pipelines; not intended for direct use.</remarks>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public sealed class CancellationTokenSourcePool
 {
     private static readonly CancellationTokenSourcePool SystemPool = new(TimeProvider.System);
 
@@ -64,10 +67,14 @@ internal sealed class CancellationTokenSourcePool
         => _pool = new(() => new CancellationTokenSource(System.Threading.Timeout.InfiniteTimeSpan, timeProvider));
 
     /// <summary>The pool for <paramref name="timeProvider"/>: shared for the system clock, a new one otherwise.</summary>
+    /// <param name="timeProvider">The clock the rented sources cancel by.</param>
+    /// <returns>The pool.</returns>
     public static CancellationTokenSourcePool For(TimeProvider timeProvider)
         => ReferenceEquals(timeProvider, TimeProvider.System) ? SystemPool : new(timeProvider);
 
     /// <summary>Rents a source that cancels itself after <paramref name="delay"/> (never, for an infinite delay).</summary>
+    /// <param name="delay">The delay after which the source cancels.</param>
+    /// <returns>The source; give it back with <see cref="Return"/>.</returns>
     public CancellationTokenSource Rent(TimeSpan delay)
     {
         var source = _pool.Get();
@@ -80,6 +87,7 @@ internal sealed class CancellationTokenSourcePool
     }
 
     /// <summary>Returns a source. A cancelled source cannot be reset and is disposed instead.</summary>
+    /// <param name="source">A source rented from this pool.</param>
     public void Return(CancellationTokenSource source)
     {
         if (source.TryReset())
@@ -94,13 +102,17 @@ internal sealed class CancellationTokenSourcePool
 }
 
 /// <summary>The result type of a void execution. A class, so the interpreter runs on shared generic code.</summary>
-internal sealed class VoidResult
+/// <remarks>Public only for generated pipelines; not intended for direct use.</remarks>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public sealed class VoidResult
 {
+    /// <summary>The only instance.</summary>
     public static readonly VoidResult Instance = new();
 
     private VoidResult()
     {
     }
 
+    /// <inheritdoc/>
     public override string ToString() => "void";
 }

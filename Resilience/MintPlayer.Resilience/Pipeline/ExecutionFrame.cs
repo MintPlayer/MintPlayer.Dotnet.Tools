@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 namespace MintPlayer.Resilience.Pipeline;
 
 /// <summary>
@@ -21,26 +23,38 @@ internal struct StrategySlot
 /// the (lazily rented) <see cref="ResilienceContext"/>, and one <see cref="StrategySlot"/> per strategy.
 /// Pooled; a strategy must not keep a reference to it after the execution completes.
 /// </summary>
-internal abstract class ExecutionFrame
+/// <remarks>
+/// Public only for the code the source generator emits for <c>[ResiliencePipeline]</c> classes (M4): a
+/// generated pipeline runs on the same frame as the interpreter, so argument structs resolve their
+/// <c>Context</c> lazily in exactly the same way. Not intended for direct use.
+/// </remarks>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public abstract class ExecutionFrame
 {
     private ResilienceContext? _context;
     private bool _ownsContext;
 
-    /// <summary>One slot per strategy, indexed by the strategy's position in the pipeline.</summary>
-    public StrategySlot[] Slots = [];
+    private protected ExecutionFrame()
+    {
+    }
 
-    /// <summary>The cancellation token at the current depth of the pipeline.</summary>
+    /// <summary>One slot per strategy, indexed by the strategy's position in the pipeline.</summary>
+    internal StrategySlot[] Slots = [];
+
+    /// <summary>Gets the cancellation token at the current depth of the pipeline.</summary>
     public CancellationToken CancellationToken { get; private set; }
 
+    /// <summary>Gets whether awaits inside the pipeline continue on the captured context (from the caller's <see cref="ResilienceContext"/>).</summary>
     public bool ContinueOnCapturedContext { get; private set; }
 
-    /// <summary>True for <c>Execute</c>: delays block rather than await.</summary>
+    /// <summary>Gets whether this is a synchronous execution (<c>Execute</c>): delays block rather than await.</summary>
     public bool IsSynchronous { get; private set; }
 
-    /// <summary>The caller's context, or one rented on first use (only when a delegate reads <c>args.Context</c>).</summary>
+    /// <summary>Gets the caller's context, or one rented on first use (only when a delegate reads <c>args.Context</c>).</summary>
     public ResilienceContext Context => _context ?? RentContext();
 
     /// <summary>Replaces the current token (a timeout on the way in, the previous token on the way out).</summary>
+    /// <param name="token">The new current token.</param>
     public void SetCancellationToken(CancellationToken token)
     {
         CancellationToken = token;
@@ -97,9 +111,16 @@ internal abstract class ExecutionFrame
 }
 
 /// <summary>An <see cref="ExecutionFrame"/> that also carries the current outcome.</summary>
-internal sealed class ExecutionFrame<T> : ExecutionFrame
+/// <typeparam name="T">The result type of the execution.</typeparam>
+/// <remarks>Public only for generated pipelines; see <see cref="ExecutionFrame"/>.</remarks>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public sealed class ExecutionFrame<T> : ExecutionFrame
 {
     private static readonly ObjectPool<ExecutionFrame<T>> Pool = new(static () => new ExecutionFrame<T>());
+
+    private ExecutionFrame()
+    {
+    }
 
     /// <summary>
     /// The outcome at the current depth: set by the callback, or by a strategy that short-circuits in
@@ -107,6 +128,12 @@ internal sealed class ExecutionFrame<T> : ExecutionFrame
     /// </summary>
     public Outcome<T> Outcome;
 
+    /// <summary>Rents a frame from the pool.</summary>
+    /// <param name="slotCount">The number of strategies of the pipeline (one slot each).</param>
+    /// <param name="cancellationToken">The caller's token; ignored when <paramref name="context"/> is given.</param>
+    /// <param name="context">The caller's context, or <see langword="null"/> to rent one only when a delegate reads it.</param>
+    /// <param name="isSynchronous">Whether this is a synchronous execution.</param>
+    /// <returns>The frame; return it with <see cref="Return"/> when the execution completes.</returns>
     public static ExecutionFrame<T> Rent(int slotCount, CancellationToken cancellationToken, ResilienceContext? context, bool isSynchronous)
     {
         var frame = Pool.Get();
@@ -114,6 +141,7 @@ internal sealed class ExecutionFrame<T> : ExecutionFrame
         return frame;
     }
 
+    /// <summary>Clears the frame (returning a rented context) and puts it back in the pool.</summary>
     public void Return()
     {
         Outcome = default;

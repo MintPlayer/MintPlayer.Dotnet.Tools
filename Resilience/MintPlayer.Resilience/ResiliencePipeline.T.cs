@@ -18,6 +18,8 @@ public sealed class ResiliencePipeline<T>
 
     internal ResiliencePipeline(PipelineCore<T> core) => _core = core;
 
+    internal PipelineCore<T> Core => _core;
+
     /// <summary>Gets a pipeline without strategies: it only runs the callback.</summary>
     public static ResiliencePipeline<T> Empty { get; } = new(PipelineCore<T>.Empty);
 

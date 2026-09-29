@@ -294,6 +294,82 @@ budget, adaptive limit), then hedging and chaos.
 **Done when:** the sample `CatalogPipeline` from PRD §2.1 generates, compiles and passes the analyzers
 clean.
 
+**Status:** in progress. Part A (the generator) is done; part B (the analyzers MPR0004–MPR0007) is next and
+completes the milestone.
+
+**Implementation notes (part A, generator):**
+
+- **Files:** `Resilience/MintPlayer.Resilience.SourceGenerator/` (`Generators/ResiliencePipelineGenerator.cs`,
+  `PipelineParser.cs`, `StrategySchema.cs` (the per-kind table: attribute, values + defaults, hook slots and
+  signatures), `PipelineEmitter*.cs`, `Models/PipelineModel.cs`). The attributes and the M6 seam are in the core,
+  `Declarative/`. One hint name: `ResiliencePipelines.g.cs`.
+- **Shape of the flat method (deviation, by design):** `__RunAsync` is one pooled async method on the same
+  `ExecutionFrame<T>` as the interpreter (so argument structs resolve `Context` lazily, identically). **Retry,
+  timeout and fallback are inlined** as statement-for-statement ports of their strategies, values folded, hooks
+  called directly. **Breaker, limiters, adaptive limiter and chaos are driven through their runtime hooks**
+  (`GeneratedStrategy<T>.EnterAsync/ExitAsync`, built once from a one-strategy builder pipeline): their state is
+  intrinsic and the breaker's event sequencing is too subtle to duplicate, so their parity is by construction.
+  **Hedging** is not flattened: the members forward to a runtime pipeline built once (same surface).
+- **Result type:** `[ResiliencePipeline<T>]`, else inferred from a hook's concrete `Outcome<T>`/args/fallback return,
+  else generic (`ExecuteAsync<TResult>` + void overloads, like non-generic `ResiliencePipeline`; hooks must be
+  generic methods). In the generic form, inlined hooks see the concrete `TResult`, but delegated strategies are
+  built on the non-generic builder and see `object` (Polly's behaviour; a value-type result is boxed whenever such
+  a predicate runs). Hedging and chaos-outcome need a typed pipeline.
+- **Forms:** static unless a bound hook or member is an instance member or a constructor takes parameters (DI
+  form: instance members, state per instance, `Create(IServiceProvider)` resolves the widest constructor).
+- **Hook scheme:** every slot is a string property named like the Polly option (`nameof`), plus hook attributes
+  for the common ones (`[RetryWhen]`, `[OnRetry]`, `[DelayGenerator]`, `[TimeoutGenerator]`, `[OnTimeout]`,
+  `[BreakWhen]`, `[OnOpened]`, `[OnClosed]`, `[OnHalfOpened]`, `[BreakDurationGenerator]`, `[FallbackWhen]`,
+  `[FallbackWith]`, `[OnFallback]`, `[HedgeWhen]`, `[OnHedging]`) binding to the only strategy of the kind or the one
+  they name; the explicit name wins. Adapted shapes: args or `Outcome<T>` (predicates, fallback), `void` events,
+  fallback returning `T`/`Outcome<T>`/`ValueTask<T>`/`ValueTask<Outcome<T>>`. Members: `Retry.Budget`,
+  `CircuitBreaker.ManualControl`/`StateProvider`, `RateLimiter.RateLimiter` (a `RateLimiter` field or a method).
+  Class-level `[RetryBudget]` is a pipeline-owned budget.
+- **Made public for generated code** (`[EditorBrowsable(Never)]`, namespace `MintPlayer.Resilience.Pipeline`):
+  `ExecutionFrame(<T>)` (`Slots` stays internal), `ICallback<T>` and the 8 callback structs, `IOutcomeShape`,
+  `ResultShape`, `OutcomeShape`, `IPipelineTelemetry`, `NoTelemetry`, `VoidResult`, `CancellationTokenSourcePool`; new
+  `GeneratedPipelineSupport` (backoff, delays, default predicate, disposal, args factories, `Validate`, `Wait`,
+  `ToVoidTask`, `ReleaseAttachments`) and `GeneratedStrategy(<T>)`. `RetryHelper`/`DefaultPredicates` stay internal
+  behind the support class; argument constructors stay internal.
+- **Snapshot (S6):** each class has a nested `__Runtime` (clock, randomizer, CTS pool, runtime strategies, and for a
+  reloadable pipeline the options and the folded values), read once per execution with `Volatile.Read`.
+  `UseTimeProvider(time, randomizer?)` replaces it (new state; tests use it). Reloadable: generated
+  `<Class>Options` with one `<Kind>Section` property per strategy (key = `Name`, else the kind, `Timeout2` for a
+  second unnamed one), `TryApply(options, out error)`; values validated with the builder's rules (bad values →
+  `false`, previous snapshot stays). **A runtime strategy whose section is unchanged keeps its instance (breaker
+  health survives); a changed section recreates it (state reset)**, since `CircuitController` takes its settings
+  at construction. A hedging (forwarding) pipeline is rebuilt on every reload.
+- **Breaker attachments:** `CircuitBreakerSetup.Attach` now returns one attachment for the state provider and the
+  manual control (the factory property is renamed `ManualControlRegistration` → `Attachment`; the typed strategy
+  keeps it too). A replaced runtime releases its breakers' attachments before the new ones attach (else the state
+  provider throws "already initialized"). Phases in `__Runtime`: validate + fill builders, release, build.
+- **Validation:** inlined strategies are validated at snapshot creation, so an invalid constant throws
+  `ValidationException` on the first execution (MPR0004 should catch it at compile time).
+- **For part B (analyzers):** the generator reports nothing. A class it cannot generate gets no code and
+  `PipelineModel.SkipReason` says why: not partial / static / generic / non-partial or generic containing type,
+  a missing hook or member name, a fallback without action, chaos outcome/behavior/fault without their generator,
+  a typed-only strategy in a generic pipeline. An ambiguous hook attribute (two strategies of the kind, no name) is
+  left unbound. MPR0004 should cover these plus inner ≥ outer timeout and mismatched hook signatures; MPR0005,
+  MPR0006 (S2), MPR0007 (S1) as planned. Rules go in `Diagnostics/` (`DiagnosticIds.cs` reserves the ids). The
+  generator project removed the `Microsoft.CodeAnalysis` meta-package (Workspaces → RS1038); a code fix needs it back.
+- **For M6:** the seam is `IGeneratedResiliencePipeline<TSelf>` (`PipelineName`, `IsInstancePipeline`,
+  `Create(IServiceProvider)`, `UseTimeProvider(instance, time, randomizer)`) and
+  `IReloadableResiliencePipeline<TSelf, TOptions>` (`DefaultSectionPath`, `TryApply(instance, options, out error)`),
+  all static abstract (explicitly implemented). Telemetry: `__RunAsync` is generic over `TTelemetry` and the members
+  pass `NoTelemetry`; delegated strategies get their telemetry from the builder. Disposal: `GeneratedStrategy.Release`
+  / `GeneratedPipelineSupport.ReleaseAttachments`; the owned default `ConcurrencyLimiter` is still not disposed.
+- **Gotchas:** code in a namespace under `MintPlayer.Resilience` sees `Timeout`, `Retry`, `Fallback`, … as the
+  sub-namespaces (`Timeout.InfiniteTimeSpan` fails); the samples live in `ResilienceSamples`. Packing warns NU5118 ×3,
+  exactly as MintPlayer.Assertions does (the per-TFM target adds the same files twice); the payload is correct.
+- **Tests** (written, not run), `Resilience/MintPlayer.Resilience.SourceGenerator.Tests/`:
+  - `Samples/` (compiled by the project, so they are the compile check): PRD `CatalogPipeline` and DI
+    `OrdersPipeline`, the parity pipelines, and coverage pipelines using every attribute and hook shape.
+  - `Generators/SnapshotTests` (golden `Snapshots/ResiliencePipelines.g.cs`; refresh from `obj/Generated`),
+    `GeneratorOutputTests`, `IncrementalOutputCachingTests`, `FixedFileSetGuardTests`.
+  - `Behaviour/ParityTests` (generated vs runtime builder, same hooks, same `FakeTimeProvider` timeline),
+    `GeneratedPipelineTests` (overloads, forms, reload, DI seam, pooling, manual control), `AllocationTests` (0 B
+    sync, sync-completing async, and pooled suspending async above the callback's box). One non-parallel collection.
+
 ## Milestone 5 — Closure analyzer + code fix ⏳
 
 Interceptors are dropped (S3).

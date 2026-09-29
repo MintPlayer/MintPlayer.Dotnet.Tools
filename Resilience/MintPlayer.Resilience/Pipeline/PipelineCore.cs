@@ -29,6 +29,9 @@ internal sealed class PipelineCore<T>
 
     public static PipelineCore<T> Empty { get; } = new([], pooledAsync: true);
 
+    /// <summary>The strategies, outermost first.</summary>
+    public PipelineStrategy<T>[] Strategies => _strategies;
+
     /// <summary>
     /// Runs one execution. The returned task is pooled (S2) unless the pipeline opted out with
     /// <c>UsePooledAsync(false)</c>, in which case a task that did not complete synchronously is

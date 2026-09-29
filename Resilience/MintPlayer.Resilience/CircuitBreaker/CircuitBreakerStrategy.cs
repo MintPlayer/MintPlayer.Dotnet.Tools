@@ -61,21 +61,53 @@ internal static class CircuitBreakerSetup
     /// <see cref="CircuitBreakerStrategyOptions{TResult}.ManualControl"/> to the controller. Manual events
     /// carry a default <typeparamref name="TOptions"/> result, as in Polly.
     /// </summary>
-    /// <returns>The manual-control registration (M6 disposes it with the pipeline), or null.</returns>
+    /// <returns>
+    /// The attachment, or null when there is neither: disposing it detaches the manual control and releases the state
+    /// provider, so both can be attached to a breaker that replaces this one (a generated pipeline's UseTimeProvider or
+    /// reload). M6 disposes it with the pipeline.
+    /// </returns>
     public static IDisposable? Attach<TOptions>(CircuitBreakerStrategyOptions<TOptions> options, CircuitController controller)
     {
-        options.StateProvider?.Initialize(() => controller.State);
-        if (options.ManualControl is not { } manualControl)
+        var stateProvider = options.StateProvider;
+        Func<CircuitState>? state = null;
+        if (stateProvider is not null)
         {
-            return null;
+            state = () => controller.State;
+            stateProvider.Initialize(state);
         }
 
-        // OnHalfOpened is never raised manually, but it must count towards Any: every transition of a
-        // controller either passes through its sequencer or none does, or the generation order has gaps.
-        var handlers = new CircuitEventHandlers<TOptions>(options.OnOpened, options.OnClosed, options.OnHalfOpened);
-        return manualControl.Initialize(
-            context => RaiseManualAsync(handlers, controller, controller.Isolate(), context),
-            context => RaiseManualAsync(handlers, controller, controller.Close(), context));
+        IDisposable? manual = null;
+        if (options.ManualControl is { } manualControl)
+        {
+            // OnHalfOpened is never raised manually, but it must count towards Any: every transition of a
+            // controller either passes through its sequencer or none does, or the generation order has gaps.
+            var handlers = new CircuitEventHandlers<TOptions>(options.OnOpened, options.OnClosed, options.OnHalfOpened);
+            manual = manualControl.Initialize(
+                context => RaiseManualAsync(handlers, controller, controller.Isolate(), context),
+                context => RaiseManualAsync(handlers, controller, controller.Close(), context));
+        }
+
+        return stateProvider is null && manual is null ? null : new BreakerAttachment(stateProvider, state, manual);
+    }
+
+    private sealed class BreakerAttachment(CircuitBreakerStateProvider? stateProvider, Func<CircuitState>? state, IDisposable? manual) : IDisposable
+    {
+        private int _disposed;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            {
+                return;
+            }
+
+            if (stateProvider is not null && state is not null)
+            {
+                stateProvider.Release(state);
+            }
+
+            manual?.Dispose();
+        }
     }
 
     private static Task RaiseManualAsync<TOptions>(CircuitEventHandlers<TOptions> handlers, CircuitController controller, Transition transition, ResilienceContext context)
@@ -99,6 +131,9 @@ internal sealed class CircuitBreakerStrategy<T> : PipelineStrategy<T>
     private readonly Func<CircuitBreakerPredicateArguments<T>, bool> _shouldHandle;
     private readonly CircuitEventHandlers<T> _handlers;
     private readonly bool _measure;
+
+    /// <summary>The state-provider and manual-control attachment of a typed breaker, released by <see cref="Pipeline.GeneratedPipelineSupport.ReleaseAttachments{T}"/>.</summary>
+    internal IDisposable? Attachment { get; init; }
 
     public CircuitBreakerStrategy(CircuitController controller, Func<CircuitBreakerPredicateArguments<T>, bool> shouldHandle, CircuitEventHandlers<T> handlers)
     {
@@ -213,11 +248,11 @@ internal sealed class CircuitBreakerStrategyFactory : StrategyFactory
     {
         _options = options.Snapshot();
         _controller = CircuitBreakerSetup.CreateController(_options, context);
-        ManualControlRegistration = CircuitBreakerSetup.Attach(_options, _controller);
+        Attachment = CircuitBreakerSetup.Attach(_options, _controller);
     }
 
-    /// <summary>The manual-control registration; M6 disposes it when the pipeline is disposed or reloaded.</summary>
-    public IDisposable? ManualControlRegistration { get; }
+    /// <summary>The state-provider and manual-control attachment; M6 disposes it when the pipeline is disposed or reloaded.</summary>
+    public IDisposable? Attachment { get; }
 
     public override PipelineStrategy<TResult> Create<TResult>()
     {

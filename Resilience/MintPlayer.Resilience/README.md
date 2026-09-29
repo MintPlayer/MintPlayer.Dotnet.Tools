@@ -5,8 +5,9 @@ rate and concurrency limiting (including lease-free and adaptive limiters) today
 to follow. The public API mirrors Polly v8 name for name, so moving over is mostly a namespace swap. It
 targets .NET 10 and .NET 11, is AOT- and trimming-safe, and is Apache-2.0 licensed.
 
-> **Status: in development.** Milestones 1 (the runtime core), 2 (the circuit breaker) and the limiter half of 3 are done. Benchmarks against Polly
-> 8.8.0 and the source-generated fast path follow; this README will only quote measured numbers.
+> **Status: in development.** Milestones 1–3 (the runtime core, the circuit breaker, limiters, hedging and chaos) and
+> the source generator of milestone 4 are done; its analyzers follow. Benchmarks against Polly 8.8.0 follow; this
+> README will only quote measured numbers.
 
 ## Quick start
 
@@ -38,6 +39,56 @@ var response = await pipeline.ExecuteAsync(static (state, ct) => state.client.Ge
 ```
 
 Strategies run in the order they are added; the first one is the outermost.
+
+## Declarative pipelines
+
+Put the strategies on a `sealed partial class` as attributes, and the source generator in this package
+compiles them into the class: one flat, pooled async method with retry, timeout and fallback inlined and their
+values folded in. The breaker, limiters and chaos strategies are driven through the runtime's own hooks, so they
+behave exactly as in the builder.
+
+```csharp
+[ResiliencePipeline]
+[Timeout(TimeoutMs = 10_000)]                             // outer: total budget
+[Retry(MaxRetryAttempts = 3, BackoffType = DelayBackoffType.Exponential, DelayMs = 200, UseJitter = true)]
+[CircuitBreaker(FailureRatio = 0.5, SamplingDurationMs = 30_000, MinimumThroughput = 10, BreakDurationMs = 15_000)]
+[Timeout(TimeoutMs = 2_000)]                              // inner: per attempt
+public sealed partial class CatalogPipeline
+{
+    [RetryWhen] static bool Transient(Outcome<HttpResponseMessage> o) =>
+        o.Exception is HttpRequestException || (o.Result is { } r && (int)r.StatusCode >= 500);
+}
+
+var response = await CatalogPipeline.ExecuteAsync(static (c, ct) => c.GetAsync("/items", ct), client, ct);
+```
+
+- **Order:** attributes run in declaration order, the first one outermost. Keep them on one declaration of the
+  class. Durations are integer milliseconds (`…Ms`); -1 means "not set" on an optional one (`MaxDelayMs`).
+- **Hooks:** name a method on the strategy (`[Retry(OnRetry = nameof(Log))]`), or mark it with a hook attribute:
+  `[RetryWhen]`, `[OnRetry]`, `[DelayGenerator]`, `[TimeoutGenerator]`, `[OnTimeout]`, `[BreakWhen]`,
+  `[OnOpened]`, `[OnClosed]`, `[OnHalfOpened]`, `[BreakDurationGenerator]`, `[FallbackWhen]`, `[FallbackWith]`,
+  `[OnFallback]`, `[HedgeWhen]`, `[OnHedging]`. A hook attribute binds to the only strategy of its kind, or to the
+  one whose `Name` it passes (`[OnTimeout("Attempt")]`); a name on the strategy wins. Predicates may take the
+  arguments struct or just the `Outcome<T>`; events may return `ValueTask` or `void`; a fallback action may
+  return `T`, `Outcome<T>`, `ValueTask<T>` or `ValueTask<Outcome<T>>`.
+- **Result type:** `[ResiliencePipeline<T>]`, or a hook that names `T` (as above), makes a typed pipeline. Without
+  either, the pipeline is generic, like the non-generic `ResiliencePipeline`: `ExecuteAsync<TResult>` plus void
+  overloads, with generic hooks (`static bool Handle<TResult>(Outcome<TResult> o)`).
+- **Static or DI form:** with only static hooks the members are static and the state is process-wide. An instance
+  hook or a constructor with parameters makes the DI form: instance members, state per instance, hooks that use
+  injected services (`public partial class OrdersPipeline(ILogger<OrdersPipeline> logger)`).
+- **Every strategy has an attribute:** `[Timeout]`, `[Retry]`, `[CircuitBreaker]` (with the slow-call ratio),
+  `[Fallback]`, `[RateLimiter]`, `[ConcurrencyLimiter]`, `[FixedWindowLimiter]`, `[SlidingWindowLimiter]`,
+  `[NativeConcurrencyLimiter]`, `[AdaptiveConcurrencyLimiter]`, `[Hedging]`, `[ChaosFault]`, `[ChaosOutcome]`,
+  `[ChaosLatency]`, `[ChaosBehavior]`, and a class-level `[RetryBudget]`. A pipeline with hedging is not
+  flattened: the generated members forward to the equivalent runtime pipeline, built once.
+- **Pooling:** the returned `ValueTask` is pooled, as in the builder; `[ResiliencePipeline(PooledAsync = false)]`
+  opts out.
+- **Reload:** `[ResiliencePipeline(Reloadable = true)]` generates a `CatalogPipelineOptions` class (one section per
+  strategy, named by its `Name`, whose defaults are the attribute values) and `TryApply(options, out error)`. Each
+  execution reads one snapshot at entry, invalid values are rejected with the builder's rules, and a breaker or
+  limiter whose section did not change keeps its state.
+- **Tests:** `UseTimeProvider(fakeTime)` replaces the clock (and recreates the state) of the pipeline.
 
 ## Rejections without exceptions
 
@@ -280,5 +331,5 @@ concurrently, on its own frames. Its per-attempt state is pooled, but the tasks 
 
 ## Compiler requirements
 
-The source generator that ships in this package (coming in a later milestone) is built against Roslyn
-5.9 and needs the .NET SDK 10.0.4xx or later.
+The source generator that ships in this package is built against Roslyn 5.9 and needs the .NET SDK 10.0.4xx
+or later; an older compiler skips it (the declarative members are then missing).

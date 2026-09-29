@@ -84,11 +84,14 @@ public static class CircuitBreakerResiliencePipelineBuilderExtensions
             {
                 var snapshot = options.Snapshot();
                 var controller = CircuitBreakerSetup.CreateController(snapshot, context);
-                CircuitBreakerSetup.Attach(snapshot, controller);
+                var attachment = CircuitBreakerSetup.Attach(snapshot, controller);
                 return new CircuitBreakerStrategy<TResult>(
                     controller,
                     snapshot.ShouldHandle,
-                    new CircuitEventHandlers<TResult>(snapshot.OnOpened, snapshot.OnClosed, snapshot.OnHalfOpened));
+                    new CircuitEventHandlers<TResult>(snapshot.OnOpened, snapshot.OnClosed, snapshot.OnHalfOpened))
+                {
+                    Attachment = attachment,
+                };
             },
             options);
     }

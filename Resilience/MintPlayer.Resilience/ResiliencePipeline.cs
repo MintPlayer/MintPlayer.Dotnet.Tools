@@ -322,7 +322,21 @@ public sealed class ResiliencePipeline
         return Core<TResult>().Execute<SyncContextCallback<TState, TResult>, ResultShape<TResult>, TResult>(new(callback, state), default, context);
     }
 
-    private PipelineCore<TResult> Core<TResult>()
+    internal int StrategyCount => _factories.Length;
+
+    /// <summary>Releases the state providers and manual controls of the breakers, for a pipeline that is being replaced.</summary>
+    internal void ReleaseAttachments()
+    {
+        foreach (var factory in _factories)
+        {
+            if (factory is CircuitBreaker.CircuitBreakerStrategyFactory breaker)
+            {
+                breaker.Attachment?.Dispose();
+            }
+        }
+    }
+
+    internal PipelineCore<TResult> Core<TResult>()
     {
         foreach (var core in Volatile.Read(ref _cores))
         {

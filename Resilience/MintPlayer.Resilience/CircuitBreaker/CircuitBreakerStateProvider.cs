@@ -19,4 +19,8 @@ public sealed class CircuitBreakerStateProvider
 
         _circuitStateProvider = circuitStateProvider;
     }
+
+    /// <summary>Detaches the breaker that <paramref name="circuitStateProvider"/> belongs to, if it is still the attached one.</summary>
+    internal void Release(Func<CircuitState> circuitStateProvider)
+        => Interlocked.CompareExchange(ref _circuitStateProvider, null, circuitStateProvider);
 }
