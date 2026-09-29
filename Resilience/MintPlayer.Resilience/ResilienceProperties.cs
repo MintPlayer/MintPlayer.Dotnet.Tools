@@ -67,4 +67,13 @@ public sealed class ResilienceProperties
     public void Set<TValue>(ResiliencePropertyKey<TValue> key, TValue value) => _values[key.Key] = value;
 
     internal void Clear() => _values.Clear();
+
+    /// <summary>Copies every value of <paramref name="other"/> into this instance, replacing existing keys.</summary>
+    internal void AddOrReplaceProperties(ResilienceProperties other)
+    {
+        foreach (var pair in other._values)
+        {
+            _values[pair.Key] = pair.Value;
+        }
+    }
 }

@@ -12,10 +12,19 @@ internal sealed class PipelineCore<T>
     private readonly PipelineStrategy<T>[] _strategies;
     private readonly bool _pooledAsync;
 
+    // _nextFork[i]: the position of the first ForkingStrategy at or after i, or _strategies.Length when there is none.
+    private readonly int[] _nextFork;
+
     public PipelineCore(PipelineStrategy<T>[] strategies, bool pooledAsync)
     {
         _strategies = strategies;
         _pooledAsync = pooledAsync;
+        _nextFork = new int[strategies.Length + 1];
+        _nextFork[strategies.Length] = strategies.Length;
+        for (var i = strategies.Length - 1; i >= 0; i--)
+        {
+            _nextFork[i] = strategies[i] is ForkingStrategy<T> ? i : _nextFork[i + 1];
+        }
     }
 
     public static PipelineCore<T> Empty { get; } = new([], pooledAsync: true);
@@ -30,7 +39,7 @@ internal sealed class PipelineCore<T>
         where TShape : struct, IOutcomeShape<T, TOut>
     {
         var frame = ExecutionFrame<T>.Rent(_strategies.Length, cancellationToken, context, isSynchronous);
-        var task = RunAsync<TCallback, TShape, TOut, NoTelemetry>(frame, callback, default);
+        var task = RunAsync<TCallback, TShape, TOut, NoTelemetry>(frame, callback, default, 0);
         return _pooledAsync || task.IsCompleted ? task : new ValueTask<TOut>(task.AsTask());
     }
 
@@ -63,20 +72,27 @@ internal sealed class PipelineCore<T>
     /// callback. Outward: <c>ExitAsync</c> of each entered strategy, innermost first; a strategy that
     /// asks to repeat (retry) sends the walk inward again from just inside itself.
     /// </summary>
+    /// <remarks>
+    /// A <see cref="ForkingStrategy{T}"/> (hedging) ends the walk inward: in place of the callback the
+    /// interpreter hands it an <see cref="InnerPipeline{T}"/> that runs this same method from just inside the
+    /// forking strategy (<paramref name="start"/>) on a fresh frame per attempt. Without a forking strategy
+    /// the only cost is one comparison per round.
+    /// </remarks>
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
-    private async ValueTask<TOut> RunAsync<TCallback, TShape, TOut, TTelemetry>(ExecutionFrame<T> frame, TCallback callback, TTelemetry telemetry)
+    private async ValueTask<TOut> RunAsync<TCallback, TShape, TOut, TTelemetry>(ExecutionFrame<T> frame, TCallback callback, TTelemetry telemetry, int start)
         where TCallback : struct, ICallback<T>
         where TShape : struct, IOutcomeShape<T, TOut>
         where TTelemetry : struct, IPipelineTelemetry
     {
         var strategies = _strategies;
+        var end = _nextFork[start];
         var continueOnCapturedContext = frame.ContinueOnCapturedContext;
         var started = telemetry.OnPipelineExecuting(frame);
-        var depth = 0;
+        var depth = start;
 
         while (true)
         {
-            while (depth < strategies.Length)
+            while (depth < end)
             {
                 bool proceed;
                 try
@@ -97,11 +113,23 @@ internal sealed class PipelineCore<T>
                 depth++;
             }
 
-            if (depth == strategies.Length)
+            if (depth == end)
             {
                 try
                 {
-                    if (TCallback.IsVoid)
+                    if (end != strategies.Length)
+                    {
+                        var inner = InnerRunner<TCallback>.Rent(this, callback, end + 1);
+                        try
+                        {
+                            await ((ForkingStrategy<T>)strategies[end]).ExecuteAsync(frame, end, inner).ConfigureAwait(continueOnCapturedContext);
+                        }
+                        finally
+                        {
+                            inner.Return();
+                        }
+                    }
+                    else if (TCallback.IsVoid)
                     {
                         await callback.InvokeVoidAsync(frame).ConfigureAwait(continueOnCapturedContext);
                         frame.Outcome = new((T)(object)VoidResult.Instance);
@@ -118,7 +146,7 @@ internal sealed class PipelineCore<T>
             }
 
             var repeat = false;
-            while (depth > 0)
+            while (depth > start)
             {
                 depth--;
                 try
@@ -148,5 +176,39 @@ internal sealed class PipelineCore<T>
         var outcome = frame.Outcome;
         frame.Return();
         return TShape.Complete(outcome);
+    }
+
+    /// <summary>The inner part of the pipeline below a forking strategy, bound to one execution's callback. Pooled per callback shape.</summary>
+    private sealed class InnerRunner<TCallback> : InnerPipeline<T>
+        where TCallback : struct, ICallback<T>
+    {
+        private static readonly ObjectPool<InnerRunner<TCallback>> Pool = new(static () => new InnerRunner<TCallback>());
+
+        private PipelineCore<T>? _core;
+        private TCallback _callback;
+        private int _start;
+
+        public static InnerRunner<TCallback> Rent(PipelineCore<T> core, TCallback callback, int start)
+        {
+            var runner = Pool.Get();
+            runner._core = core;
+            runner._callback = callback;
+            runner._start = start;
+            return runner;
+        }
+
+        public void Return()
+        {
+            _core = null;
+            _callback = default;
+            Pool.Return(this);
+        }
+
+        public override ValueTask<Outcome<T>> ExecuteAsync(ResilienceContext context)
+        {
+            var core = _core ?? throw new InvalidOperationException("The hedged callback was invoked after the hedging execution completed.");
+            var frame = ExecutionFrame<T>.Rent(core._strategies.Length, default, context, context.IsSynchronous);
+            return core.RunAsync<TCallback, OutcomeShape<T>, Outcome<T>, NoTelemetry>(frame, _callback, default, _start);
+        }
     }
 }

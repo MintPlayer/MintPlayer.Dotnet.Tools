@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using MintPlayer.Resilience.CircuitBreaker;
 using MintPlayer.Resilience.Fallback;
+using MintPlayer.Resilience.Hedging;
 using MintPlayer.Resilience.RateLimiting;
 using MintPlayer.Resilience.Retry;
 using MintPlayer.Resilience.Timeout;
@@ -154,6 +155,16 @@ public class PredicateBuilder<TResult>
     /// <param name="builder">The builder.</param>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public static implicit operator Func<AdaptiveConcurrencyLimiterPredicateArguments<TResult>, bool>(PredicateBuilder<TResult> builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        var predicate = builder.Build();
+        return args => predicate(args.Outcome);
+    }
+
+    /// <summary>Converts the builder to a hedging predicate.</summary>
+    /// <param name="builder">The builder.</param>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static implicit operator Func<HedgingPredicateArguments<TResult>, bool>(PredicateBuilder<TResult> builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         var predicate = builder.Build();

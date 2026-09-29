@@ -174,6 +174,66 @@ Each execution deposits one request; each retry must withdraw one. Over any `tim
 within `minRetriesPerSecond × timeToLive + retryRatio × requests`. When the budget is spent, the strategy
 stops and returns the last outcome. Lock-free and allocation-free.
 
+## Hedging
+
+Hedging sends a second request when the first one is slow, and keeps whichever answers first:
+
+```csharp
+var pipeline = new ResiliencePipelineBuilder<HttpResponseMessage>()
+    .AddHedging(new HedgingStrategyOptions<HttpResponseMessage>
+    {
+        MaxHedgedAttempts = 2,                      // 1–10; at most 3 concurrent attempts
+        Delay = TimeSpan.FromMilliseconds(500),     // start the next attempt after 500 ms without an answer
+        ShouldHandle = new PredicateBuilder<HttpResponseMessage>()
+            .Handle<HttpRequestException>()
+            .HandleResult(r => (int)r.StatusCode >= 500),
+    })
+    .AddTimeout(TimeSpan.FromSeconds(2))            // per attempt: strategies after hedging run per attempt
+    .Build();
+```
+
+- The first outcome that `ShouldHandle` does not handle wins. A handled outcome starts the next attempt
+  at once. When every attempt is handled, the primary's outcome is returned (as in Polly).
+- `Delay = TimeSpan.Zero` starts every attempt at once (parallel mode). A negative delay (for example
+  `Timeout.InfiniteTimeSpan`) starts the next attempt only after a handled outcome (fallback mode).
+  `DelayGenerator` sets the delay per attempt.
+- The losers are cancelled and awaited before the call returns, and their results are disposed
+  (`HttpResponseMessage` included).
+- Each attempt runs on its own copy of the `ResilienceContext`. When the call completes, the winner's
+  properties are copied back to the caller's context; the losers' changes are dropped.
+- `ActionGenerator` supplies a custom action per hedged attempt (for example, another endpoint).
+  `args.Callback(args.ActionContext)` runs the rest of the pipeline again. Returning `null` skips the
+  attempt. `OnHedging` is raised before each hedged attempt.
+
+## Chaos engineering
+
+Polly 8's Simmy strategies are ordinary strategies here too (`MintPlayer.Resilience.Simmy`), so they can
+stay in a production pipeline behind a flag:
+
+```csharp
+builder
+    .AddChaosLatency(new ChaosLatencyStrategyOptions
+    {
+        EnabledGenerator = _ => featureFlags.ChaosEnabled,   // synchronous
+        InjectionRate = 0.05,
+        Latency = TimeSpan.FromSeconds(2),
+    })
+    .AddChaosFault(0.02, () => new TimeoutException())
+    .AddChaosOutcome(new ChaosOutcomeStrategyOptions<HttpResponseMessage>
+    {
+        InjectionRate = 0.01,
+        OutcomeGenerator = new OutcomeGenerator<HttpResponseMessage>()
+            .AddResult(() => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable), weight: 80)
+            .AddException<HttpRequestException>(weight: 20),
+    });
+```
+
+- `AddChaosFault`, `AddChaosOutcome`, `AddChaosLatency` and `AddChaosBehavior` share `InjectionRate`
+  (0–1), `InjectionRateGenerator`, `Enabled`, `EnabledGenerator` and `Randomizer`. Each has its own
+  `On…Injected` event.
+- A strategy that is disabled, or has a zero rate, costs one branch and allocates nothing. A call that is
+  not injected allocates nothing either.
+
 ## Differences from Polly v8
 
 - **Predicates and generators are synchronous.** `ShouldHandle` returns `bool`, `DelayGenerator` returns
@@ -181,6 +241,17 @@ stops and returns the last outcome. Lock-free and allocation-free.
   `BreakDurationGenerator` returns `TimeSpan`. Events (`OnRetry`, `OnTimeout`, `OnFallback`,
   `OnOpened`, `OnHalfOpened`, `OnClosed`, `OnRejected`) and `FallbackAction` stay `ValueTask`-returning,
   and so does `RateLimiterStrategyOptions.RateLimiter`, because acquiring a lease may wait in a queue.
+  - Hedging: `ShouldHandle` returns `bool` and `DelayGenerator` returns `TimeSpan`; `ActionGenerator`
+    and `OnHedging` keep their shapes.
+  - Chaos: `EnabledGenerator` returns `bool`, `InjectionRateGenerator` returns `double`,
+    `LatencyGenerator` returns `TimeSpan`, `FaultGenerator` returns `Exception?` and `OutcomeGenerator`
+    returns `Outcome<T>?`. `BehaviorGenerator` (an action) and the `On…Injected` events stay
+    `ValueTask`-returning. `FaultGenerator` and `OutcomeGenerator<T>` convert implicitly, as in Polly.
+- **Hedging details:** when `ActionGenerator` returns `null` in parallel mode, the strategy waits for a
+  running attempt instead of asking again at once (Polly spins). A throwing `ShouldHandle` ends the
+  hedging with its exception.
+- **Chaos details:** a disabled strategy, or one with a zero rate, does not check the cancellation token
+  and does not call the randomizer. Polly checks and calls both.
 - **Rate limiter details:** `RateLimiterArguments` adds `CancellationToken`, which does not rent a
   context the way `Context` does, and `AddRateLimiter(RateLimiter)` calls the limiter directly.
 - **Circuit breaker details:**
@@ -204,7 +275,8 @@ stops and returns the last outcome. Lock-free and allocation-free.
 A pipeline is one async interpreter method over the strategies' synchronous hooks, not a chain of
 async layers. The callback runs once per attempt inside that single method, so a callback that really
 suspends costs one state-machine box for the whole pipeline, and that box is pooled. The sync-completing
-happy path allocates nothing.
+happy path allocates nothing. Hedging is the exception: it runs the rest of the pipeline once per attempt,
+concurrently, on its own frames. Its per-attempt state is pooled, but the tasks it waits on are not.
 
 ## Compiler requirements
 

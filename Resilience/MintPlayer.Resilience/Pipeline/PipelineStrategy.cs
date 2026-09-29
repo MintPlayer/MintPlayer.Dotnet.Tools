@@ -53,6 +53,53 @@ internal abstract class PipelineStrategy<T>
 }
 
 /// <summary>
+/// A strategy that runs the inner remainder of the pipeline itself, any number of times and concurrently
+/// (hedging). When the interpreter reaches it on the way in, it does not call <see cref="PipelineStrategy{T}.EnterAsync"/>
+/// or <see cref="PipelineStrategy{T}.ExitAsync"/>; it calls <see cref="ExecuteAsync"/> instead, which stands in
+/// for "the strategies inside this one plus the callback" and must leave the final outcome in <c>frame.Outcome</c>.
+/// </summary>
+/// <remarks>
+/// Every run of <see cref="InnerPipeline{T}.ExecuteAsync"/> gets its own <see cref="ExecutionFrame{T}"/> (own slots,
+/// own token, the given context), so the strategies inside run per attempt and concurrent attempts never share
+/// state. <see cref="ExecuteAsync"/> must not complete before every run it started has completed: the
+/// inner runner is pooled and reused once it returns. An exception thrown by
+/// <see cref="ExecuteAsync"/> becomes the outcome, as for a hook.
+/// </remarks>
+internal abstract class ForkingStrategy<T> : PipelineStrategy<T>
+{
+    /// <summary>Runs the inner remainder of the pipeline as often as the strategy needs and sets <c>frame.Outcome</c>.</summary>
+    /// <param name="frame">The execution, at this strategy's depth.</param>
+    /// <param name="index">This strategy's position.</param>
+    /// <param name="inner">Runs the strategies inside this one and the callback once per call.</param>
+    public abstract ValueTask ExecuteAsync(ExecutionFrame<T> frame, int index, InnerPipeline<T> inner);
+
+    /// <summary>Not called for a forking strategy.</summary>
+    public sealed override ValueTask<bool> EnterAsync(ExecutionFrame<T> frame, int index) => new(true);
+
+    /// <summary>Not called for a forking strategy.</summary>
+    public sealed override ValueTask<bool> ExitAsync(ExecutionFrame<T> frame, int index) => new(false);
+}
+
+/// <summary>
+/// The part of a pipeline inside a <see cref="ForkingStrategy{T}"/>: its strategies plus the user callback.
+/// Created (pooled) by the interpreter for one execution of the forking strategy.
+/// </summary>
+internal abstract class InnerPipeline<T>
+{
+    protected InnerPipeline() => Callback = ExecuteAsync;
+
+    /// <summary>
+    /// Runs the inner part once on a new frame bound to <paramref name="context"/>, whose token is the one
+    /// the inner strategies start from. The caller owns the context. Never throws: failures are outcomes.
+    /// The returned task is pooled: await it exactly once.
+    /// </summary>
+    public abstract ValueTask<Outcome<T>> ExecuteAsync(ResilienceContext context);
+
+    /// <summary><see cref="ExecuteAsync"/> as a cached delegate (the hedging <c>ActionGenerator</c> callback).</summary>
+    public Func<ResilienceContext, ValueTask<Outcome<T>>> Callback { get; }
+}
+
+/// <summary>
 /// A strategy that is not tied to one result type (timeout today; circuit breaker, limiters and chaos
 /// later). Created once per <c>Build()</c>, so state shared by every result type (a CTS pool, a breaker
 /// controller) lives here; <see cref="Create{TResult}"/> produces the typed hooks on demand, once per

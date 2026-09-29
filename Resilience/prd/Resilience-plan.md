@@ -131,7 +131,7 @@ manual reset.
     including retry-after.
   - The stress tests are `[Trait("Category","Stress")]`.
 
-## Milestone 3 — Rate limiting, hedging & chaos ⏳
+## Milestone 3 — Rate limiting, hedging & chaos ✅
 
 - Rate and concurrency limiter over `System.Threading.RateLimiting`.
 - Native lease-free fixed/sliding-window and concurrency limiters, so rejections allocate 0 B (S5).
@@ -146,8 +146,8 @@ manual reset.
 
 **Done when:** all three are usable from the runtime builder.
 
-**Status:** the limiter half (rate/concurrency limiting, lease-free limiters, retry budget, adaptive
-limit) is ✅. Hedging and chaos are still ⏳; the milestone flips to ✅ when they land.
+**Status:** both halves are ✅: the limiters (rate/concurrency limiting, lease-free limiters, retry
+budget, adaptive limit), then hedging and chaos.
 
 **Implementation notes (limiter half):**
 
@@ -207,6 +207,73 @@ limit) is ✅. Hedging and chaos are still ⏳; the milestone flips to ✅ when 
   - `RateLimiterTests`, `NativeLimiterTests`, `RetryBudgetTests`, `AdaptiveConcurrencyLimiterTests`.
   - `LimiterAllocationTests`, in the allocation collection.
   - `LimiterStressTests`, tagged `[Trait("Category","Stress")]`.
+
+**Implementation notes (hedging & chaos half):**
+
+- **Interpreter extension:** `ForkingStrategy<T>` (in `Pipeline/PipelineStrategy.cs`) is a strategy that
+  runs the inner remainder itself. `PipelineCore` precomputes `_nextFork[i]` (the first forking strategy
+  at or after `i`), and `RunAsync` takes a `start` depth.
+  - The walk inward stops at the fork. In place of the callback, the interpreter calls
+    `ForkingStrategy.ExecuteAsync(frame, index, inner)`.
+  - `inner` is a pooled `InnerRunner<TCallback>` (an `InnerPipeline<T>`). Each
+    `inner.ExecuteAsync(context)` rents a new `ExecutionFrame` bound to that context and runs `RunAsync`
+    from `fork + 1`, with `OutcomeShape` and `NoTelemetry`.
+  - Without a fork, the cost is one comparison per round. The fork's own Enter/Exit are never called.
+  - Nested hedging works, because each inner run finds the next fork.
+- **Hedging** (`Hedging/`) ports Polly's `HedgingResilienceStrategy`, `HedgingExecutionContext` and
+  `TaskExecution` one-for-one. It is typed-only (`AddHedging` on `ResiliencePipelineBuilder<T>`), as in
+  Polly.
+  - The execution context and the attempts are pooled per strategy, and the attempt CTSs come from
+    `CancellationTokenSourcePool`. What still allocates is intrinsic: a `Task` per attempt, `WhenAny`,
+    and the `WaitAsync` timer.
+  - Hedging always materializes the frame's context. Every attempt, the primary included, runs on its
+    own `ResilienceContext`, copied with `InitializeFrom`: operation key, flags and properties, plus the
+    attempt's own token.
+  - When the call completes, the accepted attempt's properties are merged into the primary context
+    (`AddOrReplaceProperties`). The losers' changes are dropped.
+  - Losers are cancelled **and awaited** before the strategy returns. Results that were not accepted are
+    disposed; value types are skipped, as in retry.
+  - When every attempt is handled, the primary's outcome wins (Polly's `_tasks.First(completed)`).
+  - `OnHedging.AttemptNumber` is Polly's `attemptNumber − 1`. `HedgingPredicateArguments.AttemptNumber` is
+    `int?`, as in Polly.
+  - A synchronous `Execute` runs hedged attempts through `Task.Run`.
+  - `Delay`: zero means parallel, negative means fallback mode. It is not validated, as in Polly.
+- **Hedging deviations:**
+  - In parallel mode, an `ActionGenerator` that returns `null` makes the strategy wait for a completion.
+    Polly spins instead.
+  - A throwing `ShouldHandle` becomes the outcome, where Polly faults the task.
+  - An `OnHedging` that throws releases the attempt, then becomes the outcome.
+- **Chaos** (`Simmy/`, namespaces `MintPlayer.Resilience.Simmy[.Fault|.Outcomes|.Latency|.Behavior]` as
+  in Polly):
+  - Fault, latency and behavior are `StrategyFactory`s, so they serve both builders. Outcome is
+    typed-only.
+  - S7 rule: `EnabledGenerator` returns `bool`, `InjectionRateGenerator` `double`, `LatencyGenerator`
+    `TimeSpan`, `FaultGenerator` `Exception?` and `OutcomeGenerator` `Outcome<T>?`. `BehaviorGenerator` and
+    the events stay `ValueTask`.
+  - `FaultGenerator` and `OutcomeGenerator<T>` are weighted builders with implicit conversions. Each has
+    an internal constructor that takes a weight generator, for tests.
+  - Polly's order is kept: token check, enabled, token, rate (clamped to 0–1), token, then
+    `randomizer() < rate`. The token is checked again before continuing. The latency event is raised
+    after the delay.
+  - `ChaosSettings.IsOff` (disabled, or rate 0 without generators) turns the hook into one branch. It
+    skips Polly's token check and randomizer call; this is documented.
+  - Not injecting allocates 0 B. Generator args resolve `Context` lazily, as the other args do.
+  - Polly 8 has no `Fault` property, only `FaultGenerator` plus the `AddChaosFault(rate, Func<Exception?>)`
+    shorthand. Mirrored as is.
+- **For M4:** the generator must emit `ForkingStrategy` handling, or call the runtime hedging strategy.
+  The simplest route is to fall back to the interpreter for pipelines that contain hedging.
+- **For M6:**
+  - Inner runs use `NoTelemetry`, so per-attempt telemetry (`ExecutionAttempt`, `OnHedging`) must be
+    reported by the hedging strategy.
+  - The chaos events have no telemetry yet.
+- **Tests** (written, not run):
+  - `HedgingTests`: win/lose, delay timing, parallel and fallback modes, max attempts, disposal, action
+    generator, events, delay generator, context fork and merge, caller cancellation, retry and timeout
+    inside and outside hedging, sync `Execute`, and a concurrency smoke test.
+  - `ChaosTests`: rates via deterministic randomizers, enabled and generators, cancellation, validation,
+    each generator helper by weight, latency via `FakeTimeProvider`, behavior, and chaos inside hedging.
+  - `ChaosAllocationTests`, in the allocation collection: 0 B when disabled, at rate 0, and when not
+    injecting.
 
 ## Milestone 4 — Source generator: declarative pipelines ⏳
 

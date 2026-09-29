@@ -32,6 +32,16 @@ public sealed class ResilienceContext
     /// <summary>Whether the execution is synchronous (<c>Execute</c>), so delays block instead of awaiting.</summary>
     internal bool IsSynchronous { get; set; }
 
+    /// <summary>Makes this context a copy of <paramref name="context"/> with its own token (a hedged attempt's context, as in Polly).</summary>
+    internal void InitializeFrom(ResilienceContext context, CancellationToken cancellationToken)
+    {
+        OperationKey = context.OperationKey;
+        IsSynchronous = context.IsSynchronous;
+        ContinueOnCapturedContext = context.ContinueOnCapturedContext;
+        CancellationToken = cancellationToken;
+        Properties.AddOrReplaceProperties(context.Properties);
+    }
+
     internal void Reset()
     {
         OperationKey = null;
