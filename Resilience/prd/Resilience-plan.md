@@ -93,7 +93,10 @@ generated source).
 
 - `AddResiliencePipeline<TGenerated>()` and `AddResiliencePipeline(key, …)`.
 - Keyed provider/registry, with `IOptionsMonitor` reload.
-- Meter / ActivitySource / LoggerMessage telemetry per S8. Meter and instrument names are documented.
+- Meter / ActivitySource / LoggerMessage telemetry per S8:
+  - default names plus the opt-in `PollyCompatible` scheme;
+  - happy-path events at Debug;
+  - meter and instrument names documented.
 
 **Done when:** registry resolution and a reload are wired in the sample app.
 
@@ -321,6 +324,47 @@ hoisted into the pooled state machine for free).
   non-static DI form for per-container configuration.
 - **Decision:** variant B. C copies ~64 B per execution for no measurable gain.
 - The BDN timing (B vs A) will be confirmed in the sequential run.
+
+### S8 — PASS on allocation and event parity; the ≤ 120 ns gate is pending the sequential BDN run (2026-09-29)
+
+Details in `Resilience/spikes/S8/RESULTS.md`, including the names table.
+
+**Event parity:**
+
+- Both libraries emit the same events per successful execution: 3 metric operations, 3 log calls and
+  4 timestamps.
+- The one-retry and always-fail runs match line for line.
+- Our circuit-breaker, rejection and timeout events are checked as well.
+
+**Allocation, telemetry on** (bytes/op):
+
+| | Sync | One retry | Async (above the callback) | Held-open circuit |
+|---|---|---|---|---|
+| Ours (no-op listener, real OpenTelemetry SDK, or logging at Information) | **0** | **0** | **+0** | **0** |
+| Polly | 48 | 96 | +240 | 824 |
+
+- **Polly boxes the result for every outcome-carrying event, even with no listener.** It formats the
+  result before checking whether logging is enabled. Polly's own benchmark hides this because its result
+  is a `string`.
+- **Tracing, when a tracer is attached,** costs us about 560 B (the `Activity`). Polly has no tracing.
+
+**Naming** (applied in PRD §2.4):
+
+- The defaults are Polly's names without the `polly.` segment, plus two OpenTelemetry-guided changes:
+  durations in seconds, and `error.type` instead of `exception.type`.
+- The opt-in `PollyCompatible` scheme was verified tag-for-tag against Polly's output.
+- There are no OpenTelemetry semantic conventions for resilience yet. Re-check the registry before
+  shipping.
+
+**Telemetry off:**
+
+- Generated pipelines: telemetry is compiled out.
+- Runtime pipelines, as measured: about 7 null checks on the happy path.
+- **Decision for M1:** make the interpreter generic over a telemetry struct, so the no-op version is
+  JIT-eliminated.
+
+**Pending:** `Ours_On − Ours_Off` must be ≤ 120 ns, compared with `Polly_On − Polly_Off`, in the
+`Sink=MeterNoOp` row. This comes from the sequential BDN run.
 
 ### S7 — PASS (2026-09-29)
 

@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Spike S8 (issue #189): throwaway. Deleted before the PR is finalized. Not in the .sln. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <LangVersion>15</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <Optimize>true</Optimize>
+    <TieredPGO>true</TieredPGO>
+    <NoWarn>$(NoWarn);CA2254;SYSLIB1015</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The telemetry-off baseline is S1's generated shape, byte for byte. -->
+    <Compile Include="..\S1\Primitives.cs" Link="S1\Primitives.cs" />
+    <Compile Include="..\S1\Flat.cs" Link="S1\Flat.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.14.0" />
+    <!-- Last plain BSD-3 release before the OSMF EULA. -->
+    <PackageReference Include="Polly.Core" Version="[8.8.0]" />
+    <PackageReference Include="Polly.Extensions" Version="[8.8.0]" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.12" />
+    <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="10.0.11" />
+    <!-- The real aggregating MeterListener: what an app with OpenTelemetry metrics actually attaches. -->
+    <PackageReference Include="OpenTelemetry" Version="1.15.3" />
+  </ItemGroup>
+
+</Project>

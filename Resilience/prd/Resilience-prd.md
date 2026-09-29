@@ -232,8 +232,24 @@ var pipeline = new ResiliencePipelineBuilder<HttpResponseMessage>()
     `IOptionsMonitor.OnChange` throws from `Reload()` before listeners run.
   - **Registration:** `AddResiliencePipeline<T>()` is idempotent and goes through static abstract
     interface members (`T.AddServices`). Two racing reloads are serialized by a lock.
-- **Telemetry**: an OpenTelemetry `Meter` / `ActivitySource` plus `ILogger` source-generated
-  `LoggerMessage`. Tags are pre-bound per strategy instance.
+- **Telemetry** (plan S8): an OpenTelemetry `Meter` / `ActivitySource` plus `ILogger` source-generated
+  `LoggerMessage`.
+  - **Tags** are pre-bound per pipeline and strategy instance. Allocation is **0 B/op with telemetry on**.
+  - **Default names:**
+    - meter and `ActivitySource` `MintPlayer.Resilience`;
+    - instruments `resilience.strategy.events`, `resilience.strategy.attempt.duration` and
+      `resilience.pipeline.duration`;
+    - durations in seconds, with explicit bucket boundaries;
+    - `error.type` instead of `exception.type`;
+    - all other tag keys as in Polly.
+  - **Opt-in `PollyCompatible` naming scheme** for existing dashboards: meter `Polly`, Polly's
+    instrument names, milliseconds, `exception.type`, and logger category `Polly`.
+  - **Log events** get distinct event ids. Happy-path events are logged at **Debug**; Polly writes two
+    Information lines per successful call.
+  - **When telemetry is off:**
+    - generated pipelines compile it out (0 ns);
+    - the runtime interpreter is generic over a telemetry struct, with a no-op implementation that the
+      JIT removes.
 
 ### 2.5 HttpClient integration (`MintPlayer.Resilience.Http`)
 
