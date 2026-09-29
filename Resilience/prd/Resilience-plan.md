@@ -49,6 +49,7 @@ manual reset.
 ## Milestone 3 — Rate limiting, hedging & chaos ⏳
 
 - Rate and concurrency limiter over `System.Threading.RateLimiting`.
+- Native lease-free fixed/sliding-window and concurrency limiters, so rejections allocate 0 B (S5).
 - Hedging with pooled execution contexts and linked CTS. Only the intrinsic allocations remain.
 
 - Chaos strategies: fault, outcome, latency and behavior injection, with injection rate and an
@@ -240,6 +241,47 @@ No silent corruption was observed; a stale token is detected.
     passed to `Task.WhenAll` / `WhenAny` without `.AsTask()`. It is modelled on CA2012, but as an error
     and scoped to our API.
   - Document the rule in the README's migration section.
+
+### S5 — PASS on bytes and on the safety question; timing pending the sequential BDN run (2026-09-29)
+
+Details in `Resilience/spikes/S5/RESULTS.md`. The table shows bytes per rejected call, over 200k calls:
+
+| Variant | Circuit open | Concurrency limiter | Fixed-window limiter |
+|---|---:|---:|---:|
+| Ours `TryExecuteAsync` | **0** | **0** | 64 (BCL lease + `RetryAfter` box) |
+| Ours `ExecuteAsync`, fresh exception | 752 | 688 | 752 |
+| Polly `ExecuteOutcomeAsync` | 200 | 17,300 | 17,400 |
+| Polly `ExecuteAsync` (throws) | 1,266 | 24,370 | 24,690 |
+
+**Polly's rate-limiter rejection costs 17–25 KB.** The cause is `TrySetStackTrace()`, a full stack walk
+on every rejection (`RateLimiterResilienceStrategy.cs:77`).
+
+**Caching the exception is unsafe, and saves only about 150 B:**
+
+- The runtime still allocates a stack-trace array on every throw.
+- Each throw rewrites the shared instance's stack.
+- `TargetSite` stays stuck on the first throw site.
+- Under 8 concurrent threads:
+  - about 11 % of catches logged another request's stack;
+  - about 22 % showed mixed stacks;
+  - `Data` entries leaked between callers.
+- Repeated `ExceptionDispatchInfo` rethrows grow the trace without bound.
+
+**Decision** (applied in PRD §2.4):
+
+- **`TryExecuteAsync`:** the outcome carries a rejection kind and `RetryAfter`, with no exception
+  reference.
+- **`ExecuteAsync`:** throws a fresh exception per rejection.
+- **`Outcome.Exception` on a rejection:** created lazily when read.
+
+**Fixed-window 64 B:** the lease object comes from the BCL.
+
+- Accepted for the `System.Threading.RateLimiting`-backed strategy.
+- Our own limiters (the adaptive concurrency limit, and a native fixed/sliding window) are written
+  lease-free in M3.
+
+**Timing:** `TryExecuteAsync` on an open circuit measured about 212–232 ns with a Stopwatch while other
+spikes were running. The BDN run is pending.
 
 ### S7 — PASS (2026-09-29)
 

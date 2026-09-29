@@ -205,8 +205,17 @@ var pipeline = new ResiliencePipelineBuilder<HttpResponseMessage>()
 - **`ResilienceContext`**: pooled, with typed `ResiliencePropertyKey<T>` properties, only when the
   caller asks for it. The generated overloads without a context never touch the pool (this saves the
   ~30 ns measured on Polly).
-- **`Outcome<T>`**: a readonly struct. Rejections carry a cached, stackless exception instance, so there
-  is no `ExceptionDispatchInfo.Capture` on our own rejections.
+- **`Outcome<T>`**: a readonly struct: `IsSuccess`, `IsRejected`, `Rejection` (`RejectionKind : byte`
+  — `None`, `CircuitOpen`, `CircuitIsolated`, `RateLimited`, `Timeout`), `RetryAfter`, `Result`,
+  `Exception`, `GetResultOrThrow()`. A rejection carries **no exception reference**. `Exception` on a
+  rejected outcome is created on first read.
+- **Never cache or reuse a thrown exception** (plan S5): each throw rewrites the instance's stack, the
+  `Data` dictionary leaks between callers, and concurrent throws produce mixed or foreign stack traces.
+- **`ExecuteAsync` throws a fresh exception per rejection:** `ResilienceRejectedException { Kind, RetryAfter }`
+  → `BrokenCircuitException` / `IsolatedCircuitException` / `RateLimiterRejectedException` /
+  `TimeoutRejectedException`. The names are Polly's, per S7.
+- **An analyzer code fix** rewrites `o.Exception is BrokenCircuitException` into
+  `o.Rejection == RejectionKind.CircuitOpen`.
 - **DI**: `services.AddResiliencePipeline<CatalogPipeline>()` for generated pipelines, and
   `AddResiliencePipeline(key, builder => …)` for runtime ones. It adds a keyed registry and reload via
   `IOptionsMonitor` (see S6).
