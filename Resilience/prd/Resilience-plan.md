@@ -245,6 +245,50 @@ No silent corruption was observed; a stale token is detected.
     and scoped to our API.
   - Document the rule in the README's migration section.
 
+### S4 — PASS on correctness; throughput pending the sequential BDN run (2026-09-29)
+
+Details in `Resilience/spikes/S4/RESULTS.md`.
+
+**Design:**
+
+- **Circuit state:** one `long` = state + a 14-bit generation (to prevent ABA) + break-until
+  microseconds. Every transition is a CAS from the exact value the caller read, so exactly one thread
+  wins each transition and fires its event.
+  - Closed `TryEnter` is a single read, with no time lookup.
+  - The half-open probe is simply the thread that wins Open → HalfOpen.
+- **Health window:** a per-core striped, lock-free port of Polly's rolling windows.
+- **Slow-call ratio** (beyond Polly) fits the same design: a third counter, and a slow probe counts as a
+  failed probe.
+- **Baseline:** `Locked.cs` is a line-for-line port of Polly's controller under a lock, used as the fair
+  comparison.
+
+**Correctness** (all pass):
+
+- **Transition tests:** deterministic, with `FakeTimeProvider`.
+- **Parity with Polly:** 3,000 random scripts, 750,000 operations and 34,158 transitions, including late
+  outcomes and manual control. After every operation, Polly 8.8.0, Locked and LockFree had identical
+  state and admission.
+- **Race fuzzing:**
+  - A: 1.28 M `TryEnter` calls racing at the half-open instant admitted exactly 1 probe in each of
+    20,000 rounds.
+  - B: 1.28 M operations with 21,519 transitions formed one legal chain in every round, with no lost or
+    duplicated transitions.
+  - C: 2.4 M counter records, with no lost increments.
+- **Mutation testing:** three deliberately broken variants were all caught.
+- **Untested gap:** one guard that only matters when a thread stalls across more than 16 window starts.
+  It is covered by argument in RESULTS.md, not by a test.
+
+**Deliberate deviation from Polly:** the health window is also cleared when the probe is admitted, not
+only on close. Without that, a call admitted right after closing could re-trip the circuit on the old
+failures. It is only observable through the break-duration generator's arguments.
+
+**Pending:** LockFree must be ≥ Locked at 16 threads (the real test; beating Polly is expected, since
+Polly also pays for its whole pipeline).
+
+- **Risk:** the 5 % failure case, where each failure sums up to 480 counters.
+- **If LockFree loses to Locked:** keep the lock.
+- **If only the failure case loses:** use fewer stripes, or keep a running total per window.
+
 ### S5 — PASS on bytes and on the safety question; timing pending the sequential BDN run (2026-09-29)
 
 Details in `Resilience/spikes/S5/RESULTS.md`. The table shows bytes per rejected call, over 200k calls:
