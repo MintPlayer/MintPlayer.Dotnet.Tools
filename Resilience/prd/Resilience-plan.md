@@ -139,7 +139,55 @@ Then open the single PR.
 
 ## Spike results
 
-_(filled in as M0 runs)_
+### S1 — PASS (2026-09-29)
+
+**Setup:**
+
+- Code: `Resilience/spikes/S1`.
+- Environment: BenchmarkDotNet 0.14.0, .NET 11.0.0, Windows 11 x64 (AVX-512).
+- Pipeline: fallback → timeout 10 s → retry ×3 (exponential, jitter, 0 delay) → circuit breaker → timeout 2 s.
+- The fairness gate passed for all four implementations: same results, 2 attempts on one retry, 4 when
+  every attempt fails.
+
+**Results:**
+
+| Workload | Polly 8.8.0 | Flat (generated shape) | Flat + pooling builder | Struct-nested chain |
+|---|---|---|---|---|
+| Sync happy path | 983 ns, 0 B | **278 ns (0.29×)**, 0 B | 269 ns (0.28×), 0 B | 312 ns (0.32×), 0 B |
+| One retry (sync) | 1,962 ns, 0 B | **545 ns (0.28×)**, 0 B | 372 ns (0.19×), 0 B | 588 ns (0.30×), 0 B |
+| Async (`Task.Yield`), total alloc | 1,697 B | 396 B | 289 B | 1,385 B |
+| Async, **alloc above the callback's own 218 B** | **1,479 B** | **178 B (8.3× less)** | **71 B (21× less)** | 1,167 B (1.3× less) |
+
+- **Async wall-clock is noise.** The error bars were ±4 µs, dominated by `Task.Yield` scheduling; only
+  the allocation figures count there.
+- **The sync numbers include two intrinsic `CancelAfter` timer operations,** in every column.
+
+**Findings:**
+
+1. **Go.** The flat method beats the stop condition (≥ 5× fewer async allocations) at 8.3×, and 21×
+   with the pooling builder. Sync-path time is 0.29× Polly (target ≤ 0.5×). Flat = one state-machine
+   box (178 B) → "≤ 1 box" met.
+2. **The struct-nested chain is fast but does not deliver the allocation win.**
+   - Sync time is within 12 % of flat, which meets the ≤ 20 % target.
+   - But each layer's async slow path boxes separately when the callback suspends: 1,167 B, barely
+     better than Polly.
+   - So the runtime builder must not be a chain of async layers. **Decision for M1:** runtime pipelines
+     use a single async interpreter method (one box) over strategies with synchronous hooks. The
+     strategy structs expose `Before`/`After`/`ShouldRetry`-style hooks instead of wrapping `next`.
+     This works for timeout, retry, circuit breaker, fallback, chaos and the limiters. Hedging keeps its
+     own async executor (its allocations are intrinsic). Validate this interpreter with the M1
+     benchmark.
+3. **The pooling builder leaves 71 B/op on the async path.**
+   - Likely cause: the thread-static CTS cache misses because the `Task.Yield` continuation resumes on
+     another thread, falling through to `ConcurrentQueue`, or a per-thread builder cache.
+   - Carried into S2 to explain before deciding default-on.
+4. **Attribute order: the generator must require all strategy attributes on ONE declaration.**
+   - Within one declaration, `GetAttributes()` returns source order across several attribute lists
+     (`[1,2,3,4]`).
+   - Across `partial` declarations, it follows the syntax-tree order of the compilation (`[1,2,3]` vs
+     `[3,1,2]`), which is not something a user controls.
+   - Strategy attributes split over two declarations → error diagnostic (new rule next to MPR0004).
+     Explicit `Order =` is not needed.
 
 ## Outcome
 
