@@ -35,7 +35,7 @@ use Fences, or pin Polly 8.8.0.
 - S3 fails for interceptors. Its technique moves to the MPR0002 code fix (M5).
 - Results are in "Spike results" below.
 
-## Milestone 1 — Runtime core ⏳
+## Milestone 1 — Runtime core ✅
 
 - `Outcome<T>`, `ResilienceContext` + pool, `ResiliencePropertyKey<T>`, `TimeProvider` plumbing.
 - Strategy structs: Retry (all backoff types, jitter formulas matching Polly's decorrelated jitter),
@@ -43,6 +43,46 @@ use Fences, or pin Polly 8.8.0.
 - The runtime builder in the shape S1 chose (struct-nested, plus the array fallback).
 
 **Done when:** it compiles for net10/net11 with `IsAotCompatible` and no warnings.
+
+**Implementation notes:**
+
+- **Shape:** S1 decision 2 replaces the "struct-nested, plus array fallback" bullet above. The
+  interpreter is `Pipeline/PipelineCore<T>.RunAsync`: ONE async method, pooled builder, generic over the
+  callback struct, the result shape (`T` or `Outcome<T>`) and a telemetry struct (`NoTelemetry` today).
+- **Hook contract** (`Pipeline/PipelineStrategy.cs`), which M2, M3 and M6 plug into:
+  - `ValueTask<bool> EnterAsync(ExecutionFrame<T> frame, int index)`: `false` short-circuits with
+    `frame.Outcome` set.
+  - `ValueTask<bool> ExitAsync(ExecutionFrame<T> frame, int index)`: `true` re-runs the inner part
+    (retry).
+  - Per-execution state goes in `frame.Slots[index]`. Hooks complete synchronously on the happy path;
+    slow paths are pooled async methods.
+  - A hook exception becomes the outcome that the outer strategies see.
+- **Result-agnostic strategies** (timeout now; CB, limiters and chaos next) implement `StrategyFactory`,
+  created once per `Build()` so shared state such as a breaker controller lives there.
+  `Create<TResult>()` makes the typed hooks. Add them through
+  `ResiliencePipelineBuilderBase.AddStrategyFactory`, which serves both builders. Typed-only strategies
+  (fallback) use `ResiliencePipelineBuilder<T>.AddStrategy`.
+- **Non-generic `ResiliencePipeline`:** it builds one `PipelineCore<TResult>` per result type on first
+  use. Non-generic options (`RetryStrategyOptions : RetryStrategyOptions<object>`) are adapted, which
+  boxes value-type results only when a user delegate runs, as in Polly.
+- **Context:** `args.Context` is lazy. The frame rents a `ResilienceContext` only when a delegate reads
+  it.
+- **Rejections:** `Outcome<T>` stores the rejection kind and ticks (`RetryAfter`, or the timeout for
+  `Timeout`) plus the cause, which becomes the `InnerException`. `Outcome.Rejected<T>(kind, ticks,
+  cause)` is internal; M2 and M3 use it in `EnterAsync`. All four exception types exist, deriving from
+  `ResilienceRejectedException`. Polly's `ExecutionRejectedException` base is not mirrored.
+- **`PredicateBuilder.Handle<TException>()`** matches rejections by type without creating the exception.
+  M2 and M3 must add their implicit conversions (CB, hedging predicates) to `PredicateBuilder.cs`.
+- **Void executions** return through a small pooled adapter (`ToVoidTask`), which is a second box only
+  when the callback suspends.
+- **`UsePooledAsync(false)`** converts a suspended execution to a `Task` instead of duplicating the
+  interpreter.
+- **Validation:** options throw `ValidationException` when added (Polly's ranges), written by hand
+  because DataAnnotations reflection is not AOT-safe.
+- **For M4:** the shared state types (`CancellationTokenSourcePool`, `RetryHelper`, `DefaultPredicates`)
+  are `internal`. Generated code needs them public, e.g. `[EditorBrowsable(Never)]`.
+- **Not in M1:** Polly's `ExecuteOutcomeAsync`, and `Retry-After` awareness (M7, via `DelayGenerator`).
+  Retry skips disposing value-type results, to avoid boxing them.
 
 ## Milestone 2 — Circuit breaker ⏳
 

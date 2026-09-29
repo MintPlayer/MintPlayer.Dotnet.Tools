@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+		<LangVersion>15</LangVersion>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<OutputType>Library</OutputType>
+		<IsAotCompatible>true</IsAotCompatible>
+
+		<IsPackable>true</IsPackable>
+		<Version>11.0.0</Version>
+		<Authors>Pieterjan De Clippel</Authors>
+		<Company>MintPlayer</Company>
+		<Description>Resilience pipelines for .NET (retry, timeout, fallback, circuit breaker, hedging, rate limiting) with Polly v8 names, a single pooled async interpreter, rejection without throwing, and AOT/trimming safety.</Description>
+		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/Resilience/MintPlayer.Resilience</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageId>MintPlayer.Resilience</PackageId>
+		<PackageTags>Resilience,Retry,Timeout,Fallback,CircuitBreaker,Polly,AOT</PackageTags>
+		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+	</PropertyGroup>
+
+	<!-- Include XML markups in the nupkg -->
+	<PropertyGroup Condition="'$(Configuration)'=='Release'">
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+	<!--
+	M4 slot: the source generator (MintPlayer.Resilience.SourceGenerator, netstandard2.0) ships INSIDE
+	this package, the MintPlayer.Assertions way:
+	  - a ProjectReference with OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all";
+	  - a TargetsForTfmSpecificContentInPackage target that packs the generator's own bin output under
+	    analyzers/dotnet/roslyn5.9/cs.
+	See Assertions/MintPlayer.Assertions/MintPlayer.Assertions.csproj for the exact target and its traps.
+	-->
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="MintPlayer.Resilience.Tests" />
+	</ItemGroup>
+
+</Project>
