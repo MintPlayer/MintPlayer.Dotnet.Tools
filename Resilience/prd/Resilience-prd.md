@@ -113,7 +113,7 @@ failures, and AOT.
 [Retry(MaxRetryAttempts = 3, BackoffType = DelayBackoffType.Exponential, DelayMs = 200, UseJitter = true)]
 [CircuitBreaker(FailureRatio = 0.5, SamplingDurationMs = 30_000, MinimumThroughput = 10, BreakDurationMs = 15_000)]
 [Timeout(TimeoutMs = 2_000)]                              // inner: per attempt
-public static partial class CatalogPipeline
+public sealed partial class CatalogPipeline   // not `static`: it must be usable as a type argument (S6)
 {
     // Optional predicate hooks, discovered by convention/attribute. They are synchronous, and the
     // generator inlines them.
@@ -217,8 +217,21 @@ var pipeline = new ResiliencePipelineBuilder<HttpResponseMessage>()
 - **An analyzer code fix** rewrites `o.Exception is BrokenCircuitException` into
   `o.Rejection == RejectionKind.CircuitOpen`.
 - **DI**: `services.AddResiliencePipeline<CatalogPipeline>()` for generated pipelines, and
-  `AddResiliencePipeline(key, builder => …)` for runtime ones. It adds a keyed registry and reload via
-  `IOptionsMonitor` (see S6).
+  `AddResiliencePipeline(key, builder => …)` for runtime ones. Both add a keyed registry.
+- **Reload** (plan S6): `[ResiliencePipeline(Reloadable = true)]`.
+  - **Options class:** the generator emits a `CatalogPipelineOptions` class, with one property per
+    strategy (named by the attribute's `Name`, else the strategy kind). Its initial values are the
+    attribute values.
+  - **Section:** bound from `"Resilience:CatalogPipeline"` by default, or from a section passed to
+    `AddResiliencePipeline<T>("section")`.
+  - **Snapshots:** each execution reads one immutable snapshot at entry (`Volatile.Read`), so in-flight
+    calls keep their values.
+  - **Circuit-breaker state survives a reload.** Polly instead rebuilds a closed breaker.
+  - **Bad configuration values are rejected, and the previous snapshot stays live.** Binding listens to
+    the change tokens and calls `IOptionsFactory.Create` inside try/catch. Plain
+    `IOptionsMonitor.OnChange` throws from `Reload()` before listeners run.
+  - **Registration:** `AddResiliencePipeline<T>()` is idempotent and goes through static abstract
+    interface members (`T.AddServices`). Two racing reloads are serialized by a lock.
 - **Telemetry**: an OpenTelemetry `Meter` / `ActivitySource` plus `ILogger` source-generated
   `LoggerMessage`. Tags are pre-bound per strategy instance.
 

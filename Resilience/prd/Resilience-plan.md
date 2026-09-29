@@ -283,6 +283,45 @@ on every rejection (`RateLimiterResilienceStrategy.cs:77`).
 **Timing:** `TryExecuteAsync` on an open circuit measured about 212–232 ns with a Stopwatch while other
 spikes were running. The BDN run is pending.
 
+### S6 — PASS on correctness and allocation; the ≤ 5 ns gate is pending the sequential BDN run (2026-09-29)
+
+Details in `Resilience/spikes/S6/RESULTS.md`.
+
+**Variants tested:**
+
+- **A:** constants folded in, no reload.
+- **B:** a `Volatile.Read` class snapshot, read once at entry.
+- **C:** a struct snapshot copied into the frame.
+
+**Allocation:** all three are 0 B/op on the sync path, and +0 B on the async path (the snapshot is
+hoisted into the pooled state machine for free).
+
+**Correctness:**
+
+- **In-flight executions keep their starting values.** After a reload (retries 3 → 1, timeout
+  2 s → 50 ms), the next call used the new values.
+- **No mixed values under concurrency.** 16 workers × 20,000 executions across 7,043 reloads, with
+  zero executions seeing a mix of old and new values.
+- **Circuit-breaker health state survives a reload.**
+- **A removed JSON key falls back to the attribute default.**
+
+**Problems found and fixed in the design:**
+
+1. **`IOptionsMonitor.OnChange` binding is fragile.** An unconvertible value throws from `Reload()`
+   before any listener runs. Binding therefore listens to the change tokens and calls
+   `IOptionsFactory.Create` inside try/catch: the bad value is rejected and the old snapshot stays live.
+2. **A duplicate `AddResiliencePipeline` call bound the section twice.** It is made idempotent.
+3. **A `static` class cannot be a type argument (CS0718).** Declarative pipelines are `sealed partial`
+   classes (PRD §2.1 fixed).
+4. **Two racing reloads could publish out of order.** They are serialized with a lock.
+
+**Design notes:**
+
+- A static pipeline means one configuration per process. This is accepted, and documented. Use the
+  non-static DI form for per-container configuration.
+- **Decision:** variant B. C copies ~64 B per execution for no measurable gain.
+- The BDN timing (B vs A) will be confirmed in the sequential run.
+
 ### S7 — PASS (2026-09-29)
 
 Details in `Resilience/spikes/S7/RESULTS.md`, with three before/after snippets.
