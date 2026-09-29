@@ -146,6 +146,68 @@ manual reset.
 
 **Done when:** all three are usable from the runtime builder.
 
+**Status:** the limiter half (rate/concurrency limiting, lease-free limiters, retry budget, adaptive
+limit) is ✅. Hedging and chaos are still ⏳; the milestone flips to ✅ when they land.
+
+**Implementation notes (limiter half):**
+
+- **Files:** `RateLimiting/` holds the BCL-backed strategy (`RateLimiterStrategy*.cs`), the lease-free
+  limiters (`NativeLimiters.cs`, `NativeLimiterStrategyOptions.cs`), the adaptive limiter
+  (`AdaptiveConcurrencyLimiter*.cs`) and every `Add*` extension (`LimiterBuilderExtensions.cs`).
+  `Retry/RetryBudget.cs`; `Pipeline/SegmentedCounter.cs` is the lock-free rolling counter behind the
+  sliding window and the budget. `System.Threading.RateLimiting` 10.0.0 is a package reference: it is
+  not in `Microsoft.NETCore.App`.
+- **BCL strategy (Polly parity):** `RateLimiterStrategyOptions` (`RateLimiter`, `DefaultRateLimiterOptions`
+  = concurrency 1000 / queue 0, `OnRejected`), `AddRateLimiter(RateLimiter | options)`,
+  `AddConcurrencyLimiter(permitLimit, queueLimit)` and `(ConcurrencyLimiterOptions)`.
+  - The `RateLimiter` delegate stays `Func<RateLimiterArguments, ValueTask<RateLimitLease>>`: S7 made
+    only predicates and duration generators synchronous; acquisition can queue, like `ActionGenerator`.
+  - `RateLimiterArguments.CancellationToken` is an addition (no context rental). `AddRateLimiter(RateLimiter)`
+    calls the limiter directly instead of through a delegate.
+  - Lease in `slot.Object`, disposed on exit; a refused lease is disposed after `OnRejected`. `RetryAfter`
+    comes from `MetadataName.RetryAfter`. A cancelled queue wait surfaces as the limiter's OCE.
+- **Lease-free limiters (names chosen):** `AddFixedWindowLimiter` / `FixedWindowLimiterStrategyOptions`,
+  `AddSlidingWindowLimiter` / `SlidingWindowLimiterStrategyOptions` (`SegmentsPerWindow` 1–100),
+  `AddNativeConcurrencyLimiter` / `NativeConcurrencyLimiterStrategyOptions` (no queue). All share
+  `OnLimiterRejectedArguments` (`Context`, `RetryAfter`) and reject with `RateLimited` at 0 B.
+  - Fixed window: one packed `long` (window number, count), exact under contention; windows are aligned
+    to `Build()`.
+  - Sliding window and budget: count first, then check, and take back on refusal. They never over-admit;
+    under contention a call can be refused while another refusal is being taken back.
+  - All are `TimeProvider`-driven through `MicroClock` (µs).
+- **`RejectionKind` is unchanged:** the adaptive limiter rejects with `RateLimited` and
+  `RateLimiterRejectedException`, so existing predicates keep working.
+- **Adaptive limiter:** `AddAdaptiveConcurrencyLimiter` (generic and non-generic, like the breaker),
+  `AdaptiveConcurrencyLimiterStrategyOptions<T>`, `AdaptiveConcurrencyAlgorithm { Aimd, Gradient }`,
+  `ShouldHandle` (drops) with a `PredicateBuilder` conversion. Deviations from Netflix, all found by
+  simulation (capacity 20, 100 offered per round):
+  - Netflix's per-sample updates collapse on a burst: 35 simultaneous drops took the limit from 39 to 1.
+    Here there is **one backoff per generation** (a call admitted before a backoff cannot back off
+    again), AIMD adds `1/limit` per sample (+1 per round trip), and the gradient moves `Smoothing/limit`
+    per sample.
+  - The gradient uses the **no-load (minimum) latency**, not Gradient2's long-term average: the average
+    followed the overload and the limit ran to its maximum. The minimum is only forgotten at the floor
+    (max(MinLimit, 4) + 1). Result: AIMD with a 1.5× threshold settles at 27–31, and the gradient at 36
+    (the fixed point `n = Tolerance × capacity + √n`).
+  - Known limitation (documented on `LatencyWindow`): a permanent baseline rise by `r > Tolerance`, or a
+    start deep in overload, pins the gradient at `(1/(1 − Tolerance/r))²`.
+- **Retry budget:** `RetryBudget(retryRatio 0.2, minRetriesPerSecond 10, timeToLive 10 s, timeProvider)`,
+  with `Deposit` / `TryWithdraw` / `Balance`. The window is 10 segments. `RetryStrategyOptions.Budget` +
+  `OnBudgetExhausted` (`OnRetryBudgetExhaustedArguments<T>`).
+  - The retry deposits once per execution (in `EnterAsync`) and withdraws before each retry, after the
+    predicate and the last-attempt check.
+  - Exhaustion returns the current outcome, as if it were the last attempt.
+- **For M6:**
+  - The pipeline must dispose `RateLimiterStrategyFactory.Wrapper` (the owned default
+    `ConcurrencyLimiter`), as Polly does.
+  - Limiter and adaptive state lives in the factory (per `Build()`). If reload rebuilds strategies, it
+    must carry the state over, as it does for the breaker.
+  - Telemetry events are still to add: rejected, and limit changed.
+- **Tests** (written, not run):
+  - `RateLimiterTests`, `NativeLimiterTests`, `RetryBudgetTests`, `AdaptiveConcurrencyLimiterTests`.
+  - `LimiterAllocationTests`, in the allocation collection.
+  - `LimiterStressTests`, tagged `[Trait("Category","Stress")]`.
+
 ## Milestone 4 — Source generator: declarative pipelines ⏳
 
 - `MintPlayer.Resilience.SourceGenerator` on `MintPlayer.SourceGenerators.Tools`:

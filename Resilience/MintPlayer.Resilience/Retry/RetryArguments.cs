@@ -116,3 +116,38 @@ public readonly struct OnRetryArguments<TResult>
 
     internal OnRetryArguments<object> AsObject() => new(_source, Outcome.AsObjectOutcome(), AttemptNumber, RetryDelay, Duration);
 }
+
+/// <summary>The arguments of <see cref="RetryStrategyOptions{TResult}.OnBudgetExhausted"/>.</summary>
+/// <typeparam name="TResult">The type of the result.</typeparam>
+/// <remarks>Valid only during the call it is passed to.</remarks>
+public readonly struct OnRetryBudgetExhaustedArguments<TResult>
+{
+    private readonly object? _source;
+
+    /// <summary>Initializes the arguments.</summary>
+    /// <param name="context">The context of the execution.</param>
+    /// <param name="outcome">The outcome that would have been retried, and is returned instead.</param>
+    /// <param name="attemptNumber">The 0-based number of the attempt that produced it.</param>
+    public OnRetryBudgetExhaustedArguments(ResilienceContext context, Outcome<TResult> outcome, int attemptNumber)
+        : this((object?)context, outcome, attemptNumber)
+    {
+    }
+
+    internal OnRetryBudgetExhaustedArguments(object? source, Outcome<TResult> outcome, int attemptNumber)
+    {
+        _source = source;
+        Outcome = outcome;
+        AttemptNumber = attemptNumber;
+    }
+
+    /// <summary>Gets the outcome that would have been retried, and is returned instead.</summary>
+    public Outcome<TResult> Outcome { get; }
+
+    /// <summary>Gets the context of the execution.</summary>
+    public ResilienceContext Context => ContextSource.Resolve(_source);
+
+    /// <summary>Gets the 0-based number of the attempt that produced the outcome.</summary>
+    public int AttemptNumber { get; }
+
+    internal OnRetryBudgetExhaustedArguments<object> AsObject() => new(_source, Outcome.AsObjectOutcome(), AttemptNumber);
+}

@@ -48,6 +48,16 @@ public class RetryStrategyOptions<TResult> : ResilienceStrategyOptions
     /// <summary>Gets or sets the event raised before each retry (before the delay).</summary>
     public Func<OnRetryArguments<TResult>, ValueTask>? OnRetry { get; set; }
 
+    /// <summary>
+    /// Gets or sets a retry budget (beyond Polly) shared with other retry strategies: every execution
+    /// deposits a request, and every retry must withdraw from it. When it is spent the strategy stops
+    /// retrying and returns the last outcome, after <see cref="OnBudgetExhausted"/>. Default none.
+    /// </summary>
+    public RetryBudget? Budget { get; set; }
+
+    /// <summary>Gets or sets the event raised when <see cref="Budget"/> refuses a retry, before the last outcome is returned.</summary>
+    public Func<OnRetryBudgetExhaustedArguments<TResult>, ValueTask>? OnBudgetExhausted { get; set; }
+
     /// <summary>Gets or sets the source of random numbers in [0, 1) used for jitter. Intended for tests.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public Func<double> Randomizer { get; set; } = DefaultRandomizer;

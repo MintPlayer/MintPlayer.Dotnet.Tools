@@ -33,6 +33,11 @@
 		<None Include="README.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<!-- The BCL limiters behind AddRateLimiter / AddConcurrencyLimiter; not part of Microsoft.NETCore.App. -->
+		<PackageReference Include="System.Threading.RateLimiting" Version="10.0.0" />
+	</ItemGroup>
+
 	<!--
 	M4 slot: the source generator (MintPlayer.Resilience.SourceGenerator, netstandard2.0) ships INSIDE
 	this package, the MintPlayer.Assertions way:

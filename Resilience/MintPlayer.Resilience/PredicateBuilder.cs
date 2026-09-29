@@ -150,6 +150,16 @@ public class PredicateBuilder<TResult>
         return args => predicate(args.Outcome);
     }
 
+    /// <summary>Converts the builder to an adaptive-concurrency-limiter drop predicate.</summary>
+    /// <param name="builder">The builder.</param>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static implicit operator Func<AdaptiveConcurrencyLimiterPredicateArguments<TResult>, bool>(PredicateBuilder<TResult> builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        var predicate = builder.Build();
+        return args => predicate(args.Outcome);
+    }
+
     private static Predicate<Outcome<TResult>> CreatePredicate(Predicate<Outcome<TResult>>[] predicates) =>
         outcome =>
         {

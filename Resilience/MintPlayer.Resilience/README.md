@@ -1,10 +1,11 @@
 # MintPlayer.Resilience
 
-Resilience pipelines for .NET: retry, timeout, fallback and circuit breaker today, with rate limiting,
-hedging and chaos to follow. The public API mirrors Polly v8 name for name, so moving over is mostly a
-namespace swap. It targets .NET 10 and .NET 11, is AOT- and trimming-safe, and is Apache-2.0 licensed.
+Resilience pipelines for .NET: retry (with a shared retry budget), timeout, fallback, circuit breaker,
+rate and concurrency limiting (including lease-free and adaptive limiters) today, with hedging and chaos
+to follow. The public API mirrors Polly v8 name for name, so moving over is mostly a namespace swap. It
+targets .NET 10 and .NET 11, is AOT- and trimming-safe, and is Apache-2.0 licensed.
 
-> **Status: in development.** Milestones 1 (the runtime core) and 2 (the circuit breaker) are done. Benchmarks against Polly
+> **Status: in development.** Milestones 1 (the runtime core), 2 (the circuit breaker) and the limiter half of 3 are done. Benchmarks against Polly
 > 8.8.0 and the source-generated fast path follow; this README will only quote measured numbers.
 
 ## Quick start
@@ -41,7 +42,7 @@ Strategies run in the order they are added; the first one is the outermost.
 ## Rejections without exceptions
 
 `TryExecuteAsync` returns an `Outcome<T>` instead of throwing. A rejection (a timeout, an open or
-isolated circuit; a limiter refusal later) is a value, `Outcome.Rejection`, so it allocates nothing:
+isolated circuit, a limiter refusal) is a value, `Outcome.Rejection`, so it allocates nothing:
 
 ```csharp
 var outcome = await pipeline.TryExecuteAsync(static (c, ct) => c.GetAsync("/items", ct), client, ct);
@@ -93,12 +94,95 @@ outcome) is measured, and the circuit also opens when slow calls reach `SlowCall
 behind the same `MinimumThroughput`. A slow call counts whether it succeeds or fails, and a slow probe
 counts as a failed probe.
 
+## Rate and concurrency limiting
+
+Polly's strategy over `System.Threading.RateLimiting`, same names:
+
+```csharp
+using System.Threading.RateLimiting;
+using MintPlayer.Resilience.RateLimiting;
+
+builder.AddConcurrencyLimiter(permitLimit: 100, queueLimit: 50);          // owns a ConcurrencyLimiter
+builder.AddRateLimiter(new SlidingWindowRateLimiter(new() { /* … */ }));  // any RateLimiter, not owned
+builder.AddRateLimiter(new RateLimiterStrategyOptions
+{
+    RateLimiter = args => limiter.AcquireAsync(1, args.CancellationToken),
+    OnRejected = args => { /* args.Lease */ return default; },
+});
+```
+
+The lease is disposed when the call finishes, whatever its outcome. A refusal is
+`RejectionKind.RateLimited`, with `RetryAfter` from the lease's metadata. The BCL lease is the one
+allocation left on this path; Polly additionally walks the stack on every rejection (17–25 KB).
+
+**Lease-free limiters (beyond Polly).** Written for this library: no lease object, so neither an
+admission nor a rejection allocates, and they are lock-free (compare-and-swap on packed counters):
+
+```csharp
+builder.AddFixedWindowLimiter(permitLimit: 100, window: TimeSpan.FromSeconds(1));
+builder.AddSlidingWindowLimiter(permitLimit: 100, window: TimeSpan.FromSeconds(1), segmentsPerWindow: 10);
+builder.AddNativeConcurrencyLimiter(permitLimit: 100);                    // no queue
+```
+
+- **Fixed window:** at most `PermitLimit` calls start per window; `RetryAfter` is the rest of the window.
+- **Sliding window:** at most `PermitLimit` calls in any window, counted per segment, so there is no
+  double burst across a boundary; `RetryAfter` is when the oldest counted segment leaves the window.
+- **Concurrency:** at most `PermitLimit` calls in flight; the permit comes back on success, failure,
+  exception or cancellation. Use `AddConcurrencyLimiter` when you need a queue.
+
+Their state belongs to the built pipeline, shared by every result type a non-generic pipeline runs.
+
+**Adaptive concurrency limit (beyond Polly).** A concurrency limit that moves with the service
+(Netflix concurrency-limits):
+
+```csharp
+builder.AddAdaptiveConcurrencyLimiter(new AdaptiveConcurrencyLimiterStrategyOptions<HttpResponseMessage>
+{
+    Algorithm = AdaptiveConcurrencyAlgorithm.Aimd,    // or Gradient (default)
+    InitialLimit = 20, MinLimit = 1, MaxLimit = 500,
+    LatencyThreshold = TimeSpan.FromMilliseconds(250), // slower counts as a drop
+    ShouldHandle = new PredicateBuilder<HttpResponseMessage>()
+        .HandleResult(static r => r.StatusCode == HttpStatusCode.ServiceUnavailable),
+});
+```
+
+- **AIMD:** +1 per round trip while at least half used; × `BackoffRatio` on a drop (a handled outcome
+  or a call slower than `LatencyThreshold`), once per burst.
+- **Gradient:** follows `Tolerance × no-load latency / latency`; it settles where the queueing it causes
+  balances a √limit headroom. The no-load latency is the lowest seen, so start from a limit the service
+  handles without queueing, and prefer AIMD where the baseline latency moves for good.
+
+A refused call is `RejectionKind.RateLimited` with no `RetryAfter`, and allocates nothing.
+
+## Retry budget (beyond Polly)
+
+A per-call `MaxRetryAttempts` cannot stop a retry storm: when a dependency fails, every caller multiplies
+its load. A `RetryBudget` (Finagle / Envoy style) caps retries at a share of recent traffic, shared by
+every strategy that uses it:
+
+```csharp
+var budget = new RetryBudget(retryRatio: 0.2, minRetriesPerSecond: 10, timeToLive: TimeSpan.FromSeconds(10));
+
+new RetryStrategyOptions<HttpResponseMessage>
+{
+    Budget = budget,                                   // share one instance across pipelines
+    OnBudgetExhausted = static args => { /* log */ return default; },
+};
+```
+
+Each execution deposits one request; each retry must withdraw one. Over any `timeToLive`, retries stay
+within `minRetriesPerSecond × timeToLive + retryRatio × requests`. When the budget is spent, the strategy
+stops and returns the last outcome. Lock-free and allocation-free.
+
 ## Differences from Polly v8
 
 - **Predicates and generators are synchronous.** `ShouldHandle` returns `bool`, `DelayGenerator` returns
   `TimeSpan?`, `TimeoutGenerator` returns `TimeSpan`. `PredicateBuilder` converts implicitly, as in Polly.
   `BreakDurationGenerator` returns `TimeSpan`. Events (`OnRetry`, `OnTimeout`, `OnFallback`,
-  `OnOpened`, `OnHalfOpened`, `OnClosed`) and `FallbackAction` stay `ValueTask`-returning.
+  `OnOpened`, `OnHalfOpened`, `OnClosed`, `OnRejected`) and `FallbackAction` stay `ValueTask`-returning,
+  and so does `RateLimiterStrategyOptions.RateLimiter`, because acquiring a lease may wait in a queue.
+- **Rate limiter details:** `RateLimiterArguments` adds `CancellationToken`, which does not rent a
+  context the way `Context` does, and `AddRateLimiter(RateLimiter)` calls the limiter directly.
 - **Circuit breaker details:**
   - The health window is also cleared when the half-open probe is admitted, not only on close (a
     lock-free close cannot clear it atomically). Only the break-duration generator could see this, so

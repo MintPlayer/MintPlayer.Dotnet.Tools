@@ -19,6 +19,8 @@ internal sealed class RetryStrategy<T> : PipelineStrategy<T>
     private readonly Func<RetryDelayGeneratorArguments<T>, TimeSpan?>? _delayGenerator;
     private readonly Func<OnRetryArguments<T>, ValueTask>? _onRetry;
     private readonly Func<double> _randomizer;
+    private readonly RetryBudget? _budget;
+    private readonly Func<OnRetryBudgetExhaustedArguments<T>, ValueTask>? _onBudgetExhausted;
 
     public RetryStrategy(RetryStrategyOptions<T> options, StrategyBuildContext context)
     {
@@ -32,10 +34,14 @@ internal sealed class RetryStrategy<T> : PipelineStrategy<T>
         _delayGenerator = options.DelayGenerator;
         _onRetry = options.OnRetry;
         _randomizer = options.Randomizer;
+        _budget = options.Budget;
+        _onBudgetExhausted = options.OnBudgetExhausted;
     }
 
     public override ValueTask<bool> EnterAsync(ExecutionFrame<T> frame, int index)
     {
+        // Once per execution: retries re-enter only the strategies inside this one.
+        _budget?.Deposit();
         ref var slot = ref frame.Slots[index];
         slot.Int = 0;
         slot.Double = 0;
@@ -56,6 +62,12 @@ internal sealed class RetryStrategy<T> : PipelineStrategy<T>
             return new(false);
         }
 
+        if (_budget is not null && !_budget.TryWithdraw())
+        {
+            // Out of budget: this attempt becomes the last one, and its outcome is returned.
+            return _onBudgetExhausted is null ? new(false) : RaiseBudgetExhaustedAsync(_onBudgetExhausted, frame, outcome, attempt);
+        }
+
         var delay = RetryHelper.GetRetryDelay(_backoffType, _useJitter, attempt, _delay, _maxDelay, ref slot.Double, _randomizer);
         if (_delayGenerator is not null
             && _delayGenerator(new RetryDelayGeneratorArguments<T>(frame, outcome, attempt)) is TimeSpan generated
@@ -70,6 +82,13 @@ internal sealed class RetryStrategy<T> : PipelineStrategy<T>
 
     // attempt == int.MaxValue: retry forever without incrementing (Polly's IsLastAttempt).
     private bool IsLastAttempt(int attempt) => attempt != int.MaxValue && attempt >= _maxRetryAttempts;
+
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+    private static async ValueTask<bool> RaiseBudgetExhaustedAsync(Func<OnRetryBudgetExhaustedArguments<T>, ValueTask> onBudgetExhausted, ExecutionFrame<T> frame, Outcome<T> outcome, int attempt)
+    {
+        await onBudgetExhausted(new OnRetryBudgetExhaustedArguments<T>(frame, outcome, attempt)).ConfigureAwait(frame.ContinueOnCapturedContext);
+        return false;
+    }
 
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     private async ValueTask<bool> RetryAsync(ExecutionFrame<T> frame, int index, Outcome<T> outcome, int attempt, TimeSpan delay, TimeSpan duration)
@@ -128,6 +147,7 @@ internal sealed class RetryStrategyFactory(RetryStrategyOptions<object> options,
         var shouldHandle = source.ShouldHandle;
         var delayGenerator = source.DelayGenerator;
         var onRetry = source.OnRetry;
+        var onBudgetExhausted = source.OnBudgetExhausted;
         var typed = new RetryStrategyOptions<TResult>
         {
             Name = source.Name,
@@ -142,6 +162,8 @@ internal sealed class RetryStrategyFactory(RetryStrategyOptions<object> options,
                 : args => shouldHandle(args.AsObject()),
             DelayGenerator = delayGenerator is null ? null : args => delayGenerator(args.AsObject()),
             OnRetry = onRetry is null ? null : args => onRetry(args.AsObject()),
+            Budget = source.Budget,
+            OnBudgetExhausted = onBudgetExhausted is null ? null : args => onBudgetExhausted(args.AsObject()),
         };
 
         return new RetryStrategy<TResult>(typed, context);
