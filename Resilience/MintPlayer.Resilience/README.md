@@ -1,10 +1,10 @@
 # MintPlayer.Resilience
 
-Resilience pipelines for .NET: retry, timeout and fallback today, with circuit breaker, rate limiting,
+Resilience pipelines for .NET: retry, timeout, fallback and circuit breaker today, with rate limiting,
 hedging and chaos to follow. The public API mirrors Polly v8 name for name, so moving over is mostly a
 namespace swap. It targets .NET 10 and .NET 11, is AOT- and trimming-safe, and is Apache-2.0 licensed.
 
-> **Status: in development.** Milestone 1 (the runtime core) is done. Benchmarks against Polly
+> **Status: in development.** Milestones 1 (the runtime core) and 2 (the circuit breaker) are done. Benchmarks against Polly
 > 8.8.0 and the source-generated fast path follow; this README will only quote measured numbers.
 
 ## Quick start
@@ -40,8 +40,8 @@ Strategies run in the order they are added; the first one is the outermost.
 
 ## Rejections without exceptions
 
-`TryExecuteAsync` returns an `Outcome<T>` instead of throwing. A rejection (a timeout today; an open
-circuit or a limiter refusal later) is a value, `Outcome.Rejection`, so it allocates nothing:
+`TryExecuteAsync` returns an `Outcome<T>` instead of throwing. A rejection (a timeout, an open or
+isolated circuit; a limiter refusal later) is a value, `Outcome.Rejection`, so it allocates nothing:
 
 ```csharp
 var outcome = await pipeline.TryExecuteAsync(static (c, ct) => c.GetAsync("/items", ct), client, ct);
@@ -53,11 +53,60 @@ if (outcome.Rejection == RejectionKind.Timeout) { /* … */ }
 `ResilienceRejectedException`), a fresh instance per throw. Reading `Outcome.Exception` on a rejection
 also creates a fresh instance; test `Outcome.Rejection` to avoid it.
 
+## Circuit breaker
+
+```csharp
+using MintPlayer.Resilience.CircuitBreaker;
+
+var state = new CircuitBreakerStateProvider();
+var control = new CircuitBreakerManualControl();
+var pipeline = new ResiliencePipelineBuilder<HttpResponseMessage>()
+    .AddCircuitBreaker(new CircuitBreakerStrategyOptions<HttpResponseMessage>
+    {
+        FailureRatio = 0.5,                            // open at 50 % failures…
+        MinimumThroughput = 10,                        // …once 10 calls were measured…
+        SamplingDuration = TimeSpan.FromSeconds(30),   // …in the last 30 s
+        BreakDuration = TimeSpan.FromSeconds(15),
+        ShouldHandle = new PredicateBuilder<HttpResponseMessage>()
+            .Handle<HttpRequestException>()
+            .HandleResult(static r => (int)r.StatusCode >= 500),
+        SlowCallDurationThreshold = TimeSpan.FromSeconds(2), // beyond Polly: also open when…
+        SlowCallRatio = 0.8,                                 // …80 % of the calls take ≥ 2 s
+        StateProvider = state,
+        ManualControl = control,
+    })
+    .Build();
+```
+
+The semantics are Polly's: the health window is 10 event-anchored windows over `SamplingDuration`,
+one probe runs after the break (half-open) and every other call is rejected until it finishes, and
+`OnOpened` / `OnHalfOpened` / `OnClosed` run one at a time, in transition order, awaited by the call that
+caused them. A rejected call returns `RejectionKind.CircuitOpen` (with `RetryAfter` = the rest of the
+break) or `RejectionKind.CircuitIsolated`, and allocates nothing.
+
+The controller is lock-free: the whole circuit state is one `long` changed by compare-and-swap, and
+the health counters are striped per core, so a closed-circuit call is one read plus one core-local
+increment.
+
+**Slow calls (beyond Polly).** With `SlowCallDurationThreshold` set, each call's duration (admission to
+outcome) is measured, and the circuit also opens when slow calls reach `SlowCallRatio` of the window,
+behind the same `MinimumThroughput`. A slow call counts whether it succeeds or fails, and a slow probe
+counts as a failed probe.
+
 ## Differences from Polly v8
 
 - **Predicates and generators are synchronous.** `ShouldHandle` returns `bool`, `DelayGenerator` returns
   `TimeSpan?`, `TimeoutGenerator` returns `TimeSpan`. `PredicateBuilder` converts implicitly, as in Polly.
-  Events (`OnRetry`, `OnTimeout`, `OnFallback`) and `FallbackAction` stay `ValueTask`-returning.
+  `BreakDurationGenerator` returns `TimeSpan`. Events (`OnRetry`, `OnTimeout`, `OnFallback`,
+  `OnOpened`, `OnHalfOpened`, `OnClosed`) and `FallbackAction` stay `ValueTask`-returning.
+- **Circuit breaker details:**
+  - The health window is also cleared when the half-open probe is admitted, not only on close (a
+    lock-free close cannot clear it atomically). Only the break-duration generator could see this, so
+    a re-open after a failed probe reports the failure rate and count from when the circuit broke.
+  - A manual isolation does not call the break-duration generator; `OnOpened` reports
+    `TimeSpan.MaxValue`.
+  - `RetryAfter` is never negative; a stalled half-open period reports zero.
+  - An `OnHalfOpened` that throws fails the probe and re-opens the circuit; Polly leaves it half-open.
 - **The returned `ValueTask` is pooled.** Await it exactly once. Awaiting it twice, reading `.Result`
   before it completes, or awaiting it from two places throws (or, for two concurrent awaiters, crashes
   the process). Call `.AsTask()` when you need a `Task`, or build the pipeline with

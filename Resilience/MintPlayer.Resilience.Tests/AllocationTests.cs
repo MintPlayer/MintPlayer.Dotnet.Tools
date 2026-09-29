@@ -1,3 +1,4 @@
+using MintPlayer.Resilience.CircuitBreaker;
 using MintPlayer.Resilience.Fallback;
 using MintPlayer.Resilience.Retry;
 
@@ -152,6 +153,112 @@ public class AllocationTests
         var rejected = outcome.IsRejected && outcome.Rejection == RejectionKind.Timeout && outcome.RetryAfter is null;
         (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0);
         rejected.Should().BeTrue();
+    }
+
+    private static ResiliencePipeline<int> Breaker(Action<CircuitBreakerStrategyOptions<int>>? configure = null)
+    {
+        var options = new CircuitBreakerStrategyOptions<int>
+        {
+            FailureRatio = 0.5,
+            MinimumThroughput = 2,
+            BreakDuration = TimeSpan.FromDays(1),
+            ShouldHandle = static args => args.Outcome.Result < 0,
+        };
+        configure?.Invoke(options);
+        return new ResiliencePipelineBuilder<int>().AddCircuitBreaker(options).Build();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ClosedCircuit_SuccessesAndFailuresThatDoNotTrip_AllocateNothing(bool trackSlowCalls)
+    {
+        var pipeline = Breaker(options =>
+        {
+            options.FailureRatio = 1.0;
+            options.MinimumThroughput = int.MaxValue;
+            options.SlowCallDurationThreshold = trackSlowCalls ? TimeSpan.FromSeconds(10) : null;
+        });
+
+        var bytes = Measure(() =>
+        {
+            var ok = pipeline.TryExecuteAsync(static (state, _) => new ValueTask<int>(state), 1);
+            var failed = pipeline.TryExecuteAsync(static (state, _) => new ValueTask<int>(state), -1);
+            if (!ok.IsCompletedSuccessfully || ok.Result.Result != 1 || !failed.IsCompletedSuccessfully || failed.Result.Result != -1)
+            {
+                throw new InvalidOperationException("Unexpected result.");
+            }
+        });
+
+        bytes.Should().Be(0);
+    }
+
+    [Fact]
+    public void OpenCircuit_TryExecuteAsyncRejection_AllocatesNothing()
+    {
+        var pipeline = Breaker();
+        for (var i = 0; i < 2; i++)
+        {
+            pipeline.Execute(static () => -1);
+        }
+
+        var bytes = Measure(() =>
+        {
+            var task = pipeline.TryExecuteAsync(static (state, _) => new ValueTask<int>(state), 1);
+            if (!task.IsCompletedSuccessfully || task.Result.Rejection != RejectionKind.CircuitOpen || task.Result.RetryAfter is null)
+            {
+                throw new InvalidOperationException("The circuit did not reject synchronously.");
+            }
+        });
+
+        bytes.Should().Be(0);
+    }
+
+    [Fact]
+    public void IsolatedCircuit_TryExecuteAsyncRejection_AllocatesNothing()
+    {
+        var control = new CircuitBreakerManualControl(isIsolated: true);
+        var pipeline = Breaker(options => options.ManualControl = control);
+
+        var bytes = Measure(() =>
+        {
+            var task = pipeline.TryExecuteAsync(static (state, _) => new ValueTask<int>(state), 1);
+            if (!task.IsCompletedSuccessfully || task.Result.Rejection != RejectionKind.CircuitIsolated)
+            {
+                throw new InvalidOperationException("The circuit did not reject synchronously.");
+            }
+        });
+
+        bytes.Should().Be(0);
+    }
+
+    [Fact]
+    public void OpenCircuit_NonGenericPipelineRejection_AllocatesNothing()
+    {
+        var pipeline = new ResiliencePipelineBuilder()
+            .AddCircuitBreaker(new CircuitBreakerStrategyOptions
+            {
+                FailureRatio = 0.5,
+                MinimumThroughput = 2,
+                BreakDuration = TimeSpan.FromDays(1),
+                ShouldHandle = static args => args.Outcome.Result is -1,
+            })
+            .Build();
+        for (var i = 0; i < 2; i++)
+        {
+            pipeline.Execute(static () => -1);
+        }
+
+        var bytes = Measure(() =>
+        {
+            var task = pipeline.TryExecuteAsync(static (state, _) => new ValueTask<int>(state), 1);
+            if (!task.IsCompletedSuccessfully || task.Result.Rejection != RejectionKind.CircuitOpen)
+            {
+                throw new InvalidOperationException("The circuit did not reject synchronously.");
+            }
+        });
+
+        bytes.Should().Be(0);
     }
 
     private sealed class StrongBox(int value)

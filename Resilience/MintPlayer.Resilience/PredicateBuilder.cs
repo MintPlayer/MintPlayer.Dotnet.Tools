@@ -140,6 +140,16 @@ public class PredicateBuilder<TResult>
         return args => predicate(args.Outcome);
     }
 
+    /// <summary>Converts the builder to a circuit-breaker predicate.</summary>
+    /// <param name="builder">The builder.</param>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static implicit operator Func<CircuitBreakerPredicateArguments<TResult>, bool>(PredicateBuilder<TResult> builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        var predicate = builder.Build();
+        return args => predicate(args.Outcome);
+    }
+
     private static Predicate<Outcome<TResult>> CreatePredicate(Predicate<Outcome<TResult>>[] predicates) =>
         outcome =>
         {

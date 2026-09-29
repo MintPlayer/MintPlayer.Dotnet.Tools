@@ -84,13 +84,52 @@ use Fences, or pin Polly 8.8.0.
 - **Not in M1:** Polly's `ExecuteOutcomeAsync`, and `Retry-After` awareness (M7, via `DelayGenerator`).
   Retry skips disposing value-type results, to avoid boxing them.
 
-## Milestone 2 — Circuit breaker ⏳
+## Milestone 2 — Circuit breaker ✅
 
 - Controller per S4: sliding health window, half-open probing, manual control, state provider.
 - `BrokenCircuitException` / `IsolatedCircuitException`, cached per S5.
 
 **Done when:** the state machine covers closed → open → half-open → closed/open, isolated, and
 manual reset.
+
+**Implementation notes:**
+
+- **Files:** `CircuitBreaker/CircuitController.cs` is the S4 port: the packed-word controller,
+  `RollingHealth` (striped, event-anchored windows), `MicroClock`, and `EventSequencer`.
+  `CircuitBreakerStrategy.cs` holds the hooks, the non-generic `CircuitBreakerStrategyFactory`, and
+  `CircuitBreakerSetup` (state provider and manual control). The S4 spike is untouched.
+- **"Cached per S5" is superseded by M1:** a rejection is `Outcome.Rejected(CircuitOpen | CircuitIsolated,
+  remaining-break ticks, last handled exception)`, and a fresh exception is created per throw.
+  - `RetryAfter` is clamped at ≥ 0; Polly can report a negative value while a half-open probe hangs.
+  - Isolated rejections carry no `RetryAfter` and no inner exception, as in Polly.
+- **Events are sequenced.** Polly runs them one at a time through a scheduled executor. Here, the CAS
+  winner of generation `g` waits (`EventSequencer`) until the events of `g − 1` are done, then raises
+  its own and awaits it inside the hook.
+  - Transitions skip the sequencer entirely when no event is set. Every transition must pass through
+    it, or none may, otherwise the generation chain has gaps and the next event deadlocks.
+  - **M6 (telemetry) must keep that invariant** when it adds events.
+- **Slow calls (beyond Polly):** `SlowCallDurationThreshold` (`TimeSpan?`, null = off, 1 ms–1 day) and
+  `SlowCallRatio` (0 < r ≤ 1, default 1.0).
+  - The duration is measured admission → outcome, excluding the `OnHalfOpened` event. It is stored in
+    `slot.Long` (µs) only when the threshold is set.
+- **`BreakDurationGenerator`** is synchronous (S7). It is not called for a manual isolation, which
+  reports `TimeSpan.MaxValue`; Polly calls it there too.
+  - Its failure rate and count are snapshot at Closed → Open and reused on a re-open from half-open
+    (the S4 window-clear deviation).
+  - When two threads race to open the circuit, the generator may run for both.
+- **Deviation:** an `OnHalfOpened` that throws counts as a failed probe and re-opens the circuit. Polly
+  leaves the circuit half-open forever in that case.
+- **State lives in the factory.** One controller per `Build()` is shared by every result type of a
+  non-generic pipeline. `CircuitBreakerSetup.Attach` returns the manual-control registration
+  (`IDisposable`), which is currently dropped.
+  - **M6 must dispose it** on pipeline dispose/reload, and keep the controller across reloads (PRD:
+    "state survives a reload").
+- **Tests** (written, not run): `CircuitControllerTests`, `CircuitBreakerTests`,
+  `CircuitBreakerParityTests`, `CircuitBreakerStressTests` and `AllocationTests` (+4).
+  - The parity test compares 400 random scripts against Polly 8.8.0, which is a test-only
+    `Polly.Core [8.8.0]` reference. It checks our pipeline and the bare controller (random stripes),
+    including retry-after.
+  - The stress tests are `[Trait("Category","Stress")]`.
 
 ## Milestone 3 — Rate limiting, hedging & chaos ⏳
 
