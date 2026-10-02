@@ -48,6 +48,18 @@ abstract base. Every one of these warnings has to be suppressed by hand with `[N
 The code fix makes it actively harmful. For each of these the fix is offered, applies cleanly, and adds the member
 to the interface (`string ToString();`, `void Work();`, `string Name { get; }`). That compiles, so nothing stops it.
 
+### In the wild
+
+- **MintPlayer.AspNetCore.SpaServices:** `SpaRouteItem : ISpaRouteItem, ISpaRouteBuilder` overrides `ToString()`
+  (`MintPlayer.AspNetCore.SpaServices.Routing/Data/SpaRouteItem.cs:73`). A real build log from 2026-09-29 shows
+  `warning INTF001: Public member 'ToString' is not defined in any implemented interface (ISpaRouteItem)`.
+- **MintPlayer.Spark (likely, not confirmed in an IDE):** actions classes derive from
+  `DefaultPersistentObjectActions<T>` and also declare the marker interface `ISparkOwnsRowSecurity`. Their overrides
+  (`OnNewAsync`, `OnLoadAsync`, `GetRowFilterAsync`, …) would light up wherever that interface has source locations.
+  A command-line build sees the interface as metadata only, so nothing is reported there.
+- **No suppressions were found.** There is no `#pragma`, `NoWarn`, `.editorconfig` entry, or `[NoInterfaceMember]`
+  on an override in any repo that consumes the package. People live with the warnings.
+
 ## Root cause
 
 The analyzer and the code fix choose their candidate members through one shared function,
@@ -184,6 +196,13 @@ The change is one predicate in one function. The design question is *which* pred
 
 Users who *want* an overridden member on the interface can still add it by hand. INTF001 only stops nagging about
 it.
+
+**The one accepted loss.** Suppose `class Foo : FooBase, IFoo`, where `FooBase` is in source and implements no
+interface, and its `virtual Work()` is not on `IFoo`. Before this change, the override in `Foo` was the only thing
+that surfaced "`Work` can't be reached through `IFoo`". The case is narrow, and the base class owns that contract.
+A middle ground would skip only overrides whose root definition is in metadata or on `System.Object`, but it was
+rejected: it costs a walk up the override chain, and it keeps the abstract-base case (b), which is the common one,
+as a false positive.
 
 ## Milestones
 
