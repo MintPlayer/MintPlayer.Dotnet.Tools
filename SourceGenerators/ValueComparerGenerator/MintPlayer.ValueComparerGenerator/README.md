@@ -157,7 +157,7 @@ The classic VSTest testhost resolves the dll from bin anyway. Exe-hosted runners
 and ordinary apps throw `FileNotFoundException`. If your project reflects over the models' attributes, add:
 
 ```xml
-<PackageReference Include="MintPlayer.ValueComparerGenerator.Attributes" Version="12.1.0" />
+<PackageReference Include="MintPlayer.ValueComparerGenerator.Attributes" Version="12.1.1" />
 ```
 
 ## Breaking changes in 12.0.0

@@ -218,6 +218,232 @@ public class InterfaceImplementationAnalyzerTests
         diagnostics.Should().BeEmpty();
     }
 
+    // Issue #191: an override adds no public surface. It re-implements a member whose contract the
+    // base class already declares, so it is never "missing" from an interface the derived class
+    // implements. Every fixture below warned before the fix.
+
+    [Fact]
+    public async Task ItIgnoresOverridesOfObjectMembers()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync("InterfaceImplementationAnalyzer", ["""
+            namespace Demo;
+
+            public interface IThing
+            {
+                void DoIt();
+            }
+
+            public class Thing : IThing
+            {
+                public void DoIt() { }
+                public override string ToString() => "thing";
+                public override bool Equals(object obj) => ReferenceEquals(this, obj);
+                public override int GetHashCode() => 0;
+            }
+            """]);
+
+        diagnostics.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ItIgnoresOverridesOfAbstractAndVirtualBaseMembers()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync("InterfaceImplementationAnalyzer", ["""
+            namespace Demo;
+
+            public interface IThing
+            {
+                void DoIt();
+            }
+
+            public abstract class ThingBase
+            {
+                public abstract void Work();
+                public virtual void Reset() { }
+            }
+
+            public class Thing : ThingBase, IThing
+            {
+                public void DoIt() { }
+                public override void Work() { }
+                public override void Reset() { }
+            }
+            """]);
+
+        diagnostics.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ItIgnoresSealedOverrides()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync("InterfaceImplementationAnalyzer", ["""
+            namespace Demo;
+
+            public interface IThing
+            {
+                void DoIt();
+            }
+
+            public abstract class ThingBase
+            {
+                public virtual void Reset() { }
+            }
+
+            public class Thing : ThingBase, IThing
+            {
+                public void DoIt() { }
+                public sealed override void Reset() { }
+            }
+            """]);
+
+        diagnostics.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ItIgnoresPropertyOverridesOfASingleAccessor()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync("InterfaceImplementationAnalyzer", ["""
+            namespace Demo;
+
+            public interface IThing
+            {
+                void DoIt();
+            }
+
+            public abstract class ThingBase
+            {
+                public virtual string Name { get; set; } = "";
+            }
+
+            public class Thing : ThingBase, IThing
+            {
+                public void DoIt() { }
+                public override string Name { get => base.Name; }
+            }
+            """]);
+
+        diagnostics.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ItIgnoresOverridesInRecords()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync("InterfaceImplementationAnalyzer", ["""
+            namespace Demo;
+
+            public interface IThing
+            {
+                void DoIt();
+            }
+
+            public record Thing : IThing
+            {
+                public void DoIt() { }
+                public override string ToString() => "thing";
+            }
+            """]);
+
+        diagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// <c>Work</c> is declared on <c>IBar</c>, which only the base class implements. INTF001 reads the
+    /// interfaces the type itself declares, so before #191 this override was reported as missing from
+    /// <c>IThing</c>.
+    /// </summary>
+    [Fact]
+    public async Task ItIgnoresOverridesOfMembersDeclaredOnABaseClassInterface()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync("InterfaceImplementationAnalyzer", ["""
+            namespace Demo;
+
+            public interface IBar
+            {
+                void Work();
+            }
+
+            public abstract class BarBase : IBar
+            {
+                public abstract void Work();
+            }
+
+            public interface IThing
+            {
+                void DoIt();
+            }
+
+            public class Thing : BarBase, IThing
+            {
+                public void DoIt() { }
+                public override void Work() { }
+            }
+            """]);
+
+        diagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// <c>new</c> hides rather than overrides: the hiding member is genuinely new public surface, and
+    /// the override exclusion must not swallow it.
+    /// </summary>
+    [Fact]
+    public async Task ItStillReportsHidingMembers()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync("InterfaceImplementationAnalyzer", ["""
+            namespace Demo;
+
+            public interface IThing
+            {
+                void DoIt();
+            }
+
+            public class ThingBase
+            {
+                public void Reset() { }
+            }
+
+            public class Thing : ThingBase, IThing
+            {
+                public void DoIt() { }
+                public new void Reset() { }
+            }
+            """]);
+
+        var diagnostic = diagnostics.Should().ContainSingle().Which;
+        diagnostic.Id.Should().Be(Id);
+        diagnostic.GetMessage().Should().Contain("Reset");
+    }
+
+    [Fact]
+    public async Task ItReportsOnlyTheNonOverrideMember()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync("InterfaceImplementationAnalyzer", ["""
+            namespace Demo;
+
+            public interface IThing
+            {
+                void DoIt();
+            }
+
+            public abstract class ThingBase
+            {
+                public abstract void Work();
+            }
+
+            public class Thing : ThingBase, IThing
+            {
+                public void DoIt() { }
+                public override void Work() { }
+                public override string ToString() => "thing";
+                public void Extra() { }
+            }
+            """]);
+
+        var diagnostic = diagnostics.Should().ContainSingle().Which;
+        diagnostic.Id.Should().Be(Id);
+        diagnostic.GetMessage().Should().Contain("Extra");
+    }
+
     /// <summary>
     /// A member carried by one implemented interface is not missing merely because another
     /// implemented interface lacks it.

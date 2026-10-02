@@ -142,6 +142,66 @@ public class UnusedUsingsCodeFixTests
 
 public class InterfaceImplementationCodeFixTests
 {
+    /// <summary>
+    /// Issue #191: the fix used to offer copying <c>ToString()</c> onto the interface, and the result
+    /// compiled, so nothing stopped it. Overrides are no longer candidates, so there is nothing to fix.
+    /// </summary>
+    [Fact]
+    public async Task ItOffersNoFixForAnOverride()
+    {
+        var result = await CodeFixHarness.ApplyAsync(
+            "InterfaceImplementationAnalyzer",
+            "InterfaceCodeFixProvider",
+            """
+            namespace Demo;
+
+            public interface IThing
+            {
+                void DoIt();
+            }
+
+            public class Thing : IThing
+            {
+                public void DoIt() { }
+                public override string ToString() => "thing";
+            }
+            """);
+
+        result.Applied.Should().BeFalse();
+        result.FixedSource.Should().NotContain("string ToString();");
+    }
+
+    /// <summary>
+    /// The override is declared first. The harness fixes the first diagnostic, so declaring
+    /// <c>Extra</c> (and not <c>ToString</c>) also proves the override produced no diagnostic.
+    /// </summary>
+    [Fact]
+    public async Task ItAddsTheNonOverrideMemberOnly()
+    {
+        var result = await CodeFixHarness.ApplyAsync(
+            "InterfaceImplementationAnalyzer",
+            "InterfaceCodeFixProvider",
+            """
+            namespace Demo;
+
+            public interface IThing
+            {
+                void DoIt();
+            }
+
+            public class Thing : IThing
+            {
+                public void DoIt() { }
+                public override string ToString() => "thing";
+                public void Extra() { }
+            }
+            """);
+
+        result.Applied.Should().BeTrue();
+        result.FixedSource.Should().Contain("void Extra();");
+        result.FixedSource.Should().NotContain("string ToString();");
+    }
+
     [Fact]
     public async Task ItAddsTheMissingMemberToTheInterface()
     {

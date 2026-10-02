@@ -27,6 +27,11 @@ internal static class InterfaceMemberCandidates
     /// <c>CanBeReferencedByName</c>, which is false for <c>.ctor</c>. Indexers are excluded by the
     /// same check (<c>this[]</c> is not referenceable by name), operators and constants by
     /// <c>IsStatic</c>, and a finalizer by its accessibility.
+    /// <para>
+    /// Overrides (including <c>sealed override</c>) are excluded: they add no public surface, they
+    /// re-implement a member whose contract the base class already declares. <c>new</c> members are
+    /// not overrides and stay candidates — hiding a member is genuinely new surface.
+    /// </para>
     /// </remarks>
     public static IEnumerable<ISymbol> In(INamedTypeSymbol type, INamedTypeSymbol? ignoreAttributeSymbol)
         => type.GetMembers()
@@ -34,6 +39,7 @@ internal static class InterfaceMemberCandidates
                         && !m.IsStatic
                         && m.CanBeReferencedByName
                         && !m.IsImplicitlyDeclared
+                        && !m.IsOverride
                         && (m is IMethodSymbol || m is IPropertySymbol))
             .Where(m => !(m is IMethodSymbol method
                           && (method.MethodKind == MethodKind.Constructor

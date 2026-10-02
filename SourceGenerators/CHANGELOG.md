@@ -3,6 +3,21 @@
 This changelog covers every package under `SourceGenerators/`. They are versioned in lockstep, so one entry applies
 to all of them.
 
+## 12.1.1
+
+Fixes [#191](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/191). The investigation and design are in
+[`docs/PRD-INTF001-IgnoreOverrides.md`](../docs/PRD-INTF001-IgnoreOverrides.md).
+
+### Fixed
+
+**MintPlayer.SourceGenerators**
+- **INTF001 no longer reports `override` members.** An override (including `sealed override`) re-implements a member
+  whose contract the base class already declares, so it is never missing from an interface. Before, every class
+  implementing an interface was flagged for overriding `ToString`, `Equals` or `GetHashCode`, and every class that
+  also derived from an abstract or virtual base was flagged for each override. The code fix offered to copy those
+  members onto the interface, and the result compiled. Both stopped. `new` (hiding) members are still reported:
+  hiding is genuinely new public surface. `[NoInterfaceMember]` on an override is now redundant but harmless.
+
 ## 12.1.0
 
 Fixes the findings reported downstream in [#187](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/187),
