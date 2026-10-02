@@ -9,6 +9,11 @@ rewrites capturing call sites so they do not allocate.
 
 Companion plan: [Resilience-plan.md](Resilience-plan.md).
 
+**Status (2026-10-02, draft PR #190):** the runtime core, circuit breaker, limiters, hedging, chaos and
+the source generator are built (plan M1–M3, M4 part A). The analyzers and code fixes, DI/registry,
+telemetry, HTTP integration, the Testing package, benchmarks and the demo are not built yet. Sections
+below mark such items *(planned, Mx)*; everything unmarked is in the code.
+
 ---
 
 ## 1. Why build this (and why here)
@@ -119,35 +124,84 @@ failures, and AOT.
 [Timeout(TimeoutMs = 2_000)]                              // inner: per attempt
 public sealed partial class CatalogPipeline   // not `static`: it must be usable as a type argument (S6)
 {
-    // Optional predicate hooks, discovered by convention/attribute. They are synchronous, and the
-    // generator inlines them.
+    // Optional hooks, bound by a hook attribute ([RetryWhen]) or by name
+    // ([Retry(ShouldHandle = nameof(Transient))]). Predicates are synchronous and called directly.
     [RetryWhen] static bool Transient(Outcome<HttpResponseMessage> o) =>
         o.Exception is HttpRequestException || (o.Result is { } r && (int)r.StatusCode >= 500);
 }
 
-// Call sites
-var r1 = await CatalogPipeline.ExecuteAsync(static (id, ct) => client.GetAsync($"/items/{id}", ct), id, ct);
-var r2 = await CatalogPipeline.ExecuteAsync(ct => client.GetAsync($"/items/{id}", ct), ct); // closure: MPR0002 + code fix → r1's form
-Outcome<HttpResponseMessage> o = await CatalogPipeline.TryExecuteAsync(...);                // never throws on rejection
+// Call sites. Callbacks return ValueTask<T>, as in Polly.
+var r1 = await CatalogPipeline.ExecuteAsync(static async (s, ct) => await s.client.GetAsync($"/items/{s.id}", ct), (client, id), ct);
+var r2 = await CatalogPipeline.ExecuteAsync(async ct => await client.GetAsync($"/items/{id}", ct), ct); // closure: MPR0002 + code fix → r1's form (planned, M5)
+Outcome<HttpResponseMessage> o = await CatalogPipeline.TryExecuteAsync(...);                            // never throws on rejection
 ```
 
-**The generator emits:**
+**Rules for the class** (anything else gets no generated code; MPR0004 will say why, *planned, M4 part B*):
 
-- **One flat `async ValueTask<T>` method per result type**, with the strategies inlined as nested
-  `try`/loops in attribute order.
-- **Constants folded in:** retry count, backoff and delays.
-- **Shared runtime state only where it is intrinsic:**
-  - circuit-breaker state as a `static readonly` controller;
-  - limiter instances;
-  - the pooled timeout CTS.
-- **Telemetry compiled out** unless the pipeline is registered with telemetry enabled (see S8).
-- **`[AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]`** on the generated method (see
-  S2).
+- `partial`, not `static`, not generic, and every containing type partial and non-generic.
+- All strategy attributes on **one** declaration. They run in declaration order, the first outermost
+  (S1; no `Order =` property is needed). MPR0007 *(planned, M4 part B)* flags a split across partials.
+- Durations are integer milliseconds (`…Ms`), because a `TimeSpan` is not a valid attribute argument. On
+  a nullable duration (`MaxDelayMs`, `SlowCallDurationThresholdMs`, `LatencyThresholdMs`), **-1 (the
+  default) means "not set"**. Defaults are Polly's, the same as the runtime options classes.
+- A class-level `[RetryBudget]` gives the retries a pipeline-owned budget; `[Retry(Budget = nameof(…))]`
+  names a shared one instead.
+
+**Result type:**
+
+- `[ResiliencePipeline<T>]` makes the pipeline typed, like `ResiliencePipeline<T>`.
+- Without it, the type is inferred from a hook that names a concrete type (`Outcome<T>`, `…Arguments<T>`, a
+  fallback's return type).
+- Otherwise the pipeline is **generic**, like the non-generic `ResiliencePipeline`: `ExecuteAsync<TResult>`
+  plus void overloads, and result-typed hooks must be generic methods. Inlined hooks see the concrete
+  `TResult`, but the delegated strategies (breaker, limiters, chaos) are built on the non-generic builder
+  and see `object`, so **a value-type result is boxed whenever one of their predicates runs** (Polly's
+  behaviour).
+- Hedging and outcome chaos need a typed pipeline.
+
+**Static vs DI form:** the members are `static` when every bound hook and member is static and no
+constructor takes parameters. Otherwise they are instance members (the DI form below).
+
+**Hook binding:** every hook slot is a string property on the strategy attribute, named like the Polly
+option (`ShouldHandle`, `OnRetry`, `FallbackAction`, …), which takes `nameof` of a method (or, for
+`Budget`, `ManualControl`, `StateProvider`, `RateLimiter`, a field or property). The common slots also have
+hook attributes on the method: `[RetryWhen]`, `[OnRetry]`, `[DelayGenerator]`, `[TimeoutGenerator]`,
+`[OnTimeout]`, `[BreakWhen]`, `[OnOpened]`, `[OnClosed]`, `[OnHalfOpened]`, `[BreakDurationGenerator]`,
+`[FallbackWhen]`, `[FallbackWith]`, `[OnFallback]`, `[HedgeWhen]`, `[OnHedging]`. A hook attribute binds to
+the only strategy of its kind, or to the one whose `Name` it passes; a name on the strategy wins. Adapted
+shapes are accepted: a predicate or fallback over the args or over `Outcome<T>`, `void` events, and a
+fallback returning `T`, `Outcome<T>`, `ValueTask<T>` or `ValueTask<Outcome<T>>`.
+
+**The generator emits** (one file, `ResiliencePipelines.g.cs`):
+
+- **One pooled async method per class** (`__RunAsync`, generic over the callback, the result shape and
+  a telemetry struct), on the same `ExecutionFrame<T>` as the runtime interpreter. Public members:
+  `ExecuteAsync` and `TryExecuteAsync` (plain, state, context and context + state overloads) and sync
+  `Execute`.
+- **Retry, timeout and fallback are inlined** as nested `try`/loops in attribute order, as
+  statement-for-statement ports of the runtime strategies, with hooks called directly.
+- **Circuit breaker, limiters, adaptive limiter and chaos are driven through their runtime hooks** (each
+  built once from a one-strategy pipeline). Their state is intrinsic and the breaker's event sequencing is
+  subtle, so their parity with the runtime builder is by construction.
+- **Hedging is not flattened:** the generated members forward to an equivalent runtime pipeline built
+  once, with the same public surface.
+- **Constants folded in:** retry count, backoff and delays (read from the snapshot instead when the
+  pipeline is reloadable).
+- **Runtime state in one snapshot** (`__Runtime`: clock, randomizer, CTS pool, the runtime strategies),
+  read once per execution. `UseTimeProvider(time, randomizer?)` replaces it, which is how tests drive a
+  fake clock.
+- **Telemetry compiled out:** the method is generic over a telemetry struct and every member passes the
+  no-op `NoTelemetry`. Enabled telemetry is *planned, M6* (S8).
+- **`[AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]`** on the generated method (S2),
+  unless `[ResiliencePipeline(PooledAsync = false)]`.
+- **An invalid constant** (e.g. `MaxRetryAttempts = -1`) throws `ValidationException` on the first
+  execution; MPR0004 *(planned, M4 part B)* moves this to compile time.
 
 **Non-static (DI) form.** Real `OnRetry` / `OnFallback` hooks log through an injected `ILogger` (plan S7).
-A declarative pipeline can therefore also be a non-static `partial class` with a constructor. It is
-registered as a singleton by `AddResiliencePipeline<T>()`. Its hooks are instance methods and can use
-injected services; circuit-breaker state lives on the instance.
+A declarative pipeline can therefore also be a non-static `partial class` with a constructor. Its hooks
+are instance methods and can use injected services; strategy state (a breaker's health) lives on the
+instance. The generated static `Create(IServiceProvider)` resolves the widest constructor. Registration as
+a singleton by `AddResiliencePipeline<T>()` is *planned, M6*.
 
 ```csharp
 [ResiliencePipeline]
@@ -176,68 +230,95 @@ var pipeline = new ResiliencePipelineBuilder<HttpResponseMessage>()
     .Build();
 ```
 
-- **Execution is a single async interpreter method** (one pooled box) over strategies that expose
-  synchronous hooks (`Before` / `After` / `ShouldRetry`), not a chain of async layers. S1 measured a
-  struct-nested chain: it was as fast as flat code but boxed once per layer when the callback suspended.
-- **Hedging keeps its own async executor**, since its allocations are intrinsic.
+- **Execution is a single async interpreter method** (`PipelineCore<T>.RunAsync`, one pooled box) over
+  strategies that expose hooks (`EnterAsync` / `ExitAsync`, synchronous on the happy path), not a chain
+  of async layers. S1 measured a struct-nested chain: it was as fast as flat code but boxed once per layer
+  when the callback suspended, so the struct-nested shape was dropped.
+- **Hedging runs inside the same interpreter** as a *forking* strategy: it runs the inner remainder of the
+  pipeline itself, once per attempt, on pooled inner runners. The allocations that remain (a `Task` per
+  attempt, `WhenAny`, the delay timer) are intrinsic.
 - **The generated and runtime paths share the same strategy state types** (breaker controller, CTS pool,
-  limiters).
+  limiters): the generator drives the runtime breaker, limiters and chaos strategies directly.
+- **The non-generic `ResiliencePipeline`** builds one typed core per result type on first use. Its options
+  (`RetryStrategyOptions : RetryStrategyOptions<object>`, …) are adapted, which **boxes a value-type result
+  only when a user delegate runs**, as in Polly.
 - **Deliberate differences from Polly:**
-  - predicates (`ShouldHandle`) and delay generators are synchronous. `PredicateBuilder` converts
-    implicitly;
-  - the returned `ValueTask` is pooled (MPR0006);
-  - `TryExecuteAsync` returns an `Outcome` on rejection.
-  - Events and `FallbackAction` stay `ValueTask`-returning, as in Polly.
+  - predicates (`ShouldHandle`), delay, break-duration, timeout and chaos generators are synchronous.
+    `PredicateBuilder` converts implicitly, and `PredicateBuilder.Handle<TException>()` matches a
+    rejection by type without creating the exception;
+  - events, `FallbackAction`, hedging's `ActionGenerator`, chaos `BehaviorGenerator` and the
+    `RateLimiter` delegate stay `ValueTask`-returning, as in Polly (acquisition can queue);
+  - the returned `ValueTask` is pooled; `UsePooledAsync(false)` on the builder opts out. MPR0006
+    *(planned, M4 part B)* flags misuse;
+  - `TryExecuteAsync` returns an `Outcome` on rejection, without an exception. It takes the place of
+    Polly's `ExecuteOutcomeAsync`, which is not provided;
+  - options are validated when they are added (Polly's ranges, `ValidationException`), by hand rather
+    than through DataAnnotations reflection, which is not AOT-safe;
+  - `Retry-After` awareness is not in the retry strategy yet *(planned, M7, through `DelayGenerator`)*.
 
 ### 2.3 Strategies (v1 surface)
 
 | Strategy | Notes |
 |---|---|
-| Retry | Constant / linear / exponential / decorrelated-jitter backoff, `MaxDelay`, `DelayGenerator`, `OnRetry`, `Retry-After` aware (reuse `MintPlayer.Http` `GetRetryAfter`). |
-| Timeout | Pooled CTS (`TryReset`), `TimeProvider`, `OnTimeout`. |
-| Circuit breaker | Failure ratio over a sliding window, minimum throughput, break duration (generator), half-open probing, manual control, state provider. The state controller is lock-free (S4): a CAS on packed state plus per-core striped health counters, 12–32× faster than a lock under contention. |
-| Fallback | Value, or a delegate over the outcome. |
-| Hedging | Max hedged attempts, delay, action generator; pooled execution contexts. |
-| Rate / concurrency limiter | Wraps `System.Threading.RateLimiting` (the lease cost is intrinsic). |
-| **Retry budget** *(beyond Polly)* | Retries capped as a percentage of recent traffic (Finagle/Envoy style), shared across pipeline instances. Stops retry storms that a per-call `MaxAttempts` cannot prevent. |
-| **Adaptive concurrency limit** *(beyond Polly)* | The limit adjusts itself from observed latency (AIMD / gradient, Netflix concurrency-limits style) instead of a fixed number. |
-| **Slow-call circuit breaking** *(beyond Polly)* | The circuit breaker can also trip on a slow-call ratio over a duration threshold, not just failures (resilience4j). |
-| Chaos (fault injection) | `Fault`, `Outcome`, `Latency` and `Behavior` injection, with `InjectionRate` and an `Enabled` generator. They are ordinary strategies in the core package, so they can go in a production pipeline behind a flag, as Simmy does in Polly 8. In generated pipelines a disabled chaos strategy compiles to one branch. |
+| Retry | `DelayBackoffType` `Constant` / `Linear` / `Exponential`, with `UseJitter` (Polly's decorrelated jitter for exponential), `MaxDelay`, `DelayGenerator`, `OnRetry`. `Retry-After` awareness (reusing `MintPlayer.Http` `GetRetryAfter`) is *planned, M7*. Value-type results are not disposed (no boxing). |
+| Timeout | Pooled CTS (`TryReset`), `TimeProvider`, `TimeoutGenerator`, `OnTimeout`. |
+| Circuit breaker | Failure ratio over a sliding window, minimum throughput, break duration (synchronous `BreakDurationGenerator`), half-open probing, `CircuitBreakerManualControl`, `CircuitBreakerStateProvider`. The state controller is lock-free (S4): a CAS on packed state plus per-core striped health counters, 12–32× faster than a lock under contention. Events are sequenced per transition, as Polly runs them one at a time. Deviations: `RetryAfter` is clamped at ≥ 0; an `OnHalfOpened` that throws counts as a failed probe and re-opens the circuit (Polly stays half-open); the generator's failure figures are those at Closed → Open, reused on a re-open from half-open. |
+| Fallback | A `FallbackAction` delegate over the outcome; on the runtime builder it is typed-only, as in Polly. A generated fallback may return `T`, `Outcome<T>` or their `ValueTask`. |
+| Hedging | `MaxHedgedAttempts`, `Delay` (0 = parallel, negative = fallback mode), `DelayGenerator`, `ActionGenerator`, `OnHedging`; typed pipelines only. Execution contexts and attempts are pooled; losers are cancelled and awaited, and only the winner's context properties are merged back. |
+| Rate / concurrency limiter | `AddRateLimiter` / `AddConcurrencyLimiter` wrap `System.Threading.RateLimiting` (a package reference, 10.0.0; the lease cost is intrinsic). Lease-free limiters reject at 0 B: `AddFixedWindowLimiter`, `AddSlidingWindowLimiter`, `AddNativeConcurrencyLimiter` (no queue). All reject with `RejectionKind.RateLimited`. |
+| **Retry budget** *(beyond Polly)* | `RetryBudget(retryRatio 0.2, minRetriesPerSecond 10, timeToLive 10 s)`: retries capped as a percentage of recent traffic (Finagle/Envoy style), shared by every retry that references the same instance (`RetryStrategyOptions.Budget`, `OnBudgetExhausted`). Stops retry storms that a per-call `MaxRetryAttempts` cannot prevent. |
+| **Adaptive concurrency limit** *(beyond Polly)* | `AddAdaptiveConcurrencyLimiter`, `AdaptiveConcurrencyAlgorithm.Aimd` / `Gradient` (default): the limit adjusts itself from observed latency and drops, Netflix concurrency-limits style, with deviations found by simulation: one backoff per generation (Netflix's per-sample backoff collapsed on a burst), and the gradient compares against the no-load (minimum) latency, not Gradient2's long-term average. Known limitation: a permanent baseline rise above `Tolerance`, or a start deep in overload, pins the gradient low. |
+| **Slow-call circuit breaking** *(beyond Polly)* | `SlowCallDurationThreshold` (null = off) and `SlowCallRatio` (default 1.0): the circuit breaker can also trip on a slow-call ratio, not just failures (resilience4j). |
+| Chaos (fault injection) | `AddChaosFault`, `AddChaosOutcome`, `AddChaosLatency` and `AddChaosBehavior` (namespaces `MintPlayer.Resilience.Simmy.*`, as in Polly), with `InjectionRate`, `Enabled`, `InjectionRateGenerator` and `EnabledGenerator`. They are ordinary strategies in the core package, so they can go in a production pipeline behind a flag, as Simmy does in Polly 8. A disabled chaos strategy (or rate 0 without generators) costs one branch, in both the runtime and the generated pipeline; not injecting allocates 0 B. |
 
 ### 2.4 Context, outcome, DI, telemetry
 
-- **`ResilienceContext`**: pooled, with typed `ResiliencePropertyKey<T>` properties, only when the
-  caller asks for it. The generated overloads without a context never touch the pool (this saves the
-  ~30 ns measured on Polly).
+- **`ResilienceContext`**: pooled (`ResilienceContextPool.Shared`), with typed `ResiliencePropertyKey<T>`
+  properties. The argument structs resolve `Context` lazily: an execution rents a context only when a
+  delegate reads it, so the overloads without a context normally never touch the pool (this saves the
+  ~30 ns measured on Polly). Hedging always materializes one, since each attempt gets its own copy.
 - **`Outcome<T>`**: a readonly struct: `IsSuccess`, `IsRejected`, `Rejection` (`RejectionKind : byte`
-  — `None`, `CircuitOpen`, `CircuitIsolated`, `RateLimited`, `Timeout`), `RetryAfter`, `Result`,
-  `Exception`, `GetResultOrThrow()`. A rejection carries **no exception reference**. `Exception` on a
-  rejected outcome is created on first read.
+  — `None`, `CircuitOpen`, `CircuitIsolated`, `RateLimited`, `Timeout`), `RetryAfter` (circuit and
+  limiter rejections only; isolated rejections carry none), `Result`, `Exception`, `GetResultOrThrow()`,
+  `ThrowIfException()`. It is created with Polly's static factories (`Outcome.FromResult`,
+  `Outcome.FromException`, and their `…AsValueTask` forms). A rejection carries **no exception
+  reference** (only its cause, which becomes the `InnerException`). **`Exception` on a rejected outcome
+  creates a fresh exception on every read**; test `Rejection` to avoid the allocation.
 - **Never cache or reuse a thrown exception** (plan S5): each throw rewrites the instance's stack, the
   `Data` dictionary leaks between callers, and concurrent throws produce mixed or foreign stack traces.
-- **`ExecuteAsync` throws a fresh exception per rejection:** `ResilienceRejectedException { Kind, RetryAfter }`
-  → `BrokenCircuitException` / `IsolatedCircuitException` / `RateLimiterRejectedException` /
-  `TimeoutRejectedException`. The names are Polly's, per S7.
-- **An analyzer code fix** rewrites `o.Exception is BrokenCircuitException` into
+- **`ExecuteAsync` throws a fresh exception per rejection:** the abstract
+  `ResilienceRejectedException { Kind, RetryAfter }` → `BrokenCircuitException` (→
+  `IsolatedCircuitException`) / `RateLimiterRejectedException` / `TimeoutRejectedException`. The leaf
+  names are Polly's, per S7; Polly's `ExecutionRejectedException` base is not mirrored.
+- **An analyzer code fix** *(planned, M4 part B)* rewrites `o.Exception is BrokenCircuitException` into
   `o.Rejection == RejectionKind.CircuitOpen`.
-- **DI**: `services.AddResiliencePipeline<CatalogPipeline>()` for generated pipelines, and
-  `AddResiliencePipeline(key, builder => …)` for runtime ones. Both add a keyed registry.
+- **DI** *(planned, M6)*: `services.AddResiliencePipeline<CatalogPipeline>()` for generated pipelines,
+  and `AddResiliencePipeline(key, builder => …)` for runtime ones. Both add a keyed registry. The seam is
+  built: every generated class implements `IGeneratedResiliencePipeline<TSelf>` (`PipelineName`,
+  `IsInstancePipeline`, `Create(IServiceProvider)`, `UseTimeProvider`), all static abstract members.
 - **Reload** (plan S6): `[ResiliencePipeline(Reloadable = true)]`.
   - **Options class:** the generator emits a `CatalogPipelineOptions` class, with one property per
-    strategy (named by the attribute's `Name`, else the strategy kind). Its initial values are the
-    attribute values.
-  - **Section:** bound from `"Resilience:CatalogPipeline"` by default, or from a section passed to
-    `AddResiliencePipeline<T>("section")`.
+    strategy, named by the attribute's `Name`, else the strategy kind (`Timeout2` for a second unnamed
+    one). Each property is a nested `<Kind>Section` whose values use the runtime option names and types
+    (`Delay` as a `TimeSpan`, not `DelayMs`). Its initial values are the attribute values.
+  - **Apply:** the generated `TryApply(options, out error)` (and `IReloadableResiliencePipeline<TSelf,
+    TOptions>`) validates with the builder's rules. **Bad values return `false` and the previous snapshot
+    stays live.** Two racing applies are serialized by a lock.
   - **Snapshots:** each execution reads one immutable snapshot at entry (`Volatile.Read`), so in-flight
     calls keep their values.
-  - **Circuit-breaker state survives a reload.** Polly instead rebuilds a closed breaker.
-  - **Bad configuration values are rejected, and the previous snapshot stays live.** Binding listens to
-    the change tokens and calls `IOptionsFactory.Create` inside try/catch. Plain
+  - **Strategy state on reload:** a delegated strategy whose section is unchanged keeps its instance, so
+    **a breaker's health survives a reload that does not touch it**. A changed section recreates that
+    strategy and resets its state, because the controller takes its settings at construction. A hedging
+    pipeline is rebuilt on every reload. Polly rebuilds a closed breaker in every case.
+  - **Section:** `DefaultSectionPath` is `"Resilience:<Name>"`, where the name is
+    `[ResiliencePipeline(Name = …)]`, else the class name. Binding it from configuration, or from a
+    section passed to `AddResiliencePipeline<T>("section")`, is *planned, M6*: binding listens to the
+    change tokens and calls `IOptionsFactory.Create` inside try/catch, because plain
     `IOptionsMonitor.OnChange` throws from `Reload()` before listeners run.
-  - **Registration:** `AddResiliencePipeline<T>()` is idempotent and goes through static abstract
-    interface members (`T.AddServices`). Two racing reloads are serialized by a lock.
-- **Telemetry** (plan S8): an OpenTelemetry `Meter` / `ActivitySource` plus `ILogger` source-generated
-  `LoggerMessage`.
+  - **Registration** *(planned, M6)*: `AddResiliencePipeline<T>()` is idempotent and goes through the
+    static abstract seam above.
+- **Telemetry** *(planned, M6; plan S8)*: an OpenTelemetry `Meter` / `ActivitySource` plus `ILogger`
+  source-generated `LoggerMessage`.
   - **Tags** are pre-bound per pipeline and strategy instance. Allocation is **0 B/op with telemetry on**.
   - **Default names:**
     - meter and `ActivitySource` `MintPlayer.Resilience`;
@@ -255,7 +336,7 @@ var pipeline = new ResiliencePipelineBuilder<HttpResponseMessage>()
     - the runtime interpreter is generic over a telemetry struct, with a no-op implementation that the
       JIT removes.
 
-### 2.5 HttpClient integration (`MintPlayer.Resilience.Http`)
+### 2.5 HttpClient integration (`MintPlayer.Resilience.Http`) *(planned, M7)*
 
 **Decision: the pipeline lives in a `DelegatingHandler`, not in extension methods on `HttpClient`.**
 
@@ -328,15 +409,23 @@ documentation instead of a table of differences. A parity test pins these values
 
 ### 2.6 Analyzers
 
-| Id | Rule |
-|---|---|
-| MPR0001 | Polly v8 `ResiliencePipelineBuilder` usage detected. Code fix converts it to a `[ResiliencePipeline]` class when all options are constant. |
-| MPR0002 | Capturing lambda passed to any pipeline's `Execute*` (allocates 56–104 B/call). The code fix rewrites it to a `static` lambda + state tuple, within the boundary verified in S3. |
-| MPR0003 | Non-idempotent-looking callback (HTTP POST without idempotency key) under retry/hedging. Warning only. |
-| MPR0004 | Invalid attribute combination (e.g. inner timeout ≥ outer timeout, retry outside a total timeout of 0). |
-| MPR0005 | `ExecuteAsync` result not awaited. |
-| MPR0006 | Pooled `ValueTask` misuse: awaited twice, `.Result` without an await, or passed to `WhenAll`/`WhenAny` without `.AsTask()` (error; see plan S2). |
-| MPR0007 | Strategy attributes split across `partial` declarations: their order would be undefined (error; see plan S1). |
+None of the rules is implemented yet. The ids MPR0004–MPR0007 are reserved in the generator project
+(`Diagnostics/DiagnosticIds.cs`); the generator itself reports nothing and skips a class it cannot
+generate.
+
+| Id | Rule | Status |
+|---|---|---|
+| MPR0001 | Polly v8 `ResiliencePipelineBuilder` usage detected. Code fix converts it to a `[ResiliencePipeline]` class when all options are constant. | planned, M8 |
+| MPR0002 | Capturing lambda passed to any pipeline's `Execute*` (allocates 56–104 B/call). The code fix rewrites it to a `static` lambda + state tuple, within the boundary verified in S3. | planned, M5 |
+| MPR0003 | Non-idempotent-looking callback (HTTP POST without idempotency key) under retry/hedging. Warning only. | planned, M8 |
+| MPR0004 | Invalid declarative pipeline. Covers every reason the generator skips a class (not partial / static / generic, a non-partial or generic containing type, a hook or member name that does not exist, a fallback without `FallbackAction`, outcome/behavior/fault chaos without its generator, a typed-only strategy (hedging, outcome chaos) in a generic pipeline), plus a mismatched hook signature, an ambiguous hook attribute (left unbound today), and invalid values: an inner timeout ≥ an outer timeout, and constants outside the builder's ranges. | planned, M4 part B |
+| MPR0005 | `ExecuteAsync` result not awaited. | planned, M4 part B |
+| MPR0006 | Pooled `ValueTask` misuse: awaited twice, `.Result` without an await, or passed to `WhenAll`/`WhenAny` without `.AsTask()` (error; see plan S2). | planned, M4 part B |
+| MPR0007 | Strategy attributes split across `partial` declarations: their order would be undefined (error; see plan S1). | planned, M4 part B |
+| MPR0008 (info) | The S5 rejection rule (§2.4): `o.Exception is BrokenCircuitException` (and the other rejection types), with a code fix to `o.Rejection == RejectionKind.CircuitOpen`. | planned, M4 part B |
+
+Code fixes need `Microsoft.CodeAnalysis.Workspaces`, which a generator must not reference (RS1038). They
+go in a separate code-fix assembly, packed next to the generator.
 
 ---
 
@@ -346,20 +435,36 @@ documentation instead of a table of differences. A parity test pins these values
 Resilience/
   MintPlayer.Resilience/                      # runtime + generator bundled under analyzers/dotnet/roslyn5.9/cs
   MintPlayer.Resilience.SourceGenerator/      # IsPackable=false, packed into the core (Assertions pattern)
-  MintPlayer.Resilience.Http/                 # IHttpClientBuilder integration
-  MintPlayer.Resilience.Testing/              # pipeline descriptors, fake TimeProvider helpers, chaos hooks
-  MintPlayer.Resilience.Tests/
-  MintPlayer.Resilience.SourceGenerator.Tests/
-  MintPlayer.Resilience.Benchmarks/           # vs Polly.Core pinned [8.8.0] (last plain BSD-3)
+  MintPlayer.Resilience.Tests/                # runtime tests; Polly.Core [8.8.0] as a test-only parity reference
+  MintPlayer.Resilience.SourceGenerator.Tests/ # Samples/ (compile check), snapshot, incrementality, parity, allocation
+  spikes/S1…S8/                               # throwaway, deleted before the PR is finalized
   prd/Resilience-prd.md, prd/Resilience-plan.md
+  # planned:
+  (code-fix assembly)                         # M4 part B / M5: CodeFixProviders + Workspaces, packed next to the generator
+  MintPlayer.Resilience.Http/                 # M7: IHttpClientBuilder integration
+  MintPlayer.Resilience.Testing/              # M8: pipeline descriptors, fake TimeProvider helpers, chaos assertions
+  MintPlayer.Resilience.Benchmarks/           # M9: vs Polly.Core pinned [8.8.0] (last plain BSD-3)
+  MintPlayer.Resilience.Demo/                 # M9: comprehensive demo (name not final)
 ```
 
-- **Target frameworks:** net10.0; net11.0. `IsAotCompatible`.
+- **Target frameworks:** net10.0; net11.0. `IsAotCompatible`. Version 11.0.0.
+- **Runtime dependency:** `System.Threading.RateLimiting` 10.0.0, a package reference because it is not
+  part of `Microsoft.NETCore.App`.
+- **Namespaces mirror Polly's:** `MintPlayer.Resilience` plus `.Retry`, `.Timeout`, `.Fallback`,
+  `.CircuitBreaker`, `.Hedging`, `.RateLimiting`, `.Simmy[.Fault|.Outcomes|.Latency|.Behavior]`. The
+  types generated code needs are public but `[EditorBrowsable(Never)]` in `.Pipeline`. Code in a namespace
+  under `MintPlayer.Resilience` sees `Timeout`, `Retry`, … as those sub-namespaces.
 - **Generator:** netstandard2.0, Roslyn 5.9, built on `MintPlayer.SourceGenerators.Tools`
-  (`IncrementalGenerator`, `Producer`, `[GenerateEquality]` models, fixed hint-name set).
-- **Tests:** xUnit plus MintPlayer.Assertions.
-- **CI:** `.github/workflows/resilience-benchmark.yml` (allocation ceilings asserted, as in
-  `assertions-benchmark.yml`).
+  (`IncrementalGenerator`, `Producer`, `[GenerateEquality]` models, one hint name
+  `ResiliencePipelines.g.cs`). The `Microsoft.CodeAnalysis` meta-package is removed, since it brings
+  Workspaces (RS1038). The attributes live in the core package (`Declarative/`).
+- **Packing:** test, demo and benchmark projects set `<IsPackable>false</IsPackable>`. Packing the core
+  warns NU5118 ×3, exactly as MintPlayer.Assertions does; the payload is correct.
+- **Tests:** xUnit plus MintPlayer.Assertions, `FakeTimeProvider`; stress tests carry
+  `[Trait("Category","Stress")]`.
+- **Solution:** the "Resilience" solution folder is in `MintPlayer.Dotnet.Tools.sln`.
+- **CI** *(planned, M9)*: `.github/workflows/resilience-benchmark.yml` (allocation ceilings asserted, as
+  in `assertions-benchmark.yml`).
 
 ---
 
@@ -395,11 +500,18 @@ must retry, open the circuit and time out on the same scripted fault sequence be
   - nothing it captures may be written anywhere in the enclosing member;
   - no nested use of the captured state, no `base.` access, and no calls to non-static local functions.
 - **Compiler floor:** a generator built against Roslyn 5.9 needs **SDK ≥ 10.0.4xx**. It fails with
-  CS9057 on 10.0.1xx. Document this in the README.
+  CS9057 on 10.0.1xx. Documented in the package README ("Compiler requirements").
 - **Pooling async builder hazards.** A `ValueTask` from a pooled builder must not be awaited twice. User
-  code that stores and re-awaits the task would break. This is the reason for an opt-out (S2).
-- **Attribute order as semantics.** Relying on the declaration order of attributes needs verification.
-  The fallback is an explicit `Order =` (S1).
+  code that stores and re-awaits the task would break. This is the reason for the opt-out (S2):
+  `UsePooledAsync(false)` on the builder, `[ResiliencePipeline(PooledAsync = false)]` on a generated
+  pipeline. MPR0006 *(planned, M4 part B)* flags misuse.
+- **Attribute order as semantics. Resolved by S1:** within one declaration `GetAttributes()` returns
+  source order, so no `Order =` property exists. Across `partial` declarations it is undefined; MPR0007
+  *(planned, M4 part B)* makes that an error.
+- **Open question (owner, unanswered): an implicit conversion `T → Outcome<T>`** (`Outcome<int> o = 42;`)
+  in addition to Polly's static factories (`Outcome.FromResult`, …). It would shorten fallback actions
+  and outcome generators. `.ToOutcome()` extension methods were rejected: they pollute IntelliSense on
+  every type, and S7 mirrors Polly's names.
 - **Behaviour parity.** Circuit-breaker window arithmetic and jitter formulas must match Polly closely
   enough that migrations don't change production behaviour (the parity suite in §4.7).
 - **Owner decisions (2026-09-29):**
@@ -415,3 +527,10 @@ must retry, open the circuit and time out on the same scripted fault sequence be
      support; those users stay on Polly or Fences.
   6. **No Polly v7 compatibility facade**, only a v8-shaped API (§1.4).
   7. Packages start at **11.0.0**, aligned with the .NET major version like MintPlayer.Assertions.
+- **Owner decisions (added during implementation):**
+  1. Test, demo and benchmark projects set `<IsPackable>false</IsPackable>`. More than one test project
+     is fine.
+  2. M9 ships a **comprehensive demo** that showcases every spike finding (S1–S8), using the real
+     library rather than the spike code, and every feature.
+  3. **Documentation stays up to date**: the package READMEs, the package list in the repo README, and
+     this PRD and the plan.

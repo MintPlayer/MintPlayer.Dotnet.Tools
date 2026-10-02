@@ -22,8 +22,8 @@
 	<ItemGroup>
 		<!--
 		The Microsoft.CodeAnalysis meta-package brings Microsoft.CodeAnalysis.Workspaces, which a generator must not
-		reference (RS1038: it is not provided in command-line builds). Nothing here needs it yet. A CodeFixProvider
-		(M5's MPR0002 fix) needs Workspaces: re-add it then, and accept RS1038 as MintPlayer.Assertions.SourceGenerator does.
+		reference (RS1038: it is not provided in command-line builds). Keep it that way: CodeFixProviders live in the
+		separate MintPlayer.Resilience.CodeFixes assembly (plan M4 part B), packed next to this generator.
 		-->
 		<PackageReference Remove="Microsoft.CodeAnalysis" />
 		<PackageReference Update="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" />

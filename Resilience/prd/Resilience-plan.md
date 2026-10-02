@@ -2,6 +2,14 @@
 
 Companion to [Resilience-prd.md](Resilience-prd.md).
 
+**Status (2026-10-02):**
+
+- Branch `issues/#189`, draft PR [#190](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/pull/190).
+- Done and committed: M0 (spikes S1–S8, GO), M1, M2, M3, and M4 part A (the generator).
+- **Next: M4 part B** — the analyzers MPR0004–MPR0007 and the S5 rejection code fix. Not started.
+- Not started: M5–M9 and the final sweep. No test suite has been run yet (by the working rules below).
+- Open question for the owner: an implicit `T → Outcome<T>` conversion (PRD §5).
+
 **Working rules:**
 
 - **Everything lands in ONE pull request.** Milestones are commit boundaries.
@@ -80,7 +88,8 @@ use Fences, or pin Polly 8.8.0.
 - **Validation:** options throw `ValidationException` when added (Polly's ranges), written by hand
   because DataAnnotations reflection is not AOT-safe.
 - **For M4:** the shared state types (`CancellationTokenSourcePool`, `RetryHelper`, `DefaultPredicates`)
-  are `internal`. Generated code needs them public, e.g. `[EditorBrowsable(Never)]`.
+  are `internal`. Generated code needs them public, e.g. `[EditorBrowsable(Never)]`. *(Done in M4 part A,
+  through `GeneratedPipelineSupport`.)*
 - **Not in M1:** Polly's `ExecuteOutcomeAsync`, and `Retry-After` awareness (M7, via `DelayGenerator`).
   Retry skips disposing value-type results, to avoid boxing them.
 
@@ -261,7 +270,8 @@ budget, adaptive limit), then hedging and chaos.
   - Polly 8 has no `Fault` property, only `FaultGenerator` plus the `AddChaosFault(rate, Func<Exception?>)`
     shorthand. Mirrored as is.
 - **For M4:** the generator must emit `ForkingStrategy` handling, or call the runtime hedging strategy.
-  The simplest route is to fall back to the interpreter for pipelines that contain hedging.
+  The simplest route is to fall back to the interpreter for pipelines that contain hedging. *(Done in
+  M4 part A: a hedging pipeline forwards to a runtime pipeline built once.)*
 - **For M6:**
   - Inner runs use `NoTelemetry`, so per-attempt telemetry (`ExecutionAttempt`, `OnHedging`) must be
     reported by the hedging strategy.
@@ -275,7 +285,7 @@ budget, adaptive limit), then hedging and chaos.
   - `ChaosAllocationTests`, in the allocation collection: 0 B when disabled, at rate 0, and when not
     injecting.
 
-## Milestone 4 — Source generator: declarative pipelines ⏳
+## Milestone 4 — Source generator: declarative pipelines ⏳ (in progress: generator ✅, analyzers ⏳)
 
 - `MintPlayer.Resilience.SourceGenerator` on `MintPlayer.SourceGenerators.Tools`:
   - `[GenerateEquality]` models;
@@ -294,8 +304,28 @@ budget, adaptive limit), then hedging and chaos.
 **Done when:** the sample `CatalogPipeline` from PRD §2.1 generates, compiles and passes the analyzers
 clean.
 
-**Status:** in progress. Part A (the generator) is done; part B (the analyzers MPR0004–MPR0007) is next and
-completes the milestone.
+**Status:** in progress.
+
+- **Part A, the generator: ✅** (commit 6fedf40).
+- **Part B, the analyzers: ⏳ not started.** It was begun once and stopped by the owner before it changed
+  anything. It completes the milestone:
+  - [ ] MPR0004: every `PipelineModel.SkipReason`, plus mismatched hook signatures, ambiguous hook
+        attributes, inner ≥ outer timeout, and constants outside the builder's ranges (see the part A
+        notes below).
+  - [ ] MPR0005 (not awaited), MPR0006 (pooled `ValueTask` misuse, S2), MPR0007 (attributes split across
+        partials, S1). Rules go in `Diagnostics/`; `DiagnosticIds.cs` reserves the ids.
+  - [ ] The S5 rejection code fix (PRD §2.4/§2.6): `o.Exception is BrokenCircuitException` →
+        `o.Rejection == RejectionKind.CircuitOpen`, for every rejection type. **Id: MPR0008** (info).
+  - [ ] A separate code-fix assembly, `MintPlayer.Resilience.CodeFixes`.
+        - It is `IsPackable=false`, and holds the `Microsoft.CodeAnalysis.Workspaces` reference. The
+          generator must not reference Workspaces (RS1038).
+        - It is packed next to the generator under `analyzers/dotnet/roslyn5.9/cs`.
+        - M5 and M8 add their code fixes to it.
+        - **Decision (2026-10-02):** a separate assembly, not the MintPlayer.Assertions precedent of
+          accepting RS1038 in the generator. It keeps the generator loadable in command-line builds, and the
+          projects at 0 warnings.
+  - [ ] Analyzer and code-fix tests (written now, run in the final sweep).
+  - [ ] Docs: the package README lists the rules; PRD §2.6 status column updated.
 
 **Implementation notes (part A, generator):**
 
@@ -351,7 +381,8 @@ completes the milestone.
   a typed-only strategy in a generic pipeline. An ambiguous hook attribute (two strategies of the kind, no name) is
   left unbound. MPR0004 should cover these plus inner ≥ outer timeout and mismatched hook signatures; MPR0005,
   MPR0006 (S2), MPR0007 (S1) as planned. Rules go in `Diagnostics/` (`DiagnosticIds.cs` reserves the ids). The
-  generator project removed the `Microsoft.CodeAnalysis` meta-package (Workspaces → RS1038); a code fix needs it back.
+  generator project removed the `Microsoft.CodeAnalysis` meta-package (Workspaces → RS1038). Code fixes go in the
+  separate `MintPlayer.Resilience.CodeFixes` assembly (see the part B checklist), not back into the generator.
 - **For M6:** the seam is `IGeneratedResiliencePipeline<TSelf>` (`PipelineName`, `IsInstancePipeline`,
   `Create(IServiceProvider)`, `UseTimeProvider(instance, time, randomizer)`) and
   `IReloadableResiliencePipeline<TSelf, TOptions>` (`DefaultSectionPath`, `TryApply(instance, options, out error)`),
@@ -380,6 +411,13 @@ Interceptors are dropped (S3).
 - **Out-of-boundary shapes get no fix**, including mutated captures, since the naive rewrite gave wrong
   results in S3.
 
+**Carry-over:**
+
+- [ ] The analyzer may live in the generator assembly; the code fix goes in the code-fix assembly from
+      M4 part B (Workspaces reference, RS1038).
+- [ ] Cover both the runtime pipelines and the generated `[ResiliencePipeline]` members, whose state
+      overloads are `ExecuteAsync<TState>(Func<TState, CancellationToken, ValueTask<T>>, TState, …)`.
+
 **Done when:** code-fix tests cover all 31 S3 shapes. Every in-boundary shape becomes 0 B with the same
 results, and every out-of-boundary shape has no fix offered.
 
@@ -391,6 +429,31 @@ results, and every out-of-boundary shape has no fix offered.
   - default names plus the opt-in `PollyCompatible` scheme;
   - happy-path events at Debug;
   - meter and instrument names documented.
+
+**Carry-over from the implementation notes of M2–M4:**
+
+- [ ] **Disposal:** on pipeline dispose and reload, dispose the breaker attachment (state provider +
+      manual control; `CircuitBreakerSetup.Attach`, the factory's `Attachment`) and the rate-limiter
+      wrapper `RateLimiterStrategyFactory.Wrapper` (the owned default `ConcurrencyLimiter`), as Polly does.
+      Generated pipelines release attachments already (`GeneratedStrategy.Release` /
+      `GeneratedPipelineSupport.ReleaseAttachments`), but still do not dispose the owned limiter.
+- [ ] **State across reloads:** keep the breaker controller, limiter and adaptive-limiter state (all per
+      `Build()`, in the factory) when a reload rebuilds strategies (PRD: "state survives a reload").
+      Generated pipelines keep an unchanged section's strategy today; a changed section, and any hedging
+      pipeline, resets state. Decide whether that is acceptable and say so in the PRD.
+- [ ] **Breaker events:** keep the `EventSequencer` invariant: every transition passes through it, or none
+      does, otherwise the next event deadlocks.
+- [ ] **Hedging telemetry:** inner runs use `NoTelemetry`, so per-attempt telemetry (`ExecutionAttempt`,
+      `OnHedging`) must be reported by the hedging strategy.
+- [ ] **Chaos telemetry:** the chaos events have none yet.
+- [ ] **Limiter telemetry:** events for rejected and for limit changed (adaptive).
+- [ ] **Generated pipelines:** members pass an enabled `TTelemetry` to `__RunAsync` instead of
+      `NoTelemetry`; delegated strategies get their telemetry from the builder.
+- [ ] **DI seam:** `AddResiliencePipeline<T>()` registers through `IGeneratedResiliencePipeline<TSelf>`
+      (`Create(IServiceProvider)`, `IsInstancePipeline`) and binds `IReloadableResiliencePipeline<TSelf,
+      TOptions>` (`DefaultSectionPath`, `TryApply`) to configuration per S6 (change tokens +
+      `IOptionsFactory.Create` in try/catch).
+- [ ] Docs: README sections for DI, reload and telemetry (meter and instrument names).
 
 **Done when:** registry resolution and a reload are wired in the sample app.
 
@@ -408,6 +471,15 @@ results, and every out-of-boundary shape has no fix offered.
 - Per-request override and opt-out via `HttpRequestMessage.Options`.
 - `Retry-After` honoured via `MintPlayer.Http`.
 
+**Carry-over:**
+
+- [ ] `Retry-After` awareness was left out of M1: add it through the retry `DelayGenerator`
+      (`ShouldRetryAfterHeader`, not capped by `MaxDelay`, a past date means 0; PRD §2.5).
+- [ ] The hedging preset is typed and forks; a generated hedging pipeline forwards to the interpreter
+      (M4), so the handler works for both forms.
+- [ ] `MintPlayer.Resilience.Http` package README and its entry in the repo README; any test project
+      it adds sets `<IsPackable>false</IsPackable>`.
+
 **Done when:** a typed client (DI) and a hand-composed `HttpClient` (no DI) both use the handler, and a
 parity test pins the preset values against Microsoft's.
 
@@ -416,6 +488,13 @@ parity test pins the preset values against Microsoft's.
 - `MintPlayer.Resilience.Testing`: pipeline descriptor (`GetPipelineDescriptor()`), fake-time helpers,
   and helpers for asserting on chaos injection. The chaos strategies themselves live in the core (M3).
 - MPR0001 Polly-migration code fix and MPR0003, informed by S7.
+
+**Carry-over:**
+
+- [ ] The MPR0001 code fix goes in the code-fix assembly (M4 part B). Its target is the attribute form:
+      durations become `…Ms` integers, a null nullable duration becomes -1 (the default), and hooks bind by
+      `nameof` or hook attributes. Snippets with an injected `ILogger` convert to the DI form.
+- [ ] `MintPlayer.Resilience.Testing` package README and its entry in the repo README.
 
 **Done when:** the code fix converts the three S7 snippets.
 
@@ -426,10 +505,33 @@ parity test pins the preset values against Microsoft's.
 - `resilience-benchmark.yml`, nightly plus manual dispatch. It asserts allocation ceilings only (not
   wall-clock), like `assertions-benchmark.yml`.
 - README with measured numbers only.
-- Solution folder "Resilience" added to `MintPlayer.Dotnet.Tools.sln`.
+- Solution folder "Resilience" added to `MintPlayer.Dotnet.Tools.sln`. *(Already there for the four
+  existing projects; add each new project to it.)*
 - Versions set, and `eng/Assert-PackageVersions.ps1` passes.
+- **Comprehensive demo** (owner requirement), e.g. `Resilience/MintPlayer.Resilience.Demo/`, with
+  `<IsPackable>false</IsPackable>`. It uses the real library, not the spike code, and shows:
+  - every spike finding: S1 flat vs interpreted vs Polly-shaped allocation on a suspending callback;
+    S2 the pooled `ValueTask` and its opt-out; S3 a capturing call site and the MPR0002 fix; S4 the
+    lock-free breaker under contention; S5 `TryExecuteAsync` rejection without an exception vs
+    `ExecuteAsync`; S6 a reload that keeps in-flight values and rejects bad values; S7 the Polly-named
+    builder and the HTTP presets; S8 telemetry on and off;
+  - every feature: each strategy of PRD §2.3 on the runtime builder and as a `[ResiliencePipeline]`
+    (static and DI forms, typed and generic), the beyond-Polly strategies, chaos behind a flag, DI and
+    the registry, the `HttpClient` handler (with and without DI), and the Testing helpers.
+- **Documentation up to date** (owner requirement):
+  - every package README (`MintPlayer.Resilience`, `.Http`, `.Testing`) describes what is built, with
+    measured numbers only;
+  - the repo `README.md` package list includes every Resilience package (it lists none today);
+  - the PRD and this plan match the code (statuses, *planned* markers removed, Outcome filled in).
+- Delete `Resilience/spikes/` (throwaway, see M0).
 
 **Done when:** the benchmarks run and meet PRD §4 criteria 1–5.
+
+**Done when (demo):** the demo builds and runs end to end, and each spike finding and each feature listed
+above has a section in it that prints its result.
+
+**Done when (docs):** every package README, the repo README package list, the PRD and the plan are
+checked against the code, with no stale claims and no feature missing.
 
 ## Final sweep (tests, once) ⏳
 
@@ -437,8 +539,15 @@ parity test pins the preset values against Microsoft's.
 - Generator tests: snapshot plus incrementality harness.
 - Analyzer and code-fix tests.
 - Native AOT publish of the sample (PRD §4.6).
+- Run the demo end to end.
+- Check that only the packages are packable: every test, demo and benchmark project sets
+  `<IsPackable>false</IsPackable>`.
+- Final documentation pass: READMEs, repo README package list, PRD, plan (and this plan's Outcome).
 
-Then open the single PR.
+**Done when:** every suite passes, the AOT publish has zero trim/AOT warnings, the demo runs, and the
+documentation pass finds nothing stale.
+
+Then mark the single PR (draft #190) ready for review.
 
 ## Spike results
 
