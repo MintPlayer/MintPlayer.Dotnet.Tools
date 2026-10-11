@@ -172,7 +172,8 @@ silently into warnings or errors. Read **Behaviour changes** before upgrading.
   "Class '{0}' must be partial" on its `[Config]`/`[ConnectionString]`/`[Options]` members, naming the type itself.
   For a file-local partial type, a partial type nested in a non-partial type and an interface, that was wrong. CONFIG001
   is now reported only when the type itself is not partial; the other cases get INJECT006, which names the offender
-  and the reason.
+  and the reason. Its message now reads "Type '{0}' must be partial to use [Config], [ConnectionString] or
+  [Options]", since it also fires for records, structs and the other two markers.
 - **`[Inject]` with a config marker still injected the member.** `[Inject]` together with `[Config]`,
   `[ConnectionString]` or `[Options]` reported CONFIG008, CONNSTR003 or OPTIONS003 and still added a constructor
   parameter for the member. Like OPTIONS004 and OPTIONS005, a conflict now emits neither binding; the error stays.

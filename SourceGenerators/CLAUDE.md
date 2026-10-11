@@ -202,6 +202,10 @@ Learned in #193/#194 (`docs/PRD-TypeKindRobustness.md`).
   type is a `class` (a hand-written `partial class {Name}`, a cast to `ClassDeclarationSyntax`) is the bug class of
   #193: it breaks on records and structs. Check
   `PathSpec.UnsupportedReason` first and report a diagnostic rather than emitting nothing.
+- **Write the header with `Producer.WriteHeader(writer)`, never `writer.WriteLine(Header)`** (or set
+  `WritePreamble => true`). `Header` is a raw string literal, so its line endings are the checkout's: a package built
+  from an LF checkout gave Windows consumers an LF header over a CRLF body. Any multi-line text goes through
+  `writer.WriteLines(...)`, which also indents every line.
 
 ## Verifying a packaging change
 

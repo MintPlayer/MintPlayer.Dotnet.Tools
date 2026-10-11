@@ -307,7 +307,7 @@ must be a constant the field can hold, otherwise the generator reports CONFIG005
 
 | Rule ID | Severity | Description |
 |---------|----------|-------------|
-| CONFIG001 | Error | Class must be partial |
+| CONFIG001 | Error | Type must be partial (classes, records, structs, record structs) |
 | CONFIG002 | Error | Empty configuration key |
 | CONFIG003 | Error | Unsupported field type |
 | CONFIG005 | Error | `DefaultValue` cannot be used for the field's type (see below) |

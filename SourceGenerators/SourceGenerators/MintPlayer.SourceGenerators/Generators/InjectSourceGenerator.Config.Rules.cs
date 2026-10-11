@@ -11,7 +11,7 @@ public static partial class DiagnosticRules
     public static readonly DiagnosticDescriptor ConfigNonPartialClass = new(
         id: "CONFIG001",
         title: "Non-partial class",
-        messageFormat: "Class '{0}' must be partial to use [Config] attribute",
+        messageFormat: "Type '{0}' must be partial to use [Config], [ConnectionString] or [Options]",
         category: ConfigCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
