@@ -30,15 +30,24 @@ Deviations from the design as written:
   writes an `IncludeAssets` list without `compile` that also filters the dependency; the attributes are CS0246 until
   the Attributes package is referenced explicitly. The
   Attributes and index READMEs that said the generator "brings it along" now say to install both.
+- Found in the final pre-PR pass and fixed: a `RootNamespace` that is not a valid namespace name (the SDK passes a
+  project named `My-App` through as `My-App`) broke every generator that writes `namespace {RootNamespace}`; Tools
+  now sanitizes it once (`StringExtensions.ToSafeNamespace`, applied in `Settings` and `Producer`). `[Options]` with
+  `[ConnectionString]` on one member was the one marker pair without a diagnostic; it is OPTIONS005.
 
-Final test sweep (the E2E-category packaging tests ran as a separate invocation):
+Every finding, including those discovered during implementation, has its outcome under
+[Findings](#findings) and [Findings during implementation](#findings-during-implementation).
+
+Final test sweep. The first three rows are from the last run, after the RootNamespace and OPTIONS005 fixes
+(`1b4e8b1`). The E2E-category packaging tests, NewtonsoftJson tests and the TestProjects build are from the M9 sweep
+(`f32cb71`); `1b4e8b1` changed no packaging.
 
 | Project | Passed | Failed | Skipped |
 |---|---|---|---|
-| MintPlayer.SourceGenerators.Tests (excluding E2E) | 1035 | 0 | 0 |
+| MintPlayer.SourceGenerators.Tests (excluding E2E) | 1040 | 0 | 0 |
+| MintPlayer.SourceGenerators.Tools.Tests | 307 | 0 | 0 |
+| MintPlayer.Assertions.SourceGenerator.Tests | 82 | 0 | 0 |
 | MintPlayer.SourceGenerators.Tests, E2E (`PackagingTests`) | 17 | 0 | 0 |
-| MintPlayer.SourceGenerators.Tools.Tests | 290 | 0 | 0 |
-| MintPlayer.Assertions.SourceGenerator.Tests | 81 | 0 | 0 |
 | MintPlayer.ValueComparers.NewtonsoftJson.Tests | 15 | 0 | 0 |
 
 The six projects under `SourceGenerators/TestProjects` build.
@@ -99,6 +108,11 @@ The test harness also hides shape 1 for analyzers (H1 below). That is why none o
 | C7 (SUSPECTED) | `Tools/Extensions/LocationExtensions.cs:28-43` (`ToLocation`) | Two trees with the same path, or a stale `LocationKey` | `text.Lines[...]` out of range inside `ReportDiagnostics`, with no try/catch → CS8785 | Tools (in Inject, ServiceRegistrations, Mapper, ValueComparer) |
 | C8 (SUSPECTED, dead) | `ClassNamesSourceGenerator.cs:38-69` | Global-namespace field | `namespaceDeclaration.Name` null. The provider is never wired to an output, so it never runs. | MintPlayer.SourceGenerators |
 
+**Outcome: all fixed.** C1 in M3 (discovery through `ForAttribute`). C2 and C3 in M4b; C3 is now REGISTER004 (undefined
+lifetime) instead of a lost file. C4 in M5. C5 in M4b. C6 in M7, plus a depth guard that turns any future unbounded walk
+into AD0001. C7 in M2 (`ToLocation` bounds-checked; `ReportDiagnostics` never throws and falls back to MPSG002). C8
+deleted in M4b.
+
 ### Type-kind gaps: silent no-op, or a wrong keyword
 
 | ID | Where | Trigger | Outcome |
@@ -112,6 +126,10 @@ The test harness also hides shape 1 for analyzers (H1 below). That is why none o
 | K6' | `MapperGenerator.Producer.cs:105, 133` | Struct destination in `MapTo(this S input, D output)` | Copies into a by-value copy: a silent no-op (certain from C# semantics; not probed) |
 | **K7** | `ValueComparerGenerator.Discovery.cs:77` | `[GenerateEquality] ref partial struct S` | `obj is S` → CS8121 |
 | **K8** | `InterfaceImplementationAnalyzer.cs:28` (`TypeKind != Class`) | `struct S : IThing` / `record struct` with an extra public member | INTF001 never runs on value types |
+
+**Outcome: all fixed.** K1 in M3, K2 in M4a, K3 in M4b, K4 in M5, K5 in M2 (interface parents in `GetPathSpec`) and in
+every caller, K6/K6' in M6 (null guard only for reference types; the copy overload is skipped for a value-type
+destination, per S4). K7 is MINT007 (M7). K8 in M4b, kept after S5.
 
 ### Other wrong output found along the way (same PR, per the one-PR rule)
 
@@ -135,8 +153,15 @@ The test harness also hides shape 1 for analyzers (H1 below). That is why none o
 | W16 | `InterfaceImplementationAnalyzer.Members.cs:135-144` (`SatisfiedNames`, by name) | Interface has `DoIt()`, class adds `DoIt(int)` | Overload never reported; the fix would pick the wrong overload |
 | W17 | `ValueComparerGenerator` | Model with an error-typed base or property | Extra CS0120/CS0246 in generated code (noise on already-broken code) |
 
+**Outcome: all fixed, one with a deviation.** W1–W3 in M4b, except that Description skips a `file` type silently
+instead of reporting (deviation; for Cli W3 is MINTCLI006, M5). W4 in M4a. W5 in M4b. W6 is REGISTER003 (M4b). W7 in
+M4b. W8 and W9 in M6. W10 is MAPC005, W11 is MAPC007 (M6). W12 is MINTCLI005, W13 is MINTCLI009 (M5). W14 in M4b. W15:
+the fix declines such a member (M4b). W16 in M4b (members match by signature). W17: such models are skipped (M7).
+
 Minor issues found by reading the code only, out of scope unless the spikes show they are cheap: Cli ignores options
-declared on a base class, and Mapper's copy overload for an init-only record emits an empty body.
+declared on a base class, and Mapper's copy overload for an init-only record emits an empty body. **Outcome:** the
+Mapper one was fixed in M6 (the copy overload is not emitted when nothing can be copied). Cli still ignores options on
+a base class; it was not taken on.
 
 ### GenericMethod rework (#194)
 
@@ -171,13 +196,26 @@ Each #194 item was checked by a probe against master `920a111`: 45 cases.
 | G16 | Overload-resolution trap | TRUE, at runtime | The original is private and the overloads are public, so an outside `b.Add(list)` receives a 1-element collection. |
 | G17 | (extra) escaped identifiers | SUSPECTED | `MethodName = symbol.Name` drops `@` (e.g. `@event`). |
 
-**GenericMethod decisions.**
+**Outcome: all fixed in M3 (`533c5f2`) except G12, rejected.** G0/G9: the attribute ships in the Attributes package;
+`Transformer` is dropped. G1/G2: `Count` is the compiler's constant, default 4. G4 and G8: GENMETHOD001 (type not
+extendable) and GENMETHOD002 (not private, by `DeclaredAccessibility`); a `Count` outside 2..16 is GENMETHOD004. G5:
+overload type parameters come from `UniqueTypeParameterPrefix`. G6: results are returned. G7: GENMETHOD003. G15: a
+`where Tn : notnull` constraint when the collection's elements are non-nullable `object`. G16: no arity-1 overload
+(S8). G17: `@`-escaped names.
+
+**GenericMethod decisions.** (As planned, then settled by S8 and M3; the final shape is given with each item.)
 - **G0, G9:** move the attribute to `MintPlayer.SourceGenerators.Attributes` (namespace
-  `MintPlayer.SourceGenerators.Attributes`) with `public uint Count { get; set; } = 1` only. Drop `Transformer`. Point
-  every test fixture at the real type. This breaks nobody, because no consumer could reference the attribute.
+  `MintPlayer.SourceGenerators.Attributes`). Drop `Transformer`. Point every test fixture at the real type. This breaks
+  nobody, because no consumer could reference the attribute. *Planned:* `public uint Count { get; set; } = 1` only.
+  *Decided instead (S8):* `GenericMethodAttribute(int count = 4)` plus a settable `int Count`, so both
+  `[GenericMethod(3)]` and `[GenericMethod(Count = 3)]` work, and a bare `[GenericMethod]` emits arities 2 to 4.
 - **G16:** emit overloads only for arity ≥ 2, plus a README note on when to prefer C# 13 `params` collections. That
-  removes the trap at its source. A `Count = 1` attribute then produces nothing useful, so the range is 2..16. **Open
-  question:** keep arity 1 behind an opt-in flag instead, as #194 implies. The default proposed here is to drop it.
+  removes the trap at its source. A `Count = 1` attribute then produces nothing useful, so the range is 2..16. *Planned
+  as an open question:* keep arity 1 behind an opt-in flag instead, as #194 implies. *Decided (S8):* arity 1 is dropped
+  with no opt-in; it also hijacked calls from inside the class.
+- **G5 (naming):** *planned:* `T1` → `TArg1`, or suffixed until unique. *Decided (S1):* per-index suffixing is not
+  enough (`T1` → `T11` collides at arity 11), so the overloads take a whole prefix from
+  `PathSpec.UniqueTypeParameterPrefix("T")`: `T1..Tn`, or `TArg1..TArgn` (extended until no `{prefix}{n}` is in scope).
 - **G7:** the valid shape is exactly one non-ref parameter whose type a collection expression can build from `object`
   elements. Anything else is a diagnostic.
 - **New diagnostics** (in `GenericMethodSourceGenerator.Rules.cs`, tracked in `AnalyzerReleases.Unshipped.md`):
@@ -191,7 +229,8 @@ Each #194 item was checked by a probe against master `920a111`: 45 cases.
   - one block per type, through D0.3;
   - no accessibility modifier on the type;
   - type parameters and constraints on the containing type;
-  - method type parameter names that don't collide with any in scope (`T1` → `TArg1`, or suffixed until unique);
+  - method type parameter names that don't collide with any in scope (shipped as `UniqueTypeParameterPrefix`, see G5
+    above);
   - `return` whenever the method is not void;
   - `WriteLine` throughout.
 
@@ -224,6 +263,13 @@ Each #194 item was checked by a probe against master `920a111`: 45 cases.
 | P23 | Attributes package | `BaseConstructorParameterAttribute.cs` | Public, but nothing reads it | grep |
 | P24 | JoinMethod | `JoinMethodGenerator.cs:18, 22` | `typeof(...).FullName` lookup (works, but ties the lookup to the generator assembly) | Read |
 
+**Outcome: all fixed.** Inject P1–P8 in M4a (`aa06171`): P3 through `GetArgument`; P4 decided by S7 (the section is
+documentation only, OPTIONS002 removed); P5 is INJECT005; P7 is INJECT006. ServiceRegistrations P9–P12 in M4b
+(`ae28b74`): P9/P10 compile, and a mapping that cannot be expressed is REGISTER005; P11 is REGISTER003. Cli P13–P16 in
+M5 (`c057a32`): P14 is MINTCLI007/MINTCLI008, P15 is MINTCLI002/003/004. Mapper P17–P20 in M6 (`dd5f7ce`): P20 is
+MAPC006; P19 needed a follow-up for nested properties in M8 (I2 below). P21/P22 in M4b, P23 `[Obsolete]` in M4b, P24 in
+M7. P25 was found by S3; see below.
+
 Clean on every #194 pattern: ValueComparer/Equality, which handles accessibility, generic containers, nullable and
 records with zero warnings. Also clean: JoinMethod apart from P24, Description apart from P21/P22, and Inject partials
 for every accessibility and for generics.
@@ -237,6 +283,9 @@ the same gap. The generator path has a weaker version of it: CS8785 is a warning
 generator crashes. This ships in **MintPlayer.SourceGenerators.Testing**, so downstream test suites are affected as
 well.
 
+**Outcome: fixed in M1 (`fb60069`).** The harness is strict by default and throws `ComponentCrashedException` on CS8785,
+MPSG001 or AD0001; M8 (`37c02ca`) added MPSG002. `AllowComponentCrashes()` opts out.
+
 ### Verified clean
 
 These were probed and found clean:
@@ -249,6 +298,25 @@ These were probed and found clean:
 - INTF001 on records and on the members C# synthesizes for them.
 - `GetPathSpec` with class, record class, record, struct and record-struct parents.
 - `Producer.Produce`, which already catches and reports MPSG001.
+
+### Findings during implementation
+
+Found after the audit, while implementing or reviewing. All are fixed in this PR.
+
+| ID | Found in | Finding | Outcome |
+|---|---|---|---|
+| P25 | S3 (M0) | A type with a parameter list (positional record, primary-constructor class or struct) plus the generated Inject constructor gives CS8862. | INJECT007 (M4a, `aa06171`) |
+| I1 | M7 | MINT002 had two descriptors: Info for an already-declared member, Warning for "only one of `Equals(object)`/`GetHashCode()` declared". One id must have one descriptor (and one severity) once `DiagnosticInfo` is keyed by id. | The warning is MINT008; MINT002 is Info only (`ee62787`). Behaviour change in the CHANGELOG. |
+| I2 | M8 | Once the assembly-level prefix was honoured (P19), a nested mapped property still called `MapTo{Type}()` (CS1061). | The producer looks the pair up among the generated methods (`7525f6f`). |
+| I3 | M6 | A `null` source collection mapped to a plain `null` in a non-nullable `List<T>`/array property: CS8601 (found by building `TestProjects/MapperDebugging`). | Mapped to `null!`; the nullable test covers lists and arrays (`3e1c5af`). |
+| I4 | Pre-PR review | CONFIG005 (a `DefaultValue` the field cannot hold) and OPTIONS004 (`[Options]` with `[Config]`) were declared and shipped but never reported: the first produced uncompilable or wrong code, the second silently took the `[Config]` path. | Both reported (`755a34f`). |
+| I5 | Pre-PR review | `[Inject]` on a property with an ordinary setter was skipped silently and stayed null. | INJECT008, Warning; still not assigned (`755a34f`). |
+| I6 | Pre-PR review | `[Config]` defaults: ignored on nullable fields and on `Uri` fields; an enum default on a non-`int` enum emitted `Small.7`; numeric defaults were not cast to the field type; floating-point defaults were culture-formatted (`3,5d` under nl-BE). | All fixed (`755a34f`). |
+| I7 | Final pre-PR pass | A `RootNamespace` that is not a valid namespace name (`My-App`, which the SDK passes through as is) made every generator writing `namespace {RootNamespace}` emit CS0246/CS0102/CS0548: ServiceRegistrations, ClassNames, Mapper, CliGenerator and the MintPlayer.Assertions equivalency registration. | Sanitized once in Tools (`StringExtensions.ToSafeNamespace`, in `Settings` and `Producer`): invalid characters become `_`, a leading digit gets `_`, a keyword is `@`-escaped (`1b4e8b1`). |
+| I8 | Final pre-PR pass | `[ConnectionString]` with `[Options]` on one member had no diagnostic and silently took the `[ConnectionString]` path. Every other marker pair already had one (CONFIG006, CONFIG008, CONNSTR003, OPTIONS003, OPTIONS004). | OPTIONS005, Error (`1b4e8b1`). |
+| I9 | Docs pass (`c58c7b6`) | Installation, measured on packed packages: the generators are development dependencies, so `dotnet add package` writes an `IncludeAssets` list without `compile` that also filters the `*.Attributes` dependency; the attributes are CS0246. The READMEs said the generator brings them along. | Every README says to install both packages. |
+| I10 | M2 review | The first `DiagnosticInfo` held the `DiagnosticDescriptor`, a Roslyn object in a pipeline value. | It holds the rule id (`a577a26`); a second, different descriptor under one id throws (`44d1c0d`). See D0.3. |
+| I11 | M8 | A diagnostic that could not be reported was turned into MPSG002 (C7), but the harness did not treat it as a crash. | MPSG002 joined the harness's crash ids (`37c02ca`). |
 
 ## Current five-kind matrix
 
@@ -269,6 +337,9 @@ These were probed and found clean:
 
 Existing tests cover the class column almost everywhere. Explicit `record class` has no fixture anywhere. Equality
 (`Snapshots/EqualityShapes.cs`) is the only generator with five-kind coverage, and `GetPathSpec` has no test at all.
+
+**Final state (12.2.0):** every cell above is OK or n.a., each with a test. A `ref struct` model is MINT007, and INTF001
+runs on structs.
 
 ## Goals
 
@@ -337,9 +408,23 @@ IEnumerable<AttributeData> FindAttributes(this ISymbol s, string metadataName);
   - two empty reporters in ClassNames.
 - Equality's `DiscoveredType` is the model to generalize. About 60–80 lines saved.
 
+*As planned,* `DiagnosticInfo` held the descriptor. *Decided instead* (`a577a26`, `44d1c0d`): a pipeline value holds
+no Roslyn object, so `DiagnosticInfo` is keyed by rule id. The constructor registers the descriptor under its id in a
+process-wide registry, and a second, different descriptor under an id already seen throws (one id, one descriptor).
+`Rule` looks the descriptor up at report time and is never compared. Both are hand-written equatable classes rather
+than records.
+
 ```csharp
-sealed record DiagnosticInfo(DiagnosticDescriptor Rule, LocationKey? Location, EquatableArray<string> Args);
-sealed record Discovered<TModel>(TModel? Model, EquatableArray<DiagnosticInfo> Diagnostics);
+sealed class DiagnosticInfo // compares RuleId, Location and Args
+{
+    DiagnosticInfo(DiagnosticDescriptor rule, LocationKey? location, EquatableArray<string> args); // registers rule by id
+    static DiagnosticInfo Create(DiagnosticDescriptor rule, Location? location, params object?[] args);
+    string RuleId { get; }
+    LocationKey? Location { get; }
+    EquatableArray<string> Args { get; }
+    DiagnosticDescriptor Rule { get; } // looked up by RuleId
+}
+sealed class Discovered<TModel>(TModel? Model, EquatableArray<DiagnosticInfo> Diagnostics);
 IncrementalValuesProvider<Discovered<TModel>> ForAttribute<TModel>(this SyntaxValueProvider p, string metadataName,
     Func<SyntaxNode, CancellationToken, bool> predicate,
     Func<GeneratorAttributeSyntaxContext, CancellationToken, Discovered<TModel>> transform);
@@ -357,6 +442,10 @@ IncrementalValuesProvider<Discovered<TModel>> ForAttribute<TModel>(this SyntaxVa
 protected virtual bool NullableEnable => true;   // Producer.Produce writes header + #nullable before ProduceSource
 IDisposable OpenNamespace(this IndentedTextWriter w, string? ns); // no-op when null/empty
 ```
+
+*Decided in M2:* the preamble is opt-in, `protected virtual bool WritePreamble => false`, with `NullableEnable` read only
+when it is on, because producers in other packages built on Tools write `Header` themselves and would get it twice.
+Every producer touched in this work opts in, except `EqualityProducer` (see Status).
 
 **D0.5. Re-declaring a type: the extended `GetPathSpec`** (D1 below). It also absorbs:
 - Description's keyword logic (`:47-49`);
@@ -454,11 +543,13 @@ Carry `IsValueType` on `TypeToMap`:
   - P2: the constructor gets the least accessibility of the class and its parameter types.
   - P3: config, connection-string and options keys are read through D0.1.
   - P4: implement the `[Options("Section")]` binding the README promises. S7 decides whether it gets implemented or
-    removed.
-  - P5: a non-void `[PostConstruct]` is a diagnostic.
+    removed. *Decided (S7):* neither; `Section` stays documentation only, the README shows `BindConfiguration`, and the
+    never-reported OPTIONS002 is removed.
+  - P5: a non-void `[PostConstruct]` is a diagnostic (INJECT005; the method is not called).
   - P6: D0.2.
-  - P7: "must be partial" is a diagnostic (through D1).
+  - P7: "must be partial" is a diagnostic (INJECT006, through D1).
   - P8: D0.4.
+  - *Added by S3:* all five kinds are generated, value types chain `: this()`, and P25 (a parameter list) is INJECT007.
 - **ServiceRegistrations:**
   - P9: substitute type parameters by position, not by name.
   - P10: build the service type from the implemented interface's type arguments, and report a diagnostic when the
@@ -509,6 +600,7 @@ milestone.
   - Can `ActivatorUtilities` / `ServiceProvider` construct one? If not: support records, and report a diagnostic for
     value types instead of generating.
   - Decide before M3.
+  - *Decided (see S3 results):* generate for all five kinds, value types chain `: this()`, and P25 is INJECT007.
 - **S4. Mapper struct destinations.** Decide between skipping the copy overload and emitting `ref D output`, by checking
   which existing call sites use the copy overload.
 - **S5. INTF001 on structs (K8).**
@@ -521,7 +613,8 @@ milestone.
 - **S8. GenericMethod arity 1 (G16).** Decide between dropping arity 1 and keeping it behind an opt-in. Measure how
   often an arity-1 overload is the intended call versus the trap (search downstream repos).
 - **S6. `ForAttributeWithMetadataName` and caching.** For each migrated generator, confirm with the existing
-  `IncrementalOutputCachingTests` pattern that an unrelated keystroke still re-runs nothing.
+  `IncrementalOutputCachingTests` pattern that an unrelated keystroke still re-runs nothing. *Run in M8 rather than
+  M0;* see its result below.
 
 ## Spike results (M0)
 
@@ -590,7 +683,13 @@ repo). The code fix works on struct and record struct. Update the stale comment 
 - G16 test: an outside `b.Add(list)` no longer compiles (the original is private); an in-class call reaches the
   original.
 - G15: under `#nullable enable`, `this.Add([t1])` gives CS8601. The generated parameters must be nullable-aware
-  (`T1?` or `object?` elements).
+  (`T1?` or `object?` elements). *Shipped (M3):* a `where Tn : notnull` constraint when the collection's elements are
+  non-nullable `object`.
+
+**S6. Caching (run in M8, `9928df1`): holds.** Every generator moved onto `ForAttributeWithMetadataName` got an
+`IncrementalOutputCachingTests` case on a non-class kind or the assembly-level form, each with the four irrelevant
+edits, and re-runs nothing. `Guards/PipelineModelGuardTests` also scans every model and producer of every generator by
+reflection and fails on any `Microsoft.CodeAnalysis` type.
 
 ## Test plan
 
@@ -620,7 +719,7 @@ They are written per milestone and run as one sweep at the end.
    - parents of all five kinds, plus an interface;
    - 1 and 2 levels of nesting;
    - generic parents;
-   - a non-partial parent (`AllPartial == false`);
+   - a non-partial parent (`AllPartial == false`; shipped as `UnsupportedReason == ParentNotPartial`);
    - the global namespace.
 5. **Harness tests:** a deliberately crashing generator and a deliberately crashing analyzer make the harness assertions
    fail.
@@ -642,18 +741,23 @@ They are written per milestone and run as one sweep at the end.
 
 Commit per milestone. Run the test sweep once at the end.
 
-| M | Content |
-|---|---|
-| M0 | Spikes S1, S2, S7, S8 (results appended here) |
-| M1 | H1: the harness surfaces generator exceptions, AD0001 and analyzer exceptions. Harness tests. |
-| M2 | D0 + D1 in Tools: argument reading, `FindAttribute`, `Discovered<T>`/`DiagnosticInfo`/`ForAttribute`, preamble/`OpenNamespace`, and the extended `GetPathSpec`/`OpenPathSpec`. Unit tests. C7. |
-| M3 | GenericMethod rework (C1, K1, G0–G17): the attribute moves to the Attributes package; fixtures updated; GENMETHOD001–004 |
-| M4 | The rest of MintPlayer.SourceGenerators: Inject (K2, W4, P1–P8; after S3/S7), ServiceRegistrations (C2, C3, K3, W5, W6, P9–P12), Description (W1–W3, P21, P22), ClassNames (W7, C8), UnusedUsings (C5, W14), INTF001 (K8, W15, W16; after S5). P23 `[Obsolete]`. |
-| M5 | MintPlayer.CliGenerator: C4, K4, W3, W12, W13, P13–P16 |
-| M6 | MintPlayer.Mapper: K6/K6' (after S4), W8–W11, P17–P20 |
-| M7 | MintPlayer.ValueComparerGenerator: C6, K7, W17, P24; `record class` fixture; Equality onto `GetPathSpec` (per S1) |
-| M8 | S6 caching checks; the five-kind, unrelated-code and warning-free compile theories for every generator |
-| M9 | CHANGELOG 12.2.0 entry (behaviour changes called out); README: new diagnostics, GenericMethod usage and the `params` note; one full test sweep |
+M3 to M7 were developed on separate branches after M2 and merged back (the `Merge M…` commits). M4 was split into
+M4a (Inject) and M4b (the rest of MintPlayer.SourceGenerators).
+
+| M | Content | Status | Commits |
+|---|---|---|---|
+| M0 | Spikes S1, S2, S3–S5, S7, S8 (results appended here; S6 moved to M8) | Done | `465b0ee` |
+| M1 | H1: the harness surfaces generator exceptions, AD0001 and analyzer exceptions. Harness tests. | Done | `fb60069` |
+| M2 | D0 + D1 in Tools: argument reading, `FindAttribute`, `Discovered<T>`/`DiagnosticInfo`/`ForAttribute`, preamble/`OpenNamespace`, and the extended `GetPathSpec`/`OpenPathSpec`. Unit tests. C7. | Done; `DiagnosticInfo` re-keyed by rule id (I10) | `f14a562`, `a577a26`, `44d1c0d` |
+| M3 | GenericMethod rework (C1, K1, G0–G17): the attribute moves to the Attributes package; fixtures updated; GENMETHOD001–004 | Done | `533c5f2` |
+| M4a | Inject (K2, K5, W4, P1–P8, P25; after S3/S7): all five kinds, `: this()` for value types, INJECT005–007, OPTIONS002 removed | Done | `aa06171` |
+| M4b | ServiceRegistrations (C2, C3, K3, W5, W6, P9–P12; REGISTER003–005), Description (W1–W3, P21, P22), ClassNames (W7, C8), UnusedUsings (C5, W14), INTF001 (K8, W15, W16; after S5). P23 `[Obsolete]`. | Done | `ae28b74` |
+| M5 | MintPlayer.CliGenerator: C4, K4, K5, W3, W12, W13, P12–P16; MINTCLI002–009 | Done | `c057a32` |
+| M6 | MintPlayer.Mapper: K6/K6' (after S4), W8–W11, P17–P20; MAPC005–007; list/array CS8601 (I3) | Done | `dd5f7ce`, `3e1c5af` |
+| M7 | MintPlayer.ValueComparerGenerator: C6, K7, W17, P24; `record class` fixture; Equality onto `GetPathSpec` (per S1); MINT007, MINT008 (I1) | Done | `ee62787` |
+| M8 | S6 caching checks and the pipeline-model guard; the five-kind, unrelated-code and warning-free compile theories for every generator (one shared helper); MPSG002 as a harness crash; release tracking for every package; the Mapper nested-prefix fix (I2) | Done | `37c02ca`, `7525f6f`, `fb0631c`, `9928df1` |
+| M9 | CHANGELOG 12.2.0 entry (behaviour changes called out); README: new diagnostics, GenericMethod usage and the `params` note; PRD status; one full test sweep | Done | `55eadd8`, `f32cb71` |
+| Pre-PR | Docs brought in line with 12.2.0; CONFIG005/OPTIONS004/INJECT008 and the `[Config]` default fixes (I4–I6); installation instructions (I9); `RootNamespace` sanitizing and OPTIONS005 (I7, I8); this PRD and the older PRDs updated | Done | `49ffa19`, `755a34f`, `c58c7b6`, `1b4e8b1`, and the final Docs commit |
 
 ## Versioning
 
@@ -663,17 +767,27 @@ Every package under `SourceGenerators/` moves 12.1.1 → **12.2.0** in lockstep 
 This is a minor release, not a patch:
 - The Attributes package gains a public type (`GenericMethodAttribute`), and Tools gains public API (D0).
 - New diagnostics can turn previously silent code into warnings or errors: GENMETHOD001–004, non-void
-  `[PostConstruct]`, "must be partial", and INTF001 on structs.
+  `[PostConstruct]`, "must be partial", and INTF001 on structs. *As shipped:* GENMETHOD001–004, INJECT005–008,
+  REGISTER003–005, MAPC005–007, MINTCLI002–009, MINT007, MINT008 (the former Warning-severity MINT002), OPTIONS005,
+  MPSG002, CONFIG005 and OPTIONS004 (declared before, reported only now), and INTF001 on structs.
 - Some output changes visibly:
   - class-level mappers become `public` (P18);
   - the Mapper method-name prefix is honoured (P19);
-  - GenericMethod no longer emits arity 1 (G16, subject to S8).
+  - GenericMethod no longer emits arity 1 (G16; confirmed by S8);
+  - a `RootNamespace` that is not a valid name is sanitized (I7), which moves the generated code of such a project
+    from a namespace that did not compile to a valid one.
 
 Nothing public is removed: `BaseConstructorParameterAttribute` is only marked `[Obsolete]`, and the generator-internal
-`GenericMethodAttribute` was never reachable by consumers. So it is not a major release.
+`GenericMethodAttribute` was never reachable by consumers. So it is not a major release. Two diagnostic changes need
+action from users who suppressed them: OPTIONS002 (never reported) is removed, and suppressions of the
+Warning-severity MINT002 must move to MINT008; the CHANGELOG lists both under Behaviour changes.
 
 ## Downstream
 
 The trigger came from `MintPlayer.Spark.Settings` (`SparkQuota`, a record with `[GeneratedRegex]`),
 MintPlayer/MintPlayer.Spark#268. After 12.2.0 is published, bump the package reference there in the same
 unit of work and confirm the CS8785 is gone.
+
+**Status: open, waiting on the 12.2.0 publish.** Two things to check when bumping: `[GenericMethod]` users (none were
+found in S8) lose the arity-1 overload, and if the Spark projects reference a generator package with an
+`IncludeAssets` list, they must also reference its `*.Attributes` package (I9).

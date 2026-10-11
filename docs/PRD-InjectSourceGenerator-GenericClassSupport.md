@@ -1,5 +1,7 @@
 # PRD: Generic Class Support for Inject Source Generator
 
+> **Update 2026-10 (12.2.0, #193/#194):** the generated declaration is no longer always `partial class`: Inject re-declares the user's type and its containing types through the Tools `PathSpec` helpers, so it works for class, record, struct and record struct, nested in any kind or in an interface, and a split partial class gets one constructor. The constructor is `internal`/`protected` when a dependency is less accessible, and a type that cannot take it gets INJECT006 or INJECT007. See [PRD-TypeKindRobustness.md](PRD-TypeKindRobustness.md).
+
 ## Overview
 
 The Inject source generator currently generates constructors for partial classes with `[Inject]` fields. However, it fails to handle generic classes because the generated partial class declaration is missing the generic type parameters and where constraints. This feature adds support for generating proper partial class declarations with full generic type signatures.

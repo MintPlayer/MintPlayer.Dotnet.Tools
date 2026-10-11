@@ -1,5 +1,7 @@
 # PRD: INTF001 ignores `override` members
 
+> **Update 2026-10 (12.2.0, #193/#194):** INTF001 now also runs on structs and record structs, and an interface member satisfies a class member only when the signature matches (an overload with a different parameter list is reported). See [PRD-TypeKindRobustness.md](PRD-TypeKindRobustness.md).
+
 ## Overview
 
 `InterfaceImplementationAnalyzer` (`INTF001`) reports public members of a class that are absent from every
