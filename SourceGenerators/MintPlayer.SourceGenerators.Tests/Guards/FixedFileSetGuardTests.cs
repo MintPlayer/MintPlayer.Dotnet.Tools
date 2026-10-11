@@ -84,23 +84,11 @@ public class FixedFileSetGuardTests
             }
             """),
 
-        // GenericMethodAttribute ships inside the generator assembly, so the corpus declares it itself under the
-        // metadata name the generator looks up (see IncrementalOutputCachingTests).
-        new("GenericMethodSourceGenerator", SourceGenerators, "using MintPlayer.SourceGenerators.Generators;", """
+        new("GenericMethodSourceGenerator", SourceGenerators, "using MintPlayer.SourceGenerators.Attributes;", """
             public partial class Item{i}
             {
                 [GenericMethod(2)]
-                private partial void Add<T>(T value);
-            }
-            """, Shared: """
-            namespace MintPlayer.SourceGenerators.Generators;
-
-            [System.AttributeUsage(System.AttributeTargets.Method)]
-            public sealed class GenericMethodAttribute : System.Attribute
-            {
-                public GenericMethodAttribute(int count) { }
-                public uint Count { get; set; } = 1;
-                public System.Type? Transformer { get; set; }
+                private void Add(object[] values) { }
             }
             """),
 
@@ -172,8 +160,7 @@ public class FixedFileSetGuardTests
         var five = Run(c, 5);
 
         // No compile assertion: this guards file names only, and whether each generator's output compiles is the job
-        // of its own tests. (The GenericMethod corpus, for one, declares a body-less private partial method, which is
-        // not valid C#; the generator does not supply the decorated method's body.)
+        // of its own tests.
         one.GeneratedSources.Should().NotBeEmpty($"the {c.Generator} corpus must make the generator emit something");
 
         if (c.ExpectItemNames)

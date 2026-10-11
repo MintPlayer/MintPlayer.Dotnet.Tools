@@ -189,30 +189,17 @@ public class IncrementalOutputCachingTests
             }
             """),
 
-        // GenericMethodAttribute ships inside the generator assembly, so the fixture declares it
-        // itself under the metadata name the generator looks up (see GenericMethodGenerationTests).
         new("GenericMethodSourceGenerator", SourceGenerators, """
-            namespace MintPlayer.SourceGenerators.Generators
-            {
-                [System.AttributeUsage(System.AttributeTargets.Method)]
-                public sealed class GenericMethodAttribute : System.Attribute
-                {
-                    public GenericMethodAttribute(int count) { }
-                    public uint Count { get; set; } = 1;
-                    public System.Type? Transformer { get; set; }
-                }
-            }
-
             namespace Demo
             {
-                using MintPlayer.SourceGenerators.Generators;
+                using MintPlayer.SourceGenerators.Attributes;
 
                 __LEAD__
 
                 public partial class Builder
                 {
                     [GenericMethod(3)]
-                    private partial void Add<T>(T value);
+                    private void Add(object[] values) { }
 
                     public int Touch() => __BODY__;
                 }
