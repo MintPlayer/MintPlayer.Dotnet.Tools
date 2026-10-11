@@ -91,6 +91,59 @@ public sealed record GeneratorResult(
     /// <summary>Diagnostics with the given id, whatever their severity.</summary>
     public ImmutableArray<Diagnostic> Of(string diagnosticId)
         => Diagnostics.Where(d => d.Id == diagnosticId).ToImmutableArray();
+
+    /// <summary>
+    /// Exceptions the generator threw, from <c>GeneratorDriverRunResult.Results[].Exception</c>.
+    /// </summary>
+    /// <remarks>
+    /// Roslyn turns a generator exception into CS8785, which is a WARNING: it never reaches
+    /// <see cref="Errors"/>, so a crashing generator reads as one that found nothing to do.
+    /// </remarks>
+    public ImmutableArray<Exception> GeneratorExceptions { get; init; } = [];
+
+    /// <summary>
+    /// Diagnostics that mean "the component crashed" rather than "the input is wrong": CS8785
+    /// (generator threw), MPSG001 (a Producer caught its own exception) and AD0001 (analyzer threw).
+    /// </summary>
+    public ImmutableArray<Diagnostic> CrashDiagnostics
+        => Diagnostics.Where(d => CrashIds.IsCrash(d.Id)).ToImmutableArray();
+
+    /// <summary>Throws <see cref="ComponentCrashedException"/> if the generator crashed.</summary>
+    public GeneratorResult EnsureNoCrash()
+    {
+        CrashIds.ThrowIfAny("generator", CrashDiagnostics, GeneratorExceptions);
+        return this;
+    }
+}
+
+/// <summary>
+/// The component under test threw. Raised by the harness by default; opt out per harness with
+/// <see cref="GeneratorHarness.AllowComponentCrashes"/>.
+/// </summary>
+public sealed class ComponentCrashedException(string message, Exception? inner = null)
+    : InvalidOperationException(message, inner);
+
+internal static class CrashIds
+{
+    public static bool IsCrash(string id) => id is "CS8785" or "MPSG001" or "AD0001";
+
+    public static void ThrowIfAny(string kind, IEnumerable<Diagnostic> diagnostics, IEnumerable<Exception> exceptions)
+    {
+        var crashDiagnostics = diagnostics.ToList();
+        var crashExceptions = exceptions.ToList();
+        if (crashDiagnostics.Count == 0 && crashExceptions.Count == 0) return;
+
+        var lines = crashDiagnostics.Select(d => "  " + d)
+            .Concat(crashExceptions.Select(e => $"  {e.GetType().Name}: {e.Message}"));
+
+        throw new ComponentCrashedException(
+            $"The {kind} under test crashed ({crashDiagnostics.Count} crash diagnostic(s), " +
+            $"{crashExceptions.Count} exception(s)). Call AllowComponentCrashes() on the harness if the " +
+            $"test means to assert on the crash." +
+            Environment.NewLine +
+            string.Join(Environment.NewLine, lines),
+            crashExceptions.FirstOrDefault());
+    }
 }
 
 /// <summary>
@@ -221,4 +274,7 @@ public sealed record CodeFixResult(
     /// the choice is offered at all, which <see cref="ActionTitle"/> alone cannot express.
     /// </remarks>
     public IReadOnlyList<string> Titles => ActionTitles ?? (ActionTitle is null ? [] : [ActionTitle]);
+
+    /// <summary>Exceptions the analyzer threw while producing <see cref="Diagnostics"/>.</summary>
+    public IReadOnlyList<Exception> AnalyzerExceptions { get; init; } = [];
 }
