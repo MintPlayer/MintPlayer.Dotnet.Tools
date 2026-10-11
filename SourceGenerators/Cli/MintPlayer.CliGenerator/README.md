@@ -56,3 +56,20 @@ The generator creates:
 - Methods that build `System.CommandLine` command hierarchies and wire options and arguments automatically.
 - Extensions on `IServiceCollection` and `IServiceProvider` to register and execute the command tree.
 - Recognition of non-nested partial command classes linked via `[CliParentCommand]`.
+
+A command can be a `class` or a `record` (`record class`), at top level or nested in a partial class, record,
+struct, record struct or interface. `Execute` receives the invocation's cancellation token, which is cancelled
+on Ctrl+C.
+
+Commands the generator cannot generate for are reported instead of producing code that does not compile:
+
+| ID | Reason |
+|---|---|
+| MINTCLI002 | The command is not `partial` |
+| MINTCLI003 | The command is generic, or nested in a generic type |
+| MINTCLI004 | The command is `static` |
+| MINTCLI005 | A containing type is not `partial` |
+| MINTCLI006 | The command, or a containing type, is `file`-local |
+| MINTCLI007 | A root command is less accessible than `internal` |
+| MINTCLI008 | A subcommand is not accessible from its parent command |
+| MINTCLI009 | Two root commands share a type name, so their `{Name}CliExtensions` classes would collide |

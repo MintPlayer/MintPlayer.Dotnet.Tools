@@ -8,11 +8,13 @@
 // </auto-generated>                                                                 //
 //-----------------------------------------------------------------------------------//
 
+#nullable enable
+
 using System.Linq;
 
 namespace Demo
 {
-    public partial class RootCommand
+    partial class RootCommand
     {
         internal static void RegisterCliCommandTree(global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)
         {
@@ -22,11 +24,11 @@ namespace Demo
         internal static global::System.CommandLine.RootCommand BuildCliRootCommand(global::System.IServiceProvider serviceProvider)
         {
             var command = new global::System.CommandLine.RootCommand("Demo tool");
-            command.SetAction(async parseResult =>
+            command.SetAction(async (parseResult, cancellationToken) =>
             {
                 using var scope = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.CreateScope(serviceProvider);
                 var handler = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Demo.RootCommand>(scope.ServiceProvider);
-                return await handler.Execute(global::System.Threading.CancellationToken.None);
+                return await handler.Execute(cancellationToken);
             }
             );
             
