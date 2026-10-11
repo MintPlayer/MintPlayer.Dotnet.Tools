@@ -32,6 +32,7 @@ public sealed class EqualityProducer : Producer
 
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
     {
+        // Not WritePreamble: it writes the header before #nullable, and this file's order is pinned by the snapshots.
         writer.WriteLine("#nullable enable");
         writer.WriteLine();
         writer.WriteLine(Header);
@@ -81,12 +82,8 @@ internal sealed class ModelWriter(ClassDeclaration model)
 
     public void Write(IndentedTextWriter writer)
     {
-        var blocks = new Stack<IDisposable>();
-        foreach (var parent in model.Parents)
-            blocks.Push(writer.OpenBlock($"partial {parent.Keyword} {parent.Name}"));
-
-        var baseList = model.AddInterface ? $" : global::System.IEquatable<{model.FullName}>" : string.Empty;
-        using (writer.OpenBlock($"partial {model.Keyword} {model.Name}{baseList}"))
+        var baseList = model.AddInterface ? $" : global::System.IEquatable<{model.FullName}>" : null;
+        using (writer.OpenPathSpec(model.Path, includeTarget: true, baseList))
         {
             foreach (var field in model.ComparerFields)
                 writer.WriteLine($"private static readonly {field.Type} {field.Name} = {field.Initializer};");
@@ -104,9 +101,6 @@ internal sealed class ModelWriter(ClassDeclaration model)
                 case EqualityShape.RecordStruct: WriteStruct(writer); break;
             }
         }
-
-        while (blocks.Count > 0)
-            blocks.Pop().Dispose();
     }
 
     private void WriteSealedClass(IndentedTextWriter writer)

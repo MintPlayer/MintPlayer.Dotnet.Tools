@@ -2,7 +2,7 @@ using Microsoft.CodeAnalysis;
 
 namespace MintPlayer.ValueComparerGenerator.Generators;
 
-/// <summary>The diagnostics <see cref="ValueComparerGenerator"/> reports. Models refer to them by <see cref="DiagnosticDescriptor.Id"/> plus a variant key.</summary>
+/// <summary>The diagnostics <see cref="ValueComparerGenerator"/> reports, held by discovery as Tools' <c>DiagnosticInfo</c>.</summary>
 public static class ValueComparerDiagnostics
 {
     private const string Category = "ValueComparerGenerator";
@@ -16,33 +16,40 @@ public static class ValueComparerDiagnostics
         isEnabledByDefault: true,
         description: """
             A member that the type declares itself is never generated. IEquatable<T> is still added when the type declares Equals(T).
-            When the type declares only one of Equals(object) and GetHashCode(), the diagnostic is raised as a warning instead:
-            the generated other half compares the generated property list, which may not be what the declared one compares.
+            When the type declares only one of Equals(object) and GetHashCode(), MINT008 (a warning) is reported for it instead.
             """);
 
     /// <summary>
-    /// The warning variant of <see cref="UserDeclaredMember"/>. Same descriptor, raised with a Warning effective
-    /// severity: a second descriptor with the same id and another severity trips analyzer release tracking (RS2001).
+    /// The type declares only one of <c>Equals(object)</c> and <c>GetHashCode()</c>, so the generated other half can
+    /// disagree with it. Its own id, not a warning-severity MINT002: Tools' <c>DiagnosticInfo</c> resolves a rule by
+    /// id, so one id is one descriptor with one severity.
     /// </summary>
-    public const string UserDeclaredHalfOfPair = nameof(UserDeclaredHalfOfPair);
-
-    public static readonly DiagnosticDescriptor DerivedTypeNotPartial = new(
-        id: "MINT003",
-        title: "Type deriving from a [GenerateEquality] type must be partial",
-        messageFormat: "'{0}' derives from [GenerateEquality] type '{1}' and must be partial",
+    public static readonly DiagnosticDescriptor UserDeclaredHalfOfPair = new(
+        id: "MINT008",
+        title: "Only one of Equals(object) and GetHashCode() is declared",
+        messageFormat: "'{0}' already declares {1}; [GenerateEquality] did not generate it{2}",
         category: Category,
-        defaultSeverity: DiagnosticSeverity.Error,
+        defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "Without its own generated members, a derived type inherits the base's EqualsCore and compares only the base's properties: two instances that differ in a derived property compare equal.");
+        description: "The type declares only one of Equals(object) and GetHashCode(): the generated other half compares the generated property list, which may not be what the declared one compares.");
 
-    public static readonly DiagnosticDescriptor ModelNotPartial = new(
+    /// <summary>
+    /// MINT003, for an attributed type and for a type deriving from one. One descriptor per id (see
+    /// <see cref="UserDeclaredHalfOfPair"/>), so the two messages differ only in their arguments: use
+    /// <see cref="ModelNotPartialReason"/> or <see cref="DerivedTypeNotPartialReason"/>.
+    /// </summary>
+    public static readonly DiagnosticDescriptor NotPartial = new(
         id: "MINT003",
         title: "[GenerateEquality] type must be partial",
-        messageFormat: "'{0}' is marked [GenerateEquality] and must be partial",
+        messageFormat: "'{0}' {1}",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
-        description: "The equality members are generated into another part of the type, so the type must be partial.");
+        description: "The equality members are generated into another part of the type, so the type must be partial. Without its own generated members, a type deriving from a [GenerateEquality] type inherits the base's EqualsCore and compares only the base's properties: two instances that differ in a derived property compare equal.");
+
+    public const string ModelNotPartialReason = "is marked [GenerateEquality] and must be partial";
+
+    public static string DerivedTypeNotPartialReason(string root) => $"derives from [GenerateEquality] type '{root}' and must be partial";
 
     public static readonly DiagnosticDescriptor InvalidEqualityComparer = new(
         id: "MINT004",
@@ -71,18 +78,16 @@ public static class ValueComparerDiagnostics
         isEnabledByDefault: true,
         description: "The generated file reopens every containing type, so each of them must be partial.");
 
-    private static readonly Dictionary<string, DiagnosticDescriptor> byKey = new(StringComparer.Ordinal)
-    {
-        [nameof(UserDeclaredMember)] = UserDeclaredMember,
-        [nameof(DerivedTypeNotPartial)] = DerivedTypeNotPartial,
-        [nameof(ModelNotPartial)] = ModelNotPartial,
-        [nameof(InvalidEqualityComparer)] = InvalidEqualityComparer,
-        [nameof(ReferenceEqualityOnly)] = ReferenceEqualityOnly,
-        [nameof(ContainingTypeNotPartial)] = ContainingTypeNotPartial,
-    };
-
-    public static Diagnostic Create(string key, Location? location, object[] messageArgs)
-        => key == UserDeclaredHalfOfPair
-            ? Diagnostic.Create(UserDeclaredMember, location, DiagnosticSeverity.Warning, additionalLocations: null, properties: null, messageArgs)
-            : Diagnostic.Create(byKey[key], location, messageArgs);
+    public static readonly DiagnosticDescriptor UnsupportedModel = new(
+        id: "MINT007",
+        title: "[GenerateEquality] cannot generate equality for this type",
+        messageFormat: "[GenerateEquality] cannot generate the equality members of '{0}': {1}",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: """
+            Generated equality needs a type that can be re-declared as a partial in another file and boxed into Equals(object).
+            A ref struct cannot be boxed; a file-local type (or a type nested in one) re-declared in the generated file would be a different type;
+            a union and a static class have no value to compare.
+            """);
 }

@@ -12,13 +12,13 @@ namespace MintPlayer.SourceGenerators.Tests.Snapshots;
 internal static class EqualityShapes
 {
     /// <summary>The shapes that need C# 10 (record struct, <c>record class</c>).</summary>
-    public static readonly string[] NeedCSharp10 = [nameof(RecordStruct), nameof(Nested)];
+    public static readonly string[] NeedCSharp10 = [nameof(RecordStruct), nameof(Nested), nameof(RecordClass)];
 
     public static readonly string[] All =
     [
         nameof(SealedClass), nameof(NonSealedClass), nameof(AbstractTree), nameof(Record), nameof(SealedRecord),
         nameof(DerivedRecord), nameof(Struct), nameof(RecordStruct), nameof(Generic), nameof(Nested),
-        nameof(UserDeclared), nameof(UseEqualityComparer), nameof(NestedCollections),
+        nameof(UserDeclared), nameof(UseEqualityComparer), nameof(NestedCollections), nameof(RecordClass),
     ];
 
     public static string Get(string name)
@@ -102,6 +102,40 @@ internal static class EqualityShapes
             public partial record Person(string Name, int Age)
             {
                 public List<string> Tags { get; init; } = new List<string>();
+            }
+        }
+        """;
+
+    /// <summary>
+    /// A record spelled <c>record class</c>, at top level and derived. The generated part always says <c>record</c>,
+    /// the only spelling C# 9 accepts, and it merges with the user's <c>record class</c>.
+    /// </summary>
+    public const string RecordClass = """
+        using System.Collections.Generic;
+        using MintPlayer.ValueComparerGenerator.Attributes;
+
+        namespace Demo
+        {
+            [GenerateEquality]
+            public partial record class Money(decimal Amount, string Currency)
+            {
+                public List<string> Notes { get; init; } = new List<string>();
+            }
+
+            public sealed partial record class Fee(decimal Amount, string Currency, string Reason) : Money(Amount, Currency);
+        }
+        """;
+
+    /// <summary>Not a shape: a <c>ref struct</c> cannot be boxed into <c>Equals(object)</c>, so it is MINT007 (K7).</summary>
+    public const string RefStruct = """
+        using MintPlayer.ValueComparerGenerator.Attributes;
+
+        namespace Demo
+        {
+            [GenerateEquality]
+            public ref partial struct Cursor
+            {
+                public int Position { get; set; }
             }
         }
         """;
@@ -218,7 +252,7 @@ internal static class EqualityShapes
 
     /// <summary>
     /// <c>Handmade</c> declares Equals(T) and both halves of the object pair, so none of them is generated.
-    /// <c>HalfMade</c> declares only Equals(object): GetHashCode() is generated, with a MINT002 warning.
+    /// <c>HalfMade</c> declares only Equals(object): GetHashCode() is generated, with a MINT008 warning.
     /// </summary>
     public const string UserDeclared = """
         using MintPlayer.ValueComparerGenerator.Attributes;

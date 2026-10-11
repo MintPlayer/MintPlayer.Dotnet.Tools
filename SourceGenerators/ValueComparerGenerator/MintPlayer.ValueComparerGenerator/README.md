@@ -88,8 +88,9 @@ Nested shapes compose: an `ImmutableArray<ImmutableArray<Model>>`, a `List<(stri
 list all compare structurally.
 
 ## Supported shapes
-Sealed and non-sealed classes, abstract hierarchies, records (sealed or derived), structs, record structs, generic
-types, and types nested in any of these.
+Sealed and non-sealed classes, abstract hierarchies, records (sealed or derived, spelled `record` or `record class`),
+structs, record structs, generic types, and types nested in any of these or in an interface. A `ref struct`, a
+`static` class, a `union` and a `file`-local type are reported (`MINT007`) instead.
 
 - **Hierarchies.** Every type deriving from a `[GenerateEquality]` type gets its own members too, whether or not it
   carries the attribute, so it must be `partial` as well. An instance is never equal to an instance of another
@@ -110,11 +111,13 @@ types, and types nested in any of these.
 | Id | Severity | Meaning |
 | --- | --- | --- |
 | `MINT001` | Error | A model property holds a Roslyn type (`ISymbol`, `SyntaxNode`, `Location`, `Compilation`, `SemanticModel`, ...), directly or through a collection, tuple or nested class. It pins the compilation between runs. Project it to a string, a `LocationKey` or a `PathSpec`. |
-| `MINT002` | Info (Warning when only one of `Equals(object)`/`GetHashCode()` is declared) | The type declares an equality member itself, so it was not generated. |
+| `MINT002` | Info | The type declares an equality member itself, so it was not generated. |
 | `MINT003` | Error | A model, or a type deriving from one, is not `partial`. |
 | `MINT004` | Error | The `[UseEqualityComparer]` type is not an `IEqualityComparer<T>` of the property type, or cannot be created. |
 | `MINT005` | Warning | A property type has only reference equality (a class that neither overrides `Equals` nor implements `IEquatable<T>`, and is not a model or a supported collection). Make it equatable, mark it `[GenerateEquality]`, or use `[UseEqualityComparer]`. |
 | `MINT006` | Error | A type containing a model is not `partial`. |
+| `MINT007` | Error | The type cannot get generated equality: a `ref struct`, a `static` class, a C# 15 `union`, or a `file`-local type (or one nested in a `file` type). |
+| `MINT008` | Warning | The type declares only one of `Equals(object)` and `GetHashCode()`; the other is generated and can disagree with it. Declare both, or neither. Earlier versions reported this as a MINT002 warning. |
 
 ## Using the models in a pipeline
 No comparer is needed on any step. A model coming out of a transform, a `Collect()` of models, or a `Combine` tuple
