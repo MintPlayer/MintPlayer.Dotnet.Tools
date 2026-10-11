@@ -31,6 +31,19 @@ silently into warnings or errors. Read **Behaviour changes** before upgrading.
 - **A `Task`-returning `[PostConstruct]` is an error (INJECT005).** The generated constructor called it without
   awaiting, so it ran fire-and-forget and its exceptions were lost. Return `void`, and start asynchronous work some
   other way.
+- **`[Inject]` on a property with a setter is a warning (INJECT008).** The generated constructor assigns fields and
+  get-only or init-only properties; a `{ get; set; }` property was skipped without a word and stayed null. It is still
+  not assigned, but now reported.
+- **CONFIG005 and OPTIONS004 are reported.** Both were declared and shipped but never reported. A `DefaultValue` the
+  field cannot hold (`"3"` or `3.5` for an `int`, `300` for a `byte`, any value for a `DateTime`, `TimeSpan`, `Guid`,
+  POCO or collection) is CONFIG005; it used to produce generated code that did not compile, or a different value (a
+  non-string default on a `string` became `null`). `[Options]` together with `[Config]` is OPTIONS004; the field used to
+  take the `[Config]` path silently.
+- **`[Config]` defaults apply on nullable fields too.** `[Config("Retries", DefaultValue = 3)] int? retries` used to be
+  `null` when the key was missing (a `string?` already got its default). A `Uri` field now uses a string default (it
+  was ignored), an enum default works for every underlying type (`Small.B` on a `byte` enum emitted `Small.7`), and
+  a floating-point default is written in the invariant culture (a build under a decimal-comma culture emitted
+  `3,5d`).
 - **Class-level mappers between public types are `public`.** The Mapper emitted every extension method `internal`.
   It is `internal` only when either type is.
 - **The Mapper's assembly-level method-name prefix is honoured.**
@@ -57,7 +70,8 @@ silently into warnings or errors. Read **Behaviour changes** before upgrading.
 - GENMETHOD001 (the type, or a type containing it, cannot be extended), GENMETHOD002 (the method is not private),
   GENMETHOD003 (unsupported method shape), GENMETHOD004 (`Count` out of 2..16).
 - INJECT005 (non-void `[PostConstruct]`), INJECT006 (type or containing type not partial; was CS0260), INJECT007
-  (positional record or primary constructor; was CS8862).
+  (positional record or primary constructor; was CS8862), INJECT008 (Warning: `[Inject]` on a property with a setter).
+- README sections for the Description and ClassNames generators.
 - REGISTER003 (inaccessible type), REGISTER004 (undefined lifetime), REGISTER005 (inexpressible service type). They
   replace CS8785/MPSG001 and CS0122, CS0246, CS0305 and CS0311 in the generated code.
 
@@ -134,6 +148,11 @@ silently into warnings or errors. Read **Behaviour changes** before upgrading.
 **Every generator package**
 - `AnalyzerReleases.Shipped.md` records a 12.1.1 baseline of the rules each package shipped (earlier releases were
   never tracked), and MINTCLI001 moved to it from Unshipped. The build is free of RS2xxx warnings.
+- **Install the `*.Attributes` package next to the generator.** The Attributes READMEs and the index READMEs said
+  the generator brings its attributes along. It does only for a bare `<PackageReference>`: the generators are
+  development dependencies, so `dotnet add package` and the Visual Studio package manager write an `IncludeAssets` list
+  without `compile`, which also filters the dependency, and the attribute is CS0246. Measured on packed packages; every
+  README now says to install both.
 
 ### Fixed
 

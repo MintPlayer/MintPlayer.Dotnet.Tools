@@ -33,6 +33,12 @@ that the generator package takes a **NuGet dependency** on — that is the one w
 copies under `analyzers/dotnet/cs` belong to the generator's own payload, for whatever reflects over
 the generator's types (see below); the consumer never binds to them.
 
+That dependency does **not** mean the consumer gets the attributes. Measured on packed packages (all four
+generators): with `DevelopmentDependency=true`, `dotnet add package` and the VS package manager write
+`PrivateAssets=all` plus an `IncludeAssets` list without `compile`, and that list filters the dependency too. The
+attributes package is restored but not compiled against: CS0246. Only a bare `<PackageReference>` brings them along.
+So every README says to install both packages; do not "simplify" that back to "the generator brings it along".
+
 So `netstandard2.0`, `IsRoslynComponent`, `DevelopmentDependency=true` and
 `IncludeBuildOutput=false` are all exactly right here, and a `lib/` folder would be wrong.
 

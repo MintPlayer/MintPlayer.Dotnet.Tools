@@ -2,7 +2,18 @@
 This library contains source-generators to simplify dependency-injection in your application
 
 ## Getting started
-You need to install both [`MintPlayer.SourceGenerators`](https://nuget.org/packages/MintPlayer.SourceGenerators) and [`MintPlayer.SourceGenerators.Attributes`](https://nuget.org/packages/MintPlayer.SourceGenerators.Attributes) packages in your project.
+You need to install both [`MintPlayer.SourceGenerators`](https://nuget.org/packages/MintPlayer.SourceGenerators) and [`MintPlayer.SourceGenerators.Attributes`](https://nuget.org/packages/MintPlayer.SourceGenerators.Attributes) packages in your project:
+
+```
+dotnet add package MintPlayer.SourceGenerators
+dotnet add package MintPlayer.SourceGenerators.Attributes
+```
+
+The generator is a development dependency, so `dotnet add package` and the Visual Studio package manager reference it
+with `PrivateAssets="all"` and an `IncludeAssets` list without `compile`. That list applies to the generator's own
+dependencies too: the attributes package is restored but not compiled against, and `[Inject]` is CS0246 until you
+reference the attributes package yourself. A project that references yours sees the attributes but does not run the
+generator, so every project that uses them needs its own generator reference.
 
 ## Service-registration
 
@@ -135,6 +146,9 @@ The constructor is `public`, unless a dependency's type is less accessible than 
 that injects an internal interface gets an `internal` constructor. Nullable dependencies (`IFoo? foo`) become
 optional parameters, placed after the required ones.
 
+`[Inject]` goes on a field, or on a get-only or init-only property. A property with an ordinary setter
+(`{ get; set; }`) is not assigned by the generated constructor; the generator reports INJECT008 (a warning) for it.
+
 ### Records and structs
 
 `[Inject]` works on a `class`, `record` (or `record class`), `struct` and `record struct`, at top level or nested
@@ -186,6 +200,7 @@ The `[PostConstruct]` method will be called automatically at the end of the gene
 | INJECT005 | Error | PostConstruct method must return void |
 | INJECT006 | Error | The type, or a type it is nested in, is not partial (or is file-local, or an interface) |
 | INJECT007 | Error | The type has a parameter list (positional record or primary constructor) |
+| INJECT008 | Warning | `[Inject]` on a property with a setter, which the constructor does not assign |
 
 ## Configuration Binding
 
@@ -272,6 +287,22 @@ public partial class ConfigAwareService
 | **Other** | `Guid`, `Uri` |
 | **Complex** | POCO classes, arrays, `List<T>` |
 
+### Default values
+
+`DefaultValue` is the value assigned when the key is missing, on a nullable field as well as a non-nullable one. It
+must be a constant the field can hold, otherwise the generator reports CONFIG005:
+
+| Field type | Accepted `DefaultValue` |
+|------------|-------------------------|
+| `string` | a string |
+| `bool`, `char` | a `bool`, a `char` |
+| numeric | a number that fits the type without losing anything: `3` for a `double` or a `byte`, `1.5f` for a `double`; not `3.5` for an `int`, `300` for a `byte` or `3.5` for a `float` |
+| enum | a member (`Level.High`), its name (`"High"`) or a number |
+| `Uri` | a string |
+| `DateTime`, `DateTimeOffset`, `TimeSpan`, `DateOnly`, `TimeOnly`, `Guid`, POCOs, collections | none: an attribute cannot hold such a constant |
+
+`null` is accepted on a nullable field and on a reference type outside a nullable-enabled context.
+
 ### Configuration Diagnostics
 
 | Rule ID | Severity | Description |
@@ -279,6 +310,7 @@ public partial class ConfigAwareService
 | CONFIG001 | Error | Class must be partial |
 | CONFIG002 | Error | Empty configuration key |
 | CONFIG003 | Error | Unsupported field type |
+| CONFIG005 | Error | `DefaultValue` cannot be used for the field's type (see below) |
 | CONFIG006 | Error | Conflicting [Config] and [ConnectionString] |
 | CONFIG007 | Warning | Duplicate configuration key in one class |
 | CONFIG008 | Error | Conflicting [Config] and [Inject] |
@@ -287,6 +319,7 @@ public partial class ConfigAwareService
 | CONNSTR003 | Error | Conflicting [ConnectionString] and [Inject] |
 | OPTIONS001 | Error | Invalid options type |
 | OPTIONS003 | Error | Conflicting [Options] and [Inject] |
+| OPTIONS004 | Error | Conflicting [Options] and [Config] |
 
 ## Interface Implementation
 
@@ -354,3 +387,68 @@ before C# 13. Either way the arguments end up in one collection of `object`, so 
 | GENMETHOD002 | Error | The method is not private |
 | GENMETHOD003 | Error | The method's shape is unsupported: not exactly one parameter, not a collection of `object`, generic, `ref` |
 | GENMETHOD004 | Error | `Count` is outside 2..16 |
+
+## Descriptions from doc comments
+
+The Description generator turns the `<summary>` of a type's `///` doc comment into a
+`[System.ComponentModel.Description]` attribute on that type, so the text is available at run time
+(`TypeDescriptor.GetAttributes(typeof(Invoice))`, `GetCustomAttribute<DescriptionAttribute>()`):
+
+```csharp
+namespace Billing;
+
+/// <summary>An invoice sent to a <see cref="Customer"/>.</summary>
+public partial record Invoice { }
+
+// Generated (SymbolDescriptions.g.cs):
+// namespace Billing
+// {
+//     [global::System.ComponentModel.Description("An invoice sent to a Customer.")]
+//     partial record Invoice { }
+// }
+```
+
+- **Which types:** a `partial` class, record, struct, record struct or interface that has a `///` comment with a
+  `<summary>`, generic or not, at top level or nested. Every type it is nested in must be `partial` too. There is no
+  attribute to add and no need for `GenerateDocumentationFile`.
+- **Skipped, without a diagnostic:** a type that is not `partial` (or has a non-partial containing type), a `file`
+  type, a type that already has a `[Description]` of its own, and documented members (methods, properties, ...).
+  Every documented type is a candidate, so the generator does not report the ones it cannot extend.
+- **The text:** only the `<summary>`. `<see cref="X"/>`, `<paramref name="x"/>` and `<typeparamref name="T"/>` become
+  their name as written, other tags are dropped, entities are decoded and whitespace collapses to single spaces.
+- A type with a summary on more than one partial part gets one attribute, from the first part.
+
+## Class names
+
+The ClassNames generator lists the classes declared in the project, in the project's root namespace (the
+`RootNamespace` MSBuild property; `GeneratedCode` when it is empty):
+
+```csharp
+namespace MyApp.Services;
+
+public class CustomerService { }
+public static class Extensions { public class Nested { } }
+
+// Generated:
+// namespace MyApp
+// {
+//     public static class ClassNames
+//     {
+//         public const string CustomerService = "CustomerService";
+//         public const string Extensions = "Extensions";
+//         public const string Nested = "Nested";
+//     }
+//     public static class ClassNameList
+//     {
+//         public static string[] List => new string[] { "CustomerService", "Extensions", "Nested" };
+//     }
+// }
+```
+
+- **What it lists:** every `class` declaration in the project's own source, nested classes included, by simple name:
+  no namespace, no containing type, no generic arity (`Repository<T>` is `"Repository"`). Records, structs,
+  interfaces and enums are not listed, nor are classes from referenced assemblies.
+- A name appears once, however many partial parts or namespaces declare it.
+- `ClassNameList.List` returns a new array on every call.
+- A class of your own named `ClassNames` or `ClassNameList` in the root namespace wins: that file is not generated.
+  A class named `ClassNames` elsewhere gets no constant (a member cannot be named after its type).

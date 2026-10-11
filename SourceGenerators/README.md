@@ -14,7 +14,8 @@ to NuGet.
 | [MintPlayer.SourceGenerators.Testing](MintPlayer.SourceGenerators.Testing/README.md) | Tests generators, analyzers and code fixes in-process, so coverage is measured; a component that crashes fails the test. |
 
 Each generator also publishes a `*.Attributes` companion holding just the attributes you decorate
-with. Referencing the generator brings it along, so you rarely reference one directly.
+with. Install it next to the generator: the generators are development dependencies, so the reference
+`dotnet add package` writes (an `IncludeAssets` list without `compile`) leaves the attributes uncompiled (CS0246).
 
 Changes and breaking changes across these packages are recorded in [CHANGELOG.md](CHANGELOG.md).
 

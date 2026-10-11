@@ -2,6 +2,8 @@
 
 Create structured CLI applications with nested commands and dependency injection support using the `CliCommand` source generator.
 
+Install both [`MintPlayer.CliGenerator`](https://nuget.org/packages/MintPlayer.CliGenerator) and [`MintPlayer.CliGenerator.Attributes`](https://nuget.org/packages/MintPlayer.CliGenerator.Attributes). The generator is a development dependency: a `dotnet add package` reference to it does not make the attributes compile (CS0246), so the attributes package must be referenced explicitly. The generated code uses `Microsoft.Extensions.Hosting` (`IHost`), so the project needs that package as well.
+
 1. Annotate your root command with `[CliRootCommand]` and mark each command (and subcommand) with `[CliCommand]`.
 2. Define command options with `[CliOption]` and positional arguments with `[CliArgument]` on mutable properties.
 3. Implement `MintPlayer.CliGenerator.Attributes.ICliCommand` so each command exposes an `Execute(CancellationToken)` handler returning a task-based exit code.

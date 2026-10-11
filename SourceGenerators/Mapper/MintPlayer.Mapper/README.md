@@ -2,7 +2,17 @@
 This library contains source-generators that automatically generates mapper extension-methods for you.
 
 ## Getting started
-You need to install both [`MintPlayer.Mapper`](https://nuget.org/packages/MintPlayer.Mapper) and [`MintPlayer.Mapper.Attributes`](https://nuget.org/packages/MintPlayer.Mapper.Attributes) packages in your project.
+You need to install both [`MintPlayer.Mapper`](https://nuget.org/packages/MintPlayer.Mapper) and [`MintPlayer.Mapper.Attributes`](https://nuget.org/packages/MintPlayer.Mapper.Attributes) packages in your project:
+
+```
+dotnet add package MintPlayer.Mapper
+dotnet add package MintPlayer.Mapper.Attributes
+```
+
+The generator is a development dependency, so `dotnet add package` and the Visual Studio package manager reference it
+with `PrivateAssets="all"` and an `IncludeAssets` list without `compile`. That list applies to the generator's own
+dependencies too: the attributes package is restored but not compiled against, and `[GenerateMapper]` is CS0246 until
+you reference the attributes package yourself.
 
 ## Basic mapping
 This demo shows how you can:

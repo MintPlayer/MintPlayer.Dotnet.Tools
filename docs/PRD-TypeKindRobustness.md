@@ -21,12 +21,21 @@ Deviations from the design as written:
   MPSG001/MPSG002.
 - Found in M8 and fixed: a nested property of a type mapped with an assembly-level prefix called `MapTo{Type}()`,
   which no longer exists once the prefix is honoured (P19).
+- Found in the pre-PR review and fixed: CONFIG005 (a `DefaultValue` the field cannot hold) and OPTIONS004 (`[Options]`
+  with `[Config]`) were declared and shipped but never reported; both are now. `[Inject]` on a property with a setter
+  was skipped silently; it is INJECT008 (Warning). `[Config]` defaults now apply on nullable fields and `Uri` fields,
+  work for enums of every underlying type, and are written in the invariant culture.
+- Installation measured, not inferred: all four generator packages (SourceGenerators, Mapper, ValueComparerGenerator,
+  CliGenerator) depend on their Attributes package, but they are development dependencies, so `dotnet add package`
+  writes an `IncludeAssets` list without `compile` that also filters the dependency; the attributes are CS0246 until
+  the Attributes package is referenced explicitly. The
+  Attributes and index READMEs that said the generator "brings it along" now say to install both.
 
 Final test sweep (the E2E-category packaging tests ran as a separate invocation):
 
 | Project | Passed | Failed | Skipped |
 |---|---|---|---|
-| MintPlayer.SourceGenerators.Tests (excluding E2E) | 1012 | 0 | 0 |
+| MintPlayer.SourceGenerators.Tests (excluding E2E) | 1035 | 0 | 0 |
 | MintPlayer.SourceGenerators.Tests, E2E (`PackagingTests`) | 17 | 0 | 0 |
 | MintPlayer.SourceGenerators.Tools.Tests | 290 | 0 | 0 |
 | MintPlayer.Assertions.SourceGenerator.Tests | 81 | 0 | 0 |
