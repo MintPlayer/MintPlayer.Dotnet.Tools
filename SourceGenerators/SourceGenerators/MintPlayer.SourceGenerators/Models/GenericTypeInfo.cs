@@ -14,17 +14,19 @@ public partial class GenericTypeInfo
     public string[] TypeParameterNames { get; set; } = [];
 
     /// <summary>
-    /// Full constraint clauses (e.g., ["where TEntity : EntityBase&lt;TKey&gt;", "where TKey : IEquatable&lt;TKey&gt;"]).
+    /// Constraint clauses as templates: type parameters are positional placeholders, so that registrations whose type
+    /// parameters have different names compare and combine by position (e.g., ["where {0} : EntityBase&lt;{1}&gt;"]).
     /// </summary>
     public string[] ConstraintClauses { get; set; } = [];
 
     /// <summary>
-    /// Service type with type parameters (e.g., "global::Namespace.IGenericRepository&lt;TEntity, TKey&gt;").
+    /// Service type as a template over the implementation's type parameters, built from the type arguments the
+    /// implementation actually passes (e.g., "global::Namespace.IMap&lt;{1}, {0}&gt;" for <c>Map&lt;TValue, TKey&gt; : IMap&lt;TKey, TValue&gt;</c>).
     /// </summary>
     public string GenericServiceTypeName { get; set; } = string.Empty;
 
     /// <summary>
-    /// Implementation type with type parameters (e.g., "global::Namespace.GenericRepository&lt;TEntity, TKey&gt;").
+    /// Implementation type as a template (e.g., "global::Namespace.GenericRepository&lt;{0}, {1}&gt;").
     /// </summary>
     public string GenericImplementationTypeName { get; set; } = string.Empty;
 

@@ -8,6 +8,8 @@
 // </auto-generated>                                                                 //
 //-----------------------------------------------------------------------------------//
 
+#nullable enable
+
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Demo

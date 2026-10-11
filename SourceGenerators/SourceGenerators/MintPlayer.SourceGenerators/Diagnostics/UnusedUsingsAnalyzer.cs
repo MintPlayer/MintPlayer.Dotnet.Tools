@@ -51,7 +51,10 @@ public class UnusedUsingsAnalyzer : DiagnosticAnalyzer
                 var customDiagnostic = Diagnostic.Create(
                     DiagnosticRules.UnusedUsingsRule,
                     usingDirective.GetLocation(),
-                    usingDirective.Name.ToString());
+                    // NamespaceOrType, not Name: Name is null for a type alias such as `using Pair = (int, int);` or
+                    // `using unsafe P = int*;`, and dereferencing it threw out of the analyzer (AD0001), losing MP001
+                    // for the whole file (C5).
+                    usingDirective.NamespaceOrType.ToString());
 
                 context.ReportDiagnostic(customDiagnostic);
             }

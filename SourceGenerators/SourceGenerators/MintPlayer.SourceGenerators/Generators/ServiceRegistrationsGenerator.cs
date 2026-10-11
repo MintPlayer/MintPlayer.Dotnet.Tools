@@ -1,287 +1,43 @@
-﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.DependencyInjection;
 using MintPlayer.SourceGenerators.Attributes;
 using MintPlayer.SourceGenerators.Models;
 using MintPlayer.SourceGenerators.Tools;
+using System.Text;
 
 namespace MintPlayer.SourceGenerators.Generators;
 
 [Generator(LanguageNames.CSharp)]
 public class ServiceRegistrationsGenerator : IncrementalGenerator
 {
+    // Metadata names, never typeof(X).FullName or the simple name: a same-named attribute in another namespace must
+    // not match, and the simple-name comparison this replaces did match it.
+    internal const string RegisterAttributeName = "MintPlayer.SourceGenerators.Attributes.RegisterAttribute";
+    internal const string RegisterFactoryAttributeName = "MintPlayer.SourceGenerators.Attributes.RegisterFactoryAttribute";
+    internal const string ConfigurationAttributeName = "MintPlayer.SourceGenerators.Attributes.ServiceRegistrationConfigurationAttribute";
+    private const string ServiceLifetimeName = "Microsoft.Extensions.DependencyInjection.ServiceLifetime";
+    private const string ServiceProviderName = "System.IServiceProvider";
+
     public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {
-        var classesWithRegisterAttributeProvider = context.SyntaxProvider
-            .CreateSyntaxProvider(
-                static (node, ct) => node is ClassDeclarationSyntax,
-                static (context2, ct) =>
-                {
-                    var serviceLifetimeSymbol = context2.SemanticModel.Compilation.GetTypeByMetadataName("Microsoft.Extensions.DependencyInjection.ServiceLifetime");
-                    var generatedAccessibilitySymbol = context2.SemanticModel.Compilation.GetTypeByMetadataName("MintPlayer.SourceGenerators.Attributes.EGeneratedAccessibility");
+        // One callback per attributed declaration, with only that declaration's attributes. The syntax provider this
+        // replaces visited every class and read the symbol's attributes, so a partial class split over two files was
+        // registered twice (W5), and records were never visited at all (K3).
+        var classRegistrations = context.SyntaxProvider.ForAttribute(
+            RegisterAttributeName,
+            static (node, ct) => node is ClassDeclarationSyntax or RecordDeclarationSyntax,
+            static (ctx, ct) => DiscoverClass(ctx, ct));
 
-                    if (context2.Node is ClassDeclarationSyntax classDeclaration && serviceLifetimeSymbol is not null)
-                    {
-                        if (context2.SemanticModel.GetDeclaredSymbol(classDeclaration, ct) is INamedTypeSymbol namedTypeSymbol)
-                        {
-                            var attrs = namedTypeSymbol.GetAttributes().Where(a => a.AttributeClass?.Name == nameof(RegisterAttribute)).ToArray();
-                            if (attrs.Length == 0) return default;
-
-                            var factories = namedTypeSymbol.GetMembers()
-                                .OfType<IMethodSymbol>()
-                                .Where(m => m.IsStatic && m.GetAttributes().Any(a => a.AttributeClass?.Name == nameof(RegisterFactoryAttribute)))
-                                .Select(m => new
-                                {
-                                    m.Name,
-                                    ReturnType = m.ReturnType as INamedTypeSymbol,
-                                    Shape = ClassifyFactory(context2.SemanticModel.Compilation, m),
-                                })
-                                .Where(m => m.ReturnType is not null && m.Shape != EFactoryShape.Unsupported)
-                                .ToArray();
-
-                            return attrs.Select(attr =>
-                            {
-                                var formalParamCount = attr.AttributeConstructor?.Parameters.Length ?? 0; // includes optional params
-                                var args = attr.ConstructorArguments; // supplied values only
-
-                                // Error: 5-param constructor (assembly-level) used on a class
-                                if (formalParamCount == 5)
-                                {
-                                    return new ServiceRegistration
-                                    {
-                                        AppliedOn = ERegistrationAppliedOn.Class,
-                                        HasError = true,
-                                        // Only a registration that reports a diagnostic carries its location.
-                                        // Nothing else reads it, and a line-based location changes whenever
-                                        // code above the class grows, so a clean registration holding one
-                                        // would re-run the output step for every edit higher up in the file.
-                                        Location = attr.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation().AsKey(),
-                                    };
-                                }
-
-                                // Constructor forms: 3 params (no interface), 4 params (with interface)
-                                if (formalParamCount is 3 or 4)
-                                {
-                                    var firstFormal = attr.AttributeConstructor!.Parameters[0].Type;
-                                    if (SymbolEqualityComparer.Default.Equals(firstFormal, serviceLifetimeSymbol))
-                                    {
-                                        // (ServiceLifetime lifetime, string methodNameHint = default, GeneratedAccessibility accessibility = default)
-                                        if (args.Length < 1) return default;
-                                        var lifetime = (ServiceLifetime)args[0].Value!;
-                                        var methodNameHint = args.Length >= 2 ? args[1].Value as string : null;
-                                        var accessibility = args.Length >= 3 && generatedAccessibilitySymbol is not null && SymbolEqualityComparer.Default.Equals(args[2].Type, generatedAccessibilitySymbol) && args[2].Value is int accInt
-                                            ? (EGeneratedAccessibility)accInt
-                                            : EGeneratedAccessibility.Unspecified;
-
-                                        return new ServiceRegistration
-                                        {
-                                            ServiceTypeName = null,
-                                            ImplementationTypeName = namedTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                            Lifetime = lifetime,
-                                            MethodNameHint = methodNameHint,
-                                            Accessibility = accessibility,
-                                            FactoryExpressions = factories
-                                                .Where(f => IsUsableFactoryReturn(context2.SemanticModel.Compilation, f.ReturnType!, namedTypeSymbol))
-                                                .Select(f => BuildFactoryExpression(namedTypeSymbol, f.Name, f.Shape))
-                                                .ToArray(),
-                                            AppliedOn = ERegistrationAppliedOn.Class,
-                                        };
-                                    }
-                                    else if (args.ElementAtOrDefault(0).Value is INamedTypeSymbol serviceTypeSymbol)
-                                    {
-                                        // (Type serviceType, ServiceLifetime lifetime, string methodNameHint = default, GeneratedAccessibility accessibility = default)
-                                        if (args.Length < 2) return default;
-                                        var lifetimeArg = args[1];
-                                        if (!SymbolEqualityComparer.Default.Equals(lifetimeArg.Type, serviceLifetimeSymbol)) return default;
-                                        var lifetime = (ServiceLifetime)lifetimeArg.Value!;
-                                        var methodNameHint = args.Length >= 3 ? args[2].Value as string : null;
-                                        var accessibility = args.Length >= 4 && generatedAccessibilitySymbol is not null && SymbolEqualityComparer.Default.Equals(args[3].Type, generatedAccessibilitySymbol) && args[3].Value is int accInt2
-                                            ? (EGeneratedAccessibility)accInt2
-                                            : EGeneratedAccessibility.Unspecified;
-
-                                        // Check if this is an unbound generic type (e.g., IGenericRepository<,> or BaseRepository<>)
-                                        if (serviceTypeSymbol.IsUnboundGenericType)
-                                        {
-                                            // Find the matching constructed generic type from the class's implemented interfaces or base type chain
-                                            INamedTypeSymbol? matchingType = namedTypeSymbol.AllInterfaces
-                                                .FirstOrDefault(i => SymbolEqualityComparer.Default.Equals(i.OriginalDefinition, serviceTypeSymbol.OriginalDefinition));
-
-                                            if (matchingType is null)
-                                            {
-                                                // Search the base type chain for a matching generic base class
-                                                var current = namedTypeSymbol.BaseType;
-                                                while (current is not null)
-                                                {
-                                                    if (current.IsGenericType && SymbolEqualityComparer.Default.Equals(current.OriginalDefinition, serviceTypeSymbol.OriginalDefinition))
-                                                    {
-                                                        matchingType = current;
-                                                        break;
-                                                    }
-                                                    current = current.BaseType;
-                                                }
-                                            }
-
-                                            if (matchingType is null) return default;
-
-                                            // The class must also be generic to use open generic registration
-                                            if (!namedTypeSymbol.IsGenericType) return default;
-
-                                            var genericInfo = BuildGenericTypeInfo(namedTypeSymbol, matchingType);
-
-                                            return new ServiceRegistration
-                                            {
-                                                ServiceTypeName = null, // Not used for generic registrations
-                                                ImplementationTypeName = null, // Not used for generic registrations
-                                                Lifetime = lifetime,
-                                                MethodNameHint = methodNameHint,
-                                                Accessibility = accessibility,
-                                                FactoryExpressions = [], // Factories not supported for open generics (yet)
-                                                IsGeneric = true,
-                                                GenericInfo = genericInfo,
-                                                AppliedOn = ERegistrationAppliedOn.Class,
-                                            };
-                                        }
-                                        else
-                                        {
-                                            // Non-generic service type - check interfaces and base type chain
-                                            bool implementsInterface = namedTypeSymbol.AllInterfaces.Any(i => SymbolEqualityComparer.Default.Equals(i, serviceTypeSymbol));
-                                            bool extendsBaseClass = ExtendsType(namedTypeSymbol, serviceTypeSymbol);
-
-                                            if (!implementsInterface && !extendsBaseClass) return default;
-
-                                            return new ServiceRegistration
-                                            {
-                                                ServiceTypeName = serviceTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                                ImplementationTypeName = namedTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                                Lifetime = lifetime,
-                                                MethodNameHint = methodNameHint,
-                                                Accessibility = accessibility,
-                                                FactoryExpressions = factories
-                                                    .Where(f => IsUsableFactoryReturn(context2.SemanticModel.Compilation, f.ReturnType!, serviceTypeSymbol))
-                                                    .Select(f => BuildFactoryExpression(namedTypeSymbol, f.Name, f.Shape))
-                                                    .ToArray(),
-                                                AppliedOn = ERegistrationAppliedOn.Class,
-                                            };
-                                        }
-                                    }
-                                }
-                                return default;
-                            })
-                            .NotNull()
-                            .ToEquatableArray();
-                        }
-                    }
-                    return default;
-                }
-            )
-            // An EquatableArray, not a plain array: arrays compare by reference, and the transform
-            // allocates a new one on every run, so every class in an edited file counted as changed.
-            .SelectMany((x, ct) => x)
+        var classRegistrationsProvider = classRegistrations
+            .Models()
+            .SelectMany(static (set, ct) => set.Registrations.AsImmutableArray())
             .Collect();
 
-        // Provider for assembly-level [Register] attributes (for third-party types)
-        var assemblyLevelRegisterAttributeProvider = context.CompilationProvider
-            .Select(static (compilation, ct) =>
-            {
-                var serviceLifetimeSymbol = compilation.GetTypeByMetadataName("Microsoft.Extensions.DependencyInjection.ServiceLifetime");
-                var generatedAccessibilitySymbol = compilation.GetTypeByMetadataName("MintPlayer.SourceGenerators.Attributes.EGeneratedAccessibility");
-
-                if (serviceLifetimeSymbol is null) return EquatableArray<ServiceRegistration>.Empty;
-
-                var attrs = compilation.Assembly.GetAttributes()
-                    .Where(a => a.AttributeClass?.Name == nameof(RegisterAttribute))
-                    .ToArray();
-
-                if (attrs.Length == 0) return EquatableArray<ServiceRegistration>.Empty;
-
-                return attrs.Select(attr =>
-                {
-                    var formalParamCount = attr.AttributeConstructor?.Parameters.Length ?? 0;
-                    var args = attr.ConstructorArguments;
-
-                    // Error: 3-param constructor (ServiceLifetime first) used on assembly
-                    // Pattern 1 is class-only: [Register(ServiceLifetime.Scoped)]
-                    if (formalParamCount == 3)
-                    {
-                        return new ServiceRegistration
-                        {
-                            AppliedOn = ERegistrationAppliedOn.Assembly,
-                            HasError = true,
-                            // As for the class-level provider: only an erroneous registration keeps its location.
-                            Location = attr.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation().AsKey(),
-                        };
-                    }
-
-                    // Pattern 3: Assembly-level self-registration
-                    // [assembly: Register(typeof(Implementation), ServiceLifetime.Scoped)]
-                    // 4 formal parameters: (Type implementationType, ServiceLifetime lifetime, string? methodNameHint, EGeneratedAccessibility accessibility)
-                    if (formalParamCount == 4)
-                    {
-                        if (args.Length < 2) return default;
-
-                        if (args[0].Value is not INamedTypeSymbol implementationTypeSymbol) return default;
-
-                        var lifetimeArg = args[1];
-                        if (!SymbolEqualityComparer.Default.Equals(lifetimeArg.Type, serviceLifetimeSymbol)) return default;
-
-                        var lifetime = (ServiceLifetime)lifetimeArg.Value!;
-                        var methodNameHint = args.Length >= 3 && args[2].Value is string hint ? hint : null;
-                        var accessibility = args.Length >= 4 && generatedAccessibilitySymbol is not null && SymbolEqualityComparer.Default.Equals(args[3].Type, generatedAccessibilitySymbol) && args[3].Value is int accInt
-                            ? (EGeneratedAccessibility)accInt
-                            : EGeneratedAccessibility.Unspecified;
-
-                        // Self-registration: service type = implementation type
-                        return new ServiceRegistration
-                        {
-                            ServiceTypeName = null, // null means self-registration
-                            ImplementationTypeName = implementationTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                            Lifetime = lifetime,
-                            MethodNameHint = methodNameHint,
-                            Accessibility = accessibility,
-                            FactoryExpressions = [], // No factories for assembly-level registrations
-                            AppliedOn = ERegistrationAppliedOn.Assembly,
-                        };
-                    }
-
-                    // Pattern 4: Assembly-level interface + implementation registration
-                    // [assembly: Register(typeof(IService), typeof(Implementation), ServiceLifetime.Scoped)]
-                    // 5 formal parameters: (Type serviceType, Type implementationType, ServiceLifetime lifetime, string? methodNameHint, EGeneratedAccessibility accessibility)
-                    if (formalParamCount == 5)
-                    {
-                        if (args.Length < 3) return default;
-
-                        if (args[0].Value is not INamedTypeSymbol serviceTypeSymbol) return default;
-                        if (args[1].Value is not INamedTypeSymbol implementationTypeSymbol) return default;
-
-                        var lifetimeArg = args[2];
-                        if (!SymbolEqualityComparer.Default.Equals(lifetimeArg.Type, serviceLifetimeSymbol)) return default;
-
-                        var lifetime = (ServiceLifetime)lifetimeArg.Value!;
-                        var methodNameHint = args.Length >= 4 && args[3].Value is string hint ? hint : null;
-                        var accessibility = args.Length >= 5 && generatedAccessibilitySymbol is not null && SymbolEqualityComparer.Default.Equals(args[4].Type, generatedAccessibilitySymbol) && args[4].Value is int accInt
-                            ? (EGeneratedAccessibility)accInt
-                            : EGeneratedAccessibility.Unspecified;
-
-                        return new ServiceRegistration
-                        {
-                            ServiceTypeName = serviceTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                            ImplementationTypeName = implementationTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                            Lifetime = lifetime,
-                            MethodNameHint = methodNameHint,
-                            Accessibility = accessibility,
-                            FactoryExpressions = [], // No factories for assembly-level registrations
-                            AppliedOn = ERegistrationAppliedOn.Assembly,
-                        };
-                    }
-
-                    return default;
-                })
-                .Where(r => r is not null)
-                .Select(r => r!)
-                .ToEquatableArray();
-            });
-            // A CompilationProvider.Select re-runs on every edit, so its result must compare by value
-            // for anything downstream to be served from cache: hence EquatableArray, not an array.
+        // Assembly-level [Register] attributes (for third-party types). A CompilationProvider.Select re-runs on every
+        // edit, so its result must compare by value for anything downstream to be served from cache.
+        var assemblyRegistrations = context.CompilationProvider
+            .Select(static (compilation, ct) => DiscoverAssembly(compilation, ct));
 
         var knowsDependencyInjectionAbstractionsProvider = context.CompilationProvider
             .Select((compilation, ct) => compilation.GetTypeByMetadataName("Microsoft.Extensions.DependencyInjection.IServiceCollection") is not null);
@@ -290,37 +46,25 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
         var assemblyConfigProvider = context.CompilationProvider
             .Select((compilation, ct) =>
             {
-                var assemblyName = compilation.Assembly.Name;
-                var configAttr = compilation.Assembly.GetAttributes()
-                    .FirstOrDefault(a => a.AttributeClass?.Name == nameof(ServiceRegistrationConfigurationAttribute));
+                var configAttr = compilation.Assembly.FindAttribute(ConfigurationAttributeName);
 
-                string? defaultMethodName = null;
-                var defaultAccessibility = EGeneratedAccessibility.Unspecified;
-
-                if (configAttr is { NamedArguments: { } namedArguments })
-                {
-                    foreach (var namedArg in namedArguments)
-                    {
-                        if (namedArg.Key == nameof(ServiceRegistrationConfigurationAttribute.DefaultMethodName))
-                            defaultMethodName = namedArg.Value.Value as string;
-                        else if (namedArg.Key == nameof(ServiceRegistrationConfigurationAttribute.DefaultAccessibility))
-                            defaultAccessibility = (EGeneratedAccessibility)(int)namedArg.Value.Value!;
-                    }
-                }
+                // GetArgument, not a cast of the raw value: mid-typing (`DefaultAccessibility = )`) the value is null,
+                // and the cast this replaces threw a NullReferenceException that took every registration down (C2).
+                var defaultAccessibility = configAttr.GetArgument(nameof(ServiceRegistrationConfigurationAttribute.DefaultAccessibility), EGeneratedAccessibility.Unspecified);
 
                 return new AssemblyRegistrationConfig
                 {
-                    AssemblyName = assemblyName,
-                    DefaultMethodName = defaultMethodName,
-                    DefaultAccessibility = defaultAccessibility
+                    AssemblyName = compilation.Assembly.Name,
+                    DefaultMethodName = configAttr.GetArgument<string?>(nameof(ServiceRegistrationConfigurationAttribute.DefaultMethodName), null),
+                    DefaultAccessibility = Enum.IsDefined(typeof(EGeneratedAccessibility), defaultAccessibility) ? defaultAccessibility : EGeneratedAccessibility.Unspecified,
                 };
             });
 
         // Combine class-level and assembly-level registrations. The concatenation is a new
         // collection on every run, so it is an EquatableArray to compare by value.
-        var allRegistrationsProvider = classesWithRegisterAttributeProvider
-            .Combine(assemblyLevelRegisterAttributeProvider)
-            .Select(static (combined, ct) => combined.Left.Concat(combined.Right).ToEquatableArray());
+        var allRegistrationsProvider = classRegistrationsProvider
+            .Combine(assemblyRegistrations)
+            .Select(static (combined, ct) => combined.Left.Concat(combined.Right.Model?.Registrations ?? EquatableArray<ServiceRegistration>.Empty).ToEquatableArray());
 
         var registerAttributeSourceProvider = allRegistrationsProvider
             .Join(knowsDependencyInjectionAbstractionsProvider)
@@ -333,24 +77,362 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
                 providers.Item4
             ));
 
-        var registerAttributeDiagnosticProvider = allRegistrationsProvider
-            .Join(knowsDependencyInjectionAbstractionsProvider)
-            .Join(settingsProvider)
-            .Join(assemblyConfigProvider)
-            .Select(static IDiagnosticReporter (providers, ct) => new RegistrationsProducer(
-                providers.Item1.AsEnumerable(),
-                providers.Item2,
-                providers.Item3.RootNamespace!,
-                providers.Item4
-            ));
-
         context.ProduceCode(registerAttributeSourceProvider);
-        context.ReportDiagnostics(registerAttributeDiagnosticProvider);
+        context.ReportDiagnostics(
+            classRegistrations.Diagnostics(),
+            assemblyRegistrations.SelectMany(static (d, ct) => d.Diagnostics.AsImmutableArray()));
+    }
+
+    private static Discovered<RegistrationSet>? DiscoverClass(GeneratorAttributeSyntaxContext ctx, CancellationToken ct)
+    {
+        // A struct is n.a.: [Register] is AttributeUsage(Class), so the user already has CS0592.
+        if (ctx.TargetSymbol is not INamedTypeSymbol type || type.TypeKind != TypeKind.Class)
+            return null;
+
+        var compilation = ctx.SemanticModel.Compilation;
+        var registrations = new List<ServiceRegistration>();
+        var diagnostics = new List<DiagnosticInfo>();
+
+        // Read once per declaration, not per attribute.
+        var factories = type.GetMembers()
+            .OfType<IMethodSymbol>()
+            .Where(m => m.IsStatic && m.HasAttribute(RegisterFactoryAttributeName))
+            .Select(m => (m.Name, ReturnType: m.ReturnType as INamedTypeSymbol, Shape: ClassifyFactory(m)))
+            .Where(m => m.ReturnType is not null && m.Shape != EFactoryShape.Unsupported)
+            .ToArray();
+
+        foreach (var attr in ctx.Attributes)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            // Only a registration that reports a diagnostic carries its location. A line-based location changes
+            // whenever code above the class grows, so a clean registration holding one would re-run the output step
+            // for every edit higher up in the file.
+            Location? AttributeLocation() => attr.ApplicationSyntaxReference?.GetSyntax(ct).GetLocation() ?? type.Locations.FirstOrDefault();
+
+            var formalParamCount = attr.AttributeConstructor?.Parameters.Length ?? 0; // includes optional params
+
+            // Error: 5-param constructor (assembly-level) used on a class
+            if (formalParamCount == 5)
+            {
+                diagnostics.Add(DiagnosticInfo.Create(DiagnosticRules.RegisterAttributeClassRequiresLifetime, AttributeLocation()));
+                continue;
+            }
+
+            // Constructor forms: 3 params (no service type), 4 params (with service type). Anything else is an
+            // attribute that did not bind (mid-typing): the user already has a compile error.
+            if (formalParamCount is not (3 or 4))
+                continue;
+
+            if (!TryReadLifetime(attr, AttributeLocation, diagnostics, out var lifetime))
+                continue;
+
+            var methodNameHint = attr.GetArgument<string?>("methodNameHint", null);
+            var accessibility = attr.GetArgument("accessibility", EGeneratedAccessibility.Unspecified);
+
+            INamedTypeSymbol serviceType;
+            if (formalParamCount == 3)
+            {
+                // (ServiceLifetime lifetime, string methodNameHint = default, GeneratedAccessibility accessibility = default)
+                serviceType = type;
+            }
+            else
+            {
+                // (Type serviceType, ServiceLifetime lifetime, string methodNameHint = default, GeneratedAccessibility accessibility = default)
+                if (!attr.TryGetArgument<INamedTypeSymbol>("serviceType", out var requested) || requested is null)
+                    continue;
+
+                if (requested.IsUnboundGenericType)
+                {
+                    // Find the constructed form the class actually implements or extends: IMap<TKey, TValue> for
+                    // `Map<TValue, TKey> : IMap<TKey, TValue>`, or IMap<string, TValue> for `StringMap<TValue> :
+                    // IMap<string, TValue>`. The service type is built from those type arguments (P10), never from the
+                    // class's own type-parameter list.
+                    var definition = requested.OriginalDefinition;
+                    var matches = type.AllInterfaces
+                        .Concat(BaseTypes(type))
+                        .Where(t => SymbolEqualityComparer.Default.Equals(t.OriginalDefinition, definition))
+                        .ToArray();
+
+                    // Not implemented at all: skipped, as before; registering it would not compile.
+                    if (matches.Length == 0)
+                        continue;
+
+                    if (matches.Length > 1)
+                    {
+                        diagnostics.Add(DiagnosticInfo.Create(
+                            DiagnosticRules.RegisterServiceTypeNotExpressible, AttributeLocation(),
+                            type.Name, definition.ToDisplayString(),
+                            $"it implements {string.Join(" and ", matches.Select(m => m.ToDisplayString()))}; register each one with an explicit closed type"));
+                        continue;
+                    }
+
+                    serviceType = matches[0];
+                }
+                else
+                {
+                    // Non-generic service type: it must be one of the class's interfaces or base types. One it does
+                    // not implement is skipped, as before; registering it would not compile.
+                    var implementsInterface = type.AllInterfaces.Any(i => SymbolEqualityComparer.Default.Equals(i, requested));
+                    var extendsBaseClass = BaseTypes(type).Any(b => SymbolEqualityComparer.Default.Equals(b, requested));
+                    if (!implementsInterface && !extendsBaseClass)
+                        continue;
+
+                    serviceType = requested;
+                }
+            }
+
+            // The generated method lives in another class, so a private, protected or file-local type cannot be named
+            // there: CS0122 / CS0246 in generated code (W6, P11). Report it instead.
+            if ((FindInaccessible(type) ?? FindInaccessible(serviceType)) is { } inaccessible)
+            {
+                diagnostics.Add(DiagnosticInfo.Create(
+                    DiagnosticRules.RegisterTypeNotAccessible, AttributeLocation(),
+                    inaccessible.ToDisplayString(), DescribeAccessibility(inaccessible)));
+                continue;
+            }
+
+            // Both types are rendered with the class's own type parameters as positional placeholders, so that
+            // registrations of the same arity can share one generic method whatever their type parameters are called
+            // (P9). A type parameter of a containing type cannot be expressed in the generated method at all.
+            var ownTypeParameters = type.TypeParameters;
+            string? foreign = null;
+            var implementationTemplate = Template(type, ownTypeParameters, ref foreign);
+            var serviceTemplate = Template(serviceType, ownTypeParameters, ref foreign);
+            var constraintTemplates = ownTypeParameters
+                .Select(tp => ConstraintTemplate(tp, ownTypeParameters, ref foreign))
+                .Where(c => !string.IsNullOrEmpty(c))
+                .ToArray();
+
+            if (foreign is not null)
+            {
+                diagnostics.Add(DiagnosticInfo.Create(
+                    DiagnosticRules.RegisterServiceTypeNotExpressible, AttributeLocation(),
+                    type.Name, serviceType.ToDisplayString(),
+                    $"it uses the type parameter '{foreign}' of a containing type"));
+                continue;
+            }
+
+            if (ownTypeParameters.Length > 0)
+            {
+                registrations.Add(new ServiceRegistration
+                {
+                    Lifetime = lifetime,
+                    MethodNameHint = methodNameHint,
+                    Accessibility = accessibility,
+                    FactoryExpressions = [], // Factories not supported for open generics (yet)
+                    IsGeneric = true,
+                    GenericInfo = new GenericTypeInfo
+                    {
+                        TypeParameterNames = ownTypeParameters.Select(tp => SymbolExtensions.EscapeIdentifier(tp.Name)).ToArray(),
+                        ConstraintClauses = constraintTemplates,
+                        GenericServiceTypeName = serviceTemplate,
+                        GenericImplementationTypeName = implementationTemplate,
+                        ImplementationSimpleName = type.Name,
+                    },
+                });
+                continue;
+            }
+
+            var selfRegistration = SymbolEqualityComparer.Default.Equals(serviceType, type);
+            registrations.Add(new ServiceRegistration
+            {
+                // null means self-registration
+                ServiceTypeName = selfRegistration ? null : serviceType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                ImplementationTypeName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                Lifetime = lifetime,
+                MethodNameHint = methodNameHint,
+                Accessibility = accessibility,
+                FactoryExpressions = factories
+                    .Where(f => IsUsableFactoryReturn(compilation, f.ReturnType!, serviceType))
+                    .Select(f => BuildFactoryExpression(type, f.Name, f.Shape))
+                    .ToArray(),
+            });
+        }
+
+        return new Discovered<RegistrationSet>(
+            registrations.Count == 0 ? null : new RegistrationSet { Registrations = registrations.ToEquatableArray() },
+            diagnostics.ToEquatableArray());
+    }
+
+    private static Discovered<RegistrationSet> DiscoverAssembly(Compilation compilation, CancellationToken ct)
+    {
+        var registrations = new List<ServiceRegistration>();
+        var diagnostics = new List<DiagnosticInfo>();
+
+        foreach (var attr in compilation.Assembly.FindAttributes(RegisterAttributeName))
+        {
+            ct.ThrowIfCancellationRequested();
+
+            // As for the class-level provider: only an erroneous registration keeps its location.
+            Location? AttributeLocation() => attr.ApplicationSyntaxReference?.GetSyntax(ct).GetLocation();
+
+            var formalParamCount = attr.AttributeConstructor?.Parameters.Length ?? 0;
+
+            // Error: 3-param constructor (ServiceLifetime first) used on assembly
+            // Pattern 1 is class-only: [Register(ServiceLifetime.Scoped)]
+            if (formalParamCount == 3)
+            {
+                diagnostics.Add(DiagnosticInfo.Create(DiagnosticRules.RegisterAttributeAssemblyRequiresType, AttributeLocation()));
+                continue;
+            }
+
+            if (formalParamCount is not (4 or 5))
+                continue;
+
+            if (!TryReadLifetime(attr, AttributeLocation, diagnostics, out var lifetime))
+                continue;
+
+            var methodNameHint = attr.GetArgument<string?>("methodNameHint", null);
+            var accessibility = attr.GetArgument("accessibility", EGeneratedAccessibility.Unspecified);
+
+            if (formalParamCount == 4)
+            {
+                // Pattern 3: Assembly-level self-registration
+                // [assembly: Register(typeof(Implementation), ServiceLifetime.Scoped)]
+                // 4 formal parameters, the class-level (Type serviceType, ...) overload: the type is the implementation.
+                if (!attr.TryGetArgument<INamedTypeSymbol>("serviceType", out var implementationTypeSymbol) || implementationTypeSymbol is null)
+                    continue;
+
+                registrations.Add(new ServiceRegistration
+                {
+                    ServiceTypeName = null, // null means self-registration
+                    ImplementationTypeName = implementationTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                    Lifetime = lifetime,
+                    MethodNameHint = methodNameHint,
+                    Accessibility = accessibility,
+                    FactoryExpressions = [], // No factories for assembly-level registrations
+                });
+            }
+            else
+            {
+                // Pattern 4: Assembly-level interface + implementation registration
+                // [assembly: Register(typeof(IService), typeof(Implementation), ServiceLifetime.Scoped)]
+                if (!attr.TryGetArgument<INamedTypeSymbol>("serviceType", out var serviceTypeSymbol) || serviceTypeSymbol is null)
+                    continue;
+                if (!attr.TryGetArgument<INamedTypeSymbol>("implementationType", out var implementationTypeSymbol) || implementationTypeSymbol is null)
+                    continue;
+
+                registrations.Add(new ServiceRegistration
+                {
+                    ServiceTypeName = serviceTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                    ImplementationTypeName = implementationTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                    Lifetime = lifetime,
+                    MethodNameHint = methodNameHint,
+                    Accessibility = accessibility,
+                    FactoryExpressions = [], // No factories for assembly-level registrations
+                });
+            }
+        }
+
+        return new Discovered<RegistrationSet>(
+            new RegistrationSet { Registrations = registrations.ToEquatableArray() },
+            diagnostics.ToEquatableArray());
     }
 
     /// <summary>
-    /// Checks whether <paramref name="derived"/> extends <paramref name="candidate"/> anywhere in its base type chain.
+    /// Reads the <c>lifetime</c> argument. False, with nothing reported, for an argument that did not bind (the user
+    /// already has a compile error); false with REGISTER004 for a value that is not a defined
+    /// <see cref="ServiceLifetime"/>, such as <c>(ServiceLifetime)7</c>, which used to crash the producer (C3).
     /// </summary>
+    private static bool TryReadLifetime(AttributeData attr, Func<Location?> location, List<DiagnosticInfo> diagnostics, out ServiceLifetime lifetime)
+    {
+        lifetime = default;
+        if (!attr.TryGetArgument<TypedConstant>("lifetime", out var constant)
+            || constant.Kind == TypedConstantKind.Error
+            || constant.Type is not INamedTypeSymbol lifetimeType
+            || !lifetimeType.IsAttribute(ServiceLifetimeName)
+            || constant.Value is not int raw)
+            return false;
+
+        lifetime = (ServiceLifetime)raw;
+        if (lifetime is ServiceLifetime.Singleton or ServiceLifetime.Scoped or ServiceLifetime.Transient)
+            return true;
+
+        diagnostics.Add(DiagnosticInfo.Create(DiagnosticRules.RegisterLifetimeUndefined, location(), raw));
+        return false;
+    }
+
+    /// <summary>The base types of <paramref name="type"/>, nearest first.</summary>
+    private static IEnumerable<INamedTypeSymbol> BaseTypes(INamedTypeSymbol type)
+    {
+        for (var current = type.BaseType; current is not null; current = current.BaseType)
+            yield return current;
+    }
+
+    /// <summary>
+    /// The first type in <paramref name="type"/> (the type itself, a containing type, or a type argument) that a
+    /// method in another class of the same assembly cannot name: private, protected, private protected or
+    /// <c>file</c>-local. <c>protected internal</c> is accessible within the assembly, so it is fine.
+    /// </summary>
+    private static INamedTypeSymbol? FindInaccessible(ITypeSymbol type)
+    {
+        switch (type)
+        {
+            case INamedTypeSymbol named:
+                for (var current = named; current is not null; current = current.ContainingType)
+                {
+                    if (current.IsFileLocal || current.DeclaredAccessibility is Accessibility.Private or Accessibility.Protected or Accessibility.ProtectedAndInternal)
+                        return current;
+                }
+                foreach (var argument in named.TypeArguments)
+                {
+                    if (FindInaccessible(argument) is { } inaccessible)
+                        return inaccessible;
+                }
+                return null;
+            case IArrayTypeSymbol array:
+                return FindInaccessible(array.ElementType);
+            default:
+                return null;
+        }
+    }
+
+    private static string DescribeAccessibility(INamedTypeSymbol type) => type switch
+    {
+        { IsFileLocal: true } => "file-local",
+        { DeclaredAccessibility: Accessibility.Private } => "private",
+        { DeclaredAccessibility: Accessibility.Protected } => "protected",
+        { DeclaredAccessibility: Accessibility.ProtectedAndInternal } => "private protected",
+        _ => "not accessible",
+    };
+
+    /// <summary>
+    /// <paramref name="type"/> as fully qualified C#, with every type parameter of <paramref name="own"/> replaced by its
+    /// position as a <see cref="string.Format(string, object[])"/> placeholder: <c>global::N.IMap&lt;{1}, {0}&gt;</c>.
+    /// </summary>
+    /// <param name="foreign">Set to the first type parameter that is not in <paramref name="own"/>, if any.</param>
+    private static string Template(ITypeSymbol type, IReadOnlyList<ITypeParameterSymbol> own, ref string? foreign)
+    {
+        var builder = new StringBuilder();
+        foreach (var part in type.ToDisplayParts(SymbolDisplayFormat.FullyQualifiedFormat))
+        {
+            if (part.Symbol is ITypeParameterSymbol typeParameter)
+            {
+                var index = IndexOf(own, typeParameter);
+                if (index >= 0)
+                {
+                    builder.Append('{').Append(index).Append('}');
+                    continue;
+                }
+                foreign ??= typeParameter.Name;
+            }
+
+            builder.Append(part.ToString().Replace("{", "{{").Replace("}", "}}"));
+        }
+        return builder.ToString();
+    }
+
+    private static int IndexOf(IReadOnlyList<ITypeParameterSymbol> typeParameters, ITypeParameterSymbol typeParameter)
+    {
+        for (var i = 0; i < typeParameters.Count; i++)
+        {
+            if (SymbolEqualityComparer.Default.Equals(typeParameters[i], typeParameter))
+                return i;
+        }
+        return -1;
+    }
+
     /// <summary>
     /// True when a factory returning <paramref name="returnType"/> can supply
     /// <paramref name="registeredType"/>.
@@ -399,17 +481,13 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
     /// which is the failure this whole area exists to prevent. Such a factory is now skipped:
     /// the registration still happens, just without it.
     /// </remarks>
-    private static EFactoryShape ClassifyFactory(Compilation compilation, IMethodSymbol method)
+    private static EFactoryShape ClassifyFactory(IMethodSymbol method)
     {
         if (method.Parameters.Length == 0)
             return EFactoryShape.Parameterless;
 
-        if (method.Parameters.Length == 1)
-        {
-            var providerType = compilation.GetTypeByMetadataName("System.IServiceProvider");
-            if (providerType is not null && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, providerType))
-                return EFactoryShape.AcceptsServiceProvider;
-        }
+        if (method.Parameters.Length == 1 && method.Parameters[0].Type is INamedTypeSymbol parameterType && parameterType.IsAttribute(ServiceProviderName))
+            return EFactoryShape.AcceptsServiceProvider;
 
         return EFactoryShape.Unsupported;
     }
@@ -426,72 +504,15 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
     /// </remarks>
     private static string BuildFactoryExpression(INamedTypeSymbol implementationType, string factoryName, EFactoryShape shape)
     {
-        var qualified = $"{implementationType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}.{factoryName}";
+        var qualified = $"{implementationType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}.{SymbolExtensions.EscapeIdentifier(factoryName)}";
         return shape == EFactoryShape.Parameterless ? $"sp => {qualified}()" : qualified;
     }
 
-    private static bool ExtendsType(INamedTypeSymbol derived, INamedTypeSymbol candidate)
-    {
-        var current = derived.BaseType;
-        while (current is not null)
-        {
-            if (SymbolEqualityComparer.Default.Equals(current, candidate))
-                return true;
-            current = current.BaseType;
-        }
-        return false;
-    }
-
     /// <summary>
-    /// Builds the GenericTypeInfo for a generic service registration.
+    /// The constraint clause for a type parameter, as a template over <paramref name="own"/> (see <see cref="Template"/>),
+    /// or an empty string when it has none.
     /// </summary>
-    private static GenericTypeInfo BuildGenericTypeInfo(INamedTypeSymbol implementationType, INamedTypeSymbol serviceInterface)
-    {
-        var typeParameters = implementationType.TypeParameters;
-        var typeParameterNames = typeParameters.Select(tp => tp.Name).ToArray();
-
-        // Build constraint clauses
-        var constraintClauses = typeParameters
-            .Select(BuildConstraintClause)
-            .Where(c => !string.IsNullOrEmpty(c))
-            .ToArray();
-
-        // Build the type parameter list string (e.g., "<TEntity, TKey>")
-        var typeParamList = $"<{string.Join(", ", typeParameterNames)}>";
-
-        // Build fully qualified type names with type parameters
-        // For service: global::Namespace.IGenericRepository<TEntity, TKey>
-        // For implementation: global::Namespace.GenericRepository<TEntity, TKey>
-        var serviceTypeFqn = serviceInterface.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        // Remove the <,> or <,,> etc. from the unbound generic and replace with actual type params
-        var serviceTypeBase = serviceTypeFqn.Contains('<')
-            ? serviceTypeFqn.Substring(0, serviceTypeFqn.IndexOf('<'))
-            : serviceTypeFqn;
-        var genericServiceTypeName = serviceTypeBase + typeParamList;
-
-        var implTypeFqn = implementationType.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        var implTypeBase = implTypeFqn.Contains('<')
-            ? implTypeFqn.Substring(0, implTypeFqn.IndexOf('<'))
-            : implTypeFqn;
-        var genericImplementationTypeName = implTypeBase + typeParamList;
-
-        // Get simple name for suffix generation
-        var implementationSimpleName = implementationType.Name;
-
-        return new GenericTypeInfo
-        {
-            TypeParameterNames = typeParameterNames,
-            ConstraintClauses = constraintClauses,
-            GenericServiceTypeName = genericServiceTypeName,
-            GenericImplementationTypeName = genericImplementationTypeName,
-            ImplementationSimpleName = implementationSimpleName,
-        };
-    }
-
-    /// <summary>
-    /// Builds a constraint clause string for a type parameter.
-    /// </summary>
-    private static string BuildConstraintClause(ITypeParameterSymbol typeParameter)
+    private static string ConstraintTemplate(ITypeParameterSymbol typeParameter, IReadOnlyList<ITypeParameterSymbol> own, ref string? foreign)
     {
         var parts = new List<string>();
 
@@ -517,8 +538,7 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
         // Type constraints (base class, interfaces)
         foreach (var constraintType in typeParameter.ConstraintTypes)
         {
-            var constraintTypeName = constraintType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            parts.Add(constraintTypeName);
+            parts.Add(Template(constraintType, own, ref foreign));
         }
 
         // new() constraint must come last
@@ -530,6 +550,6 @@ public class ServiceRegistrationsGenerator : IncrementalGenerator
         if (parts.Count == 0)
             return string.Empty;
 
-        return $"where {typeParameter.Name} : {string.Join(", ", parts)}";
+        return $"where {{{IndexOf(own, typeParameter)}}} : {string.Join(", ", parts)}";
     }
 }
