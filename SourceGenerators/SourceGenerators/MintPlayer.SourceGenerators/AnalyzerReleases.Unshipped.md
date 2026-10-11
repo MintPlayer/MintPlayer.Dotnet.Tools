@@ -13,3 +13,6 @@ INJECT003  | MintPlayer.SourceGenerators   | Error    | PostConstruct method can
 INJECT004  | MintPlayer.SourceGenerators   | Warning  | PostConstruct in class without [Inject] members
 REGISTER001| MintPlayer.SourceGenerators   | Error    | Assembly-level [Register] requires at least the implementation type
 REGISTER002| MintPlayer.SourceGenerators   | Error    | Class-level [Register] should not specify implementation type
+INJECT005  | MintPlayer.SourceGenerators   | Error    | PostConstruct method must return void
+INJECT006  | MintPlayer.SourceGenerators   | Error    | Type must be partial to receive a generated constructor
+INJECT007  | MintPlayer.SourceGenerators   | Error    | Type with a parameter list cannot receive a generated constructor

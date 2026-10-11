@@ -56,18 +56,15 @@ public partial class Class3 : Class1
     }
 }
 
-// Test case: PostConstruct with different return types (should work)
-public partial class ClassWithTaskPostConstruct
-{
-    [Inject] private readonly ITestService1 testService1;
-
-    [PostConstruct]
-    private Task OnInitializedAsync()
-    {
-        Console.WriteLine("ClassWithTaskPostConstruct initialized!");
-        return Task.CompletedTask;
-    }
-}
+// Test case: a [PostConstruct] method must return void. A constructor cannot await a Task, so
+// returning one is INJECT005 (uncomment to see it):
+// public partial class ClassWithTaskPostConstruct
+// {
+//     [Inject] private readonly ITestService1 testService1;
+//
+//     [PostConstruct]
+//     private Task OnInitializedAsync() => Task.CompletedTask;
+// }
 
 // Test case: PostConstruct with internal access modifier (should work)
 public partial class ClassWithInternalPostConstruct

@@ -94,11 +94,6 @@ public partial class ConnectionStringField
 public partial class OptionsField
 {
     /// <summary>
-    /// The configuration section name.
-    /// </summary>
-    public string? Section { get; set; }
-
-    /// <summary>
     /// The fully qualified type of the field (e.g., "Microsoft.Extensions.Options.IOptions&lt;MyOptions&gt;").
     /// </summary>
     public string Type { get; set; } = string.Empty;

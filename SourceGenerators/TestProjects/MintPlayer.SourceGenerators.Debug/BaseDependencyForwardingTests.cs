@@ -131,17 +131,13 @@ public partial class MixedLeaf : MixedMiddle
 
 // ============================================================================
 // Test Case 5: Non-partial class extending class with [Inject] (diagnostic test)
-// This is expected to fail compilation or emit a diagnostic warning
-// Uncomment to test diagnostic reporting
+// A class without markers of its own never opted in, so the generator leaves it alone; the compiler
+// reports CS7036 (no base constructor without arguments). With an [Inject] member it would be INJECT006.
+// Uncomment to see it.
 // ============================================================================
 
-// UNCOMMENT TO TEST DIAGNOSTIC:
 // public class NonPartialDerived : BaseWithInject
 // {
-//     // This should emit INJECT005 warning/error:
-//     // "Class 'NonPartialDerived' extends a class with [Inject] dependencies
-//     //  but is not marked as partial. Add the 'partial' modifier to enable
-//     //  constructor generation."
 // }
 
 // ============================================================================

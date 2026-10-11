@@ -123,6 +123,25 @@ public partial class CustomerController {
 
 The source-generator will generate the constructor for you. It supports DI when using inheritance too.
 
+The type must be `partial`, and so must every type it is nested in; otherwise the generator reports INJECT006.
+The constructor is `public`, unless a dependency's type is less accessible than the type itself: a public class
+that injects an internal interface gets an `internal` constructor. Nullable dependencies (`IFoo? foo`) become
+optional parameters, placed after the required ones.
+
+### Records and structs
+
+`[Inject]` works on a `class`, `record` (or `record class`), `struct` and `record struct`, at top level or nested
+in any of them (or in an interface). A value type's constructor chains `: this()`. Some consequences of the type kind:
+
+- **Structs:** `default(S)` and `new S()` do not run the generated constructor, so the injected fields are `null`
+  and `[PostConstruct]` does not run. Only a constructed instance (through the container, `ActivatorUtilities` or
+  the generated constructor) has its dependencies.
+- **Records:** the compiler-generated equality compares every field, so two records are equal only when they hold
+  the same injected service instances.
+- **`with` expressions** copy the injected fields into the new instance and do **not** run `[PostConstruct]` again.
+- A type with a parameter list (a positional record, or a class or struct with a primary constructor) cannot get
+  a second constructor: that is INJECT007. Take the dependencies as primary-constructor parameters instead.
+
 ### Post-Construction Initialization
 
 If you need to run initialization logic after all dependencies are injected, use the `[PostConstruct]` attribute:
@@ -144,6 +163,7 @@ The `[PostConstruct]` method will be called automatically at the end of the gene
 
 **Rules:**
 - The method must be parameterless
+- The method must return `void`: a constructor cannot await a `Task`, so an async method would run fire-and-forget
 - Only one `[PostConstruct]` method is allowed per class
 - The method cannot be static
 - Each class in an inheritance hierarchy can have its own `[PostConstruct]` method (base class method runs first)
@@ -156,6 +176,9 @@ The `[PostConstruct]` method will be called automatically at the end of the gene
 | INJECT002 | Error | Only one PostConstruct method allowed per class |
 | INJECT003 | Error | PostConstruct method cannot be static |
 | INJECT004 | Warning | PostConstruct method in class without `[Inject]` members |
+| INJECT005 | Error | PostConstruct method must return void |
+| INJECT006 | Error | The type, or a type it is nested in, is not partial (or is file-local, or an interface) |
+| INJECT007 | Error | The type has a parameter list (positional record or primary constructor) |
 
 ## Configuration Binding
 
@@ -188,10 +211,20 @@ public partial class DatabaseService
 
 ### IOptions Pattern
 
+`[Options]` injects an `IOptions<T>`, `IOptionsSnapshot<T>` or `IOptionsMonitor<T>` through the constructor. It
+does **not** bind the options: the section argument is documentation only. Bind each options type once, where it
+is registered:
+
+```csharp
+services.AddOptions<EmailSettings>().BindConfiguration("Email");
+services.AddOptions<CustomerConfig>().BindConfiguration("Customer");
+services.AddOptions<FeatureFlags>().BindConfiguration("Features");
+```
+
 ```csharp
 public partial class EmailService
 {
-    [Options("Email")]
+    [Options("Email")]   // documents the section; the registration above does the binding
     private readonly IOptions<EmailSettings> emailOptions;
 
     [Options("Customer")]
@@ -201,6 +234,9 @@ public partial class EmailService
     private readonly IOptionsMonitor<FeatureFlags> featureFlags;
 }
 ```
+
+Keys and names (`[Config(Keys.Database)]`, `[ConnectionString(Names.Main)]`, `[Config("Db:" + "Host")]`) may be
+any constant expression.
 
 ### IConfiguration Deduplication
 
