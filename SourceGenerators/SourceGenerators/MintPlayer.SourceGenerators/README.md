@@ -104,6 +104,10 @@ public static IServiceCollection AddMyAssembly(this IServiceCollection services)
 | Third-party self-registration | Assembly | `[assembly: Register(typeof(Impl), ServiceLifetime.Scoped)]` |
 | Third-party interface registration | Assembly | `[assembly: Register(typeof(IService), typeof(Impl), ServiceLifetime.Scoped)]` |
 
+`[Register]` works on records as well as classes. An open generic service on a non-generic class registers the
+interface the class implements: `[Register(typeof(IRepository<>), ServiceLifetime.Scoped)]` on
+`class PersonRepository : IRepository<string>` registers `IRepository<string>`.
+
 ### Registration Diagnostics
 
 | Rule ID | Severity | Description |
@@ -276,15 +280,17 @@ public partial class ConfigAwareService
 | CONFIG002 | Error | Empty configuration key |
 | CONFIG003 | Error | Unsupported field type |
 | CONFIG006 | Error | Conflicting [Config] and [ConnectionString] |
+| CONFIG007 | Warning | Duplicate configuration key in one class |
 | CONFIG008 | Error | Conflicting [Config] and [Inject] |
 | CONNSTR001 | Error | Empty connection string name |
 | CONNSTR002 | Error | [ConnectionString] requires string type |
+| CONNSTR003 | Error | Conflicting [ConnectionString] and [Inject] |
 | OPTIONS001 | Error | Invalid options type |
 | OPTIONS003 | Error | Conflicting [Options] and [Inject] |
 
 ## Interface Implementation
 
-There's also an analyzer that will check if all `public` class members are known on the implemented interface. The analyzer provides a code-fix to add the missing members.
+There's also an analyzer (INTF001) that will check if all `public` members of a class or struct are known on the implemented interface. The analyzer provides a code-fix to add the missing members.
 
 ```csharp
 public interface ICustomerService { }

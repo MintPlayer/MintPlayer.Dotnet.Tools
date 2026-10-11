@@ -36,6 +36,10 @@ public class RegisterAttribute : Attribute
     /// Registers a class as an implementation of a service type (interface or base class).
     /// Use on class declarations.
     /// </summary>
+    /// <remarks>
+    /// An open generic service type follows the interface the class implements: <c>typeof(IRepository&lt;&gt;)</c> on
+    /// <c>class PersonRepository : IRepository&lt;string&gt;</c> registers <c>IRepository&lt;string&gt;</c>.
+    /// </remarks>
     public RegisterAttribute(Type serviceType, ServiceLifetime lifetime, string methodNameHint = default, EGeneratedAccessibility accessibility = EGeneratedAccessibility.Unspecified) { }
 
     /// <summary>

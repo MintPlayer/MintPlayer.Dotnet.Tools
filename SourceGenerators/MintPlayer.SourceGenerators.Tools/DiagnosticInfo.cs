@@ -16,8 +16,9 @@ namespace MintPlayer.SourceGenerators.Tools;
 /// <para>
 /// The descriptor passed to <see cref="Create"/> or the constructor is registered under its id and looked up again
 /// when the diagnostic is reported. Descriptors are <c>static readonly</c> fields with ids that are unique across
-/// the generators, so the id identifies the descriptor. Never create a descriptor per call with a message that
-/// varies: put the varying part in the arguments.
+/// the generators, so the id identifies the descriptor: registering a second, different descriptor under an id
+/// already seen throws <see cref="InvalidOperationException"/>. Never create a descriptor per call with a message
+/// that varies: put the varying part in the arguments.
 /// </para>
 /// <para>
 /// Report through <see cref="GeneratorExtensions.ReportDiagnostics(IncrementalGeneratorInitializationContext, IncrementalValuesProvider{DiagnosticInfo}[])"/>,
@@ -47,6 +48,7 @@ public sealed class DiagnosticInfo : IEquatable<DiagnosticInfo>
     /// Captures a diagnostic at <paramref name="location"/>. Each argument is stored as its string form (invariant
     /// culture for numbers; a symbol as its display string), which is also how the message would format it.
     /// </summary>
+    /// <exception cref="InvalidOperationException">A different descriptor was registered under <paramref name="rule"/>'s id.</exception>
     public static DiagnosticInfo Create(DiagnosticDescriptor rule, Location? location, params object?[] args)
         => new(rule, location is null || location.Kind == LocationKind.None ? null : location.AsKey(), ToStrings(args));
 

@@ -72,7 +72,7 @@ silently into warnings or errors. Read **Behaviour changes** before upgrading.
 
 **MintPlayer.ValueComparerGenerator**
 - MINT007 (Error): `[GenerateEquality]` on a ref struct, a static class, a C# 15 union or a file-local type, or a type
-  nested in one. Before: CS8121, CS0261, a phantom partial, or nothing.
+  nested in a union or a file-local type. Before: CS8121, CS0261, a phantom partial, or nothing.
 - MINT008 (Warning): see Behaviour changes.
 
 **MintPlayer.SourceGenerators.Tools**
@@ -80,9 +80,9 @@ silently into warnings or errors. Read **Behaviour changes** before upgrading.
   variance, `@`-escaping, `UnsupportedReason`, `includeTarget`, `UniqueTypeParameterName`/`UniqueTypeParameterPrefix`.
 - Attribute helpers: `IsAttribute`, `FindAttribute(s)`, `HasAttribute`, `TryGetArgument`/`GetArgument` (constants,
   arithmetic, casts, enums, `typeof`).
-- Discovery plumbing: `DiagnosticInfo` (keyed by rule id, holds no Roslyn objects), `Discovered<T>`, `ForAttribute`,
-  `Models()`/`Diagnostics()`, a `ReportDiagnostics` overload for `DiagnosticInfo`, `Producer.WritePreamble`/
-  `NullableEnable`, `OpenNamespace`.
+- Discovery plumbing: `DiagnosticInfo` (keyed by rule id, holds no Roslyn objects; a second, different descriptor
+  under an id already seen throws), `Discovered<T>`, `ForAttribute`, `Models()`/`Diagnostics()`, a
+  `ReportDiagnostics` overload for `DiagnosticInfo`, `Producer.WritePreamble`/`NullableEnable`, `OpenNamespace`.
 - MPSG002 (Warning): reported instead of a diagnostic that could not be reported, so it is neither lost nor a crash.
 - Release tracking (`AnalyzerReleases.*.md`) for MPSG001/MPSG002.
 
@@ -102,8 +102,8 @@ silently into warnings or errors. Read **Behaviour changes** before upgrading.
   constructor; a split base is forwarded whole, including its config and options parameters. Nullable `[Inject]`
   parameters come after the required ones (was CS1737). The constructor is `internal`/`protected` when a dependency is
   less accessible (was CS0051). `[Config]`/`[ConnectionString]`/`[Options]` accept any constant expression.
-- `[Options("Section")]`: the section is documentation only, as the attribute's XML doc already said; the README now
-  shows `BindConfiguration`. OPTIONS002, which was never reported, is removed.
+- `[Options("Section")]`: the section is documentation only, as the attribute's XML doc already said; the README and
+  the XML doc now show `BindConfiguration`. OPTIONS002, which was never reported, is removed.
 - `[Register]` works on records; a split partial is registered once; open generics follow the implemented interface's
   type arguments (reordered, partially closed, renamed); a generic class registered against itself or a non-generic
   service gets a generic `Add<T>()`.
@@ -155,10 +155,14 @@ silently into warnings or errors. Read **Behaviour changes** before upgrading.
 **MintPlayer.CliGenerator**
 - `[CliOption(null)]` crashed the generator (CS8785).
 - The generated partial repeated the accessibility (CS0262 for `private protected`).
+- README: the example called `AddDemoCommandTree()` and `app.Services.InvokeDemoCommandAsync(args)`; the generated
+  methods are `AddDemoCommand()` and `InvokeDemoCommandAsync(args)` on the `IHost`.
 
 **MintPlayer.Mapper**
 - An erroneous `[GenerateMapper]` broke `MapperEntrypoint.g.cs`; base and derived mapped together gave CS8120; a
   `[MapperConversion]` in a partial static class was registered once per part.
+- README: the examples used `[MapperAlias]` and non-generic `[MapperState]`/`[MapperConversion]` overloads, which do
+  not exist; they use `[MapTo]`, `[MapperState<TEnum>]` and `[MapperConversion<TEnum>]`.
 
 **MintPlayer.ValueComparerGenerator**
 - MINT001 overflowed the stack (taking down the compiler) on an expanding generic such as

@@ -25,17 +25,20 @@ public static class SymbolExtensions
     }
 
     /// <summary>
-    /// Creates a path specification representing the namespace and parent type hierarchy for the specified named type
-    /// symbol.
+    /// Creates a path specification representing the namespace, the containing types and the type itself for the
+    /// specified named type symbol.
     /// </summary>
-    /// <remarks>The returned path specification includes the fully qualified namespace and all containing
-    /// parent types that are classes or structs. Partial type information is included for parent types declared as
-    /// partial. This method throws an <see cref="OperationCanceledException"/> if the operation is canceled via the
-    /// provided <paramref name="cancellationToken"/>.</remarks>
+    /// <remarks>The returned path specification holds the namespace (empty for the global namespace), every
+    /// containing type (class, struct, record, record struct or interface) and the type itself as
+    /// <see cref="PathSpec.Target"/>, each with its kind, type parameters (with variance) and whether it is partial or
+    /// file-local. <see cref="PathSpec.UnsupportedReason"/> says why a generated partial cannot re-declare the type
+    /// (not partial, file-local, or an enum, delegate or union). Re-declare the type with
+    /// <c>OpenPathSpec(spec, includeTarget: true)</c>. This method throws an <see cref="OperationCanceledException"/>
+    /// if the operation is canceled via the provided <paramref name="cancellationToken"/>.</remarks>
     /// <param name="typeSymbol">The named type symbol for which to generate the path specification. Must not be null.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
-    /// <returns>A <see cref="PathSpec"/> instance containing the namespace and parent type information for <paramref
-    /// name="typeSymbol"/>; or <see langword="null"/> if the path specification cannot be determined.</returns>
+    /// <returns>A <see cref="PathSpec"/> for <paramref name="typeSymbol"/>. Never null in practice: the nullable return
+    /// type is kept for source compatibility.</returns>
     public static PathSpec? GetPathSpec(this INamedTypeSymbol typeSymbol, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -157,7 +160,10 @@ public static class SymbolExtensions
     }
 
     /// <summary>
-    /// Recreates the entire hierarchy of a nested class/struct
+    /// Opens every containing type of a nested type, and with
+    /// <paramref name="includeTarget"/> the type itself, as <c>partial</c> blocks with the right keyword
+    /// (<c>class</c>, <c>struct</c>, <c>record</c>, <c>record struct</c> or <c>interface</c>), type parameters and
+    /// variance. Accessibility, other modifiers and constraints are never repeated. The namespace itself is not opened.
     /// </summary>
     /// <param name="writer">Indented text writer</param>
     /// <param name="pathSpec">The result of <see cref="SymbolExtensions.GetPathSpec(INamedTypeSymbol, CancellationToken)"/></param>
@@ -289,7 +295,7 @@ internal class PathSpecStack : IDisposablePathSpecStack
 }
 
 /// <summary>
-/// The namespace and containing types of a type symbol. Compares by value, so a pipeline model holding a
+/// The namespace, the containing types and the type itself (<see cref="PathSpec.Target"/>) of a type symbol. Compares by value, so a pipeline model holding a
 /// <see cref="PathSpec"/> stays equal to its previous run under <see cref="EqualityComparer{T}.Default"/>.
 /// </summary>
 public class PathSpec : IEquatable<PathSpec>
@@ -362,7 +368,7 @@ public enum EPathSpecUnsupportedReason
     UnsupportedKind,
 }
 
-/// <summary>One containing type of a <see cref="PathSpec"/>. Compares by value.</summary>
+/// <summary>One type of a <see cref="PathSpec"/>: a containing type, or the <see cref="PathSpec.Target"/>. Compares by value.</summary>
 public class PathSpecElement : IEquatable<PathSpecElement>
 {
     public string? Name { get; set; }
@@ -370,7 +376,7 @@ public class PathSpecElement : IEquatable<PathSpecElement>
     public bool IsPartial { get; set; }
 
     /// <summary>
-    /// Generic type parameters for the parent type, e.g., "&lt;TOuter&gt;"
+    /// Generic type parameters for the type, with their variance, e.g., "&lt;TOuter&gt;" or "&lt;in T&gt;"
     /// </summary>
     public string? GenericTypeParameters { get; set; }
 
