@@ -480,6 +480,75 @@ milestone.
 - **S6. `ForAttributeWithMetadataName` and caching.** For each migrated generator, confirm with the existing
   `IncrementalOutputCachingTests` pattern that an unrelated keystroke still re-runs nothing.
 
+## Spike results (M0)
+
+Full write-ups were produced per spike: S1.md, S2.md, S345.md and S78.md.
+
+**S1. The extended `GetPathSpec`: adopted, additive.**
+- The type itself becomes `PathSpec.Target`.
+- `OpenPathSpec(spec, includeTarget: true, baseList, targetLeadingLines)` opens the namespace, every parent and the type
+  in one `using`. `includeTarget` stays `false` by default, because Tools is published.
+- `EPathSpecType` gains `Record`, `RecordStruct` and `Interface`.
+- `EPathSpecUnsupportedReason` has the values `None`, `TargetNotPartial`, `ParentNotPartial`, `FileLocal` and
+  `UnsupportedKind`. When several apply, the first wins in this order: the target, then parents inside-out; within one
+  element, kind, then `file`, then partial.
+- Rules:
+  - Always write `record` for a reference record. It is the only spelling C# 9 accepts, and it merges with a user part
+    spelled `record class`.
+  - Never repeat constraints, accessibility, `readonly`, `ref`, `static`, `sealed` or `abstract`.
+  - Do repeat interface variance (`in`/`out`); omitting it is CS1067.
+  - `@`-escape every identifier.
+  - `IsPartial` means "any part is partial".
+- Found while testing:
+  - `OpenPathSpec` wrote `record class`, which is CS8773 at C# 9.
+  - A `file` type re-declared in another file is a phantom type, so `FileLocal` is unsupported for every element in the
+    chain.
+  - C# 15 `union` binds as `TypeKind.Struct`, so it is reported as `UnsupportedKind` until `IsUnion` is no longer
+    experimental.
+- Equality on the new API is byte-identical (snapshots 18/18).
+- `UniqueTypeParameterName` must return names that are free **for every index**: `T1` → `T11` collides at arity 11 or
+  more. GenericMethod therefore takes a prefix (`TArg`, extended until no `{prefix}{n}` collides).
+
+**S2. Strict harness: opt-out, strict by default.** Turning it on broke none of 659 existing tests, and it detects C1,
+C3 and C5. Roslyn moves AD0001 into the `onAnalyzerException` callback, so the harness re-adds it from there. This
+shipped in M1 (`fb60069`).
+
+**S3. Inject:**
+- Generate for **all five kinds**; the user's five-kind requirement wins over the spike's suggestion to reject value
+  types. DI constructs a struct through `ActivatorUtilities` or a `typeof` registration.
+- Value types chain `: this()`, which avoids CS0171 at C# 10.
+- README: `default(S)` / `new S()` skip the constructor; record equality compares the injected fields; `with` copies
+  them and does not re-run `[PostConstruct]`.
+- **New finding P25:** a type with a parameter list (positional record, primary-constructor class or struct) plus the
+  generated constructor gives CS8862. Report an Inject diagnostic instead.
+
+**S4. Mapper:**
+- Emit the null guard only for reference types.
+- Skip the copy overload for value-type destinations. Nothing calls it, and with a struct destination it never worked.
+- P17: emit `[return: NotNullIfNotNull("input")] D? Map(this S? input)` for reference types. Use the literal
+  `"input"`, because `nameof` there needs C# 11. Only emit the attribute when the attribute type exists in the
+  compilation. Value types keep `S` → `D`.
+- Remove the unreachable return (CS0162).
+- There are no downstream users of the Mapper.
+
+**S5. INTF001 on structs: keep.** It produced 0 new warnings across about 2,400 files (Spark, AspNetCore.Tools, this
+repo). The code fix works on struct and record struct. Update the stale comment at
+`InterfaceImplementationAnalyzer.CodeFix.cs:45`.
+
+**S7. `[Options("Section")]`: keep `Section` as documentation and fix the README.**
+- The attribute's XML doc and `PRD-ConfigAttribute.md` already call it informational; the README contradicts them.
+- Auto-binding would merge different sections bound to one options type, and could duplicate list entries.
+- Remove the never-reported OPTIONS002. Correct the `DependencyInjectionDebugging` sample.
+
+**S8. GenericMethod arity 1: drop it, with no opt-in.**
+- It also hijacks calls from inside the class: `Add(List<object>)` there receives 1 element.
+- No usages exist in any local repo.
+- Attribute shape: `GenericMethodAttribute(int count = 4)` plus a settable `int Count`, range 2..16.
+- G16 test: an outside `b.Add(list)` no longer compiles (the original is private); an in-class call reaches the
+  original.
+- G15: under `#nullable enable`, `this.Add([t1])` gives CS8601. The generated parameters must be nullable-aware
+  (`T1?` or `object?` elements).
+
 ## Test plan
 
 All tests go into `MintPlayer.SourceGenerators.Tests` (Tools-level tests go into `MintPlayer.SourceGenerators.Tools.Tests`).
