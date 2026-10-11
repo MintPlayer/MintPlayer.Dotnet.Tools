@@ -169,6 +169,34 @@ public class InjectConfigTests
             "a field cannot be both injected and bound from configuration");
     }
 
+    /// <summary>
+    /// [Inject] with a config marker on one member reported the conflict but still injected the member: the
+    /// constructor took a parameter for it. Like OPTIONS004/OPTIONS005, a conflict now emits neither binding.
+    /// </summary>
+    [Theory]
+    [InlineData("[Config(\"Db\")]", "CONFIG008")]
+    [InlineData("[ConnectionString(\"Default\")]", "CONNSTR003")]
+    [InlineData("[Options(\"Database\")]", "OPTIONS003")]
+    public void AnInjectThatCollidesWithAConfigMarker_EmitsNeitherBinding(string marker, string ruleId)
+    {
+        var run = Run($$"""
+                [Inject] private readonly System.IServiceProvider _provider;
+                [Inject]
+                {{marker}}
+                private readonly DatabaseOptions _value;
+            }
+
+            public class DatabaseOptions { public string Host { get; set; } = ""; }
+            """);
+
+        run.Of(ruleId).Should().ContainSingle().Which.GetMessage().Should().Contain("_value");
+        var output = run.SourceFor("Inject.g.cs");
+        output.Should().Contain("_provider", "the member without a conflict is still injected");
+        output.Should().NotContain("_value", "neither binding is generated for a conflicting member");
+        output.Should().NotContain("GetSection(", "neither binding is generated for a conflicting member");
+        output.Should().NotContain("GetConnectionString(", "neither binding is generated for a conflicting member");
+    }
+
     [Fact]
     public void ItReportsDuplicateConfigKeys()
     {

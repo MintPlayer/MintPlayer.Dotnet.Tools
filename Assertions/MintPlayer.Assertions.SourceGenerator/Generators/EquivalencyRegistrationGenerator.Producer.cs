@@ -26,7 +26,7 @@ internal sealed class EquivalencyRegistrationProducer : Producer
 
         writer.WriteLine("#nullable enable");
         writer.WriteLine();
-        writer.WriteLine(Header);
+        WriteHeader(writer);
         writer.WriteLine();
 
         using (writer.OpenBlock($"namespace {RootNamespace}"))

@@ -35,7 +35,7 @@ public sealed class EqualityProducer : Producer
         // Not WritePreamble: it writes the header before #nullable, and this file's order is pinned by the snapshots.
         writer.WriteLine("#nullable enable");
         writer.WriteLine();
-        writer.WriteLine(Header);
+        WriteHeader(writer);
 
         // Grouped by declared namespace, as CliCommandProducer does. Never a file-scoped namespace, so a namespace
         // block and the global-namespace models (written without one) can share the file.

@@ -32,7 +32,7 @@ internal class JoinMethodProducer : Producer
 
         writer.WriteLine("#nullable enable");
         writer.WriteLine();
-        writer.WriteLine(Header);
+        WriteHeader(writer);
         writer.WriteLine();
 
         using (writer.OpenBlock("namespace Microsoft.CodeAnalysis"))

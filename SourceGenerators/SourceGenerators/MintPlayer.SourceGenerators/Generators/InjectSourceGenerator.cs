@@ -127,7 +127,13 @@ public class InjectSourceGenerator : IncrementalGenerator
         var location = type.Locations.FirstOrDefault();
 
         var unsupportedReason = GetUnsupportedReason(type, pathSpec);
-        var members = CollectMembers(type, diagnostics, reportNotPartial: unsupportedReason is not null, ct);
+        // CONFIG001 names the type itself, so it is only right when that type is not partial. A file-local type, a
+        // partial type in a non-partial parent and an interface get INJECT006, which names the offender and the reason.
+        var extensibility = unsupportedReason is null ? Extensibility.Extensible
+            : type.TypeKind != TypeKind.Interface && pathSpec?.UnsupportedReason == EPathSpecUnsupportedReason.TargetNotPartial
+                ? Extensibility.TargetNotPartial
+                : Extensibility.CannotExtend;
+        var members = CollectMembers(type, diagnostics, extensibility, ct);
 
         if (unsupportedReason is not null)
         {
@@ -215,6 +221,16 @@ public class InjectSourceGenerator : IncrementalGenerator
 
     #region Members
 
+    /// <summary>Whether a partial of the type can be emitted, and if not, which diagnostic says so.</summary>
+    private enum Extensibility
+    {
+        Extensible,
+        /// <summary>The type itself is not partial: CONFIG001 on each config member.</summary>
+        TargetNotPartial,
+        /// <summary>Any other reason (file-local, a non-partial parent, an interface): INJECT006 on the type.</summary>
+        CannotExtend,
+    }
+
     private sealed class Members
     {
         public bool HasMarkers;
@@ -235,7 +251,7 @@ public class InjectSourceGenerator : IncrementalGenerator
     /// Reads the marked members of every partial part of <paramref name="type"/>. With <paramref name="diagnostics"/>
     /// null (a base class), nothing is reported.
     /// </summary>
-    private static Members CollectMembers(INamedTypeSymbol type, List<DiagnosticInfo>? diagnostics, bool reportNotPartial, CancellationToken ct)
+    private static Members CollectMembers(INamedTypeSymbol type, List<DiagnosticInfo>? diagnostics, Extensibility extensibility, CancellationToken ct)
     {
         var result = new Members();
         var usedConfigKeys = new HashSet<string>();
@@ -247,13 +263,13 @@ public class InjectSourceGenerator : IncrementalGenerator
             switch (member)
             {
                 case IFieldSymbol { IsImplicitlyDeclared: false } field:
-                    CollectDataMember(result, field, field.Type, isAssignable: true, type.Name, diagnostics, reportNotPartial, usedConfigKeys);
+                    CollectDataMember(result, field, field.Type, isAssignable: true, type.Name, diagnostics, extensibility, usedConfigKeys);
                     break;
                 case IPropertySymbol { IsIndexer: false } property:
                     // A get-only (or init-only) property can be assigned in the constructor; one with a setter is not
                     // injected (INJECT008).
                     var isAssignable = property.SetMethod is null || property.SetMethod.IsInitOnly;
-                    CollectDataMember(result, property, property.Type, isAssignable, type.Name, diagnostics, reportNotPartial, usedConfigKeys);
+                    CollectDataMember(result, property, property.Type, isAssignable, type.Name, diagnostics, extensibility, usedConfigKeys);
                     break;
                 case IMethodSymbol { MethodKind: MethodKind.Ordinary } method when method.HasAttribute(PostConstructAttributeName):
                     result.HasMarkers = true;
@@ -271,7 +287,7 @@ public class InjectSourceGenerator : IncrementalGenerator
     }
 
     private static void CollectDataMember(Members result, ISymbol member, ITypeSymbol memberType, bool isAssignable, string className,
-        List<DiagnosticInfo>? diagnostics, bool reportNotPartial, HashSet<string> usedConfigKeys)
+        List<DiagnosticInfo>? diagnostics, Extensibility extensibility, HashSet<string> usedConfigKeys)
     {
         var injectAttr = member.FindAttribute(InjectAttributeName);
         var configAttr = member.FindAttribute(ConfigAttributeName);
@@ -284,32 +300,39 @@ public class InjectSourceGenerator : IncrementalGenerator
         var location = member.Locations.FirstOrDefault();
         var isNullable = IsNullable(memberType);
         var hasInject = injectAttr is not null;
+        var hasConfigMarker = configAttr is not null || connStrAttr is not null || optionsAttr is not null;
 
         void Report(DiagnosticDescriptor rule, params object?[] args) => diagnostics?.Add(DiagnosticInfo.Create(rule, location, args));
 
-        if (hasInject && isAssignable)
+        // [Inject] together with a config marker is a conflict (CONFIG008, CONNSTR003, OPTIONS003, below): neither
+        // binding is emitted, as for two config markers, so the member is not injected either.
+        if (hasInject && !hasConfigMarker)
         {
-            result.InjectFields.Add((new Models.InjectField
+            if (isAssignable)
             {
-                Type = memberType.ToDisplayString(ParameterTypeFormat),
-                Name = name,
-                IsNullable = isNullable,
-            }, memberType));
-        }
-        else if (hasInject && configAttr is null && connStrAttr is null && optionsAttr is null)
-        {
-            // With another marker the conflict rule below names the problem.
-            Report(DiagnosticRules.InjectPropertyHasSetter, name);
+                result.InjectFields.Add((new Models.InjectField
+                {
+                    Type = memberType.ToDisplayString(ParameterTypeFormat),
+                    Name = name,
+                    IsNullable = isNullable,
+                }, memberType));
+            }
+            else
+            {
+                Report(DiagnosticRules.InjectPropertyHasSetter, name);
+            }
         }
 
-        if (configAttr is null && connStrAttr is null && optionsAttr is null) return;
+        if (!hasConfigMarker) return;
 
         // Declared types keep the format the config emitters always used (no '?' on a reference type).
         var fqn = memberType.ToDisplayString(MatchTypeFormat);
 
-        if (reportNotPartial)
+        if (extensibility != Extensibility.Extensible)
         {
-            Report(DiagnosticRules.ConfigNonPartialClass, className);
+            // Any other reason is INJECT006, reported once on the type.
+            if (extensibility == Extensibility.TargetNotPartial)
+                Report(DiagnosticRules.ConfigNonPartialClass, className);
             return;
         }
 
@@ -409,7 +432,7 @@ public class InjectSourceGenerator : IncrementalGenerator
         if (inSource)
         {
             // Every partial part counts, not just the first declaration (W4).
-            var members = CollectMembers(baseType, diagnostics: null, reportNotPartial: false, ct);
+            var members = CollectMembers(baseType, diagnostics: null, Extensibility.Extensible, ct);
             if (members.HasGeneratedMembers)
                 return ComputeParameters(baseType, members, depth, ct).Parameters;
         }

@@ -459,5 +459,41 @@ public class InjectTypeKindTests
         run.Of("INJECT006").Should().ContainSingle();
     }
 
+    /// <summary>
+    /// CONFIG001 says "Class '{0}' must be partial" and names the type itself. It was reported for every type that
+    /// cannot be extended, which hid INJECT006 and named the wrong type: a file-local type is partial, the parent of a
+    /// nested type was the one missing the keyword, and an interface has no constructor whether it is partial or not.
+    /// Those get INJECT006 with the offender and the reason now; CONFIG001 is only for a non-partial type.
+    /// </summary>
+    [Theory]
+    [InlineData("file partial class Svc { [Config(\"Db:Host\")] private readonly string host; }",
+        "'Svc'", "'Svc' is file-local")]
+    [InlineData("public class Outer { public partial class Svc { [Config(\"Db:Host\")] private readonly string host; } }",
+        "'Svc'", "its containing type 'Outer' is not partial")]
+    [InlineData("public interface ISvc { [Config(\"Db:Host\")] string Host { get; } }",
+        "'ISvc'", "'ISvc' is an interface")]
+    [InlineData("public partial interface ISvc { [ConnectionString(\"Default\")] string Db { get; } }",
+        "'ISvc'", "'ISvc' is an interface")]
+    public void AConfigMemberOnATypeThatCannotBeExtended_IsInject006_NotConfig001(string declaration, string type, string reason)
+    {
+        var run = Run(Dependencies + declaration);
+
+        run.Of("CONFIG001").Should().BeEmpty("the type is not a non-partial type; CONFIG001 would name the wrong problem");
+        var message = run.Of("INJECT006").Should().ContainSingle().Which.GetMessage();
+        message.Should().Contain($"No constructor can be generated for {type}");
+        message.Should().Contain(reason);
+        run.SourceFor("Inject.g.cs").Should().BeNull();
+    }
+
+    /// <summary>The control for the theory above: a config member on a non-partial type is still CONFIG001 alone.</summary>
+    [Fact]
+    public void AConfigMemberOnANonPartialType_IsConfig001()
+    {
+        var run = Run(Dependencies + "public class Svc { [Config(\"Db:Host\")] private readonly string host; }");
+
+        run.Of("CONFIG001").Should().ContainSingle().Which.GetMessage().Should().Contain("'Svc' must be partial");
+        run.Of("INJECT006").Should().BeEmpty("CONFIG001 already names the problem on the member");
+    }
+
     #endregion
 }

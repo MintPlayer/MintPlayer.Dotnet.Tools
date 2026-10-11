@@ -34,19 +34,26 @@ Deviations from the design as written:
   project named `My-App` through as `My-App`) broke every generator that writes `namespace {RootNamespace}`; Tools
   now sanitizes it once (`StringExtensions.ToSafeNamespace`, applied in `Settings` and `Producer`). `[Options]` with
   `[ConnectionString]` on one member was the one marker pair without a diagnostic; it is OPTIONS005.
+- Found in the last pre-PR pass and fixed (I12–I14): generated files mixed LF and CRLF when the package was built on
+  another OS than the one using it; CONFIG001 named the wrong type and hid INJECT006; `[Inject]` with a config marker
+  still injected the member. The Tools fixes (I7, I12) change the output of the MintPlayer.Assertions generators,
+  which ship Tools in their payload, so MintPlayer.Assertions moves 11.0.0-rc.5 → 11.0.0-rc.6.
 
 Every finding, including those discovered during implementation, has its outcome under
 [Findings](#findings) and [Findings during implementation](#findings-during-implementation).
 
-Final test sweep. The first three rows are from the last run, after the RootNamespace and OPTIONS005 fixes
-(`1b4e8b1`). The E2E-category packaging tests, NewtonsoftJson tests and the TestProjects build are from the M9 sweep
-(`f32cb71`); `1b4e8b1` changed no packaging.
+Final test sweep. The first four rows are from the last run, after the line-ending, CONFIG001 and conflict fixes
+(I12–I14). The E2E-category packaging tests, NewtonsoftJson tests and the TestProjects build are from the M9 sweep
+(`f32cb71`); later commits changed no packaging beyond the MintPlayer.Assertions version, and
+`eng/Assert-PackageVersions.ps1` passes on Release packs of Tools, SourceGenerators, ValueComparerGenerator and
+Assertions.
 
 | Project | Passed | Failed | Skipped |
 |---|---|---|---|
-| MintPlayer.SourceGenerators.Tests (excluding E2E) | 1040 | 0 | 0 |
-| MintPlayer.SourceGenerators.Tools.Tests | 307 | 0 | 0 |
-| MintPlayer.Assertions.SourceGenerator.Tests | 82 | 0 | 0 |
+| MintPlayer.SourceGenerators.Tests (excluding E2E) | 1057 | 0 | 0 |
+| MintPlayer.SourceGenerators.Tools.Tests | 314 | 0 | 0 |
+| MintPlayer.Assertions.SourceGenerator.Tests | 84 | 0 | 0 |
+| MintPlayer.Assertions.Tests (net10.0 and net11.0, each) | 1078 | 0 | 0 |
 | MintPlayer.SourceGenerators.Tests, E2E (`PackagingTests`) | 17 | 0 | 0 |
 | MintPlayer.ValueComparers.NewtonsoftJson.Tests | 15 | 0 | 0 |
 
@@ -317,6 +324,9 @@ Found after the audit, while implementing or reviewing. All are fixed in this PR
 | I9 | Docs pass (`c58c7b6`) | Installation, measured on packed packages: the generators are development dependencies, so `dotnet add package` writes an `IncludeAssets` list without `compile` that also filters the `*.Attributes` dependency; the attributes are CS0246. The READMEs said the generator brings them along. | Every README says to install both packages. |
 | I10 | M2 review | The first `DiagnosticInfo` held the `DiagnosticDescriptor`, a Roslyn object in a pipeline value. | It holds the rule id (`a577a26`); a second, different descriptor under one id throws (`44d1c0d`). See D0.3. |
 | I11 | M8 | A diagnostic that could not be reported was turned into MPSG002 (C7), but the harness did not treat it as a crash. | MPSG002 joined the harness's crash ids (`37c02ca`). |
+| I12 | Last pre-PR pass | `Producer.Header` is a raw string literal, so its line breaks are the checkout's, while `IndentedTextWriter` writes `Environment.NewLine`: a package built on Linux and used on Windows emitted an LF header above a CRLF body. No other generator emits a multi-line literal (checked: every `"""` and `@"` in the generators). | `Producer.WriteHeader` / `IndentedTextWriterExtensions.WriteLines` write it line by line; the four producers that wrote `Header` themselves (Equality, JoinMethods, both Assertions generators) and `Producer`'s preamble use it. `LineEndingGuardTests` in both generator test projects, plus checkout-independent `WriteLines`/`WriteHeader` tests in Tools. |
+| I13 | Last pre-PR pass | CONFIG001 ("Class '{0}' must be partial", naming the type itself) was reported on the config members of every type that cannot be extended, and suppressed INJECT006: wrong for a file-local partial type, a partial type in a non-partial parent and an interface. | CONFIG001 only when the type itself is not partial; the rest get INJECT006 with the offender and reason from `PathSpec`. |
+| I14 | Last pre-PR pass | `[Inject]` with `[Config]`, `[ConnectionString]` or `[Options]` reported CONFIG008/CONNSTR003/OPTIONS003 but still injected the member. | Neither binding on a conflict, as OPTIONS004/005; the error stays. |
 
 ## Current five-kind matrix
 
@@ -762,7 +772,8 @@ M4a (Inject) and M4b (the rest of MintPlayer.SourceGenerators).
 ## Versioning
 
 Every package under `SourceGenerators/` moves 12.1.1 → **12.2.0** in lockstep (bumped on branch
-`fix/193-generator-non-class-crash`).
+`fix/193-generator-non-class-crash`). MintPlayer.Assertions, which bundles Tools in its analyzer payload, moves
+11.0.0-rc.5 → **11.0.0-rc.6** (its generator csproj too), because I7 and I12 change what its generators emit.
 
 This is a minor release, not a patch:
 - The Attributes package gains a public type (`GenericMethodAttribute`), and Tools gains public API (D0).
