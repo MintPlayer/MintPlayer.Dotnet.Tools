@@ -313,16 +313,18 @@ public sealed class MapperProducer : Producer
             else
                 return $"input.{destination.PropertyName}";
         }
+        // A null collection maps to null, also into a non-nullable property (the type strings carry no `?`), hence
+        // `null!`: a plain `null` there was CS8601 under #nullable enable.
         // Handle arrays
         else if (IsArrayType(source.PropertyType) && IsArrayType(destination.PropertyType))
         {
             var elementType = GetElementType(source.PropertyType);
             if (IsPrimitiveOrString(elementType))
-                return $"input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToArray()";
+                return $"input.{destination.PropertyName} == null ? null! : input.{destination.PropertyName}.ToArray()";
             else
             {
                 var shortName = elementType.WithoutGlobal().Split('.').Last();
-                return $"input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}(){notNullSuffix}).ToArray()";
+                return $"input.{destination.PropertyName} == null ? null! : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}(){notNullSuffix}).ToArray()";
             }
         }
         // Handle List<T>
@@ -330,11 +332,11 @@ public sealed class MapperProducer : Producer
         {
             var elementType = GetElementType(source.PropertyType);
             if (IsPrimitiveOrString(elementType))
-                return $"input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToList()";
+                return $"input.{destination.PropertyName} == null ? null! : input.{destination.PropertyName}.ToList()";
             else
             {
                 var shortName = elementType.WithoutGlobal().Split('.').Last();
-                return $"input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}(){notNullSuffix}).ToList()";
+                return $"input.{destination.PropertyName} == null ? null! : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}(){notNullSuffix}).ToList()";
             }
         }
         // Handle ICollection<T>
@@ -342,17 +344,17 @@ public sealed class MapperProducer : Producer
         {
             var elementType = GetElementType(source.PropertyType);
             if (IsPrimitiveOrString(elementType))
-                return $"input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.ToList()";
+                return $"input.{destination.PropertyName} == null ? null! : input.{destination.PropertyName}.ToList()";
             else
             {
                 var shortName = elementType.WithoutGlobal().Split('.').Last();
-                return $"input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}(){notNullSuffix}).ToList()";
+                return $"input.{destination.PropertyName} == null ? null! : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}(){notNullSuffix}).ToList()";
             }
         }
         // Handle nullable reference types
         else if (IsNullableType(source.PropertyType) && IsNullableType(destination.PropertyType))
         {
-            return $"input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.MapTo{source.PropertyTypeName}()";
+            return $"input.{destination.PropertyName} == null ? null! : input.{destination.PropertyName}.MapTo{source.PropertyTypeName}()";
         }
         // Handle complex types
         else

@@ -440,10 +440,28 @@ public class MapperTypeKindTests
             [GenerateMapper(typeof(AddressDto))]
             public class Address { public string Street { get; set; } = ""; }
 
-            public class PersonDto { public AddressDto Address { get; set; } = new(); public string? Nick { get; set; } }
+            public class PersonDto
+            {
+                public AddressDto Address { get; set; } = new();
+                public string? Nick { get; set; }
+                public List<string> Notes { get; set; } = new();
+                public string[] Tags { get; set; } = [];
+                public List<AddressDto> Others { get; set; } = new();
+                public AddressDto[] More { get; set; } = [];
+                public List<AddressDto>? Maybe { get; set; }
+            }
 
             [GenerateMapper(typeof(PersonDto))]
-            public class Person { public Address Address { get; set; } = new(); public string? Nick { get; set; } }
+            public class Person
+            {
+                public Address Address { get; set; } = new();
+                public string? Nick { get; set; }
+                public List<string> Notes { get; set; } = new();
+                public string[] Tags { get; set; } = [];
+                public List<Address> Others { get; set; } = new();
+                public Address[] More { get; set; } = [];
+                public List<Address>? Maybe { get; set; }
+            }
 
             public static class Caller
             {
