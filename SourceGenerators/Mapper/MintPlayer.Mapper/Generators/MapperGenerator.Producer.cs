@@ -24,7 +24,37 @@ public sealed class MapperProducer : Producer
         this.conversionMethods = conversionMethods;
         this.hasNotNullIfNotNull = hasNotNullIfNotNull;
         notNullSuffix = hasNotNullIfNotNull ? string.Empty : "!";
+
+        // The generated method for each (input, output) pair, so a nested property calls the method that is
+        // actually generated for its type: an assembly-level [GenerateMapper] may name it with its own prefix.
+        foreach (var type in typesToMap)
+        {
+            var t = type.TypeToMap;
+            AddMappingMethod(t.MappingType, t.DeclaredType, t.PreferredDeclaredMethodName);
+            if (!t.AreBothDecorated)
+                AddMappingMethod(t.DeclaredType, t.MappingType, t.PreferredMappingMethodName);
+        }
     }
+
+    private readonly Dictionary<(string Input, string Output), string> mappingMethods = new();
+
+    private void AddMappingMethod(string inputType, string outputType, string methodName)
+    {
+        if (!mappingMethods.ContainsKey((inputType, outputType)))
+            mappingMethods[(inputType, outputType)] = methodName;
+    }
+
+    /// <summary>
+    /// The name of the generated method that maps <paramref name="inputType"/> to <paramref name="outputType"/>.
+    /// For a pair this compilation does not map, <c>MapTo{shortName}</c>: the default name, which a hand-written
+    /// extension method may provide.
+    /// </summary>
+    private string MappingMethod(string inputType, string outputType, string shortName)
+        => mappingMethods.TryGetValue((WithoutNullable(inputType), WithoutNullable(outputType)), out var name)
+            ? name
+            : $"MapTo{shortName}";
+
+    private static string WithoutNullable(string type) => type.TrimEnd('?');
 
     protected override bool WritePreamble => true;
 
@@ -324,7 +354,7 @@ public sealed class MapperProducer : Producer
             else
             {
                 var shortName = elementType.WithoutGlobal().Split('.').Last();
-                return $"input.{destination.PropertyName} == null ? null! : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}(){notNullSuffix}).ToArray()";
+                return $"input.{destination.PropertyName} == null ? null! : input.{destination.PropertyName}.Select(x => x.{MappingMethod(GetElementType(destination.PropertyType), elementType, shortName)}(){notNullSuffix}).ToArray()";
             }
         }
         // Handle List<T>
@@ -336,7 +366,7 @@ public sealed class MapperProducer : Producer
             else
             {
                 var shortName = elementType.WithoutGlobal().Split('.').Last();
-                return $"input.{destination.PropertyName} == null ? null! : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}(){notNullSuffix}).ToList()";
+                return $"input.{destination.PropertyName} == null ? null! : input.{destination.PropertyName}.Select(x => x.{MappingMethod(GetElementType(destination.PropertyType), elementType, shortName)}(){notNullSuffix}).ToList()";
             }
         }
         // Handle ICollection<T>
@@ -348,18 +378,18 @@ public sealed class MapperProducer : Producer
             else
             {
                 var shortName = elementType.WithoutGlobal().Split('.').Last();
-                return $"input.{destination.PropertyName} == null ? null! : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}(){notNullSuffix}).ToList()";
+                return $"input.{destination.PropertyName} == null ? null! : input.{destination.PropertyName}.Select(x => x.{MappingMethod(GetElementType(destination.PropertyType), elementType, shortName)}(){notNullSuffix}).ToList()";
             }
         }
         // Handle nullable reference types
         else if (IsNullableType(source.PropertyType) && IsNullableType(destination.PropertyType))
         {
-            return $"input.{destination.PropertyName} == null ? null! : input.{destination.PropertyName}.MapTo{source.PropertyTypeName}()";
+            return $"input.{destination.PropertyName} == null ? null! : input.{destination.PropertyName}.{MappingMethod(destination.PropertyType, source.PropertyType, source.PropertyTypeName)}()";
         }
         // Handle complex types
         else
         {
-            return $"input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(){notNullSuffix}";
+            return $"input.{destination.PropertyName}.{MappingMethod(destination.PropertyType, source.PropertyType, source.PropertyTypeName)}(){notNullSuffix}";
         }
     }
 

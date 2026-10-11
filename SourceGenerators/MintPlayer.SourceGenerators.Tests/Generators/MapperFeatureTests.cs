@@ -60,6 +60,52 @@ public class MapperFeatureTests
     }
 
     /// <summary>
+    /// A type mapped at assembly level with a custom prefix, used as a nested property (single, nullable, array,
+    /// list and collection) of another mapped pair. The nested mapping hard-coded <c>MapTo{Type}()</c>, which
+    /// does not exist once the prefix is honoured (CS1061).
+    /// </summary>
+    [Fact]
+    public void ANestedProperty_CallsTheMethodNamedByAnAssemblyLevelPrefix()
+    {
+        var run = Run("""
+            using System.Collections.Generic;
+            using MintPlayer.Mapper.Attributes;
+
+            [assembly: GenerateMapper(typeof(Demo.Address), typeof(Demo.AddressDto), "Convert")]
+            [assembly: GenerateMapper(typeof(Demo.Person), typeof(Demo.PersonDto), "Convert")]
+
+            namespace Demo;
+
+            public class Address { public string Street { get; set; } = ""; }
+            public class AddressDto { public string Street { get; set; } = ""; }
+
+            public class Person
+            {
+                public Address Home { get; set; } = new();
+                public Address? Work { get; set; }
+                public Address[] Previous { get; set; } = [];
+                public List<Address> Others { get; set; } = new();
+                public ICollection<Address> Billing { get; set; } = new List<Address>();
+            }
+
+            public class PersonDto
+            {
+                public AddressDto Home { get; set; } = new();
+                public AddressDto? Work { get; set; }
+                public AddressDto[] Previous { get; set; } = [];
+                public List<AddressDto> Others { get; set; } = new();
+                public ICollection<AddressDto> Billing { get; set; } = new List<AddressDto>();
+            }
+            """);
+
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        run.AllSources.Should().Contain("input.Home.ConvertAddressDto()");
+        run.AllSources.Should().Contain("input.Home.ConvertAddress()");
+        run.AllSources.Should().Contain("x => x.ConvertAddressDto()");
+        run.AllSources.Should().NotContain("MapToAddress");
+    }
+
+    /// <summary>
     /// The assembly-level attribute reaches a different accessibility calculation than the
     /// class-level one, because neither type carries the attribute that would mark it decorated.
     /// An internal participant must force the emitted extension method to internal, or the
