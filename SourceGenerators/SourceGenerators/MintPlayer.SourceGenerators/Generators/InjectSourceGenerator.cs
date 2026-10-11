@@ -132,7 +132,7 @@ public class InjectSourceGenerator : IncrementalGenerator
         if (unsupportedReason is not null)
         {
             // An unmarked type never opted in: say nothing. CONFIG001 already named the problem on each config member.
-            if (members.HasMarkers && diagnostics.Count == 0)
+            if (members.HasMarkers && !diagnostics.Any(d => d.RuleId == DiagnosticRules.ConfigNonPartialClass.Id))
                 diagnostics.Add(DiagnosticInfo.Create(DiagnosticRules.InjectTypeCannotBeExtended, location, type.Name, unsupportedReason));
             return Result(null, diagnostics, members.HasMarkers);
         }
@@ -250,7 +250,8 @@ public class InjectSourceGenerator : IncrementalGenerator
                     CollectDataMember(result, field, field.Type, isAssignable: true, type.Name, diagnostics, reportNotPartial, usedConfigKeys);
                     break;
                 case IPropertySymbol { IsIndexer: false } property:
-                    // A get-only (or init-only) property can be assigned in the constructor; one with a setter is not injected.
+                    // A get-only (or init-only) property can be assigned in the constructor; one with a setter is not
+                    // injected (INJECT008).
                     var isAssignable = property.SetMethod is null || property.SetMethod.IsInitOnly;
                     CollectDataMember(result, property, property.Type, isAssignable, type.Name, diagnostics, reportNotPartial, usedConfigKeys);
                     break;
@@ -284,6 +285,8 @@ public class InjectSourceGenerator : IncrementalGenerator
         var isNullable = IsNullable(memberType);
         var hasInject = injectAttr is not null;
 
+        void Report(DiagnosticDescriptor rule, params object?[] args) => diagnostics?.Add(DiagnosticInfo.Create(rule, location, args));
+
         if (hasInject && isAssignable)
         {
             result.InjectFields.Add((new Models.InjectField
@@ -293,13 +296,16 @@ public class InjectSourceGenerator : IncrementalGenerator
                 IsNullable = isNullable,
             }, memberType));
         }
+        else if (hasInject && configAttr is null && connStrAttr is null && optionsAttr is null)
+        {
+            // With another marker the conflict rule below names the problem.
+            Report(DiagnosticRules.InjectPropertyHasSetter, name);
+        }
 
         if (configAttr is null && connStrAttr is null && optionsAttr is null) return;
 
         // Declared types keep the format the config emitters always used (no '?' on a reference type).
         var fqn = memberType.ToDisplayString(MatchTypeFormat);
-
-        void Report(DiagnosticDescriptor rule, params object?[] args) => diagnostics?.Add(DiagnosticInfo.Create(rule, location, args));
 
         if (reportNotPartial)
         {
@@ -311,6 +317,7 @@ public class InjectSourceGenerator : IncrementalGenerator
         {
             if (hasInject) { Report(DiagnosticRules.ConfigConflictWithInject, name); return; }
             if (connStrAttr is not null) { Report(DiagnosticRules.ConfigConflictWithConnectionString, name); return; }
+            if (optionsAttr is not null) { Report(DiagnosticRules.OptionsConflictWithConfig, name); return; }
 
             var configField = ExtractConfigField(configAttr, name, fqn, isNullable, memberType, Report, className, usedConfigKeys);
             if (configField is not null) result.ConfigFields.Add(configField);
@@ -582,6 +589,14 @@ public class InjectSourceGenerator : IncrementalGenerator
             return null;
         }
 
+        if (hasDefaultValue && configAttr.TryGetArgument<TypedConstant>("DefaultValue", out var defaultConstant)
+            && !IsCompatibleDefault(defaultConstant, typeSymbol, typeCategory))
+        {
+            var defaultType = defaultConstant.IsNull ? "null" : defaultConstant.Type?.ToDisplayString() ?? "?";
+            report(DiagnosticRules.ConfigDefaultValueTypeMismatch, [defaultType, typeSymbol.ToDisplayString()]);
+            return null;
+        }
+
         return new ConfigField
         {
             Key = key!,
@@ -683,6 +698,93 @@ public class InjectSourceGenerator : IncrementalGenerator
             Name = fieldName,
             OptionsType = namedType.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             Kind = kind
+        };
+    }
+
+    /// <summary>
+    /// Whether the producer can emit <paramref name="constant"/> as the fallback of a field of
+    /// <paramref name="fieldType"/>, so that it compiles and is the value written (CONFIG005).
+    /// </summary>
+    private static bool IsCompatibleDefault(TypedConstant constant, ITypeSymbol fieldType, ConfigFieldTypeCategory category)
+    {
+        // A typeof or an array is never emitted.
+        if (constant.Kind is TypedConstantKind.Type or TypedConstantKind.Array or TypedConstantKind.Error) return false;
+
+        var underlying = fieldType is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable
+            ? nullable.TypeArguments[0]
+            : fieldType;
+
+        // Null fits a Nullable<T>, and a reference type unless the nullable context says it is not nullable.
+        if (constant.IsNull)
+            return fieldType.IsValueType
+                ? !SymbolEqualityComparer.Default.Equals(underlying, fieldType)
+                : fieldType.NullableAnnotation != NullableAnnotation.NotAnnotated;
+
+        var value = constant.Value;
+        switch (category)
+        {
+            case ConfigFieldTypeCategory.String:
+                return value is string;
+            case ConfigFieldTypeCategory.Boolean:
+                return value is bool;
+            case ConfigFieldTypeCategory.Char:
+                return value is char;
+            case ConfigFieldTypeCategory.Uri:
+                return value is string;
+            case ConfigFieldTypeCategory.Enum:
+                if (constant.Kind == TypedConstantKind.Enum)
+                    return SymbolEqualityComparer.Default.Equals(constant.Type, underlying);
+                if (value is string name)
+                    return underlying.GetMembers(name).Any(m => m is IFieldSymbol { HasConstantValue: true });
+                return IsIntegral(value);
+            case ConfigFieldTypeCategory.Numeric:
+                return constant.Kind == TypedConstantKind.Primitive && FitsNumeric(value!, underlying.SpecialType);
+            default:
+                // DateTime, TimeSpan, DateOnly, TimeOnly, Guid, POCOs and collections have no constant form.
+                return false;
+        }
+    }
+
+    private static bool IsIntegral(object? value)
+        => value is sbyte or byte or short or ushort or int or uint or long or ulong;
+
+    /// <summary>
+    /// The producer writes the value as a literal (an integer without suffix, a float, double or decimal with its
+    /// suffix, a char in quotes), so this is the C# rule for that literal: an integer converts when it fits, a char
+    /// widens to ushort and up, a float to double; a floating-point or decimal literal never narrows to an integer.
+    /// </summary>
+    private static bool FitsNumeric(object value, SpecialType target)
+    {
+        if (value is char c)
+            return target is SpecialType.System_UInt16 or SpecialType.System_Int32 or SpecialType.System_UInt32
+                or SpecialType.System_Int64 or SpecialType.System_UInt64
+                or SpecialType.System_Single or SpecialType.System_Double or SpecialType.System_Decimal;
+
+        if (IsIntegral(value))
+        {
+            if (target is SpecialType.System_Single or SpecialType.System_Double or SpecialType.System_Decimal) return true;
+
+            // Every integral value fits in decimal, so compare there.
+            var number = Convert.ToDecimal(value, System.Globalization.CultureInfo.InvariantCulture);
+            return target switch
+            {
+                SpecialType.System_SByte => number >= sbyte.MinValue && number <= sbyte.MaxValue,
+                SpecialType.System_Byte => number >= byte.MinValue && number <= byte.MaxValue,
+                SpecialType.System_Int16 => number >= short.MinValue && number <= short.MaxValue,
+                SpecialType.System_UInt16 => number >= ushort.MinValue && number <= ushort.MaxValue,
+                SpecialType.System_Int32 => number >= int.MinValue && number <= int.MaxValue,
+                SpecialType.System_UInt32 => number >= uint.MinValue && number <= uint.MaxValue,
+                SpecialType.System_Int64 => number >= long.MinValue && number <= long.MaxValue,
+                SpecialType.System_UInt64 => number >= ulong.MinValue && number <= ulong.MaxValue,
+                _ => false,
+            };
+        }
+
+        return value switch
+        {
+            float => target is SpecialType.System_Single or SpecialType.System_Double,
+            double => target is SpecialType.System_Double,
+            _ => false,
         };
     }
 

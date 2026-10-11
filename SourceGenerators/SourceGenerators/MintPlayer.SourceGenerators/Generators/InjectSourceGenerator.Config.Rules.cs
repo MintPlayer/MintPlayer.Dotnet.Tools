@@ -32,10 +32,13 @@ public static partial class DiagnosticRules
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    // Compatible means the generated fallback compiles and is the value written: a constant of the field's type, an
+    // integer that fits a numeric field, an enum member, its name or an integer for an enum field, a string for a Uri.
+    // DateTime, TimeSpan, DateOnly, TimeOnly, Guid, POCO and collection fields have no constant form at all.
     public static readonly DiagnosticDescriptor ConfigDefaultValueTypeMismatch = new(
         id: "CONFIG005",
         title: "Default value type mismatch",
-        messageFormat: "DefaultValue type '{0}' is not compatible with field type '{1}'",
+        messageFormat: "DefaultValue of type '{0}' cannot be used for a field of type '{1}'",
         category: ConfigCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);

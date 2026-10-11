@@ -184,14 +184,15 @@ internal class InjectProducer : Producer
         {
             writer.WriteLine($"this.{cfg.Name} = ({configVar}[\"{cfg.Key}\"] ?? throw new global::System.InvalidOperationException(\"Configuration key '{cfg.Key}' is required but was not found.\"))[0];");
         }
+        else if (cfg.HasDefaultValue)
+        {
+            // CONFIG005 admits only a char (or null on a char?).
+            var defaultChar = FormatDefaultValue(cfg.DefaultValue, cfg.TypeCategory);
+            writer.WriteLine($"this.{cfg.Name} = {configVar}[\"{cfg.Key}\"] is string {tempVar} && {tempVar}.Length > 0 ? {tempVar}[0] : {defaultChar};");
+        }
         else if (cfg.IsNullable)
         {
             writer.WriteLine($"this.{cfg.Name} = {configVar}[\"{cfg.Key}\"] is string {tempVar} && {tempVar}.Length > 0 ? {tempVar}[0] : null;");
-        }
-        else if (cfg.HasDefaultValue)
-        {
-            var defaultChar = cfg.DefaultValue is char c ? $"'{c}'" : $"'{cfg.DefaultValue}'";
-            writer.WriteLine($"this.{cfg.Name} = {configVar}[\"{cfg.Key}\"] is string {tempVar} && {tempVar}.Length > 0 ? {tempVar}[0] : {defaultChar};");
         }
         else
         {
@@ -218,14 +219,18 @@ internal class InjectProducer : Producer
         {
             writer.WriteLine($"this.{cfg.Name} = {parseMethod}({configVar}[\"{cfg.Key}\"] ?? throw new global::System.InvalidOperationException(\"Configuration key '{cfg.Key}' is required but was not found.\"){cultureArg});");
         }
+        else if (cfg.HasDefaultValue)
+        {
+            // A default wins over null on a nullable field too: it is the value when the key is missing.
+            var defaultVal = FormatDefaultValue(cfg.DefaultValue, cfg.TypeCategory);
+            // Cast a number to the field's type: `byte.Parse(s) : 200` has type int. CONFIG005 has checked it fits.
+            if (cfg.TypeCategory == ConfigFieldTypeCategory.Numeric && cfg.DefaultValue is not null)
+                defaultVal = $"({NonNullable(cfg.Type)})({defaultVal})";
+            writer.WriteLine($"this.{cfg.Name} = {configVar}[\"{cfg.Key}\"] is string {tempVar} ? {parseMethod}({tempVar}{cultureArg}) : {defaultVal};");
+        }
         else if (cfg.IsNullable)
         {
             writer.WriteLine($"this.{cfg.Name} = {configVar}[\"{cfg.Key}\"] is string {tempVar} ? {parseMethod}({tempVar}{cultureArg}) : null;");
-        }
-        else if (cfg.HasDefaultValue)
-        {
-            var defaultVal = FormatDefaultValue(cfg.DefaultValue, cfg.TypeCategory);
-            writer.WriteLine($"this.{cfg.Name} = {configVar}[\"{cfg.Key}\"] is string {tempVar} ? {parseMethod}({tempVar}{cultureArg}) : {defaultVal};");
         }
         else
         {
@@ -261,15 +266,20 @@ internal class InjectProducer : Producer
         {
             writer.WriteLine($"this.{cfg.Name} = global::System.Enum.Parse<{enumType}>({configVar}[\"{cfg.Key}\"] ?? throw new global::System.InvalidOperationException(\"Configuration key '{cfg.Key}' is required but was not found.\"));");
         }
+        else if (cfg.HasDefaultValue)
+        {
+            // A member name, or a number: an enum member arrives as its underlying value, of any integral type.
+            var defaultVal = cfg.DefaultValue switch
+            {
+                null => "null",
+                string name => $"{enumType}.{name}",
+                var number => $"({enumType})({FormatDefaultValue(number, cfg.TypeCategory)})",
+            };
+            writer.WriteLine($"this.{cfg.Name} = {configVar}[\"{cfg.Key}\"] is string {tempVar} ? global::System.Enum.Parse<{enumType}>({tempVar}) : {defaultVal};");
+        }
         else if (cfg.IsNullable)
         {
             writer.WriteLine($"this.{cfg.Name} = {configVar}[\"{cfg.Key}\"] is string {tempVar} ? global::System.Enum.Parse<{enumType}>({tempVar}) : null;");
-        }
-        else if (cfg.HasDefaultValue)
-        {
-            // For enums, default value might be the enum value or its underlying int
-            var defaultVal = cfg.DefaultValue is int i ? $"({enumType}){i}" : $"{enumType}.{cfg.DefaultValue}";
-            writer.WriteLine($"this.{cfg.Name} = {configVar}[\"{cfg.Key}\"] is string {tempVar} ? global::System.Enum.Parse<{enumType}>({tempVar}) : {defaultVal};");
         }
         else
         {
@@ -285,6 +295,10 @@ internal class InjectProducer : Producer
         if (isRequired)
         {
             writer.WriteLine($"this.{cfg.Name} = new global::System.Uri({configVar}[\"{cfg.Key}\"] ?? throw new global::System.InvalidOperationException(\"Configuration key '{cfg.Key}' is required but was not found.\"));");
+        }
+        else if (cfg.DefaultValue is string defaultUri)
+        {
+            writer.WriteLine($"this.{cfg.Name} = new global::System.Uri({configVar}[\"{cfg.Key}\"] ?? \"{EscapeString(defaultUri)}\");");
         }
         else if (cfg.IsNullable)
         {
@@ -374,17 +388,31 @@ internal class InjectProducer : Producer
     {
         if (value == null) return "null";
 
+        // Invariant culture: the build machine's culture would otherwise write "3,5d".
+        var invariant = global::System.Globalization.CultureInfo.InvariantCulture;
         return value switch
         {
             bool b => b ? "true" : "false",
-            char c => $"'{c}'",
+            char c => $"'{EscapeChar(c)}'",
             string s => $"\"{EscapeString(s)}\"",
-            float f => $"{f}f",
-            double d => $"{d}d",
-            decimal m => $"{m}m",
+            float f => $"{f.ToString("R", invariant)}f",
+            double d => $"{d.ToString("R", invariant)}d",
+            decimal m => $"{m.ToString(invariant)}m",
+            IFormattable number => number.ToString(null, invariant),
             _ => value.ToString() ?? "default"
         };
     }
+
+    private static string EscapeChar(char c) => c switch
+    {
+        '\'' => "\\'",
+        '\\' => "\\\\",
+        '\n' => "\\n",
+        '\r' => "\\r",
+        '\t' => "\\t",
+        '\0' => "\\0",
+        _ => c.ToString(),
+    };
 
     private static string EscapeString(string s)
     {

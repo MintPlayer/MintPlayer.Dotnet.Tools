@@ -422,5 +422,42 @@ public class InjectTypeKindTests
         run.SourceFor("Inject.g.cs").Should().BeNull();
     }
 
+    /// <summary>
+    /// A property with an ordinary setter is not injected; it used to be skipped without a word, leaving it null at
+    /// run time. INJECT008 says so, while get-only and init-only properties on the same type are still assigned.
+    /// </summary>
+    [Fact]
+    public void ASettableInjectPropertyIsReported()
+    {
+        var run = Run(Dependencies + """
+            public partial class Svc
+            {
+                [Inject] public IDep Settable { get; set; }
+                [Inject] public IOther GetOnly { get; }
+                [Inject] public IDep InitOnly { get; init; }
+            }
+            """);
+
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        var diagnostic = run.Of("INJECT008").Should().ContainSingle().Which;
+        diagnostic.Severity.Should().Be(DiagnosticSeverity.Warning);
+        diagnostic.GetMessage().Should().Contain("'Settable'");
+
+        var output = run.SourceFor("Inject.g.cs");
+        output.Should().Contain("this.GetOnly = ");
+        output.Should().Contain("this.InitOnly = ");
+        output.Should().NotContain("Settable");
+    }
+
+    /// <summary>INJECT008 alone does not hide INJECT006 on a type that cannot be extended.</summary>
+    [Fact]
+    public void ASettableInjectPropertyOnANonPartialTypeReportsBoth()
+    {
+        var run = Run(Dependencies + "public class NotPartial { [Inject] public IDep Settable { get; set; } }");
+
+        run.Of("INJECT008").Should().ContainSingle();
+        run.Of("INJECT006").Should().ContainSingle();
+    }
+
     #endregion
 }

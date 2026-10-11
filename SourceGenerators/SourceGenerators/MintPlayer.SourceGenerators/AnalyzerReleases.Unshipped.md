@@ -12,6 +12,7 @@ GENMETHOD004 | MintPlayer.SourceGenerators | Error    | [GenericMethod] Count ou
 INJECT005    | MintPlayer.SourceGenerators | Error    | PostConstruct method must return void
 INJECT006    | MintPlayer.SourceGenerators | Error    | Type must be partial to receive a generated constructor
 INJECT007    | MintPlayer.SourceGenerators | Error    | Type with a parameter list cannot receive a generated constructor
+INJECT008    | MintPlayer.SourceGenerators | Warning  | [Inject] property with a setter is not injected
 REGISTER003  | MintPlayer.SourceGenerators | Error    | [Register] type is not accessible from the generated registration method
 REGISTER004  | MintPlayer.SourceGenerators | Error    | [Register] lifetime is not a defined ServiceLifetime
 REGISTER005  | MintPlayer.SourceGenerators | Error    | [Register] service type cannot be expressed in the generated registration

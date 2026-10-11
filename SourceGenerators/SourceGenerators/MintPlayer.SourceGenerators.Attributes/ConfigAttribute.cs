@@ -60,8 +60,11 @@ public class ConfigAttribute : Attribute
 
     /// <summary>
     /// Default value when the configuration key is not found.
-    /// When specified on a non-nullable field, makes the field optional (uses default instead of throwing).
-    /// Must be a compile-time constant. Type must match or be convertible to field type.
+    /// When specified on a non-nullable field, makes the field optional (uses default instead of throwing); on a
+    /// nullable field it is used instead of null.
+    /// Must be a constant the field can hold: a string for a string or Uri, a number that fits a numeric field, a
+    /// member, name or number for an enum. DateTime, TimeSpan, Guid, POCO and collection fields take no default.
+    /// Anything else is CONFIG005.
     /// </summary>
     public object? DefaultValue { get; set; }
 

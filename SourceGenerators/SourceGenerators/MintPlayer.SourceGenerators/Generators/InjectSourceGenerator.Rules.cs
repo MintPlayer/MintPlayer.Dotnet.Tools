@@ -65,4 +65,16 @@ public static partial class DiagnosticRules
         category: "MintPlayer.SourceGenerators",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    // The generated constructor assigns get-only and init-only properties, as it does fields. A property with an
+    // ordinary setter is the property-injection shape of other containers (Blazor's [Inject]); generating a
+    // constructor for it would change how the type is constructed, so it is left alone and said so. A warning: the
+    // code compiles, but the property stays null unless something else sets it.
+    public static readonly DiagnosticDescriptor InjectPropertyHasSetter = new(
+        id: "INJECT008",
+        title: "[Inject] property with a setter is not injected",
+        messageFormat: "Property '{0}' has a setter, so [Inject] does not assign it. Use a field, or a get-only or init-only property.",
+        category: "MintPlayer.SourceGenerators",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
 }
