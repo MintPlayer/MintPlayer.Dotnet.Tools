@@ -148,8 +148,8 @@ hand-written keyword logic. All are additive.
 - **Discovery:** `context.SyntaxProvider.ForAttribute<TModel>(metadataName, predicate, transform)` wraps
   `ForAttributeWithMetadataName` with a transform that returns `Discovered<TModel>(model, diagnostics)`. Split it with
   `.Models(trackingName)` and `.Diagnostics()`, then `context.ReportDiagnostics(discovered.Diagnostics())`.
-  `DiagnosticInfo.Create(rule, location, args...)` holds a diagnostic by value (descriptor, `LocationKey`, string
-  arguments). Reporting never throws: a stale location is reported without one, and a diagnostic that cannot be
+  `DiagnosticInfo.Create(rule, location, args...)` holds a diagnostic by value (rule id, `LocationKey`, string
+  arguments; no Roslyn object, the descriptor is looked up by id at report time). Reporting never throws: a stale location is reported without one, and a diagnostic that cannot be
   reported becomes `MPSG002`.
 - **Re-declaring a type:** `GetPathSpec()` now also describes the type itself (`Target`), interface parents, and why a
   type cannot be re-declared (`UnsupportedReason`: not partial, `file`, or an unsupported kind).

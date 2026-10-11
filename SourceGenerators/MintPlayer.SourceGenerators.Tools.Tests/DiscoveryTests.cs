@@ -131,6 +131,21 @@ public class DiscoveryTests
         driver.GetRunResult().Results.Single().GeneratedSources.Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData(typeof(DiagnosticInfo))]
+    [InlineData(typeof(Discovered<string>))]
+    [InlineData(typeof(LocationKey))]
+    public void PipelineValuesHoldNoRoslynObjects(Type type)
+    {
+        // Models flow through the incremental pipeline: a Roslyn object in them (a Location, a symbol, even a
+        // DiagnosticDescriptor) keeps compilation-bound state alive and is exactly what LocationKey exists to avoid.
+        var roslynFields = type
+            .GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)
+            .Where(f => f.FieldType.Namespace?.StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal) == true)
+            .Select(f => $"{f.Name}: {f.FieldType.Name}");
+        roslynFields.Should().BeEmpty();
+    }
+
     [Fact]
     public void DiagnosticInfoIsAValue()
     {

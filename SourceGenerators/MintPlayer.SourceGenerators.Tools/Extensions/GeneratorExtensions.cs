@@ -114,7 +114,7 @@ public static class GeneratorExtensions
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            ReportUnreportable(context, info.Rule.Id, ex);
+            ReportUnreportable(context, info.RuleId, ex);
             return;
         }
 

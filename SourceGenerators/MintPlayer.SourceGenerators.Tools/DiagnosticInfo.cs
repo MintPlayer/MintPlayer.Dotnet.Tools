@@ -1,18 +1,23 @@
 using Microsoft.CodeAnalysis;
+using System.Collections.Concurrent;
 using System.Globalization;
 
 namespace MintPlayer.SourceGenerators.Tools;
 
 /// <summary>
-/// A diagnostic to report later, held by value so it can sit in an incremental-pipeline model: no
-/// <see cref="Location"/>, no symbol and no other compilation-bound object.
+/// A diagnostic to report later, held by value so it can sit in an incremental-pipeline model: no Roslyn object at
+/// all. Not the <see cref="Location"/> (a <see cref="LocationKey"/> instead), not a symbol, and not the
+/// <see cref="DiagnosticDescriptor"/> either: only its id.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Equality is by value: the descriptor, the <see cref="LocationKey"/> and the message arguments as strings. A
-/// <see cref="DiagnosticDescriptor"/> is itself value-equatable (id, title, message format, category, severity,
-/// ...) and is normally a <c>static readonly</c> field, so it compares cheaply and stays equal between runs.
-/// Never create a descriptor per call with a message that varies: put the varying part in the arguments.
+/// Equality is by value: the rule id, the <see cref="LocationKey"/> and the message arguments as strings.
+/// </para>
+/// <para>
+/// The descriptor passed to <see cref="Create"/> or the constructor is registered under its id and looked up again
+/// when the diagnostic is reported. Descriptors are <c>static readonly</c> fields with ids that are unique across
+/// the generators, so the id identifies the descriptor. Never create a descriptor per call with a message that
+/// varies: put the varying part in the arguments.
 /// </para>
 /// <para>
 /// Report through <see cref="GeneratorExtensions.ReportDiagnostics(IncrementalGeneratorInitializationContext, IncrementalValuesProvider{DiagnosticInfo}[])"/>,
@@ -21,9 +26,13 @@ namespace MintPlayer.SourceGenerators.Tools;
 /// </remarks>
 public sealed class DiagnosticInfo : IEquatable<DiagnosticInfo>
 {
+    private static readonly ConcurrentDictionary<string, DiagnosticDescriptor> Descriptors = new(StringComparer.Ordinal);
+
     public DiagnosticInfo(DiagnosticDescriptor rule, LocationKey? location, EquatableArray<string> args)
     {
-        Rule = rule ?? throw new ArgumentNullException(nameof(rule));
+        if (rule is null) throw new ArgumentNullException(nameof(rule));
+        Descriptors[rule.Id] = rule;
+        RuleId = rule.Id;
         Location = location;
         Args = args;
     }
@@ -35,7 +44,11 @@ public sealed class DiagnosticInfo : IEquatable<DiagnosticInfo>
     public static DiagnosticInfo Create(DiagnosticDescriptor rule, Location? location, params object?[] args)
         => new(rule, location is null || location.Kind == LocationKind.None ? null : location.AsKey(), ToStrings(args));
 
-    public DiagnosticDescriptor Rule { get; }
+    /// <summary>The <see cref="DiagnosticDescriptor.Id"/> of the rule.</summary>
+    public string RuleId { get; }
+
+    /// <summary>The descriptor registered under <see cref="RuleId"/>. Read at report time, never compared.</summary>
+    public DiagnosticDescriptor Rule => Descriptors[RuleId];
 
     /// <summary>Null for a diagnostic without a location; it is then reported at <see cref="Location.None"/>.</summary>
     public LocationKey? Location { get; }
@@ -57,7 +70,7 @@ public sealed class DiagnosticInfo : IEquatable<DiagnosticInfo>
     {
         if (other is null) return false;
         if (ReferenceEquals(this, other)) return true;
-        return Rule.Equals(other.Rule)
+        return string.Equals(RuleId, other.RuleId, StringComparison.Ordinal)
             && Equals(Location, other.Location)
             && Args.Equals(other.Args);
     }
@@ -65,9 +78,9 @@ public sealed class DiagnosticInfo : IEquatable<DiagnosticInfo>
     public override bool Equals(object? obj) => Equals(obj as DiagnosticInfo);
 
     public override int GetHashCode()
-        => ValueEquality.Combine(ValueEquality.Combine(Rule.GetHashCode(), Location?.GetHashCode() ?? 0), Args.GetHashCode());
+        => ValueEquality.Combine(ValueEquality.Combine(StringComparer.Ordinal.GetHashCode(RuleId), Location?.GetHashCode() ?? 0), Args.GetHashCode());
 
-    public override string ToString() => $"{Rule.Id} {string.Join(", ", Args)}";
+    public override string ToString() => $"{RuleId} {string.Join(", ", Args)}";
 
     private static EquatableArray<string> ToStrings(object?[]? args)
     {
