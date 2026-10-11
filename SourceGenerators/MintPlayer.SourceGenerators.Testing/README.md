@@ -84,7 +84,8 @@ cannot masquerade as a finding. AD0001 is the exception: it is kept, so a crash 
 ### A component that crashes fails the test
 
 The harness is **strict by default**. If the generator throws (CS8785), a MintPlayer `Producer`
-catches its own exception (MPSG001), or the analyzer throws (AD0001), every `Run*` and
+catches its own exception (MPSG001), a diagnostic could not be reported and was lost (MPSG002), or the
+analyzer throws (AD0001), every `Run*` and
 `ApplyCodeFixAsync` call throws `ComponentCrashedException`. Without that a crash is silent: CS8785
 is only a warning, so `Errors` stays empty, and a crashing analyzer returns no diagnostics, exactly
 like a quiet one.

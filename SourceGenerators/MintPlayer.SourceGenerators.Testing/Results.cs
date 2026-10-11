@@ -103,7 +103,8 @@ public sealed record GeneratorResult(
 
     /// <summary>
     /// Diagnostics that mean "the component crashed" rather than "the input is wrong": CS8785
-    /// (generator threw), MPSG001 (a Producer caught its own exception) and AD0001 (analyzer threw).
+    /// (generator threw), MPSG001 (a Producer caught its own exception), MPSG002 (reporting a
+    /// diagnostic threw, so the diagnostic was lost) and AD0001 (analyzer threw).
     /// </summary>
     public ImmutableArray<Diagnostic> CrashDiagnostics
         => Diagnostics.Where(d => CrashIds.IsCrash(d.Id)).ToImmutableArray();
@@ -125,7 +126,7 @@ public sealed class ComponentCrashedException(string message, Exception? inner =
 
 internal static class CrashIds
 {
-    public static bool IsCrash(string id) => id is "CS8785" or "MPSG001" or "AD0001";
+    public static bool IsCrash(string id) => id is "CS8785" or "MPSG001" or "MPSG002" or "AD0001";
 
     public static void ThrowIfAny(string kind, IEnumerable<Diagnostic> diagnostics, IEnumerable<Exception> exceptions)
     {

@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using MintPlayer.SourceGenerators.Testing;
+using MintPlayer.SourceGenerators.Tools;
 
 namespace MintPlayer.SourceGenerators.Tests.Harness;
 
@@ -105,6 +106,28 @@ public class CrashDetectionTests
             () => Strict.RunKeystroke(nameof(CrashingGenerator), [Source], 0, s => s + " "));
 
     [Fact]
+    public void AnUnreportableDiagnosticThrowsByDefault()
+    {
+        // MPSG002: the generator survived, but a diagnostic it meant to report was lost. Without it in
+        // the crash ids, the run reads as a clean one with a stray warning.
+        var ex = Assert.Throws<ComponentCrashedException>(
+            () => Strict.RunGenerator(nameof(UnreportableDiagnosticGenerator), Source));
+
+        ex.Message.Should().Contain("MPSG002");
+        ex.Message.Should().Contain(UnreportableDiagnosticGenerator.Message);
+    }
+
+    [Fact]
+    public void AnUnreportableDiagnosticIsACrashDiagnosticWhenCrashesAreAllowed()
+    {
+        var run = Lenient.RunGenerator(nameof(UnreportableDiagnosticGenerator), Source);
+
+        run.GeneratorExceptions.Should().BeEmpty();
+        Assert.Contains(run.CrashDiagnostics, d => d.Id == "MPSG002");
+        Assert.Throws<ComponentCrashedException>(() => run.EnsureNoCrash());
+    }
+
+    [Fact]
     public void RunKeystrokeReturnsWhenCrashesAreAllowed()
     {
         var run = Lenient.RunKeystroke(nameof(CrashingGenerator), [Source], 0, s => s + " ");
@@ -193,6 +216,25 @@ public sealed class CrashingGenerator : IIncrementalGenerator
         => context.RegisterSourceOutput(
             context.CompilationProvider,
             (_, _) => throw new InvalidOperationException(Message));
+}
+
+/// <summary>
+/// Reports through <c>ReportDiagnostics</c> with a reporter that throws: the Tools plumbing turns
+/// the lost diagnostic into MPSG002 instead of crashing the generator (CS8785).
+/// </summary>
+public sealed class UnreportableDiagnosticGenerator : IIncrementalGenerator
+{
+    public const string Message = "Deliberate reporter crash.";
+
+    public void Initialize(IncrementalGeneratorInitializationContext context)
+        => context.ReportDiagnostics(context.CompilationProvider.Select(
+            static MintPlayer.SourceGenerators.Tools.IDiagnosticReporter (_, _) => new ThrowingReporter()));
+
+    private sealed class ThrowingReporter : MintPlayer.SourceGenerators.Tools.IDiagnosticReporter
+    {
+        public IEnumerable<Diagnostic> GetDiagnostics(Compilation compilation)
+            => throw new InvalidOperationException(Message);
+    }
 }
 
 public sealed class QuietGenerator : IIncrementalGenerator

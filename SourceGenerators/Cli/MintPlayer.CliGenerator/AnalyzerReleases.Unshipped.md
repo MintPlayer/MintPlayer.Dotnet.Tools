@@ -5,7 +5,6 @@
 
 Rule ID    | Category                | Severity | Notes
 -----------|-------------------------|----------|------------------------------------------------------
-MINTCLI001 | Usage                   | Error    | CLI commands must implement ICliCommand
 MINTCLI002 | MintPlayer.CliGenerator | Error    | CLI command must be partial
 MINTCLI003 | MintPlayer.CliGenerator | Error    | CLI command cannot be generic
 MINTCLI004 | MintPlayer.CliGenerator | Error    | CLI command cannot be static

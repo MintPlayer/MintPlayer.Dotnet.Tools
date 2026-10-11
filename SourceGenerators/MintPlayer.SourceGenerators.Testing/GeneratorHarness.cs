@@ -108,7 +108,8 @@ public sealed class GeneratorHarness
     /// <remarks>
     /// <para>
     /// By default every run is strict: CS8785 (a generator threw), MPSG001 (a MintPlayer
-    /// <c>Producer</c> caught its own exception), AD0001 (an analyzer threw) or an exception Roslyn
+    /// <c>Producer</c> caught its own exception), MPSG002 (reporting a diagnostic threw, so the
+    /// diagnostic was lost), AD0001 (an analyzer threw) or an exception Roslyn
     /// captured fails the call. CS8785 is only a warning and AD0001 is not one of the analyzer's own
     /// ids, so without this a crashing component reads as one that found nothing to do.
     /// </para>
