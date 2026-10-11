@@ -149,6 +149,27 @@ optional parameters, placed after the required ones.
 `[Inject]` goes on a field, or on a get-only or init-only property. A property with an ordinary setter
 (`{ get; set; }`) is not assigned by the generated constructor; the generator reports INJECT008 (a warning) for it.
 
+### One parameter per service type, and inheritance
+
+A dependency is identified by its **type**, not by the member's name. Every distinct service type is one constructor
+parameter, however many members need it and wherever in the class hierarchy they are declared. When one member is
+nullable and another is not, the parameter is required.
+
+```csharp
+public class ClassC { public ClassC(IDep1 dep1) { } }
+
+public partial class ClassB : ClassC { [Inject] private readonly IDep2 dep2; }
+// generated: public ClassB(IDep2 dep2, IDep1 dep1) : base(dep1)
+
+public partial class ClassA : ClassB { [Inject] private readonly IDep1 dep1; }
+// generated: public ClassA(IDep1 dep1, IDep2 dep2) : base(dep2, dep1)
+```
+
+The parameters are the type's own members in declaration order, then the base constructor's remaining parameters;
+optional parameters go last. The `base(...)` call follows the base constructor's own signature, each argument picked
+by type. A parameter takes the name it first appears with; a different type whose name is already taken gets a
+numeric suffix (`dep2`). Members of the same type share one instance, also for a transient registration.
+
 ### Records and structs
 
 `[Inject]` works on a `class`, `record` (or `record class`), `struct` and `record struct`, at top level or nested

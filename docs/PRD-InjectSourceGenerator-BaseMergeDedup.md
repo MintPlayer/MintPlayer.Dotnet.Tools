@@ -149,14 +149,17 @@ is misclassified, fix by comparing the nullability-stripped symbol / `SpecialTyp
   `.claude/worktrees/agent-acf957d44f8a2a57a/SourceGenerators/MintPlayer.SourceGenerators.Tests/Generators/InjectBaseMergeTests.cs`;
   its expected ctor text stays valid under D1-D4. Move it in M1, then remove the worktree.
 - **S2 (dropped)** — explicit `IConfiguration` vs `__configuration` is answered by D1/D4.
-- **S3** — R5 and R6 probes; each confirmed bug becomes a RED test.
-- **S4** — R4 repro: non-partial base and primary-ctor base with `[Inject]` members, derived `[Inject]` partial.
+- **S3 (done, both confirmed)** — a compiled `Base(IMa a, IMb? b = null)` was forwarded as required `IMb? b`; a
+  `[Config] System.Uri? endpoint` was emitted as `ConfigurationBinder.Get<global::System.Uri>(...GetSection("Endpoint"))`.
+- **S4 (done, confirmed)** — a non-partial (INJECT006) or primary-constructor (INJECT007) base with `[Inject]` members
+  made the derived class call `base(dep)` against a constructor that does not exist: an extra CS1503.
 
 ## Technical Design
 - `Parameter` (l.380, transform-only class) already holds `ITypeSymbol? Symbol`; it becomes the merge key.
   The set is built in `ComputeParameters`; nothing symbol-typed crosses into `Models.*`.
-- Model changes (strings/bools only): member → source-parameter-name mapping (R2);
-  `BaseConstructorArguments` = derived names per base slot (R3). Producer emits them as-is.
+- Model changes (strings only): `Assignments` (`MemberAssignment { Member, Parameter }`) replaces `InjectFields` and
+  `OptionsFields` (R2); `BaseConstructorArguments` = derived parameter name per base slot (R3);
+  `ConfigurationParameterName` replaces `HasExplicitIConfiguration` + `ExplicitIConfigurationName`. Producer emits them as-is.
 - Incremental caching: model equality still value-based; the existing `RunIncremental` / keystroke tests
   must stay green.
 
