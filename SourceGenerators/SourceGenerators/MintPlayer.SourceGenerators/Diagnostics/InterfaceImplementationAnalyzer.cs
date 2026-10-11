@@ -24,8 +24,10 @@ public class InterfaceImplementationAnalyzer : DiagnosticAnalyzer
             case INamedTypeSymbol namedTypeSymbol:
                 var ignoreAttributeSymbol = context.Compilation.GetTypeByMetadataName(typeof(NoInterfaceMemberAttribute).FullName);
 
-                // Only consider classes implementing at least one interface
-                if (namedTypeSymbol.TypeKind != TypeKind.Class || !namedTypeSymbol.Interfaces.Any())
+                // Only consider classes and structs (records and record structs included) implementing at least one
+                // interface. Structs were left out (K8); spike S5 ran the rule over ~2,400 files with them in and found
+                // no new warnings.
+                if (namedTypeSymbol.TypeKind is not (TypeKind.Class or TypeKind.Struct) || !namedTypeSymbol.Interfaces.Any())
                     return;
 
                 // Interfaces a fix could edit. If every implemented interface lives in metadata
@@ -38,13 +40,11 @@ public class InterfaceImplementationAnalyzer : DiagnosticAnalyzer
                 // Membership is tested against the union of ALL declared interfaces, including
                 // metadata-only ones. A member carried by one interface is not missing merely
                 // because another lacks it.
-                var satisfied = InterfaceMemberCandidates.SatisfiedNames(namedTypeSymbol);
-
                 var interfaceNames = string.Join(", ", editableInterfaces.Select(i => i.Name));
 
                 foreach (var member in InterfaceMemberCandidates.In(namedTypeSymbol, ignoreAttributeSymbol))
                 {
-                    if (satisfied.Contains(member.Name))
+                    if (InterfaceMemberCandidates.IsSatisfied(namedTypeSymbol, member))
                         continue;
 
                     // Reported once per member, not once per interface. Which of several candidate
@@ -56,7 +56,8 @@ public class InterfaceImplementationAnalyzer : DiagnosticAnalyzer
                         DiagnosticRules.MissingInterfaceMemberRule,
                         syntaxNode.GetLocation(),
                         ImmutableDictionary<string, string?>.Empty
-                            .Add(InterfaceMemberCandidates.MemberNameProperty, member.Name),
+                            .Add(InterfaceMemberCandidates.MemberNameProperty, member.Name)
+                            .Add(InterfaceMemberCandidates.MemberSignatureProperty, InterfaceMemberCandidates.SignatureKey(member)),
                         member.Name,
                         interfaceNames);
 

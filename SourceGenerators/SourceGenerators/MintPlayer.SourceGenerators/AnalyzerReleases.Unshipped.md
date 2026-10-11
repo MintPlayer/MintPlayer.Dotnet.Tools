@@ -13,3 +13,6 @@ INJECT003  | MintPlayer.SourceGenerators   | Error    | PostConstruct method can
 INJECT004  | MintPlayer.SourceGenerators   | Warning  | PostConstruct in class without [Inject] members
 REGISTER001| MintPlayer.SourceGenerators   | Error    | Assembly-level [Register] requires at least the implementation type
 REGISTER002| MintPlayer.SourceGenerators   | Error    | Class-level [Register] should not specify implementation type
+REGISTER003| MintPlayer.SourceGenerators   | Error    | [Register] type is not accessible from the generated registration method
+REGISTER004| MintPlayer.SourceGenerators   | Error    | [Register] lifetime is not a defined ServiceLifetime
+REGISTER005| MintPlayer.SourceGenerators   | Error    | [Register] service type cannot be expressed in the generated registration

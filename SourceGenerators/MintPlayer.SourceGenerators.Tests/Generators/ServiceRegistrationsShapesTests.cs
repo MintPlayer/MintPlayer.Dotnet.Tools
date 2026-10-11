@@ -175,12 +175,12 @@ public class ServiceRegistrationsShapesTests
     }
 
     /// <summary>
-    /// Open-generic registration needs a generic implementation. A closed class cannot satisfy
-    /// <c>IRepository&lt;&gt;</c>, so the generator skips it rather than emitting
-    /// <c>AddScoped(typeof(IRepository&lt;&gt;), typeof(Repository))</c>, which throws at runtime.
+    /// A closed class cannot satisfy <c>IRepository&lt;&gt;</c> as an open generic, so the generator never emits
+    /// <c>AddScoped(typeof(IRepository&lt;&gt;), typeof(Repository))</c>, which throws at runtime. Since P10 it
+    /// registers the closed interface the class implements instead (it used to skip the class silently).
     /// </summary>
     [Fact]
-    public void ItSkipsAnOpenGenericOnANonGenericClass()
+    public void ItRegistersAnOpenGenericOnANonGenericClassAsTheClosedInterface()
     {
         var run = Run($$"""
             {{Preamble}}
@@ -192,6 +192,8 @@ public class ServiceRegistrationsShapesTests
             """);
 
         run.Errors.Should().BeEmpty(run.ErrorText);
+        run.AllSources.Should().Contain(".AddScoped<global::Demo.IRepository<string>, global::Demo.PersonRepository>()");
+        run.AllSources.Should().NotContain("typeof(");
     }
 
     [Fact]

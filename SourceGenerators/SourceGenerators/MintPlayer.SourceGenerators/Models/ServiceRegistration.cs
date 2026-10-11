@@ -61,35 +61,14 @@ public partial class ServiceRegistration
     /// Null when IsGeneric is false.
     /// </summary>
     public GenericTypeInfo? GenericInfo { get; set; }
-
-    /// <summary>
-    /// Indicates where the [Register] attribute was applied.
-    /// </summary>
-    public ERegistrationAppliedOn AppliedOn { get; set; }
-
-    /// <summary>
-    /// Indicates whether there was an error with the attribute usage.
-    /// </summary>
-    public bool HasError { get; set; }
-
-    /// <summary>
-    /// Location of the attribute for diagnostic reporting.
-    /// </summary>
-    public LocationKey? Location { get; set; }
 }
 
-/// <summary>
-/// Indicates where a [Register] attribute was applied.
-/// </summary>
-public enum ERegistrationAppliedOn
-{
-    /// <summary>
-    /// The [Register] attribute was applied to a class declaration.
-    /// </summary>
-    Class,
 
-    /// <summary>
-    /// The [Register] attribute was applied at the assembly level.
-    /// </summary>
-    Assembly,
+/// <summary>
+/// The registrations one <c>[Register]</c>-attributed declaration (or the assembly) contributes.
+/// </summary>
+[GenerateEquality]
+public partial class RegistrationSet
+{
+    public EquatableArray<ServiceRegistration> Registrations { get; set; } = EquatableArray<ServiceRegistration>.Empty;
 }
