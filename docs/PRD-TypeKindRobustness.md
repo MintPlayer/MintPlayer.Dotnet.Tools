@@ -1,0 +1,567 @@
+# PRD: Generators and analyzers survive every type kind (#193, #194 and the same bug classes elsewhere)
+
+## Overview
+
+This PRD covers two issues and two rounds of investigation:
+- **Round 1:** #193, plus an audit of every generator for its bug class.
+- **Round 2:** #194, plus a sweep of every other generator for #194's patterns.
+
+Everything lands in one PR. Shared plumbing (D0) goes in first, so the fixes are written against it instead of being
+duplicated per generator.
+
+Issue [#193](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/193): `GenericMethodSourceGenerator` throws
+`InvalidCastException` on any attributed method inside a `record`, `record struct`, `struct` or `interface`, reports
+CS8785, and emits nothing for the whole compilation. A `[GeneratedRegex]` method in a record, which has nothing to do
+with this generator, is enough.
+
+Four investigators then audited every generator, analyzer, code fix and shared helper under `SourceGenerators/` for the
+same bug class:
+- a crash reachable from unrelated or half-typed user code;
+- an assumption that the user's type is a `class`.
+
+Every finding below was reproduced by a probe test against master `920a111` unless it is marked SUSPECTED.
+
+The work also adds one requirement. **Wherever a generator emits a `partial` of a user type, it works for all five
+kinds: (1) `class`, (2) `record class`, (3) `record`, (4) `struct`, (5) `record struct`.** Each cell has a test. A
+generator that cannot support a kind reports a diagnostic. It does not silently do nothing.
+
+All packages under `SourceGenerators/` are versioned in lockstep. This work ships as **12.2.0** (see Versioning).
+
+## Problem statement
+
+The bug class has three shapes.
+
+1. **Crash → the generator contributes nothing.** An exception in a predicate or transform becomes CS8785, and every
+   output of that generator vanishes for the compilation. An exception in an analyzer becomes AD0001. A stack overflow
+   cannot be caught: it kills csc/VBCSCompiler or the IDE's analyzer host.
+2. **Class-only predicate → silent no-op.** The generator matches only `ClassDeclarationSyntax`. A `record` carrying the
+   attribute gets no output and no diagnostic, and the `[Inject]` fields stay `null` at runtime.
+3. **Hard-coded `class` keyword → CS0261.** Widening a predicate without fixing the producer turns shape 2 into a
+   compile error.
+
+The test harness also hides shape 1 for analyzers (H1 below). That is why none of these crashes was caught earlier.
+
+## Findings
+
+### Crashes
+
+| ID | Where | Trigger | Outcome | Package |
+|---|---|---|---|---|
+| **C1** (#193) | `GenericMethodSourceGenerator.cs:21, :31` | Any attributed method in a record / record class / record struct / struct / interface. The attribute need not resolve. | InvalidCastException → CS8785, no output | MintPlayer.SourceGenerators |
+| **C2** | `ServiceRegistrationsGenerator.cs:307` | `[assembly: ServiceRegistrationConfiguration(DefaultAccessibility = )]` mid-typing, or an unknown enum member | NullReferenceException in a `CompilationProvider.Select` → CS8785, no registrations | MintPlayer.SourceGenerators |
+| **C3** | `ServiceRegistrationsGenerator.Producer.cs:134/141/151/158/264` (`lifetimeNames[svc.Lifetime]`) | `[Register((ServiceLifetime)7)]` | KeyNotFoundException → MPSG001. `ServiceMethods.g.cs` is not produced, so valid registrations are lost too. | MintPlayer.SourceGenerators |
+| **C4** | `CliCommandSourceGenerator.cs:327` (`ToOptionDefinition`) | `[CliOption(null)]` (legal: `params string[]` receives null) | NRE on a default `ImmutableArray` → CS8785, no Cli output | MintPlayer.CliGenerator |
+| **C5** | `UnusedUsingsAnalyzer.cs:51-54` (`usingDirective.Name.ToString()`) | `using Pair = (int, int);` or `using unsafe P = int*;`. `Name` is null for a type alias. | NRE → AD0001; MP001 is lost for the file | MintPlayer.SourceGenerators |
+| **C6** | `RoslynTypeInModelAnalyzer.cs:53-101` (`TryFindRoslynType`) | `class Foo<T> { Foo<Foo<T>>? Next => null; }` used by a `[GenerateEquality]` model | **Stack overflow.** It kills the compiler / analyzer host, so the whole build fails. | MintPlayer.ValueComparerGenerator |
+| C7 (SUSPECTED) | `Tools/Extensions/LocationExtensions.cs:28-43` (`ToLocation`) | Two trees with the same path, or a stale `LocationKey` | `text.Lines[...]` out of range inside `ReportDiagnostics`, with no try/catch → CS8785 | Tools (in Inject, ServiceRegistrations, Mapper, ValueComparer) |
+| C8 (SUSPECTED, dead) | `ClassNamesSourceGenerator.cs:38-69` | Global-namespace field | `namespaceDeclaration.Name` null. The provider is never wired to an output, so it never runs. | MintPlayer.SourceGenerators |
+
+### Type-kind gaps: silent no-op, or a wrong keyword
+
+| ID | Where | Trigger | Outcome |
+|---|---|---|---|
+| **K1** | `GenericMethodProducer.cs:33` | Once C1 is fixed: `[GenericMethod]` in a non-class type | Hard-coded `partial class` → CS0261 |
+| **K2** | `InjectSourceGenerator.cs:23` (predicate), `InjectSourceGenerator.Producer.cs:~85` (keyword) | `[Inject]` in a record / record class / struct / record struct | No constructor, no diagnostic, fields stay null |
+| **K3** | `ServiceRegistrationsGenerator.cs:17` | `[Register(Scoped)] public partial record Svc` (attribute is valid on records) | Dropped silently |
+| **K4** | `CliCommandSourceGenerator.cs:18` (predicate), `:441` (`BuildDeclaration` hard-codes `class`) | `[CliRootCommand] public partial record RootCommand` | Nothing generated, no diagnostic. Admitting records alone would give CS0261. |
+| **K5** | `Tools/Extensions/SymbolExtensions.cs:36-48` (`GetPathSpec`) | Partial type nested in an **interface** | The interface parent is skipped and `AllPartial` stays true. Output lands at namespace level as a *new* type: silent for Description, CS1061 for Inject, CS0117 for Cli. Callers: GenericMethod, Description, Inject, Cli. |
+| **K6** | `MapperGenerator.Producer.cs:119, 147` | Mapping where either side is a `struct` / `record struct` | `if (input is null) return default;` → CS0037 |
+| K6' | `MapperGenerator.Producer.cs:105, 133` | Struct destination in `MapTo(this S input, D output)` | Copies into a by-value copy: a silent no-op (certain from C# semantics; not probed) |
+| **K7** | `ValueComparerGenerator.Discovery.cs:77` | `[GenerateEquality] ref partial struct S` | `obj is S` → CS8121 |
+| **K8** | `InterfaceImplementationAnalyzer.cs:28` (`TypeKind != Class`) | `struct S : IThing` / `record struct` with an extra public member | INTF001 never runs on value types |
+
+### Other wrong output found along the way (same PR, per the one-PR rule)
+
+| ID | Where | Trigger | Outcome |
+|---|---|---|---|
+| W1 | `DescriptionSourceGenerator` | Partial type split over 2 files, each with `<summary>` | Two `[Description]` → CS0579 |
+| W2 | `DescriptionSourceGenerator` | `partial class W<T>` | Emits a non-generic `partial class W`, a separate type. Silent. |
+| W3 | `DescriptionSourceGenerator`, `CliCommandSourceGenerator` | `file partial class` | Emits a non-`file` partial, a separate type: silent (Description), CS1061 (Cli) |
+| W4 | `InjectSourceGenerator` (and base lookup `~:68`, `.FirstOrDefault()`) | Partial class split over 2 files, `[Inject]` in each | Two constructors (CS0111 when same types; otherwise each sets half the fields) |
+| W5 | `ServiceRegistrationsGenerator` | `[Register]` partial class split over 2 files | Registration emitted twice |
+| W6 | `ServiceRegistrationsGenerator` | `[Register]` on a private nested class | CS0122 in generated code; should be a diagnostic |
+| W7 | `ClassNamesSourceGenerator` | User class named `ClassNames` in the root namespace; class named `@event` | CS0101/CS0542; `const string event` parse errors |
+| W8 | `MapperGenerator.cs:249-251` → `MapperGenerator.Producer.cs:452` | `[GenerateMapper]` taking the error path (e.g. `typeof()` mid-typing) | `MapperEntrypoint.g.cs` gets 10–80 syntax errors: the entrypoint doesn't filter `HasError` |
+| W9 | `MapperGenerator.Producer.cs:510-512, 549-551` | Mapped base class plus mapped derived class | `case Base` before `case Derived` → CS8120 |
+| W10 | `MapperGenerator.cs:80` | Interface or abstract destination | `new I()` → CS0144, no diagnostic |
+| W11 | `MapperGenerator.cs:179-188` | `[MapperConversion]` in `static class Conv<T>` | CS0246 'T' |
+| W12 | `CliCommandSourceGenerator` (via `GetPathSpec`; `AllPartial` ignored) | Command nested in a non-partial class | CS0260 on the user's type |
+| W13 | `CliCommandSourceGenerator.Producer.cs:325` | Two root commands named `Tool` in different namespaces | `ToolCliExtensions` duplicated → CS0101/CS0111 |
+| W14 | `UnusedUsingsAnalyzer.CodeFix.cs:107` (`KeepNoTrivia`) | `#nullable enable` (or a header / `#region`) above an unused first using | The fix deletes the directive, which silently changes nullable semantics |
+| W15 | `InterfaceImplementationAnalyzer.CodeFix.cs:172-205` | `class G<T> : IThing { public T Get() … }` | The fix writes `T Get();` into the interface → CS0246/CS0738 |
+| W16 | `InterfaceImplementationAnalyzer.Members.cs:135-144` (`SatisfiedNames`, by name) | Interface has `DoIt()`, class adds `DoIt(int)` | Overload never reported; the fix would pick the wrong overload |
+| W17 | `ValueComparerGenerator` | Model with an error-typed base or property | Extra CS0120/CS0246 in generated code (noise on already-broken code) |
+
+Minor issues found by reading the code only, out of scope unless the spikes show they are cheap: Cli ignores options
+declared on a base class, and Mapper's copy overload for an init-only record emits an empty body.
+
+### GenericMethod rework (#194)
+
+Each #194 item was checked by a probe against master `920a111`: 45 cases.
+
+**G0 — the headline finding, not in the issue: no consumer can use this generator.**
+- `GenericMethodAttribute` is declared only inside the generator assembly (`GenericMethodSourceGenerator.cs:79-84`).
+- The published 12.1.x packages ship that assembly only under `analyzers/`, so `[GenericMethod]` in user code is
+  CS0246.
+- Every test fixture declares its own copy of the attribute. Three of them (`XmlDocAndGenericMethodTests.cs:166`,
+  `IncrementalOutputCachingTests.cs:200`, `FixedFileSetGuardTests.cs:101`) add a positional `(int count)` constructor
+  that the real attribute lacks.
+- `ItSkipsANonNumericCount` is misnamed: `Count = 3` generates 3 overloads.
+
+| ID | #194 item | Verdict | Evidence (`Gen` = generator, `Prod` = producer) |
+|---|---|---|---|
+| G1 | A bare `[GenericMethod]` (default Count) generates nothing | TRUE | `Gen:42` needs `Arguments.Count > 0`. `Count = 0` emits an empty file. |
+| G2 | Count is parsed from syntax text; `Arguments[0]` is read whatever its name | TRUE | These all give 0 overloads, silently: `Count = MaxArity`, `2 + 1`, `(uint)3`, `3 /*c*/`, and `Transformer = typeof(X), Count = 3`. |
+| G3 | Keyword is always `class` | TRUE | = K1 |
+| G4 | Always `public`, so CS0262 | TRUE | `Prod:30`. Fails for `internal` and for a nested `private` type. Omitting the modifier compiles. |
+| G5 | Generic containing type | TRUE, worse than stated | `Foo<T>` gets a separate non-generic `partial class Foo`, which self-binds → CS0411. The static path `Prod:63` (`ClassName.M`) has the same problem. Shadowing a containing `T1` is only CS0693, a warning. |
+| G6 | Return value dropped | TRUE | `Prod:51` hard-codes `void` and never returns. `bool`, `Task` and `ValueTask<T>` are discarded silently; an `async` method gives CS4014 in generated code. |
+| G7 | Method shape not validated | TRUE | Shapes that work: collections of `object` (`object[]`, `List<object>`, `IEnumerable<object>`, `IReadOnlyList<object>`, `ReadOnlySpan<object>`, `params`). Broken: `string[]` and `int[]` (CS0029), `object` (CS9174), no parameters or 2+ parameters (CS0411), generic `Add<T>(IEnumerable<T>)` (CS0411). |
+| G8 | Silent skips | TRUE, plus 2 more holes | Non-partial or public: nothing generated, nothing reported. Two holes: an implicitly-private method (no modifier) is skipped silently, and `private protected` is accepted (`Gen:52` checks for the keyword, not the accessibility). |
+| G9 | `Transformer` unused | TRUE | Only commented-out code references it. |
+| G10 | Over-broad predicate; `GetTypeByMetadataName` per attribute | TRUE | = C1; D2 fixes it. |
+| G11 | `typeof(...).FullName` | PARTLY | The string is correct. The real defect is G0. |
+| G12 | One hint name per type | **Rejected** | Contradicts `SourceGenerators/CLAUDE.md` ("a generator emits a fixed set of files"; per-type names caused CS0016 in 12.0.0), which `Guards/FixedFileSetGuardTests` enforces. Keep one `GenericMethods.g.cs`. |
+| G13 | Header and namespace written per method | TRUE | Two classes give 2 headers and 2 namespace blocks. |
+| G14 | `\n` and the space in `>( ` | TRUE | Visible symptom: 4 LF next to 46 CRLF, and the closing `}` lands at column 0. |
+| G15 | `#nullable enable` | PARTLY | Not needed today. It is needed once G6 forwards annotated return types. |
+| G16 | Overload-resolution trap | TRUE, at runtime | The original is private and the overloads are public, so an outside `b.Add(list)` receives a 1-element collection. |
+| G17 | (extra) escaped identifiers | SUSPECTED | `MethodName = symbol.Name` drops `@` (e.g. `@event`). |
+
+**GenericMethod decisions.**
+- **G0, G9:** move the attribute to `MintPlayer.SourceGenerators.Attributes` (namespace
+  `MintPlayer.SourceGenerators.Attributes`) with `public uint Count { get; set; } = 1` only. Drop `Transformer`. Point
+  every test fixture at the real type. This breaks nobody, because no consumer could reference the attribute.
+- **G16:** emit overloads only for arity ≥ 2, plus a README note on when to prefer C# 13 `params` collections. That
+  removes the trap at its source. A `Count = 1` attribute then produces nothing useful, so the range is 2..16. **Open
+  question:** keep arity 1 behind an opt-in flag instead, as #194 implies. The default proposed here is to drop it.
+- **G7:** the valid shape is exactly one non-ref parameter whose type a collection expression can build from `object`
+  elements. Anything else is a diagnostic.
+- **New diagnostics** (in `GenericMethodSourceGenerator.Rules.cs`, tracked in `AnalyzerReleases.Unshipped.md`):
+  - GENMETHOD001: the type or a containing type is not partial.
+  - GENMETHOD002: the method is not `private` (checks `DeclaredAccessibility`, not the keyword).
+  - GENMETHOD003: wrong parameter shape.
+  - GENMETHOD004: Count out of range. The cap is 16, matching `Func`/`Action`. Measured: 128 overloads take about
+    1.65 s to bind and produce 175K characters.
+- **Producer:**
+  - one file, with the header and `#nullable enable` written once;
+  - one block per type, through D0.3;
+  - no accessibility modifier on the type;
+  - type parameters and constraints on the containing type;
+  - method type parameter names that don't collide with any in scope (`T1` → `TArg1`, or suffixed until unique);
+  - `return` whenever the method is not void;
+  - `WriteLine` throughout.
+
+### #194 patterns in the other generators
+
+| ID | Generator | Where | Trigger → outcome | Status |
+|---|---|---|---|---|
+| P1 | Inject | `InjectSourceGenerator.Producer.cs:48-76` | A nullable `[Inject] IDep?` before a non-nullable one → `IDep dep = null, IDep dep2` → CS1737 | CONFIRMED |
+| P2 | Inject | `Producer.cs:126` | Public class with an `[Inject]` of an internal type → `public` ctor → CS0051 | CONFIRMED |
+| P3 | Inject | `InjectSourceGenerator.cs:695-701, 792-799, 850-856` | `[Config(Keys.Db)]`, `[Config("a:"+"b")]`, `[ConnectionString(Keys.C)]` → a false "key cannot be empty" (CONFIG002/CONNSTR001); `[Options(Keys.S)]` silently gets a null section. The keys are parsed from syntax text. | CONFIRMED |
+| P4 | Inject | `InjectSourceGenerator.cs:907` | `OptionsField.Section` is stored and never read. `[Options("Email")]` binds nothing, although README:194 implies it does. | Read + grep |
+| P5 | Inject | `Producer.cs:162-163` | `[PostConstruct] async Task InitAsync()` → fire-and-forget plus CS4014 in generated code | CONFIRMED |
+| P6 | Inject | `InjectSourceGenerator.cs:185, 202, 447, 567` | Matches the attribute by simple name, so a user's own `Other.InjectAttribute` triggers generation | CONFIRMED |
+| P7 | Inject | `:44`, `Producer.cs:84-87` | Non-partial class, or a non-partial parent → CS0260 on the user's type, with no diagnostic of the generator's own | CONFIRMED |
+| P8 | Inject | `Producer.cs:35` | `Inject.g.cs` has no `<auto-generated>` header | Read |
+| P9 | ServiceRegistrations | `ServiceRegistrationsGenerator.cs:447-487`, `Producer.cs:281-288` | `Repo<T>` and `Cache<TItem>` (same arity) merge into one `AddX<T>` that mentions `TItem` → CS0246 | CONFIRMED |
+| P10 | ServiceRegistrations | same | `Map<TValue,TKey> : IMap<TKey,TValue>` → CS0311; `StringMap<TV> : IMap<string,TV>` → CS0305 + CS0311 | CONFIRMED |
+| P11 | ServiceRegistrations | extends W6 | `protected` nested `[Register]` → CS0122 | CONFIRMED |
+| P12 | ServiceRegistrations, Cli | SR `:20-21`; Cli `:64-70` | Per-node `GetTypeByMetadataName` (2× and 7× per class); SR matches attributes by simple name | Read; D2 |
+| P13 | Cli | `CliCommandSourceGenerator.cs:413` | `private protected` command → `protected internal partial class` → CS0262 | CONFIRMED |
+| P14 | Cli | `Producer.cs:322-343` | A private nested root command → the public `{Type}CliExtensions` → CS0122 ×3 | CONFIRMED |
+| P15 | Cli | `CliCommandSourceGenerator.cs:47-60` | Non-partial, generic or static command → nothing emitted, no diagnostic | CONFIRMED (non-partial, generic) |
+| P16 | Cli | `Producer.cs:192` | The default handler passes `CancellationToken.None`, so Ctrl+C never reaches `Execute` | Read + probe |
+| P17 | Mapper | `MapperGenerator.Producer.cs:119, 147`; `:62-91` | Every reference-type mapping → CS8603 ×2 (`return default;` under `#nullable enable`). With no `[MapperConversion]`, an unreachable return gives CS0162. Fails TreatWarningsAsErrors. | CONFIRMED |
+| P18 | Mapper | `MapperGenerator.cs:86-99` → `Producer.cs:100` | Class-level `[GenerateMapper]` never sets the accessibility fields, so every mapper is `internal` | CONFIRMED |
+| P19 | Mapper | `MapperGenerator.cs:26, 30-31` | The method-name prefix argument is captured and ignored. The existing test passes the default `"MapTo"`, which hid it. | CONFIRMED |
+| P20 | Mapper | `Producer.cs:100` | `[GenerateMapper]` on a private nested type → CS0122 ×8, no diagnostic | CONFIRMED |
+| P21 | Description | `DescriptionSourceGenerator.cs:24-53` | `/// <summary>` plus an explicit `[Description]` → CS0579 | CONFIRMED |
+| P22 | Description | `:16-26` | The predicate admits every constructor, property and event, each costing a `GetDeclaredSymbol` that is then discarded | Read |
+| P23 | Attributes package | `BaseConstructorParameterAttribute.cs` | Public, but nothing reads it | grep |
+| P24 | JoinMethod | `JoinMethodGenerator.cs:18, 22` | `typeof(...).FullName` lookup (works, but ties the lookup to the generator assembly) | Read |
+
+Clean on every #194 pattern: ValueComparer/Equality, which handles accessibility, generic containers, nullable and
+records with zero warnings. Also clean: JoinMethod apart from P24, Description apart from P21/P22, and Inject partials
+for every accessibility and for generics.
+
+### Test-harness gap
+
+**H1.** `MintPlayer.SourceGenerators.Testing/GeneratorHarness.cs:255-266` (`RunAnalyzerAsync`) passes no
+`onAnalyzerException` and filters the results to the analyzer's own IDs, which drops AD0001. Given the C5 trigger it
+returned **zero diagnostics**: a crashing analyzer looks the same as a quiet one. `ApplyCodeFixAsync` (~line 418) has
+the same gap. The generator path has a weaker version of it: CS8785 is a warning, so `run.Errors` stays empty when a
+generator crashes. This ships in **MintPlayer.SourceGenerators.Testing**, so downstream test suites are affected as
+well.
+
+### Verified clean
+
+These were probed and found clean:
+- ValueComparerGenerator on all five kinds: it keeps the user's keyword and does not collide with members C# synthesizes
+  for records.
+- Description on all five kinds.
+- JoinMethodGenerator.
+- CliCommandInterfaceAnalyzer.
+- Mapper's static-class predicate.
+- INTF001 on records and on the members C# synthesizes for them.
+- `GetPathSpec` with class, record class, record, struct and record-struct parents.
+- `Producer.Produce`, which already catches and reports MPSG001.
+
+## Current five-kind matrix
+
+| Generator | class | record class | record | struct | record struct |
+|---|---|---|---|---|---|
+| GenericMethod | OK | **crash** (C1) | **crash** | **crash** | **crash** |
+| Inject | OK | no-op (K2) | no-op | no-op | no-op |
+| Description | OK | OK | OK | OK | OK |
+| Cli command (AttributeUsage Class) | OK | no-op (K4) | no-op | n.a. (CS0592) | n.a. |
+| Cli command nested in a parent of this kind | OK | OK | OK | OK | OK |
+| ServiceRegistrations (emits no partial; AttributeUsage Class) | OK | no-op (K3) | no-op | n.a. | n.a. |
+| Mapper (emits no partial; maps to/from) | OK | OK | OK | CS0037 (K6) | CS0037 (K6) |
+| ValueComparer / GenerateEquality | OK | OK | OK | OK (ref struct: K7) | OK |
+| INTF001 analyzer + fix | OK | OK | OK | not run (K8) | not run (K8) |
+| UnusedUsings | OK | OK | OK | OK | OK |
+| ClassNames | OK | n.a.: lists classes by design | n.a. | n.a. | n.a. |
+| JoinMethod | n.a.: no user type | | | | |
+
+Existing tests cover the class column almost everywhere. Explicit `record class` has no fixture anywhere. Equality
+(`Snapshots/EqualityShapes.cs`) is the only generator with five-kind coverage, and `GetPathSpec` has no test at all.
+
+## Goals
+
+1. **No crash from unrelated or half-typed code.** No generator throws, and no analyzer throws or recurses without
+   bound, on any input the probes found (C1–C6). The two SUSPECTED items are either fixed defensively (C7) or deleted
+   (C8).
+2. **Five kinds, every partial-emitting generator.** GenericMethod, Inject, Description and Cli (record-class kinds,
+   since its AttributeUsage is Class) emit the user's actual keyword. ServiceRegistrations accepts records. Mapper maps
+   structs. INTF001 runs on structs.
+3. **Unsupported means a diagnostic.** `ref struct` for Equality, a non-partial parent, a `file` type, a private nested
+   `[Register]` class, an interface or abstract mapper destination: each one reports a diagnostic and emits nothing,
+   never broken code.
+4. **The harness surfaces crashes.** Generator runs fail on CS8785 or MPSG001. Analyzer and code-fix runs fail on
+   AD0001 or an `onAnalyzerException`.
+5. **Fix every W, G and P finding.** G12 (one file per type) is rejected; see the table.
+6. **Generated code compiles warning-free** under `<Nullable>enable</Nullable>` with TreatWarningsAsErrors (G6, G15,
+   P5, P17). Equality already meets this; every generator gets the same compile check.
+7. **Less boilerplate:** the shared plumbing in D0 replaces the hand-rolled copies listed there.
+
+## Non-goals
+
+- Supporting `struct` or `record struct` where the attribute's own `AttributeUsage` forbids it: Cli commands and
+  `[Register]`. A DI service or a CLI command as a value type is not a supported shape. CS0592 already tells the user.
+- ClassNames for records or structs. The generator lists *class* names by design.
+
+## Design
+
+### D0. Shared plumbing in MintPlayer.SourceGenerators.Tools
+
+Rule: extract a helper only when there are at least 3 copies, or when the copies are themselves the bug.
+
+**D0.1. Reading attribute arguments.**
+- Copies:
+  - Cli `CliCommandSourceGenerator.cs:447-497`;
+  - ServiceRegistrations: four copies of the accessibility decoding (`:71-74, 97-100, 228-231, 260-263`) and `:300-307`;
+  - Mapper `ElementAtOrDefault` at `:24-27, 77-81, 268-269, 330-339`;
+  - JoinMethod `:22-23`, Equality `Discovery.cs:285`, Inject (P3, from syntax text) and GenericMethod (G2, from
+    syntax text).
+- Removes the bug class behind C2, P3 and G2. About 80–100 lines saved.
+
+```csharp
+bool TryGetArgument<T>(this AttributeData a, string name, out T value); // ctor parameter name or named property
+T GetArgument<T>(this AttributeData a, string name, T fallback);        // enums, typeof (INamedTypeSymbol), null-safe
+```
+
+**D0.2. Finding an attribute by metadata name.**
+- Five styles exist today:
+  - `Name == nameof(X)` (ServiceRegistrations ×4)
+  - `GetTypeInfo(attr).Type?.Name` (Inject ×6)
+  - `ToDisplayString()` (Mapper ×10)
+  - `typeof(X).FullName` (JoinMethod, GenericMethod)
+  - `Discovery.IsAttribute` (Equality, the correct one)
+- Fixes P6, P24 and G11. About 30 lines saved.
+
+```csharp
+AttributeData? FindAttribute(this ISymbol s, string metadataName);
+IEnumerable<AttributeData> FindAttributes(this ISymbol s, string metadataName);
+```
+
+**D0.3. Equatable discovery result and a diagnostic reporter.**
+- Copies:
+  - Inject `PostConstructDiagnostic` and `ConfigDiagnostic`, mapped twice (`Producer.cs:22-33`);
+  - Equality `DiagnosticInfo` and `ValueComparerDiagnosticReporter` (`ValueComparerGenerator.cs:89-98`,
+    `DiscoveredType.cs:34`);
+  - hand-rolled switches in ServiceRegistrations (`Producer.cs:41-42`) and Mapper (`Producer.cs:26-27`);
+  - two empty reporters in ClassNames.
+- Equality's `DiscoveredType` is the model to generalize. About 60–80 lines saved.
+
+```csharp
+sealed record DiagnosticInfo(DiagnosticDescriptor Rule, LocationKey? Location, EquatableArray<string> Args);
+sealed record Discovered<TModel>(TModel? Model, EquatableArray<DiagnosticInfo> Diagnostics);
+IncrementalValuesProvider<Discovered<TModel>> ForAttribute<TModel>(this SyntaxValueProvider p, string metadataName,
+    Func<SyntaxNode, CancellationToken, bool> predicate,
+    Func<GeneratorAttributeSyntaxContext, CancellationToken, Discovered<TModel>> transform);
+// .Models() / .Diagnostics() split; ReportDiagnostics(...) on the init context
+```
+
+**D0.4. File preamble and namespace block.**
+- 8 producers write `Header` themselves, 4 of them write `#nullable enable` in two different orders, and Inject writes
+  neither (P8).
+- The `OpenBlock($"namespace {ns}")` + `?.Dispose()` pattern is copied in Description, GenericMethod and Inject; Cli
+  and Equality branch by hand.
+- About 40 lines saved.
+
+```csharp
+protected virtual bool NullableEnable => true;   // Producer.Produce writes header + #nullable before ProduceSource
+IDisposable OpenNamespace(this IndentedTextWriter w, string? ns); // no-op when null/empty
+```
+
+**D0.5. Re-declaring a type: the extended `GetPathSpec`** (D1 below). It also absorbs:
+- Description's keyword logic (`:47-49`);
+- Cli `BuildDeclaration` (`:405-445`, the source of P13);
+- Equality `KeywordOf`/`DeclaredName` (`:229-244`);
+- the type-parameter and constraint builders (Inject `:336-390`, ServiceRegistrations `BuildConstraintClause`);
+- the four partial checks (Inject `:44`, Description `:51, 58`, Cli `:47`, Equality `Discovery.cs:47`).
+
+Not extracted: hint names (fixed per generator by policy) and `DiagnosticDescriptor` declarations (one `new(...)`
+each, nothing to share).
+
+### D1. One source of truth for "how do I re-declare this type"
+
+The keyword logic is duplicated in four places today, and that duplication is the root of K1, K2, K4, K5, W2 and W3.
+Move it into Tools (`SymbolExtensions`) so that callers stop hand-writing `partial class`:
+- `GetPathSpec` gains an `Interface` element (K5).
+- `GetPathSpec` also exposes the target type's own declaration header: `[file] partial record struct Name<T>` plus its
+  constraints. That header is the keyword the user actually wrote (`record` vs `record class` is read from the syntax),
+  generic parameters (W2) and `file` (W3).
+- The result reports why a type is unsupported (non-partial parent, `file` type where the generator cannot target it)
+  as a value, so each generator turns that into its own diagnostic.
+- The header **never carries an accessibility modifier** (G4, P13). C# takes it from the user's declaration.
+- The result exposes the type-parameter names in scope (`UniqueTypeParameterName(preferred)`), so generated generic
+  methods never shadow a containing type's parameters (G5).
+
+**Build on the existing `GetPathSpec` / `OpenPathSpec`** (`Tools/Extensions/SymbolExtensions.cs`); do not add a
+parallel API. `GetPathSpec` already models the nesting chain, and the change extends it:
+- **Parent kinds:** `EPathSpecType` gains `Interface` (K5), alongside the existing Class/Struct elements.
+- **Each element** records the user's keyword (`class`, `record`, `record class`, `struct`, `record struct`,
+  `interface`), its type parameters and constraints, and `IsPartial`. It never records accessibility.
+- **The target type itself** becomes the last element, so `OpenPathSpec` opens the namespace, every parent and the
+  type in one `using`. This replaces the "write parents, then hand-write `partial class Name`" step in every producer.
+- **Unsupported reasons** are a value on the PathSpec: a non-partial element (generalizing today's `AllPartial`), a
+  `file` type, or an accessibility a generator can't target.
+- **Type-parameter names in scope** are exposed as well, e.g. `string UniqueTypeParameterName(this PathSpec spec,
+  string preferred)`.
+
+The PathSpec stays an equatable value, so it can sit in incremental models.
+
+**Every generator that emits a partial of a user type moves onto it:**
+- GenericMethod, Description, Inject and Cli already call it; they switch to the extended form and delete their
+  hand-written keyword and type-parameter code.
+- Equality (`KeywordOf` / `DeclaredName`) migrates once S1 confirms the output is byte-identical against the snapshot
+  tests.
+
+Generators that don't emit a partial of a user type (ServiceRegistrations, Mapper, ClassNames, JoinMethod) only use
+the unsupported-reason checks where a diagnostic needs them (P14, P20, W6).
+
+GenericMethod, Description, Inject and Cli all switch to it. Equality already has `KeywordOf` (Discovery.cs:229), which
+the spike S1 evaluates for folding in.
+
+### D2. `ForAttributeWithMetadataName` everywhere a marker attribute drives discovery
+
+GenericMethod (C1, G10), Inject (K2, W4, P6), ServiceRegistrations (K3, W5, P12) and Cli (K4, P12) move to
+`ForAttributeWithMetadataName` with a `TypeDeclarationSyntax` / `MethodDeclarationSyntax` predicate.
+- It fixes the over-broad predicate by construction: unrelated attributes never reach the transform.
+- It gives one callback per attributed declaration. Inject and Description then aggregate per symbol across
+  `DeclaringSyntaxReferences` to fix W1 and W4, and ServiceRegistrations dedupes per symbol for W5.
+- It must keep the incremental caching guarantees from `PRD-IncrementalCaching.md`: transforms return equatable models,
+  never symbols or syntax.
+
+### D3. Value-type awareness in Mapper (K6, K6')
+
+Carry `IsValueType` on `TypeToMap`:
+- Emit the null guard only for reference types.
+- For a value-type destination, skip the `MapTo(input, output)` copy overload. A `ref` overload is the alternative,
+  decided in S4.
+
+### D4. Small targeted fixes
+
+- **C2:** read the enum value with `namedArg.Value.Value is int i ? (EGeneratedAccessibility)i : Unspecified`.
+- **C3:** validate the lifetime in the transform and report a diagnostic for undefined values.
+- **C4:** guard `!aliasArgument.IsNull`.
+- **C5:** use `usingDirective.NamespaceOrType`. W14: use `KeepLeadingTrivia | KeepDirectives`.
+- **C6:** mark `OriginalDefinition` as visited before walking its properties. That makes the walk finite for expanding
+  generics.
+- **C7:** bounds-check in `ToLocation` and return null; wrap `ReportDiagnostics` diagnostic materialization in
+  try/catch.
+- **C8:** delete the unwired provider.
+- **K7:** report a diagnostic for `IsRefLikeType` models.
+- **K8:** include `TypeKind.Struct` in INTF001.
+- **W6, W10, W11, W12, W13:** each reports a diagnostic instead of emitting broken code. New diagnostic IDs follow each
+  package's existing numbering.
+- **W7:** emit identifiers with `@`-escaping and skip or rename the reserved `ClassNames` collision.
+- **W8:** filter `HasError` in `MapperEntrypointProducer`. W9: order type-switch cases most-derived first.
+- **W15:** decline the fix when the signature references a type parameter of the containing type.
+- **W16:** match interface members by signature, not by name.
+- **W17:** skip models whose base or property types are `TypeKind.Error`.
+
+### D4b. Fixes from the #194 sweep
+
+- **GenericMethod (G0–G17):** see "GenericMethod decisions" above.
+- **Inject:**
+  - P1: optional (nullable) parameters go last.
+  - P2: the constructor gets the least accessibility of the class and its parameter types.
+  - P3: config, connection-string and options keys are read through D0.1.
+  - P4: implement the `[Options("Section")]` binding the README promises. S7 decides whether it gets implemented or
+    removed.
+  - P5: a non-void `[PostConstruct]` is a diagnostic.
+  - P6: D0.2.
+  - P7: "must be partial" is a diagnostic (through D1).
+  - P8: D0.4.
+- **ServiceRegistrations:**
+  - P9: substitute type parameters by position, not by name.
+  - P10: build the service type from the implemented interface's type arguments, and report a diagnostic when the
+    mapping is not expressible.
+  - P11: widen W6 to every accessibility below `internal`.
+- **Cli:**
+  - P13: fixed by D1.
+  - P14 and P15: diagnostics.
+  - P16: use the `SetAction(async (parseResult, ct) => …)` overload.
+- **Mapper:**
+  - P17: nullable-correct return (`D?`, or throw) and no unreachable return.
+  - P18: set both accessibility fields in the class-applied branch.
+  - P19: honour the method-name prefix.
+  - P20: diagnostic (same family as W6/W10).
+- **Description:**
+  - P21: skip types that already carry `[Description]`.
+  - P22: narrow the predicate to type declarations.
+- **P23:** mark `BaseConstructorParameterAttribute` `[Obsolete]`, so it can be removed in 13.0. Removing a public type
+  now would be a breaking change.
+- **P24:** D0.2.
+
+### D5. Harness (H1)
+
+Changes to `GeneratorHarness`:
+- `RunAnalyzerAsync` and `ApplyCodeFixAsync` pass `onAnalyzerException` and fail on it, and keep AD0001 in the returned
+  set.
+- `GeneratorResult` exposes `GeneratorExceptions` (from `GeneratorDriverRunResult.Results[].Exception`), and a default
+  assertion helper fails on CS8785 or MPSG001.
+
+This lands first, because every regression test below depends on it.
+
+## Spikes
+
+Each spike is time-boxed and ends in a written decision appended to this PRD before implementation of the affected
+milestone.
+
+- **S1. Keyword helper shape.**
+  - Can one Tools API produce the declaration header for every caller: GenericMethod, Description, Inject, Cli and
+    (optionally) Equality's `KeywordOf`?
+  - Does reading `record` vs `record class` from syntax survive partial parts that spell it differently? The ValueComparer
+    probe compiled a mix of `partial record class` and `partial record`.
+  - Verify the header at C# 9, 11 and latest, matching `EqualityCompileMatrixTests`.
+- **S2. Harness tightening blast radius.** Turn on H1's crash assertions and run the existing suite once. Count the
+  tests that start failing: each one is a hidden crash or a test that relied on the gap. This decides whether H1 is
+  opt-out (a default assertion) or opt-in.
+- **S3. Inject on structs.**
+  - Does the generated constructor make sense for a `struct` / `record struct`? It does compile.
+  - Can `ActivatorUtilities` / `ServiceProvider` construct one? If not: support records, and report a diagnostic for
+    value types instead of generating.
+  - Decide before M3.
+- **S4. Mapper struct destinations.** Decide between skipping the copy overload and emitting `ref D output`, by checking
+  which existing call sites use the copy overload.
+- **S5. INTF001 on structs (K8).**
+  - Confirm the code fix handles `struct` and `record struct` (it uses `TypeDeclarationSyntax`).
+  - Check the false positives on a real codebase, as was done for #191: e.g. the `Equals`/`GetHashCode`/`ToString`
+    override exclusion already applies.
+  - This is a new warning on existing user code, so record the decision in the CHANGELOG.
+- **S7. `[Options("Section")]` (P4).** Find out whether any known consumer relies on it (Spark, and the
+  `TestProjects`). Then implement the binding the README describes, or remove `Section` and correct the README.
+- **S8. GenericMethod arity 1 (G16).** Decide between dropping arity 1 and keeping it behind an opt-in. Measure how
+  often an arity-1 overload is the intended call versus the trap (search downstream repos).
+- **S6. `ForAttributeWithMetadataName` and caching.** For each migrated generator, confirm with the existing
+  `IncrementalOutputCachingTests` pattern that an unrelated keystroke still re-runs nothing.
+
+## Test plan
+
+All tests go into `MintPlayer.SourceGenerators.Tests` (Tools-level tests go into `MintPlayer.SourceGenerators.Tools.Tests`).
+They are written per milestone and run as one sweep at the end.
+
+1. **Five-kind theory per partial-emitting generator.** One `[Theory]` per generator, fed by a shared
+   `TypeKinds` member-data set: `class`, `record class`, `record`, `struct`, `record struct`. Each kind is tested at top
+   level, nested in a parent of each kind, and nested in an interface. Each case asserts:
+   - no CS8785 or MPSG001;
+   - `run.Errors` is empty;
+   - the emitted header uses the user's keyword;
+   - a runtime or behaviour assertion where the generator has one (Inject sets the fields; GenericMethod's generated
+     overload is callable).
+
+   Generators covered: GenericMethod, Inject, Description and Cli (class-kind records). Mapper and ServiceRegistrations
+   get the same matrix for their mapping and registration semantics.
+2. **Unrelated-code regression (the #193 case).** For each generator, a compilation contains:
+   - a `[GeneratedRegex]` partial method in a record, a record struct, a struct and an interface;
+   - plus one valid use of the generator.
+
+   Assert that no crash diagnostic appears and that the valid use still generates.
+3. **One regression test per C, K and W finding**, using the trigger from the tables above. C6 is a guarded test: a
+   recursion that would overflow is detected by a depth counter in a test-only hook, or by running the analyzer on a
+   dedicated thread with a small stack, so the regression cannot take down the test host.
+4. **PathSpec unit tests (Tools):**
+   - parents of all five kinds, plus an interface;
+   - 1 and 2 levels of nesting;
+   - generic parents;
+   - a non-partial parent (`AllPartial == false`);
+   - the global namespace.
+5. **Harness tests:** a deliberately crashing generator and a deliberately crashing analyzer make the harness assertions
+   fail.
+6. **Compile matrix:** extend `EqualityCompileMatrixTests` with an explicit `record class` fixture and a `ref struct`
+   (diagnostic) fixture.
+7. **Warning-free compile for every generator.** Recompile the generated output with `NullableContextOptions.Enable`
+   and assert zero warnings in `*.g.cs`, as the sweep probes did. This covers G6, G15, P5 and P17.
+8. **The #194 GenericMethod matrix:** class / record / struct / record struct × public / internal × generic /
+   non-generic × static / instance × void / value-returning / Task-returning. Each case asserts that the generated
+   overload is callable and forwards its result. Add one test each for G1, G2 (const, arithmetic, cast, trivia, named
+   argument order), G7 (each broken shape gives GENMETHOD003) and G16 (an outside call binds to the original).
+9. **D0 unit tests** in `MintPlayer.SourceGenerators.Tools.Tests`: argument reading (const, arithmetic, cast, enum,
+   typeof, missing → fallback), `FindAttribute` against a same-named type in another namespace, and the discovery
+   scaffolding's caching (an unrelated edit re-runs nothing).
+10. **Test fixtures use the shipped attributes.** Remove the hand-declared `GenericMethodAttribute` copies (G0), so a
+    fixture can never again test an attribute shape that doesn't ship.
+
+## Milestones
+
+Commit per milestone. Run the test sweep once at the end.
+
+| M | Content |
+|---|---|
+| M0 | Spikes S1, S2, S7, S8 (results appended here) |
+| M1 | H1: the harness surfaces generator exceptions, AD0001 and analyzer exceptions. Harness tests. |
+| M2 | D0 + D1 in Tools: argument reading, `FindAttribute`, `Discovered<T>`/`DiagnosticInfo`/`ForAttribute`, preamble/`OpenNamespace`, and the extended `GetPathSpec`/`OpenPathSpec`. Unit tests. C7. |
+| M3 | GenericMethod rework (C1, K1, G0–G17): the attribute moves to the Attributes package; fixtures updated; GENMETHOD001–004 |
+| M4 | The rest of MintPlayer.SourceGenerators: Inject (K2, W4, P1–P8; after S3/S7), ServiceRegistrations (C2, C3, K3, W5, W6, P9–P12), Description (W1–W3, P21, P22), ClassNames (W7, C8), UnusedUsings (C5, W14), INTF001 (K8, W15, W16; after S5). P23 `[Obsolete]`. |
+| M5 | MintPlayer.CliGenerator: C4, K4, W3, W12, W13, P13–P16 |
+| M6 | MintPlayer.Mapper: K6/K6' (after S4), W8–W11, P17–P20 |
+| M7 | MintPlayer.ValueComparerGenerator: C6, K7, W17, P24; `record class` fixture; Equality onto `GetPathSpec` (per S1) |
+| M8 | S6 caching checks; the five-kind, unrelated-code and warning-free compile theories for every generator |
+| M9 | CHANGELOG 12.2.0 entry (behaviour changes called out); README: new diagnostics, GenericMethod usage and the `params` note; one full test sweep |
+
+## Versioning
+
+Every package under `SourceGenerators/` moves 12.1.1 → **12.2.0** in lockstep (bumped on branch
+`fix/193-generator-non-class-crash`).
+
+This is a minor release, not a patch:
+- The Attributes package gains a public type (`GenericMethodAttribute`), and Tools gains public API (D0).
+- New diagnostics can turn previously silent code into warnings or errors: GENMETHOD001–004, non-void
+  `[PostConstruct]`, "must be partial", and INTF001 on structs.
+- Some output changes visibly:
+  - class-level mappers become `public` (P18);
+  - the Mapper method-name prefix is honoured (P19);
+  - GenericMethod no longer emits arity 1 (G16, subject to S8).
+
+Nothing public is removed: `BaseConstructorParameterAttribute` is only marked `[Obsolete]`, and the generator-internal
+`GenericMethodAttribute` was never reachable by consumers. So it is not a major release.
+
+## Downstream
+
+The trigger came from `MintPlayer.Spark.Settings` (`SparkQuota`, a record with `[GeneratedRegex]`),
+MintPlayer/MintPlayer.Spark#268. After 12.2.0 is published, bump the package reference there in the same
+unit of work and confirm the CS8785 is gone.
