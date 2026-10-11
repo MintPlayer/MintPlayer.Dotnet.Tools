@@ -11,4 +11,6 @@ MINT003 | ValueComparerGenerator | Error | ValueComparerDiagnostics
 MINT004 | ValueComparerGenerator | Error | ValueComparerDiagnostics
 MINT005 | ValueComparerGenerator | Warning | ValueComparerDiagnostics
 MINT006 | ValueComparerGenerator | Error | ValueComparerDiagnostics
+MINT007 | ValueComparerGenerator | Error | ValueComparerDiagnostics
+MINT008 | ValueComparerGenerator | Warning | ValueComparerDiagnostics
 ValueComparersProducer | ValueComparerGenerator | Error | ValueComparersProducer
