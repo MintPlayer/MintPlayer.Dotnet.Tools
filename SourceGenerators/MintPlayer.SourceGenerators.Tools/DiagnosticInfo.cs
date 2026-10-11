@@ -31,7 +31,13 @@ public sealed class DiagnosticInfo : IEquatable<DiagnosticInfo>
     public DiagnosticInfo(DiagnosticDescriptor rule, LocationKey? location, EquatableArray<string> args)
     {
         if (rule is null) throw new ArgumentNullException(nameof(rule));
-        Descriptors[rule.Id] = rule;
+        var registered = Descriptors.GetOrAdd(rule.Id, rule);
+        if (!registered.Equals(rule))
+        {
+            // The id stands for the descriptor, so two different descriptors under one id would report one with the
+            // other's message or severity. Fail loudly (a generator crash the test harness catches) instead.
+            throw new InvalidOperationException($"Two different diagnostic descriptors share the id '{rule.Id}'. Give each descriptor its own id.");
+        }
         RuleId = rule.Id;
         Location = location;
         Args = args;

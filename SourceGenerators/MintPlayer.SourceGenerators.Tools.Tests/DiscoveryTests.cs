@@ -147,6 +147,19 @@ public class DiscoveryTests
     }
 
     [Fact]
+    public void TwoDifferentDescriptorsCannotShareAnId()
+    {
+        var warning = new DiagnosticDescriptor("TEST900", "Test", "{0}", "Test", DiagnosticSeverity.Warning, true);
+        var info = new DiagnosticDescriptor("TEST900", "Test", "{0}", "Test", DiagnosticSeverity.Info, true);
+        DiagnosticInfo.Create(warning, null, "x");
+        DiagnosticInfo.Create(warning, null, "y"); // the same descriptor again is fine
+
+        var act = () => DiagnosticInfo.Create(info, null, "x");
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*TEST900*");
+    }
+
+    [Fact]
     public void DiagnosticInfoIsAValue()
     {
         var a = DiagnosticInfo.Create(Rule, null, "x", 1.5);
