@@ -110,6 +110,9 @@ public static IServiceCollection AddMyAssembly(this IServiceCollection services)
 |---------|----------|-------------|
 | REGISTER001 | Error | Assembly-level `[Register]` requires at least the implementation type |
 | REGISTER002 | Error | Class-level `[Register]` should not specify implementation type |
+| REGISTER003 | Error | The type (or a type it is nested in) is not accessible from the generated registration method |
+| REGISTER004 | Error | The lifetime is not a defined `ServiceLifetime` value |
+| REGISTER005 | Error | The service type cannot be expressed in the generated registration (an open generic service the class implements more than once, or one that uses a type parameter of a containing type) |
 
 ## Dependency Injection
 

@@ -120,6 +120,23 @@ If you cannot apply `[GenerateMapper]` directly on a type (e.g. third-party clas
 
 This will generate a mapper between the given types at the assembly level.
 
+A third argument sets the method-name prefix: `[assembly: GenerateMapper(typeof(Person), typeof(PersonDto), "Convert")]`
+generates `ConvertPersonDto()` and `ConvertPerson()`. A property of a mapped type inside another mapped type calls
+that same method.
+
+## Diagnostics
+
+| Rule ID | Severity | Description |
+|---------|----------|-------------|
+| MAPC001 | Error | Assembly-level `[GenerateMapper]` must have two types |
+| MAPC002 | Error | Type-level `[GenerateMapper]` must have one type |
+| MAPC005 | Error | A mapped type cannot be instantiated (interface, abstract, static, ref struct, open generic) |
+| MAPC006 | Error | A mapped type is not accessible from the generated mapper (private, protected or file-local) |
+| MAPC007 | Error | A `[MapperConversion]` method cannot be called from the generated mapper (generic, or in an inaccessible class) |
+
+Mapping to and from structs and record structs works too. For a value-type destination there is no copy overload
+`MapToX(input, output)`: it would write into a copy.
+
 ## Property States
 
 In some cases, two properties may share the same type (e.g. both are `string`) but represent different formats.  
