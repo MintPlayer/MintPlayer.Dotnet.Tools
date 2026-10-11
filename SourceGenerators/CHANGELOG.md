@@ -39,6 +39,8 @@ silently into warnings or errors. Read **Behaviour changes** before upgrading.
   POCO or collection) is CONFIG005; it used to produce generated code that did not compile, or a different value (a
   non-string default on a `string` became `null`). `[Options]` together with `[Config]` is OPTIONS004; the field used to
   take the `[Config]` path silently.
+- **`[Options]` together with `[ConnectionString]` is an error (OPTIONS005).** It was the one pair of config markers
+  without a diagnostic; the field silently took the `[ConnectionString]` path.
 - **`[Config]` defaults apply on nullable fields too.** `[Config("Retries", DefaultValue = 3)] int? retries` used to be
   `null` when the key was missing (a `string?` already got its default). A `Uri` field now uses a string default (it
   was ignored), an enum default works for every underlying type (`Small.B` on a `byte` enum emitted `Small.7`), and
@@ -70,7 +72,8 @@ silently into warnings or errors. Read **Behaviour changes** before upgrading.
 - GENMETHOD001 (the type, or a type containing it, cannot be extended), GENMETHOD002 (the method is not private),
   GENMETHOD003 (unsupported method shape), GENMETHOD004 (`Count` out of 2..16).
 - INJECT005 (non-void `[PostConstruct]`), INJECT006 (type or containing type not partial; was CS0260), INJECT007
-  (positional record or primary constructor; was CS8862), INJECT008 (Warning: `[Inject]` on a property with a setter).
+  (positional record or primary constructor; was CS8862), INJECT008 (Warning: `[Inject]` on a property with a setter),
+  OPTIONS005 (`[Options]` with `[ConnectionString]`).
 - README sections for the Description and ClassNames generators.
 - REGISTER003 (inaccessible type), REGISTER004 (undefined lifetime), REGISTER005 (inexpressible service type). They
   replace CS8785/MPSG001 and CS0122, CS0246, CS0305 and CS0311 in the generated code.
@@ -98,6 +101,7 @@ silently into warnings or errors. Read **Behaviour changes** before upgrading.
   under an id already seen throws), `Discovered<T>`, `ForAttribute`, `Models()`/`Diagnostics()`, a
   `ReportDiagnostics` overload for `DiagnosticInfo`, `Producer.WritePreamble`/`NullableEnable`, `OpenNamespace`.
 - MPSG002 (Warning): reported instead of a diagnostic that could not be reported, so it is neither lost nor a crash.
+- `StringExtensions.ToSafeNamespace` (see Fixed).
 - Release tracking (`AnalyzerReleases.*.md`) for MPSG001/MPSG002.
 
 **MintPlayer.SourceGenerators.Testing**
@@ -189,6 +193,12 @@ silently into warnings or errors. Read **Behaviour changes** before upgrading.
 - Models with an unresolved base or property type are skipped instead of generating broken code.
 
 **MintPlayer.SourceGenerators.Tools**
+- **A `RootNamespace` that is not a valid namespace name broke every generator.** The SDK passes the project name
+  through with only spaces replaced, so a project named `My-App` got `namespace My-App` in every generated file
+  (CS0246, CS0102, CS0548). `Settings.RootNamespace` and `Producer.RootNamespace` are now sanitized once, by the new
+  `StringExtensions.ToSafeNamespace`: an invalid character becomes `_`, a segment starting with a digit gets a `_`
+  prefix, and a keyword segment is `@`-escaped (`My-App.1st.class` becomes `My_App._1st.@class`). This fixes ServiceRegistrations, ClassNames, Mapper,
+  CliGenerator and the MintPlayer.Assertions equivalency registration at once.
 - `OpenPathSpec` wrote `record class`, which is CS8773 at C# 9; it writes `record`.
 - `LocationKey.ToLocation` is bounds-checked, and reporting a diagnostic never throws (a stale location used to crash
   the generator).

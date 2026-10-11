@@ -231,6 +231,28 @@ public class InjectConfigTests
     }
 
     /// <summary>
+    /// [ConnectionString] with [Options] was the one pair of config markers without a diagnostic: the field silently
+    /// took the [ConnectionString] path. It is OPTIONS005 now, mirroring OPTIONS004.
+    /// </summary>
+    [Fact]
+    public void ItReportsAnOptionsFieldThatCollidesWithConnectionString()
+    {
+        var run = Run("""
+                [ConnectionString("Default")]
+                [Options("Database")]
+                private readonly IOptions<DatabaseOptions> _options;
+            }
+
+            public class DatabaseOptions { public string Host { get; set; } = ""; }
+            """, usings: "using Microsoft.Extensions.Options;");
+
+        run.Of("OPTIONS005").Should().ContainSingle().Which.GetMessage().Should().Contain("_options");
+        run.Of("CONNSTR002").Should().BeEmpty("the conflict is the one problem to report");
+        run.AllSources.Should().NotContain("GetConnectionString(\"Default\")", "neither binding is generated for a conflicting field");
+        run.AllSources.Should().NotContain("GetSection(\"Database\")", "neither binding is generated for a conflicting field");
+    }
+
+    /// <summary>
     /// CONFIG005 was declared and never reported. A default the producer cannot emit as the field's value used to
     /// become generated code that does not compile (a string for a DateTime, 3.5 for an int, 300 for a byte), or be
     /// replaced by something else (a non-string default on a string field became null).

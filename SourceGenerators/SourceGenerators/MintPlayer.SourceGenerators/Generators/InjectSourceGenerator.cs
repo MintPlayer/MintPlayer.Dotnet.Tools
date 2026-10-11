@@ -325,6 +325,7 @@ public class InjectSourceGenerator : IncrementalGenerator
         else if (connStrAttr is not null)
         {
             if (hasInject) { Report(DiagnosticRules.ConnectionStringConflictWithInject, name); return; }
+            if (optionsAttr is not null) { Report(DiagnosticRules.OptionsConflictWithConnectionString, name); return; }
 
             var connStrField = ExtractConnectionStringField(connStrAttr, name, isNullable, memberType, Report);
             if (connStrField is not null) result.ConnectionStringFields.Add(connStrField);

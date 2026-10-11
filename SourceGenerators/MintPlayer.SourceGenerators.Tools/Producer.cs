@@ -16,13 +16,15 @@ public abstract class Producer
     /// "Identifier expected" — so the generator silently broke the consumer's build. MSBuild
     /// always sets RootNamespace, which is why it never showed in a normal build; it bites
     /// any other host, including a plain CSharpGeneratorDriver. Normalizing here fixes every
-    /// producer at once, including ones written later.
+    /// producer at once, including ones written later. A set value goes through
+    /// <see cref="StringExtensions.ToSafeNamespace(string?)"/> as well, so a project named <c>My-App</c> gets
+    /// <c>namespace My_App</c> rather than CS0246/CS0102/CS0548.
     /// </remarks>
     public const string DefaultRootNamespace = "GeneratedCode";
 
     protected Producer(string rootNamespace, string filename)
     {
-        RootNamespace = string.IsNullOrWhiteSpace(rootNamespace) ? DefaultRootNamespace : rootNamespace;
+        RootNamespace = rootNamespace.ToSafeNamespace() ?? DefaultRootNamespace;
         Filename = filename;
     }
 

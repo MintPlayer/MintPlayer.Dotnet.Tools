@@ -11,6 +11,11 @@ public sealed class Settings : IEquatable<Settings>
     private Settings() { }
 
     public LanguageVersion LanguageVersion { get; private set; }
+    /// <summary>
+    /// <c>build_property.rootnamespace</c>, already made a valid C# namespace name by
+    /// <see cref="StringExtensions.ToSafeNamespace(string?)"/> (<c>My-App</c> becomes <c>My_App</c>). Null when the
+    /// host supplies none.
+    /// </summary>
     public string? RootNamespace { get; private set; }
     public string? ProjectTypeGuids { get; private set; }
     public string? EnforceExtendedAnalyzerRules { get; private set; }
@@ -33,7 +38,7 @@ public sealed class Settings : IEquatable<Settings>
         return new Settings
         {
             LanguageVersion = right?.LanguageVersion ?? LanguageVersion.Default,
-            RootNamespace = left.RootNamespace,
+            RootNamespace = left.RootNamespace.ToSafeNamespace(),
             ProjectTypeGuids = left.ProjectTypeGuids,
             EnforceExtendedAnalyzerRules = left.EnforceExtendedAnalyzerRules,
             TargetFrameworkIdentifier = left.TargetFrameworkIdentifier,

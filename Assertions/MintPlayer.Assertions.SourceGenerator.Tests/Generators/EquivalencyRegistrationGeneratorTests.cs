@@ -169,4 +169,27 @@ public class EquivalencyRegistrationGeneratorTests
         run.Errors.Should().BeEmpty(run.ErrorText);
         run.AllSources.Should().Contain("Node");
     }
+
+    /// <summary>
+    /// The SDK passes a project named <c>My-App</c> through as RootNamespace <c>My-App</c>; the registration file
+    /// is written into <c>namespace {RootNamespace}</c>, which was CS0246/CS0102/CS0548 before Tools sanitized it.
+    /// </summary>
+    [Fact]
+    public void ItCompilesWithAHyphenatedRootNamespace()
+    {
+        var run = Harness.Instance.WithRootNamespace("My-App.1st.class").RunGenerator(Generator, """
+            using MintPlayer.Assertions;
+
+            namespace Demo;
+
+            [AssertEquivalency]
+            public class Order
+            {
+                public string Reference { get; set; } = "";
+            }
+            """);
+
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        run.AllSources.Should().Contain("namespace My_App._1st.@class");
+    }
 }

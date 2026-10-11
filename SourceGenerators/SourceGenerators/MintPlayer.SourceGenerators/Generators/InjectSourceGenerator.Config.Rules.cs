@@ -123,5 +123,15 @@ public static partial class DiagnosticRules
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    // Each pair of config markers has its own id (CONFIG006, CONFIG008, CONNSTR003, OPTIONS003, OPTIONS004); this was
+    // the one pair without, and a member with both silently took the [ConnectionString] path.
+    public static readonly DiagnosticDescriptor OptionsConflictWithConnectionString = new(
+        id: "OPTIONS005",
+        title: "Conflicting with ConnectionString",
+        messageFormat: "Field '{0}' cannot have both [Options] and [ConnectionString] attributes",
+        category: ConfigCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     #endregion
 }

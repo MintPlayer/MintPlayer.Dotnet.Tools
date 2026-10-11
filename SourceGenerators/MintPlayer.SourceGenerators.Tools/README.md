@@ -50,7 +50,8 @@ public class ExampleGenerator : IncrementalGenerator
 
 `Initialize(context, settingsProvider)` is the method to override. `settingsProvider` carries the project's settings
 (`RootNamespace`, `LanguageVersion`, target framework, ...) and is itself value-equal, so it stays cached until a
-setting changes.
+setting changes. `RootNamespace` is already a valid namespace name: a project named `My-App` gives `My_App`
+(`StringExtensions.ToSafeNamespace`), and a `Producer` given none uses `GeneratedCode`.
 
 Producer:
 

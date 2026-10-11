@@ -320,6 +320,7 @@ must be a constant the field can hold, otherwise the generator reports CONFIG005
 | OPTIONS001 | Error | Invalid options type |
 | OPTIONS003 | Error | Conflicting [Options] and [Inject] |
 | OPTIONS004 | Error | Conflicting [Options] and [Config] |
+| OPTIONS005 | Error | Conflicting [Options] and [ConnectionString] |
 
 ## Interface Implementation
 
