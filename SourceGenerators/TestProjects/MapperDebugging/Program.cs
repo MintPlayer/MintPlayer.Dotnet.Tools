@@ -2,7 +2,7 @@
 using MapperDebugging;
 using System.Diagnostics;
 
-[assembly: GenerateMapper(typeof(Person), typeof(PersonDto), "Persoon")]
+[assembly: GenerateMapper(typeof(Person), typeof(PersonDto), "MapTo")]
 [assembly: GenerateMapper(typeof(ContactInfo), typeof(ContactInfoDto), "MapTo")]
 [assembly: GenerateMapper(typeof(Product), typeof(ProductDto), "MapTo")]
 

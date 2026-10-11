@@ -26,13 +26,17 @@ public class MapperFeatureTests
     /// <c>[assembly: GenerateMapper(source, dest, prefix)]</c> — the three-argument overload that
     /// maps two types neither of which is decorated, naming the methods from the prefix.
     /// </summary>
+    /// <remarks>
+    /// This test passed the default prefix <c>"MapTo"</c>, so it could not see that the prefix was ignored (P19).
+    /// It now passes another prefix.
+    /// </remarks>
     [Fact]
     public void AnAssemblyLevelAttribute_MapsTwoUndecoratedTypes()
     {
         var run = Run("""
             using MintPlayer.Mapper.Attributes;
 
-            [assembly: GenerateMapper(typeof(Demo.Person), typeof(Demo.PersonDto), "MapTo")]
+            [assembly: GenerateMapper(typeof(Demo.Person), typeof(Demo.PersonDto), "Convert")]
 
             namespace Demo;
 
@@ -50,8 +54,9 @@ public class MapperFeatureTests
             """);
 
         run.Errors.Should().BeEmpty(run.ErrorText);
-        run.AllSources.Should().Contain("MapToPersonDto");
-        run.AllSources.Should().Contain("MapToPerson");
+        run.AllSources.Should().Contain("ConvertPersonDto(this global::Demo.Person? input)");
+        run.AllSources.Should().Contain("ConvertPerson(this global::Demo.PersonDto? input)");
+        run.AllSources.Should().NotContain("MapToPerson");
     }
 
     /// <summary>
