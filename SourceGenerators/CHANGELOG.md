@@ -97,8 +97,6 @@ silently into warnings or errors. Read **Behaviour changes** before upgrading.
   variance, `@`-escaping, `UnsupportedReason`, `includeTarget`, `UniqueTypeParameterName`/`UniqueTypeParameterPrefix`.
 - Attribute helpers: `IsAttribute`, `FindAttribute(s)`, `HasAttribute`, `TryGetArgument`/`GetArgument` (constants,
   arithmetic, casts, enums, `typeof`).
-- `Producer.WriteHeader(IndentedTextWriter)` and `IndentedTextWriterExtensions.WriteLines(string)`: write a
-  multi-line text one line at a time, so its line breaks are the writer's (see Fixed).
 - Discovery plumbing: `DiagnosticInfo` (keyed by rule id, holds no Roslyn objects; a second, different descriptor
   under an id already seen throws), `Discovered<T>`, `ForAttribute`, `Models()`/`Diagnostics()`, a
   `ReportDiagnostics` overload for `DiagnosticInfo`, `Producer.WritePreamble`/`NullableEnable`, `OpenNamespace`.
@@ -215,10 +213,10 @@ silently into warnings or errors. Read **Behaviour changes** before upgrading.
   the generator).
 - **Generated files mixed line endings.** `Producer.Header` is a raw string literal, so its line breaks are those of
   the checkout the package was built from, while the rest of every file uses `Environment.NewLine`. A package built on
-  Linux and used on Windows emitted an LF header above a CRLF body. Every generator in this repository (and
-  `Producer`'s own preamble) now writes the header with the new `Producer.WriteHeader(writer)`, which writes it one
-  line at a time. **A producer in another package that calls `writer.WriteLine(Header)` should switch to
-  `WriteHeader(writer)`**; `IndentedTextWriterExtensions.WriteLines` does the same for any other multi-line literal.
+  Linux and used on Windows emitted an LF header above a CRLF body. `Header` now normalizes its line breaks to
+  `Environment.NewLine`, so `writer.WriteLine(Header)` is correct everywhere, including in producers in other
+  packages. It is therefore a `static readonly` field instead of a `const`: code that used it in a constant context
+  no longer compiles, and code compiled against the old constant keeps its inlined copy until rebuilt.
 
 ### Other packages in this repository
 - **MintPlayer.Assertions** (`11.0.0-rc.6`): it ships `MintPlayer.SourceGenerators.Tools` inside its analyzer payload,

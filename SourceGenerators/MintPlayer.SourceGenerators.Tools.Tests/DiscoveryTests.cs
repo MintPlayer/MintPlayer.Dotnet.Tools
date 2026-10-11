@@ -115,12 +115,13 @@ public class DiscoveryTests
 
     [Theory]
     [InlineData(false, false, "class X { }\r\n")]
-    [InlineData(true, false, Producer.Header + "\r\n\r\nclass X { }\r\n")]
-    [InlineData(true, true, Producer.Header + "\r\n\r\n#nullable enable\r\n\r\nclass X { }\r\n")]
+    [InlineData(true, false, "{Header}\r\n\r\nclass X { }\r\n")]
+    [InlineData(true, true, "{Header}\r\n\r\n#nullable enable\r\n\r\nclass X { }\r\n")]
     public void Preamble(bool preamble, bool nullable, string expected)
     {
         var (driver, _) = Run(new ProducerGenerator(new TestProducer(preamble, nullable, "class X { }")), "class C { }");
         var source = driver.GetRunResult().Results.Single().GeneratedSources.Single().SourceText.ToString();
+        expected = expected.Replace("{Header}", Producer.Header);
         source.Replace("\r\n", "\n").Should().Be(expected.Replace("\r\n", "\n"));
     }
 

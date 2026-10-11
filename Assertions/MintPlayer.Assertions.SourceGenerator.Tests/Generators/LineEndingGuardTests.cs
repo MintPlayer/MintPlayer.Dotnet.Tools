@@ -8,8 +8,8 @@ namespace MintPlayer.Assertions.SourceGenerator.Tests.Generators;
 /// <remarks>
 /// The counterpart of <c>MintPlayer.SourceGenerators.Tests.Guards.LineEndingGuardTests</c>. Both generators here write
 /// <c>Producer.Header</c>, a raw string literal whose line breaks are those of the checkout the package was built from;
-/// <c>writer.WriteLine(Header)</c> gave a package built on Linux an LF header above a CRLF body on Windows. They write
-/// it with <c>Producer.WriteHeader</c> now. The checkout-independent tests of that helper are in the Tools tests.
+/// <c>writer.WriteLine(Header)</c> gave a package built on Linux an LF header above a CRLF body on Windows. <c>Header</c>
+/// now normalizes its line breaks to <see cref="Environment.NewLine"/>.
 /// </remarks>
 public class LineEndingGuardTests
 {

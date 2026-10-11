@@ -10,13 +10,11 @@ namespace MintPlayer.SourceGenerators.Tests.Guards;
 /// <para>
 /// <c>Producer.Header</c> is a raw string literal, so its line breaks are those of the checkout the package was built
 /// from. Written with <c>writer.WriteLine(Header)</c>, a package built on Linux and used on Windows emitted an LF header
-/// above a CRLF body. Every generator now writes it with <c>Producer.WriteHeader</c>, one line at a time.
+/// above a CRLF body. <c>Header</c> now normalizes its line breaks to <see cref="Environment.NewLine"/>.
 /// </para>
 /// <para>
 /// This guard runs every generator over its <see cref="FixedFileSetGuardTests"/> corpus. On a machine whose checkout
-/// uses the same line ending as <see cref="Environment.NewLine"/> the old bug cannot show here, which is why
-/// <c>IndentedTextWriterExtensionsTests</c> in the Tools tests feeds <c>WriteLines</c> and <c>WriteHeader</c> line
-/// breaks spelled out as escapes, into a writer set to the other convention.
+/// uses the same line ending as <see cref="Environment.NewLine"/> the old bug cannot show here.
 /// </para>
 /// </remarks>
 public class LineEndingGuardTests

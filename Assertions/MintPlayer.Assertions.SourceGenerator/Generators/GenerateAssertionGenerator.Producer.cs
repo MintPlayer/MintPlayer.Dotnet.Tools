@@ -23,7 +23,7 @@ internal sealed class GenerateAssertionProducer : Producer
 
         writer.WriteLine("#nullable enable");
         writer.WriteLine();
-        WriteHeader(writer);
+        writer.WriteLine(Header);
         writer.WriteLine();
 
         foreach (var namespaceGroup in declarations.GroupBy(d => d.Namespace).OrderBy(g => g.Key, StringComparer.Ordinal))

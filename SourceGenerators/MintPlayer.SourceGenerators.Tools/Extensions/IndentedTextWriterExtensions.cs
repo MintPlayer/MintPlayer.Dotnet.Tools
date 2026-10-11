@@ -66,24 +66,6 @@ public static class IndentedTextWriterExtensions
         writer.WriteLine(line);
         writer.Indent--;
     }
-
-    /// <summary>
-    /// Writes a multi-line text one line at a time, so every line break is the writer's <see cref="TextWriter.NewLine"/>
-    /// and every line gets the current indentation.
-    /// </summary>
-    /// <param name="writer">The <see cref="IndentedTextWriter"/> to write to.</param>
-    /// <param name="text">The text, with any mix of <c>\r\n</c>, <c>\n</c> and <c>\r</c> line breaks.</param>
-    /// <remarks>
-    /// Use this for a raw or verbatim string literal: its line breaks are those of the source file as it was checked
-    /// out, so <c>writer.WriteLine(text)</c> writes LF on a Linux build and CRLF on a Windows one, inside output whose
-    /// other line breaks are <see cref="TextWriter.NewLine"/>. <see cref="IndentedTextWriter"/> also indents only after
-    /// its own line breaks, never after one embedded in a string.
-    /// </remarks>
-    public static void WriteLines(this IndentedTextWriter writer, string text)
-    {
-        foreach (var line in text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
-            writer.WriteLine(line);
-    }
 }
 
 public interface IDisposableWriterIndent : IDisposable { }

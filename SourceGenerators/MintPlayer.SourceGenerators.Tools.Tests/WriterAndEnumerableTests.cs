@@ -163,54 +163,6 @@ public class IndentedTextWriterExtensionsTests
 
         backing.ToString().Should().Contain("        nested\n");
     }
-
-    // The input's line breaks are spelled out with escapes, so none of these tests depends on how this file was
-    // checked out, and the writer's NewLine is set to the opposite convention.
-    [Theory]
-    [InlineData("a\nb\nc", "\r\n")]
-    [InlineData("a\r\nb\r\nc", "\n")]
-    [InlineData("a\rb\nc", "\r\n")]
-    [InlineData("a\r\nb\nc", "\n")]
-    public void WriteLines_UsesTheWritersNewLine_WhateverTheInputUses(string text, string newLine)
-    {
-        var backing = new StringWriter { NewLine = newLine };
-        var writer = new IndentedTextWriter(backing, "    ");
-
-        writer.WriteLines(text);
-        writer.Flush();
-
-        backing.ToString().Should().Be($"a{newLine}b{newLine}c{newLine}");
-    }
-
-    [Fact]
-    public void WriteLines_IndentsEveryLine()
-    {
-        var (writer, backing) = Create();
-
-        using (writer.OpenBlock("class Foo"))
-        {
-            writer.WriteLines("// one\r\n// two");
-        }
-
-        backing.ToString().Should().Be("class Foo\n{\n    // one\n    // two\n}\n");
-    }
-
-    [Theory]
-    [InlineData("\n")]
-    [InlineData("\r\n")]
-    public void WriteHeader_UsesTheWritersNewLine_OnEveryLine(string newLine)
-    {
-        var backing = new StringWriter { NewLine = newLine };
-        var writer = new IndentedTextWriter(backing, "    ");
-
-        Producer.WriteHeader(writer);
-        writer.Flush();
-
-        var text = backing.ToString();
-        var expectedLines = Producer.Header.Replace("\r\n", "\n").Split('\n');
-        text.Should().Be(string.Concat(expectedLines.Select(l => l + newLine)));
-        text.Replace(newLine, "").Should().NotContain("\n").And.NotContain("\r");
-    }
 }
 
 public class TypeExtensionsTests
