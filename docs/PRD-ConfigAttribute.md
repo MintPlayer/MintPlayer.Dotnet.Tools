@@ -7,6 +7,8 @@
 - **Version**: 1.0
 - **Last Updated**: 2026-01-25
 
+> **Update 2026-10 (12.2.0, #193/#194):** OPTIONS002 is removed (it was never reported); CONFIG005 and OPTIONS004 were declared but never reported and are now reported; new OPTIONS005 is an error for `[Options]` and `[ConnectionString]` on one member (it silently took the `[ConnectionString]` path). Keys and arguments are read from the compiler's constant values (any constant expression works), `[Config]` defaults also apply on nullable fields, and the attributes work on records, structs and record structs. See [PRD-TypeKindRobustness.md](PRD-TypeKindRobustness.md).
+
 ---
 
 ## Table of Contents
@@ -230,6 +232,8 @@ The generator produces all necessary constructor code, handling type parsing, nu
 > **Note:** The `Required` property was removed from the final implementation. Required/optional behavior is now inferred from field nullability:
 > - Non-nullable fields (`string`, `int`) are required and throw if the config value is missing
 > - Nullable fields (`string?`, `int?`) are optional and return null/default if missing
+
+> **Update 2026-10 (12.2.0, #193/#194):** a `DefaultValue` now applies on nullable fields too (`int? retries` with `DefaultValue = 3` is 3 when the key is missing, it used to be `null`); a `Uri` field takes a string default, enum defaults work for every underlying type, and floating-point defaults are written in the invariant culture. A default the field cannot hold is CONFIG005. See [PRD-TypeKindRobustness.md](PRD-TypeKindRobustness.md).
 
 ```csharp
 namespace MintPlayer.SourceGenerators.Attributes
@@ -665,6 +669,8 @@ services.Configure<MyOptions>(configuration.GetSection("MySection"));
 
 The generator can optionally emit a diagnostic hint (OPTIONS002 - Info) if the section binding registration is not detected, but this is not a blocking error.
 
+> **Update 2026-10 (12.2.0, #193/#194):** OPTIONS002 was never reported and is removed. The section stays documentation only; the README shows binding with `services.AddOptions<T>().BindConfiguration("Section")`. See [PRD-TypeKindRobustness.md](PRD-TypeKindRobustness.md).
+
 ### 5.5 Combining [Config] and [Options]
 
 Both patterns can be used together in the same class:
@@ -725,6 +731,8 @@ public partial class HybridService : IHybridService
 | OPTIONS002 | Info | Section specified but binding not detected | Consider registering options binding: services.Configure<{0}>(configuration.GetSection("{1}")) |
 | OPTIONS003 | Error | `[Options]` combined with `[Inject]` | Field '{0}' cannot have both [Options] and [Inject] attributes. [Options] already handles injection |
 | OPTIONS004 | Error | `[Options]` combined with `[Config]` | Field '{0}' cannot have both [Options] and [Config] attributes |
+
+> **Update 2026-10 (12.2.0, #193/#194):** OPTIONS002 no longer exists. CONFIG005 and OPTIONS004 are reported only since 12.2.0. Added: OPTIONS005 (Error, `[Options]` combined with `[ConnectionString]`) and INJECT008 (Warning, `[Inject]` on a property with a setter, which is not assigned). The descriptor listing in 6.3 and the "OPTIONS001-OPTIONS004" step in Phase 4 predate this. See [PRD-TypeKindRobustness.md](PRD-TypeKindRobustness.md).
 
 ### 6.2 Runtime Validation
 

@@ -7,6 +7,8 @@ Issue: [#184](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/184).
 use the old names. In 12.0.0 `[AutoValueComparer]` is `[GenerateEquality]` and `[ComparerIgnore]` is
 `[EqualityIgnore]`, including in diagnostic messages and generated comments (Open question 3).
 
+> **Update 2026-10 (12.2.0, #193/#194):** the Warning-severity "only one of `Equals(object)`/`GetHashCode()` is declared" case is now its own id, MINT008; MINT002 is Info only (this reverses the "One descriptor for both MINT002 severities" deviation and D4's "Warning instead"). MINT003 is a single descriptor. New MINT007 (Error) covers `[GenerateEquality]` on a ref struct, static class, C# 15 union or file-local type, or a type nested in a union or file-local type. Types are re-declared through the Tools `PathSpec` helpers, and a model whose base or property type does not resolve is skipped. See [PRD-TypeKindRobustness.md](PRD-TypeKindRobustness.md).
+
 ## Overview
 
 `[AutoValueComparer]` generates a separate `XValueComparer : ValueComparer<X>` and leaves `X` itself with reference

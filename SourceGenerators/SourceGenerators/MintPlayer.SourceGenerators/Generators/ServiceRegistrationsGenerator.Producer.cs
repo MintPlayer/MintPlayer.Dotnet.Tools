@@ -5,11 +5,12 @@ using MintPlayer.SourceGenerators.Extensions;
 using MintPlayer.SourceGenerators.Models;
 using MintPlayer.SourceGenerators.Tools;
 using System.CodeDom.Compiler;
+using System.Globalization;
 using System.Text;
 
 namespace MintPlayer.SourceGenerators.Generators;
 
-public class RegistrationsProducer : Producer, IConditionalDiagnosticReporter
+public class RegistrationsProducer : Producer
 {
     private const string MethodPrefix = "Add";
     private const string DefaultMethodNameFallback = "Services";
@@ -31,25 +32,10 @@ public class RegistrationsProducer : Producer, IConditionalDiagnosticReporter
         this.assemblyConfig = assemblyConfig;
     }
 
-    public bool HasDiagnostics => serviceRegistrations.Any(r => r.HasError);
-
-    public IEnumerable<Diagnostic> GetDiagnostics(Compilation compilation)
-    {
-        return serviceRegistrations.Where(r => r.HasError)
-            .Select(registration => registration.AppliedOn switch
-            {
-                ERegistrationAppliedOn.Class => DiagnosticRules.RegisterAttributeClassRequiresLifetime.Create(registration.Location?.ToLocation(compilation)),
-                ERegistrationAppliedOn.Assembly => DiagnosticRules.RegisterAttributeAssemblyRequiresType.Create(registration.Location?.ToLocation(compilation)),
-                _ => null,
-            })
-            .NotNull();
-    }
+    protected override bool WritePreamble => true;
 
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
     {
-        writer.WriteLine(Header);
-        writer.WriteLine();
-
         if (knowsDependencyInjectionAbstractions)
         {
             writer.WriteLine($"using Microsoft.Extensions.DependencyInjection;");
@@ -59,7 +45,9 @@ public class RegistrationsProducer : Producer, IConditionalDiagnosticReporter
                 writer.WriteLine("/// <summary>Extension methods that register this project's <c>[Register]</c> services.</summary>");
                 using (writer.OpenBlock("public static class DependencyInjectionExtensionMethods"))
                 {
-                    foreach (var methodGroup in serviceRegistrations.Where(sr => sr is not null && !sr.HasError).GroupBy(sr => sr.MethodNameHint))
+                    // The discovery step only lets the three defined lifetimes through (REGISTER004 otherwise); the
+                    // filter keeps an undefined one from ever reaching the lookup and taking the whole file down.
+                    foreach (var methodGroup in serviceRegistrations.Where(sr => sr is not null && lifetimeNames.ContainsKey(sr.Lifetime)).GroupBy(sr => sr.MethodNameHint))
                     {
                         cancellationToken.ThrowIfCancellationRequested();
 
@@ -224,9 +212,13 @@ public class RegistrationsProducer : Producer, IConditionalDiagnosticReporter
     /// </summary>
     private void GenerateSingleGenericMethod(IndentedTextWriter writer, string methodName, string accessibilityString, List<ServiceRegistration> services, CancellationToken cancellationToken)
     {
-        // Use the first service's generic info for the method signature
+        // The first service names the method's type parameters. Every service's types and constraints are templates
+        // over positions, so the others are substituted by position: Repo<T> and Cache<TItem> share AddX<T>, and
+        // Cache<TItem> is emitted as Cache<T> (P9). Filling them in by name left TItem undeclared: CS0246.
         var genericInfo = services[0].GenericInfo!;
-        var typeParamList = $"<{string.Join(", ", genericInfo.TypeParameterNames)}>";
+        var typeParameterNames = genericInfo.TypeParameterNames;
+        string Fill(string template) => string.Format(CultureInfo.InvariantCulture, template, typeParameterNames);
+        var typeParamList = $"<{string.Join(", ", typeParameterNames)}>";
 
         // Build method signature
         var methodSignature = $"{accessibilityString} static global::Microsoft.Extensions.DependencyInjection.IServiceCollection {methodName}{typeParamList}(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)";
@@ -240,7 +232,7 @@ public class RegistrationsProducer : Producer, IConditionalDiagnosticReporter
             writer.Indent++;
             foreach (var constraint in genericInfo.ConstraintClauses)
             {
-                writer.WriteLine(constraint);
+                writer.WriteLine(Fill(constraint));
             }
             writer.Indent--;
             writer.WriteLine("{");
@@ -261,7 +253,11 @@ public class RegistrationsProducer : Producer, IConditionalDiagnosticReporter
         {
             cancellationToken.ThrowIfCancellationRequested();
             var info = svc.GenericInfo!;
-            writer.Write($".Add{lifetimeNames[svc.Lifetime]}<{info.GenericServiceTypeName}, {info.GenericImplementationTypeName}>()");
+            var serviceType = Fill(info.GenericServiceTypeName);
+            var implementationType = Fill(info.GenericImplementationTypeName);
+            writer.Write(serviceType == implementationType
+                ? $".Add{lifetimeNames[svc.Lifetime]}<{implementationType}>()"
+                : $".Add{lifetimeNames[svc.Lifetime]}<{serviceType}, {implementationType}>()");
 
             if (++currentIndex == total)
                 writer.Write(";");

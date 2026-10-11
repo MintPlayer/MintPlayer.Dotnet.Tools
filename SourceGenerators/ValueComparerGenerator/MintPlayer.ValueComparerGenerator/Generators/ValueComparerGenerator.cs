@@ -19,7 +19,7 @@ namespace MintPlayer.ValueComparerGenerator.Generators;
 ///   Its transform walks the base chain to the nearest attributed ancestor and returns null for everything else, so
 ///   property reading happens only for the few types that are models.</item>
 /// </list>
-/// Both return <see cref="DiscoveredType"/>, which is value-equatable and carries no symbol or location, so every
+/// Both return a <see cref="Discovered{TModel}"/>, which is value-equatable and carries no symbol or location, so every
 /// step caches under the default comparer.
 /// </remarks>
 [Generator(LanguageNames.CSharp)]
@@ -30,15 +30,13 @@ public class ValueComparerGenerator : IncrementalGenerator
 
     public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {
-        var rootsProvider = context.SyntaxProvider.ForAttributeWithMetadataName(
+        var rootsProvider = context.SyntaxProvider.ForAttribute(
                 Discovery.GenerateEqualityMetadataName,
                 static (node, ct) => node is TypeDeclarationSyntax,
                 static (ctx, ct) => ctx.TargetSymbol is INamedTypeSymbol type
                     ? Discovery.Build(type, ctx.SemanticModel.Compilation, ct)
                     : null)
-            .WithTrackingName("ValueComparerGenerator.Roots")
-            .Where(static t => t is not null)
-            .Select(static (t, ct) => t!);
+            .WithTrackingName("ValueComparerGenerator.Roots");
 
         var derivedProvider = context.SyntaxProvider.CreateSyntaxProvider(
                 static (node, ct) => Discovery.IsDerivableDeclaration(node),
@@ -57,8 +55,8 @@ public class ValueComparerGenerator : IncrementalGenerator
 
         // One file for every model (PRD-EqualitySingleFile D1). The combined step returns an equatable array, so
         // an unrelated edit leaves it Cached; a plain collection would report Modified and rebuild the file.
-        var modelsProvider = Models(rootsProvider).Collect()
-            .Combine(Models(derivedProvider).Collect())
+        var modelsProvider = rootsProvider.Models(ModelsStep).Collect()
+            .Combine(derivedProvider.Models(ModelsStep).Collect())
             .Select(static (p, ct) => p.Left.Concat(p.Right)
                 // Defensive: the roots provider owns every attributed type, so the two don't overlap today.
                 .DistinctBy(static m => m.FullName)
@@ -67,32 +65,8 @@ public class ValueComparerGenerator : IncrementalGenerator
 
         context.ProduceCode(modelsProvider.Select(static Producer (m, ct) => new Producers.EqualityProducer(m)));
 
-        // Diagnostics are selected per type before collecting, so the collected array only changes when a
-        // diagnostic does, and a compilation with nothing to report never combines with the compilation at all.
-        var diagnosticsProvider = rootsProvider.Select(static (t, ct) => t.Diagnostics).Collect()
-            .Combine(derivedProvider.Select(static (t, ct) => t.Diagnostics).Collect())
-            .Select(static (p, ct) => p.Left.Concat(p.Right).SelectMany(d => d).ToEquatableArray())
-            .Select(static IDiagnosticReporter (d, ct) => new ValueComparerDiagnosticReporter(d));
-
-        context.ReportDiagnostics(diagnosticsProvider);
+        // Each diagnostic is combined with the compilation on its own, so a compilation with nothing to report
+        // never combines with it at all.
+        context.ReportDiagnostics(rootsProvider.Diagnostics(), derivedProvider.Diagnostics());
     }
-
-    /// <summary>The models of one provider, per item, so <see cref="ModelsStep"/> still tracks each type on its own.</summary>
-    private static IncrementalValuesProvider<ClassDeclaration> Models(IncrementalValuesProvider<DiscoveredType> provider)
-        => provider
-            .Select(static (t, ct) => t.Model)
-            .WithTrackingName(ModelsStep)
-            .Where(static m => m is not null)
-            .Select(static (m, ct) => m!);
-}
-
-internal sealed class ValueComparerDiagnosticReporter(EquatableArray<DiagnosticInfo> diagnostics) : IConditionalDiagnosticReporter
-{
-    public bool HasDiagnostics => !diagnostics.IsEmpty;
-
-    public IEnumerable<Diagnostic> GetDiagnostics(Compilation compilation)
-        => diagnostics.Select(d => ValueComparerDiagnostics.Create(
-            d.Rule,
-            d.Location?.ToLocation(compilation),
-            d.MessageArgs.Cast<object>().ToArray()));
 }

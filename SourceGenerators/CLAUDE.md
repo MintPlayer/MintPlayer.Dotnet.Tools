@@ -33,6 +33,12 @@ that the generator package takes a **NuGet dependency** on — that is the one w
 copies under `analyzers/dotnet/cs` belong to the generator's own payload, for whatever reflects over
 the generator's types (see below); the consumer never binds to them.
 
+That dependency does **not** mean the consumer gets the attributes. Measured on packed packages (all four
+generators): with `DevelopmentDependency=true`, `dotnet add package` and the VS package manager write
+`PrivateAssets=all` plus an `IncludeAssets` list without `compile`, and that list filters the dependency too. The
+attributes package is restored but not compiled against: CS0246. Only a bare `<PackageReference>` brings them along.
+So every README says to install both packages; do not "simplify" that back to "the generator brings it along".
+
 So `netstandard2.0`, `IsRoslynComponent`, `DevelopmentDependency=true` and
 `IncludeBuildOutput=false` are all exactly right here, and a `lib/` folder would be wrong.
 
@@ -173,6 +179,32 @@ repo it found: a `[RegisterFactory]` emitting `AddScoped<T>(method group)` again
 Also cover the diagnostic paths. Every `*.Rules.cs` sat at 0% for a long time, which meant no test
 ever drove a generator down a reporting path — a rule that never fired looked identical to one that
 worked.
+
+## Pipeline models, diagnostics and re-declared types
+
+Learned in #193/#194 (`docs/PRD-TypeKindRobustness.md`).
+
+- **A pipeline value holds no Roslyn object at all**, not even a `DiagnosticDescriptor`. A symbol, `Location`,
+  syntax node or descriptor in a cached value pins the compilation and compares by reference, so the next step
+  re-runs on every keystroke. Diagnostics travel as `DiagnosticInfo` (rule id + `LocationKey` + string args); the
+  descriptor is looked up by id when it is reported. `Guards/PipelineModelGuardTests` scans every model and producer
+  of every generator (fields too, which MINT001 cannot see) and fails on any `Microsoft.CodeAnalysis` type.
+- **One diagnostic id, one descriptor.** `DiagnosticInfo` registers each descriptor under its id and throws when a
+  different descriptor arrives with an id already seen. Descriptors are `static readonly` fields; put a varying
+  part of the message in the arguments, never in a per-call descriptor.
+- **The test harness is strict by default.** `MintPlayer.SourceGenerators.Testing` throws
+  `ComponentCrashedException` on CS8785, MPSG001, MPSG002 or AD0001 from every `Run*` and `ApplyCodeFixAsync`. Before,
+  a crashing generator read as one with nothing to say (CS8785 is only a warning). Use `.AllowComponentCrashes()` only
+  in a test that asserts on the crash.
+- **Re-declare a user type only through `GetPathSpec()` + `OpenPathSpec(spec, includeTarget: true)`.** It writes the
+  right keyword for every kind (`class`, `record`, `struct`, `record struct`, `interface`), type parameters with
+  variance, `@`-escaped names, and never repeats accessibility, modifiers or constraints. Assuming the user's
+  type is a `class` (a hand-written `partial class {Name}`, a cast to `ClassDeclarationSyntax`) is the bug class of
+  #193: it breaks on records and structs. Check
+  `PathSpec.UnsupportedReason` first and report a diagnostic rather than emitting nothing.
+- **A multi-line string literal carries the checkout's line endings.** The packages are built on Linux CI, so a raw
+  string written into generated code gave Windows consumers LF lines inside a CRLF file. Normalize such a literal to
+  `Environment.NewLine`, as `Producer.Header` does.
 
 ## Verifying a packaging change
 

@@ -413,6 +413,8 @@ Genuinely not being done in this unit of work — not deferred to avoid a large 
   deciding whether it is an error or a warning — a decision about the generator's public
   contract, not a coverage change. Characterized by a test so the current behaviour is at
   least documented.
+
+  > **Update 2026-10 (12.2.0, #193/#194):** resolved. A marked type that is not partial (or whose containing type is not) is now error INJECT006, reported on the type, and nothing is emitted for it. See [PRD-TypeKindRobustness.md](PRD-TypeKindRobustness.md).
 - **`UnusedUsingsCodeFixProvider`'s over-promising title.** The action is called "Remove all
   unused usings", but it reads `context.Diagnostics` to decide what to remove and Roslyn
   validates that every diagnostic in a `CodeFixContext` shares the requested span — so a

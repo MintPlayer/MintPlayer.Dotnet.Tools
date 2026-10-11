@@ -4,7 +4,7 @@ using MintPlayer.SourceGenerators.Tests.Snapshots;
 
 namespace MintPlayer.SourceGenerators.Tests.Diagnostics;
 
-/// <summary>MINT002 to MINT006, reported by ValueComparerGenerator itself (not by an analyzer).</summary>
+/// <summary>MINT002 to MINT008, reported by ValueComparerGenerator itself (not by an analyzer).</summary>
 public class ValueComparerGeneratorDiagnosticsTests
 {
     private static GeneratorRun Run(params string[] sources)
@@ -50,11 +50,13 @@ public class ValueComparerGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void MINT002_IsAWarning_WhenOnlyOneOfEqualsObjectAndGetHashCodeIsDeclared()
+    public void MINT008_IsAWarning_WhenOnlyOneOfEqualsObjectAndGetHashCodeIsDeclared()
     {
+        // Was a MINT002 warning: Tools' DiagnosticInfo resolves a rule by id, so one id has one severity.
         var run = Run(EqualityShapes.UserDeclared);
 
-        var warning = run.Of("MINT002").Single(d => d.GetMessage().Contains("'HalfMade'"));
+        run.Of("MINT002").Should().NotContain(d => d.GetMessage().Contains("'HalfMade'"));
+        var warning = run.Of("MINT008").Single(d => d.GetMessage().Contains("'HalfMade'"));
         warning.Severity.Should().Be(DiagnosticSeverity.Warning);
         warning.GetMessage().Should().Contain("GetHashCode()");
         ModelBlock(run.SourceFor(EqualityFile)!, "partial class HalfMade").Should().Contain("public override int GetHashCode()");
@@ -235,6 +237,84 @@ public class ValueComparerGeneratorDiagnosticsTests
         error.GetMessage().Should().Contain("'Inner' is nested in 'Outer'");
         LineOf(error).Should().Be(7);
         run.GeneratedSources.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("file", "'Model' is file-local")]
+    [InlineData("nested", "'Outer' is file-local")]
+    public void MINT007_AFileLocalModel_OrOneNestedInAFileType_IsAnError_AndGeneratesNoPhantomPartial(string where, string message)
+    {
+        // S1: a model nested in a file type used to get a partial in the generated file, which is another type.
+        var source = where == "file"
+            ? """
+              using MintPlayer.ValueComparerGenerator.Attributes;
+
+              namespace Demo;
+
+              [GenerateEquality]
+              file sealed partial class Model { public int X { get; set; } }
+              """
+            : """
+              using MintPlayer.ValueComparerGenerator.Attributes;
+
+              namespace Demo;
+
+              file partial class Outer
+              {
+                  [GenerateEquality]
+                  public sealed partial class Model { public int X { get; set; } }
+              }
+              """;
+        var run = Run(source);
+
+        var error = run.Of("MINT007").Single();
+        error.Severity.Should().Be(DiagnosticSeverity.Error);
+        error.GetMessage().Should().StartWith("[GenerateEquality] cannot generate the equality members of 'Model': ").And.Contain(message);
+        error.Location.IsInSource.Should().BeTrue();
+        run.GeneratedSources.Should().BeEmpty();
+        run.Errors.Where(d => d.Id != "MINT007").Should().BeEmpty(run.ErrorText);
+    }
+
+    [Fact]
+    public void MINT007_AStaticClass_IsAnError()
+    {
+        var run = Run("""
+            using MintPlayer.ValueComparerGenerator.Attributes;
+
+            namespace Demo;
+
+            [GenerateEquality]
+            public static partial class Helpers { public static int X { get; set; } }
+            """);
+
+        run.Of("MINT007").Single().GetMessage().Should().Contain("'Helpers'").And.Contain("static");
+        run.GeneratedSources.Should().BeEmpty();
+    }
+
+    /// <summary>W17: a model whose base or property type did not bind is skipped, so the generated file adds no errors.</summary>
+    [Theory]
+    [InlineData("public sealed partial class Model : MissingBase { public int X { get; set; } }")]
+    [InlineData("public sealed partial class Model { public MissingType? X { get; set; } }")]
+    [InlineData("public sealed partial class Model { public System.Collections.Generic.List<MissingType> X { get; set; } = new(); }")]
+    public void W17_AModelWithAnUnboundType_IsSkipped_SoTheGeneratedCodeAddsNoErrors(string declaration)
+    {
+        var run = Run($$"""
+            using MintPlayer.ValueComparerGenerator.Attributes;
+
+            namespace Demo;
+
+            [GenerateEquality]
+            {{declaration}}
+
+            [GenerateEquality]
+            public sealed partial class Fine { public int Y { get; set; } }
+            """);
+
+        // The user's own CS0246 stays; nothing else, and the valid model still generates.
+        run.Errors.Should().AllSatisfy(d => d.Id.Should().Be("CS0246"));
+        var generated = run.SourceFor(EqualityFile)!;
+        generated.Should().Contain("partial class Fine");
+        generated.Should().NotContain("partial class Model");
     }
 
     private static readonly string[] DiagnosticCaseSources =

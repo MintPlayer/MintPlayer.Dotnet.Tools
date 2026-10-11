@@ -26,13 +26,17 @@ public class MapperFeatureTests
     /// <c>[assembly: GenerateMapper(source, dest, prefix)]</c> — the three-argument overload that
     /// maps two types neither of which is decorated, naming the methods from the prefix.
     /// </summary>
+    /// <remarks>
+    /// This test passed the default prefix <c>"MapTo"</c>, so it could not see that the prefix was ignored (P19).
+    /// It now passes another prefix.
+    /// </remarks>
     [Fact]
     public void AnAssemblyLevelAttribute_MapsTwoUndecoratedTypes()
     {
         var run = Run("""
             using MintPlayer.Mapper.Attributes;
 
-            [assembly: GenerateMapper(typeof(Demo.Person), typeof(Demo.PersonDto), "MapTo")]
+            [assembly: GenerateMapper(typeof(Demo.Person), typeof(Demo.PersonDto), "Convert")]
 
             namespace Demo;
 
@@ -50,8 +54,55 @@ public class MapperFeatureTests
             """);
 
         run.Errors.Should().BeEmpty(run.ErrorText);
-        run.AllSources.Should().Contain("MapToPersonDto");
-        run.AllSources.Should().Contain("MapToPerson");
+        run.AllSources.Should().Contain("ConvertPersonDto(this global::Demo.Person? input)");
+        run.AllSources.Should().Contain("ConvertPerson(this global::Demo.PersonDto? input)");
+        run.AllSources.Should().NotContain("MapToPerson");
+    }
+
+    /// <summary>
+    /// A type mapped at assembly level with a custom prefix, used as a nested property (single, nullable, array,
+    /// list and collection) of another mapped pair. The nested mapping hard-coded <c>MapTo{Type}()</c>, which
+    /// does not exist once the prefix is honoured (CS1061).
+    /// </summary>
+    [Fact]
+    public void ANestedProperty_CallsTheMethodNamedByAnAssemblyLevelPrefix()
+    {
+        var run = Run("""
+            using System.Collections.Generic;
+            using MintPlayer.Mapper.Attributes;
+
+            [assembly: GenerateMapper(typeof(Demo.Address), typeof(Demo.AddressDto), "Convert")]
+            [assembly: GenerateMapper(typeof(Demo.Person), typeof(Demo.PersonDto), "Convert")]
+
+            namespace Demo;
+
+            public class Address { public string Street { get; set; } = ""; }
+            public class AddressDto { public string Street { get; set; } = ""; }
+
+            public class Person
+            {
+                public Address Home { get; set; } = new();
+                public Address? Work { get; set; }
+                public Address[] Previous { get; set; } = [];
+                public List<Address> Others { get; set; } = new();
+                public ICollection<Address> Billing { get; set; } = new List<Address>();
+            }
+
+            public class PersonDto
+            {
+                public AddressDto Home { get; set; } = new();
+                public AddressDto? Work { get; set; }
+                public AddressDto[] Previous { get; set; } = [];
+                public List<AddressDto> Others { get; set; } = new();
+                public ICollection<AddressDto> Billing { get; set; } = new List<AddressDto>();
+            }
+            """);
+
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        run.AllSources.Should().Contain("input.Home.ConvertAddressDto()");
+        run.AllSources.Should().Contain("input.Home.ConvertAddress()");
+        run.AllSources.Should().Contain("x => x.ConvertAddressDto()");
+        run.AllSources.Should().NotContain("MapToAddress");
     }
 
     /// <summary>

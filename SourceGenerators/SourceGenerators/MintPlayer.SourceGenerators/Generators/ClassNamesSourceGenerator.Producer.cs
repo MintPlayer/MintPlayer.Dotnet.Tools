@@ -1,68 +1,71 @@
-﻿using Microsoft.CodeAnalysis;
 using MintPlayer.SourceGenerators.Tools;
 using System.CodeDom.Compiler;
 
 namespace MintPlayer.SourceGenerators.Generators;
 
-public class ClassNamesProducer : Producer, IConditionalDiagnosticReporter
+public class ClassNamesProducer : Producer
 {
+    internal const string TypeName = "ClassNames";
+
     private readonly IEnumerable<Models.ClassDeclaration> declarations;
     public ClassNamesProducer(IEnumerable<Models.ClassDeclaration> declarations, string rootNamespace) : base(rootNamespace, "ClassNames.g.cs")
     {
         this.declarations = declarations;
     }
 
-    public bool HasDiagnostics => false;
-
-    public IEnumerable<Diagnostic> GetDiagnostics(Compilation compilation)
-    {
-        return [];
-    }
+    protected override bool WritePreamble => true;
 
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
     {
-        writer.WriteLine(Header);
-        writer.WriteLine();
+        // The user owns the name: a class of their own called ClassNames in the root namespace would make this a
+        // second declaration (CS0101), so nothing is generated.
+        if (ClassNamesNames.DeclaresTopLevel(declarations, RootNamespace, TypeName))
+            return;
+
         using (writer.OpenBlock($"namespace {RootNamespace}"))
         {
             writer.WriteLine("/// <summary>The name of every class declared in this project, as a constant.</summary>");
-            using (writer.OpenBlock("public static class ClassNames"))
+            using (writer.OpenBlock($"public static class {TypeName}"))
             {
-                foreach (var declaration in declarations)
+                foreach (var name in ClassNamesNames.Distinct(declarations))
                 {
-                    writer.WriteLine($"/// <summary>The name of the <c>{declaration.Name}</c> class.</summary>");
-                    writer.WriteLine($"public const string {declaration.Name} = \"{declaration.Name}\";");
+                    // A member cannot be named after its enclosing type (CS0542), so a class called ClassNames
+                    // elsewhere gets no constant.
+                    if (name == TypeName) continue;
+
+                    writer.WriteLine($"/// <summary>The name of the <c>{name}</c> class.</summary>");
+                    // @-escaped: a class declared as @event is named "event", and `const string event` does not parse.
+                    writer.WriteLine($"public const string {SymbolExtensions.EscapeIdentifier(name)} = \"{name}\";");
                 }
             }
         }
     }
 }
 
-public class ClassNameListProducer : Producer, IConditionalDiagnosticReporter
+public class ClassNameListProducer : Producer
 {
+    internal const string TypeName = "ClassNameList";
+
     private readonly IEnumerable<Models.ClassDeclaration> declarations;
     public ClassNameListProducer(IEnumerable<Models.ClassDeclaration> declarations, string rootNamespace) : base(rootNamespace, "ClassNameList.g.cs")
     {
         this.declarations = declarations;
     }
 
-    public bool HasDiagnostics => false;
-
-    public IEnumerable<Diagnostic> GetDiagnostics(Compilation compilation)
-    {
-        return [];
-    }
+    protected override bool WritePreamble => true;
 
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
     {
-        writer.WriteLine(Header);
-        writer.WriteLine();
+        // As for ClassNames: a user class of this name in the root namespace owns it.
+        if (ClassNamesNames.DeclaresTopLevel(declarations, RootNamespace, TypeName))
+            return;
+
         using (writer.OpenBlock($"namespace {RootNamespace}"))
         {
             writer.WriteLine("/// <summary>The names of the classes declared in this project.</summary>");
-            using (writer.OpenBlock("public static class ClassNameList"))
+            using (writer.OpenBlock($"public static class {TypeName}"))
             {
-                var list = string.Join(", ", declarations.Select(d => $"\"{d.Name}\""));
+                var list = string.Join(", ", ClassNamesNames.Distinct(declarations).Select(name => $"\"{name}\""));
 
                 // `new[] { }` with no elements is CS0826, "no best type found for
                 // implicitly-typed array" — so this emitted uncompilable code for any
@@ -73,4 +76,13 @@ public class ClassNameListProducer : Producer, IConditionalDiagnosticReporter
             }
         }
     }
+}
+
+internal static class ClassNamesNames
+{
+    public static IEnumerable<string> Distinct(IEnumerable<Models.ClassDeclaration> declarations)
+        => declarations.Select(d => d.Name).OfType<string>().Distinct(StringComparer.Ordinal);
+
+    public static bool DeclaresTopLevel(IEnumerable<Models.ClassDeclaration> declarations, string rootNamespace, string typeName)
+        => declarations.Any(d => d.Name == typeName && d.TopLevelNamespace == rootNamespace);
 }

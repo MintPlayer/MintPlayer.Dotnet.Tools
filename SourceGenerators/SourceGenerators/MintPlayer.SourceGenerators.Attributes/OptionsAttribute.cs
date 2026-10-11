@@ -20,8 +20,9 @@ namespace MintPlayer.SourceGenerators.Attributes;
 /// </list>
 /// </para>
 /// <para>
-/// The Section parameter is informational. Actual binding is done during service registration:
-/// <c>services.Configure&lt;T&gt;(configuration.GetSection("SectionName"));</c>
+/// The Section parameter is documentation only: the generator does not read it and binds nothing. Bind each options
+/// type once, where it is registered:
+/// <c>services.AddOptions&lt;T&gt;().BindConfiguration("SectionName");</c>
 /// </para>
 /// </remarks>
 /// <example>
@@ -43,16 +44,16 @@ namespace MintPlayer.SourceGenerators.Attributes;
 public class OptionsAttribute : Attribute
 {
     /// <summary>
-    /// The configuration section name to bind to the options type.
-    /// If null or empty, binds to the root configuration.
-    /// This is informational - actual binding is done via services.Configure&lt;T&gt;().
+    /// The configuration section the options type is bound to, for documentation only. The generator does not read
+    /// it; the binding is done where the options are registered, e.g.
+    /// <c>services.AddOptions&lt;T&gt;().BindConfiguration("Section")</c>.
     /// </summary>
     public string? Section { get; }
 
     /// <summary>
-    /// Creates an OptionsAttribute that binds to the specified configuration section.
+    /// Creates an OptionsAttribute that documents the configuration section the options are bound to.
     /// </summary>
-    /// <param name="section">The configuration section name (e.g., "Email", "Database:Settings")</param>
+    /// <param name="section">The configuration section name (e.g., "Email", "Database:Settings"), for documentation only.</param>
     public OptionsAttribute(string? section = null)
     {
         Section = section;

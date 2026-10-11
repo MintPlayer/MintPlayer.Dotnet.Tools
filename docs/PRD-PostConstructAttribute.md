@@ -63,6 +63,8 @@ The method decorated with `[PostConstruct]` must satisfy:
 
 **Note:** Async methods (`Task`/`ValueTask` return types) are allowed but will be called without `await`. A warning may be considered for future versions.
 
+> **Update 2026-10 (12.2.0, #193/#194):** a non-void `[PostConstruct]` (for example `Task`-returning) is now error INJECT005 and is not called; it used to run fire-and-forget with its exceptions lost. Test T6 below is now an INJECT005 case. `[PostConstruct]` also works on records, structs and record structs. See [PRD-TypeKindRobustness.md](PRD-TypeKindRobustness.md).
+
 ### R3: Diagnostics
 
 #### INJECT001: PostConstruct method must be parameterless

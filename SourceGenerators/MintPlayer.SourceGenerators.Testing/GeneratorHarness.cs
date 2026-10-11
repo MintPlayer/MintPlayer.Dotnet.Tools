@@ -44,15 +44,17 @@ public sealed class GeneratorHarness
     private readonly string _assemblyName;
     private readonly ImmutableArray<Type> _referenceTypes;
     private readonly string? _rootNamespace;
+    private readonly bool _allowCrashes;
 
     private static readonly object _loadLock = new();
     private static readonly Dictionary<string, Assembly> _loaded = new(StringComparer.Ordinal);
 
-    private GeneratorHarness(string assemblyName, ImmutableArray<Type> referenceTypes, string? rootNamespace)
+    private GeneratorHarness(string assemblyName, ImmutableArray<Type> referenceTypes, string? rootNamespace, bool allowCrashes = false)
     {
         _assemblyName = assemblyName;
         _referenceTypes = referenceTypes;
         _rootNamespace = rootNamespace;
+        _allowCrashes = allowCrashes;
     }
 
     /// <summary>
@@ -88,7 +90,7 @@ public sealed class GeneratorHarness
     /// often its extension class.
     /// </remarks>
     public GeneratorHarness AddReferences(params Type[] types)
-        => new(_assemblyName, _referenceTypes.AddRange(types), _rootNamespace);
+        => new(_assemblyName, _referenceTypes.AddRange(types), _rootNamespace, _allowCrashes);
 
     /// <summary>
     /// Sets <c>build_property.rootnamespace</c>, which producers typically use to place generated
@@ -96,7 +98,31 @@ public sealed class GeneratorHarness
     /// when the host supplies nothing.
     /// </summary>
     public GeneratorHarness WithRootNamespace(string? rootNamespace)
-        => new(_assemblyName, _referenceTypes, rootNamespace);
+        => new(_assemblyName, _referenceTypes, rootNamespace, _allowCrashes);
+
+    /// <summary>
+    /// Stops the harness from throwing <see cref="ComponentCrashedException"/> when the component
+    /// crashes. The crash is still exposed on the result, so a test that feeds deliberately broken
+    /// input can assert on it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// By default every run is strict: CS8785 (a generator threw), MPSG001 (a MintPlayer
+    /// <c>Producer</c> caught its own exception), MPSG002 (reporting a diagnostic threw, so the
+    /// diagnostic was lost), AD0001 (an analyzer threw) or an exception Roslyn
+    /// captured fails the call. CS8785 is only a warning and AD0001 is not one of the analyzer's own
+    /// ids, so without this a crashing component reads as one that found nothing to do.
+    /// </para>
+    /// <para>
+    /// Where the crash lands with crashes allowed: <see cref="GeneratorResult.GeneratorExceptions"/>
+    /// and <see cref="GeneratorResult.CrashDiagnostics"/> for <see cref="RunGenerator"/>, AD0001 in
+    /// the list from <see cref="RunAnalyzerAsync"/>, and <see cref="CodeFixResult.AnalyzerExceptions"/>
+    /// for a code fix. A <see cref="CodeFixProvider"/> that throws is never caught: there is no
+    /// result to report it on, so its exception escapes as-is in both modes.
+    /// </para>
+    /// </remarks>
+    public GeneratorHarness AllowComponentCrashes(bool allow = true)
+        => new(_assemblyName, _referenceTypes, _rootNamespace, allow);
 
     #region Generators
 
@@ -109,12 +135,21 @@ public sealed class GeneratorHarness
         var driver = CreateDriver(generator, compilation, trackSteps: false)
             .RunGeneratorsAndUpdateCompilation(compilation, out var updated, out var diagnostics);
 
-        var generated = driver.GetRunResult().GeneratedTrees
+        var runResult = driver.GetRunResult();
+        var generated = runResult.GeneratedTrees
             .Select(t => new GeneratedSource(Path.GetFileName(t.FilePath), t.GetText().ToString()))
             .OrderBy(s => s.HintName, StringComparer.Ordinal)
             .ToImmutableArray();
 
-        return new GeneratorResult(diagnostics, generated, updated);
+        var result = new GeneratorResult(diagnostics, generated, updated)
+        {
+            GeneratorExceptions = runResult.Results
+                .Where(r => r.Exception is not null)
+                .Select(r => r.Exception!)
+                .ToImmutableArray(),
+        };
+
+        return _allowCrashes ? result : result.EnsureNoCrash();
     }
 
     /// <summary>
@@ -210,6 +245,12 @@ public sealed class GeneratorHarness
         driver = driver.RunGeneratorsAndUpdateCompilation(second, out _, out _);
         var secondResult = driver.GetRunResult().Results.Single();
 
+        if (!_allowCrashes)
+            CrashIds.ThrowIfAny(
+                "generator",
+                firstResult.Diagnostics.Concat(secondResult.Diagnostics).Where(d => CrashIds.IsCrash(d.Id)),
+                new[] { firstResult.Exception, secondResult.Exception }.OfType<Exception>());
+
         return new IncrementalGeneratorResult(firstResult, secondResult);
     }
 
@@ -245,23 +286,57 @@ public sealed class GeneratorHarness
     #region Analyzers
 
     /// <summary>
-    /// Runs one analyzer and returns only the diagnostics it declares.
+    /// Runs one analyzer and returns only the diagnostics it declares, plus AD0001 if it crashed.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Filtering to the analyzer's own <see cref="DiagnosticAnalyzer.SupportedDiagnostics"/> keeps
     /// unrelated compile errors out of the assertion, so a test fails for the reason it names
     /// rather than because a fixture was missing a using.
+    /// </para>
+    /// <para>
+    /// AD0001 is kept on purpose: filtering it out made a crashing analyzer indistinguishable from
+    /// a quiet one. By default a crash throws <see cref="ComponentCrashedException"/> before
+    /// anything is returned; AD0001 shows up in the list only after
+    /// <see cref="AllowComponentCrashes"/>.
+    /// </para>
     /// </remarks>
     public async Task<IReadOnlyList<Diagnostic>> RunAnalyzerAsync(string analyzerTypeName, params string[] sources)
     {
         var analyzer = Instantiate<DiagnosticAnalyzer>(analyzerTypeName);
 
-        var diagnostics = await BuildCompilation(sources)
-            .WithAnalyzers([analyzer])
-            .GetAnalyzerDiagnosticsAsync(default);
+        var (diagnostics, exceptions) = await RunAnalyzerCoreAsync(BuildCompilation(sources), analyzer);
 
         var ownIds = analyzer.SupportedDiagnostics.Select(d => d.Id).ToImmutableHashSet(StringComparer.Ordinal);
-        return diagnostics.Where(d => ownIds.Contains(d.Id)).ToList();
+        return diagnostics.Where(d => ownIds.Contains(d.Id) || d.Id == "AD0001").ToList();
+    }
+
+    private async Task<(ImmutableArray<Diagnostic> Diagnostics, IReadOnlyList<Exception> Exceptions)> RunAnalyzerCoreAsync(
+        Compilation compilation, DiagnosticAnalyzer analyzer)
+    {
+        var exceptions = new List<Exception>();
+        var crashDiagnostics = new List<Diagnostic>();
+
+        // Supplying onAnalyzerException makes Roslyn hand AD0001 to the callback INSTEAD of the
+        // result set (measured in spike S2), so it is re-added here from the callback's argument.
+        var options = new CompilationWithAnalyzersOptions(
+            new AnalyzerOptions([]),
+            onAnalyzerException: (ex, _, diagnostic) =>
+            {
+                lock (exceptions) { exceptions.Add(ex); crashDiagnostics.Add(diagnostic); }
+            },
+            concurrentAnalysis: false,
+            logAnalyzerExecutionTime: false);
+
+        var diagnostics = (await compilation
+            .WithAnalyzers([analyzer], options)
+            .GetAnalyzerDiagnosticsAsync(default))
+            .AddRange(crashDiagnostics);
+
+        if (!_allowCrashes)
+            CrashIds.ThrowIfAny("analyzer", diagnostics.Where(d => CrashIds.IsCrash(d.Id)), exceptions);
+
+        return (diagnostics, exceptions);
     }
 
     /// <summary>The descriptors an analyzer advertises, without running it.</summary>
@@ -415,9 +490,7 @@ public sealed class GeneratorHarness
                 Environment.NewLine +
                 string.Join(Environment.NewLine, compileErrors.Select(d => "  " + d)));
 
-        var diagnostics = await compilation
-            .WithAnalyzers([analyzer])
-            .GetAnalyzerDiagnosticsAsync(default);
+        var (diagnostics, analyzerExceptions) = await RunAnalyzerCoreAsync(compilation, analyzer);
 
         var fixableIds = codeFix.FixableDiagnosticIds.ToImmutableHashSet(StringComparer.Ordinal);
 
@@ -434,7 +507,7 @@ public sealed class GeneratorHarness
         var originalSource = fixture[^1].Files[0].Source;
 
         if (fixable.Length == 0)
-            return new CodeFixResult(diagnostics, originalSource, Applied: false);
+            return new CodeFixResult(diagnostics, originalSource, Applied: false) { AnalyzerExceptions = analyzerExceptions };
 
         // The document the diagnostic was actually reported in — not necessarily the last project's
         // first file, once a fixture has several.
@@ -451,7 +524,7 @@ public sealed class GeneratorHarness
             reportedDocument, fixable[0], (action, _) => actions.Add(action), default));
 
         if (actions.Count == 0)
-            return new CodeFixResult(diagnostics, reportedText, Applied: false);
+            return new CodeFixResult(diagnostics, reportedText, Applied: false) { AnalyzerExceptions = analyzerExceptions };
 
         if (actionIndex >= actions.Count)
             throw new ArgumentOutOfRangeException(
@@ -469,7 +542,7 @@ public sealed class GeneratorHarness
         var changed = operations.OfType<ApplyChangesOperation>().FirstOrDefault();
         if (changed is null)
             return new CodeFixResult(
-                diagnostics, reportedText, Applied: false, actions[actionIndex].Title, ActionTitles: titles);
+                diagnostics, reportedText, Applied: false, actions[actionIndex].Title, ActionTitles: titles) { AnalyzerExceptions = analyzerExceptions };
 
         // Guard 2. Roslyn wraps an unmodified solution in a perfectly valid ApplyChangesOperation,
         // so a fix that silently gave up is indistinguishable from one that worked. This is the
@@ -510,7 +583,7 @@ public sealed class GeneratorHarness
 
         return new CodeFixResult(
             diagnostics, fixedText, Applied: true, actions[actionIndex].Title, documents, titles,
-            fixedErrors.ToImmutable());
+            fixedErrors.ToImmutable()) { AnalyzerExceptions = analyzerExceptions };
     }
 
     /// <summary>Every code-fix provider in the component that offers a fix for <paramref name="diagnosticId"/>.</summary>

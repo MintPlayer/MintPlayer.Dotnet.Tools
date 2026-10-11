@@ -4,26 +4,41 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.CliGenerator.Extensions;
 using MintPlayer.CliGenerator.Models;
 using MintPlayer.SourceGenerators.Tools;
-using System.CodeDom.Compiler;
 using System.Collections.Immutable;
 
 namespace MintPlayer.CliGenerator.Generators;
 
 [Generator(LanguageNames.CSharp)]
-public sealed class CliCommandSourceGenerator : IncrementalGenerator
+public sealed partial class CliCommandSourceGenerator : IncrementalGenerator
 {
+    internal const string RootCommandAttributeName = "MintPlayer.CliGenerator.Attributes.CliRootCommandAttribute";
+    internal const string CommandAttributeName = "MintPlayer.CliGenerator.Attributes.CliCommandAttribute";
+    internal const string ParentCommandAttributeName = "MintPlayer.CliGenerator.Attributes.CliParentCommandAttribute";
+    internal const string OptionAttributeName = "MintPlayer.CliGenerator.Attributes.CliOptionAttribute";
+    internal const string ArgumentAttributeName = "MintPlayer.CliGenerator.Attributes.CliArgumentAttribute";
+
     public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {
-        var commandDefinitionsProvider = context.SyntaxProvider
-            .CreateSyntaxProvider(static (node, _) => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 }, Transform)
-            .Where(static definition => definition is not null)
-            .Select(static (definition, _) => definition!)
-            .Collect();
+        // ForAttributeWithMetadataName visits only declarations that carry the attribute, so unrelated code (a
+        // record struct, an interface, a [GeneratedRegex] partial) never reaches the transform. A class with both
+        // attributes is discovered by the root pass only.
+        var rootDiscovery = context.SyntaxProvider.ForAttributeWithMetadataName(
+            RootCommandAttributeName,
+            static (node, _) => node is TypeDeclarationSyntax,
+            static (ctx, ct) => Discover(ctx, isRootPass: true, ct));
+        var commandDiscovery = context.SyntaxProvider.ForAttributeWithMetadataName(
+            CommandAttributeName,
+            static (node, _) => node is TypeDeclarationSyntax,
+            static (ctx, ct) => Discover(ctx, isRootPass: false, ct));
+
+        var rootDiscovered = rootDiscovery.Select(static (d, _) => d.Discovered);
+        var commandDiscovered = commandDiscovery.Select(static (d, _) => d.Discovered);
 
         // BuildCommandTrees builds a new collection on every run, so it is an EquatableArray: an
         // ImmutableArray compares by reference and would report Modified even when the trees are equal.
-        var commandTreesProvider = commandDefinitionsProvider
-            .Select(static (definitions, _) => BuildCommandTrees(definitions).ToEquatableArray());
+        var commandTreesProvider = rootDiscovered.Models().Collect()
+            .Combine(commandDiscovered.Models().Collect())
+            .Select(static (definitions, _) => BuildCommandTrees(definitions.Left.AddRange(definitions.Right)).ToEquatableArray());
 
         var producerProvider = commandTreesProvider
             .Combine(settingsProvider)
@@ -34,114 +49,105 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
                 return new CliCommandProducer(trees, rootNamespace);
             });
 
+        // Root names carry a location, so they stay out of the models: an edit that only moves a root command
+        // re-runs this check, not the producer.
+        var duplicateRootDiagnostics = rootDiscovery
+            .Select(static (d, _) => d.Root)
+            .Where(static root => root is not null)
+            .Collect()
+            .SelectMany(static (roots, _) => FindDuplicateRootNames(roots!));
+
         context.ProduceCode(producerProvider);
+        context.ReportDiagnostics(rootDiscovered.Diagnostics(), commandDiscovered.Diagnostics(), duplicateRootDiagnostics);
     }
 
-    private static CliCommandDefinition? Transform(GeneratorSyntaxContext context, CancellationToken cancellationToken)
+    private static (Discovered<CliCommandDefinition> Discovered, CliRootName? Root) Discover(GeneratorAttributeSyntaxContext context, bool isRootPass, CancellationToken cancellationToken)
     {
-        if (context.Node is not ClassDeclarationSyntax classDeclaration)
+        // The attributes are AttributeTargets.Class: on anything else the compiler already reports CS0592.
+        if (context.TargetSymbol is not INamedTypeSymbol classSymbol || classSymbol.TypeKind != TypeKind.Class)
         {
-            return null;
+            return (Discovered<CliCommandDefinition>.None, null);
         }
 
-        if (!classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword))
+        var rootAttribute = classSymbol.FindAttribute(RootCommandAttributeName);
+        var commandAttribute = classSymbol.FindAttribute(CommandAttributeName);
+        if (!isRootPass && rootAttribute is not null)
         {
-            return null;
+            return (Discovered<CliCommandDefinition>.None, null);
         }
 
-        var semanticModel = context.SemanticModel;
-        if (semanticModel.GetDeclaredSymbol(classDeclaration, cancellationToken) is not INamedTypeSymbol classSymbol)
+        var compilation = context.SemanticModel.Compilation;
+        var location = classSymbol.Locations.FirstOrDefault();
+        var displayName = classSymbol.ToDisplayString();
+        var pathSpec = classSymbol.GetPathSpec(cancellationToken)!;
+        var diagnostics = new List<DiagnosticInfo>();
+
+        if (classSymbol.IsStatic)
         {
-            return null;
+            diagnostics.Add(DiagnosticInfo.Create(CommandCannotBeStatic, location, displayName));
         }
 
-        if (classSymbol.TypeKind != TypeKind.Class || classSymbol.IsStatic || classSymbol.IsGenericType)
+        if (classSymbol.IsGenericType)
         {
-            return null;
+            diagnostics.Add(DiagnosticInfo.Create(CommandCannotBeGeneric, location, displayName));
         }
 
-        var compilation = semanticModel.Compilation;
-        var rootAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.CliGenerator.Attributes.CliRootCommandAttribute");
-        var commandAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.CliGenerator.Attributes.CliCommandAttribute");
-        var optionAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.CliGenerator.Attributes.CliOptionAttribute");
-        var argumentAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.CliGenerator.Attributes.CliArgumentAttribute");
-        var parentCommandAttributeSymbol = compilation.GetTypeByMetadataName("MintPlayer.CliGenerator.Attributes.CliParentCommandAttribute");
-        var cancellationTokenSymbol = compilation.GetTypeByMetadataName("System.Threading.CancellationToken");
-        var taskSymbol = compilation.GetTypeByMetadataName("System.Threading.Tasks.Task");
-
-        if (rootAttributeSymbol is null || commandAttributeSymbol is null || optionAttributeSymbol is null || argumentAttributeSymbol is null)
+        switch (pathSpec.UnsupportedReason)
         {
-            return null;
+            case EPathSpecUnsupportedReason.TargetNotPartial:
+                diagnostics.Add(DiagnosticInfo.Create(CommandMustBePartial, location, displayName));
+                break;
+            case EPathSpecUnsupportedReason.ParentNotPartial:
+            case EPathSpecUnsupportedReason.UnsupportedKind:
+                diagnostics.Add(DiagnosticInfo.Create(ContainingTypeMustBePartial, location, displayName, pathSpec.UnsupportedTypeName));
+                break;
+            case EPathSpecUnsupportedReason.FileLocal:
+                diagnostics.Add(DiagnosticInfo.Create(CommandCannotBeFileLocal, location, displayName));
+                break;
         }
 
-        var attributes = classSymbol.GetAttributes();
-        var rootAttribute = attributes.FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, rootAttributeSymbol));
-        var commandAttribute = attributes.FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, commandAttributeSymbol));
-        var parentCommandAttribute = parentCommandAttributeSymbol is null ? null : attributes.FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, parentCommandAttributeSymbol));
-
-        if (rootAttribute is null && commandAttribute is null)
-        {
-            // We only consider classes that are actual commands; the parent attribute alone is not enough
-            return null;
-        }
-
-        var namespaceName = classSymbol.ContainingNamespace.IsGlobalNamespace
-            ? string.Empty
-            : classSymbol.ContainingNamespace.ToDisplayString();
-
-        var declaration = BuildDeclaration(classSymbol);
-        var fullyQualifiedName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        var pathSpec = classSymbol.GetPathSpec(cancellationToken);
-
-        string? parentFullyQualifiedName = null;
-        bool parentSpecifiedViaAttribute = false;
-        string? originalContainingTypeFqn = classSymbol.ContainingType is not null
-            ? classSymbol.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
-            : null;
         // 1. Explicit parent via [CliParentCommand(typeof(ParentType))]
-        if (parentCommandAttribute is not null && parentCommandAttribute.ConstructorArguments.Length == 1)
+        // 2. Fallback to the containing type (nested classes)
+        INamedTypeSymbol? parentSymbol = null;
+        if (classSymbol.FindAttribute(ParentCommandAttributeName).TryGetArgument<INamedTypeSymbol>("parentCommandType", out var explicitParent)
+            && IsCommand(explicitParent))
         {
-            var typeArg = parentCommandAttribute.ConstructorArguments[0];
-            if (typeArg.Kind == TypedConstantKind.Type && typeArg.Value is INamedTypeSymbol parentTypeSymbol)
-            {
-                var parentAttributes = parentTypeSymbol.GetAttributes();
-                var parentIsCommand = parentAttributes.Any(a =>
-                    SymbolEqualityComparer.Default.Equals(a.AttributeClass, rootAttributeSymbol) ||
-                    SymbolEqualityComparer.Default.Equals(a.AttributeClass, commandAttributeSymbol));
-                if (parentIsCommand)
-                {
-                    parentFullyQualifiedName = parentTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                    parentSpecifiedViaAttribute = true;
-                }
-            }
+            parentSymbol = explicitParent;
         }
-        // 2. Fallback to containing type hierarchy (nested classes)
-        if (parentFullyQualifiedName is null && classSymbol.ContainingType is not null)
+        else if (classSymbol.ContainingType is { } containingType && IsCommand(containingType))
         {
-            var parentAttributes = classSymbol.ContainingType.GetAttributes();
-            var parentIsCommand = parentAttributes.Any(a =>
-                SymbolEqualityComparer.Default.Equals(a.AttributeClass, rootAttributeSymbol) ||
-                SymbolEqualityComparer.Default.Equals(a.AttributeClass, commandAttributeSymbol));
-            if (parentIsCommand)
-            {
-                parentFullyQualifiedName = classSymbol.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            }
+            parentSymbol = containingType;
         }
 
         var isRoot = rootAttribute is not null;
+        if (isRoot && !compilation.IsSymbolAccessibleWithin(classSymbol, compilation.Assembly))
+        {
+            diagnostics.Add(DiagnosticInfo.Create(RootCommandNotAccessible, location, displayName, classSymbol.Name));
+        }
+
+        if (parentSymbol is not null && !compilation.IsSymbolAccessibleWithin(classSymbol, parentSymbol))
+        {
+            diagnostics.Add(DiagnosticInfo.Create(SubcommandNotAccessible, location, displayName, parentSymbol.ToDisplayString()));
+        }
+
+        if (diagnostics.Count > 0)
+        {
+            return (Discovered<CliCommandDefinition>.Fail(diagnostics.ToArray()), null);
+        }
+
+        // A named argument wins over the constructor argument of the same name, as it does at run time.
         string? commandName = null;
         string? description = null;
-
         if (rootAttribute is not null)
         {
-            commandName = GetStringArgument(rootAttribute, "Name");
-            description = GetConstructorArgumentString(rootAttribute, 0) ?? GetStringArgument(rootAttribute, "Description");
+            commandName = rootAttribute.GetArgument<string?>("Name", null);
+            description = rootAttribute.GetArgument<string?>("Description", null);
         }
 
         if (commandAttribute is not null)
         {
-            commandName ??= GetConstructorArgumentString(commandAttribute, 0);
-            description ??= GetStringArgument(commandAttribute, "Description");
+            commandName ??= commandAttribute.GetArgument<string?>("Name", null);
+            description ??= commandAttribute.GetArgument<string?>("Description", null);
         }
 
         if (!isRoot && string.IsNullOrWhiteSpace(commandName))
@@ -149,41 +155,63 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
             commandName = classSymbol.Name.ToKebabCase();
         }
 
-        var optionDefinitions = classSymbol.GetMembers()
-            .OfType<IPropertySymbol>()
-            .Select(property => ToOptionDefinition(property, optionAttributeSymbol))
+        var properties = classSymbol.GetMembers().OfType<IPropertySymbol>().Where(static p => !p.IsStatic).ToArray();
+
+        var optionDefinitions = properties
+            .Select(ToOptionDefinition)
             .Where(static option => option is not null)
             .Select(static option => option!)
             .ToImmutableArray();
 
-        var argumentDefinitions = classSymbol.GetMembers()
-            .OfType<IPropertySymbol>()
-            .Select(property => ToArgumentDefinition(property, argumentAttributeSymbol))
+        var argumentDefinitions = properties
+            .Select(ToArgumentDefinition)
             .Where(static argument => argument is not null)
             .Select(static argument => argument!)
             .OrderBy(argument => argument.Position)
             .ToImmutableArray();
 
-        var handlerInfo = ResolveHandler(classSymbol, cancellationTokenSymbol, taskSymbol);
-
-        return new CliCommandDefinition
+        var fullyQualifiedName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        var definition = new CliCommandDefinition
         {
-            Namespace = namespaceName,
-            Declaration = declaration,
+            Namespace = pathSpec.ContainingNamespace ?? string.Empty,
             TypeName = classSymbol.Name,
             FullyQualifiedName = fullyQualifiedName,
-            ParentFullyQualifiedName = parentFullyQualifiedName,
-            OriginalContainingTypeFullyQualifiedName = originalContainingTypeFqn,
+            ParentFullyQualifiedName = parentSymbol?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             PathSpec = pathSpec,
             IsRoot = isRoot,
             CommandName = commandName,
             Description = description,
-            HasHandler = handlerInfo.HasHandler,
-            HandlerMethodName = handlerInfo.MethodName,
-            HandlerUsesCancellationToken = handlerInfo.UsesCancellationToken,
             Options = optionDefinitions,
             Arguments = argumentDefinitions,
         };
+
+        var root = isRoot
+            ? new CliRootName { TypeName = classSymbol.Name, DisplayName = displayName, Location = location.AsKey() }
+            : null;
+
+        return (new Discovered<CliCommandDefinition>(definition), root);
+    }
+
+    private static bool IsCommand(INamedTypeSymbol type)
+        => type.HasAttribute(RootCommandAttributeName) || type.HasAttribute(CommandAttributeName);
+
+    /// <summary>
+    /// Root commands share one extensions namespace, so two roots with the same type name would both declare
+    /// <c>{Name}CliExtensions</c> (CS0101). Each one gets a diagnostic, and the producer writes no extensions for either.
+    /// </summary>
+    private static ImmutableArray<DiagnosticInfo> FindDuplicateRootNames(ImmutableArray<CliRootName> roots)
+    {
+        var builder = ImmutableArray.CreateBuilder<DiagnosticInfo>();
+        foreach (var group in roots.GroupBy(static root => root.TypeName, StringComparer.Ordinal).Where(static g => g.Count() > 1))
+        {
+            foreach (var root in group)
+            {
+                var others = string.Join("', '", group.Where(other => !ReferenceEquals(other, root)).Select(static other => other.DisplayName));
+                builder.Add(new DiagnosticInfo(DuplicateRootCommandName, root.Location, new[] { root.DisplayName, others, root.TypeName }));
+            }
+        }
+
+        return builder.ToImmutable();
     }
 
     private static ImmutableArray<CliCommandTree> BuildCommandTrees(ImmutableArray<CliCommandDefinition> definitions)
@@ -240,328 +268,63 @@ public sealed class CliCommandSourceGenerator : IncrementalGenerator
         public List<CommandNode> Children { get; } = new();
     }
 
-    private static (bool HasHandler, string? MethodName, bool UsesCancellationToken) ResolveHandler(INamedTypeSymbol classSymbol, INamedTypeSymbol? cancellationTokenSymbol, INamedTypeSymbol? taskSymbol)
+    private static CliOptionDefinition? ToOptionDefinition(IPropertySymbol propertySymbol)
     {
-        var candidates = classSymbol.GetMembers().OfType<IMethodSymbol>()
-            .Where(method => !method.IsStatic && (method.Name == "Execute" || method.Name == "ExecuteAsync"))
-            .OrderBy(method => method.Name == "Execute" ? 1 : 0);
-
-        foreach (var method in candidates)
-        {
-            if (method.Parameters.Length > 1)
-            {
-                continue;
-            }
-
-            var usesCancellationToken = method.Parameters.Length == 1;
-            if (usesCancellationToken)
-            {
-                if (cancellationTokenSymbol is null)
-                {
-                    continue;
-                }
-
-                if (!SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, cancellationTokenSymbol))
-                {
-                    continue;
-                }
-            }
-
-            if (!ReturnsTaskOfInt32(method, taskSymbol))
-            {
-                continue;
-            }
-
-            return (true, method.Name, usesCancellationToken);
-        }
-
-        return (false, null, false);
-    }
-
-    private static bool ReturnsTaskOfInt32(IMethodSymbol method, INamedTypeSymbol? taskSymbol)
-    {
-        if (method.ReturnType is not INamedTypeSymbol namedType)
-        {
-            return false;
-        }
-
-        if (taskSymbol is null)
-        {
-            return string.Equals(namedType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), "global::System.Threading.Tasks.Task<int>", StringComparison.Ordinal);
-        }
-
-        if (!SymbolEqualityComparer.Default.Equals(namedType.ConstructedFrom, taskSymbol))
-        {
-            return false;
-        }
-
-        if (namedType.TypeArguments.Length != 1)
-        {
-            return false;
-        }
-
-        return namedType.TypeArguments[0].SpecialType == SpecialType.System_Int32;
-    }
-
-    private static CliOptionDefinition? ToOptionDefinition(IPropertySymbol propertySymbol, INamedTypeSymbol optionAttributeSymbol)
-    {
-        if (propertySymbol.IsStatic)
-        {
-            return null;
-        }
-
-        var attribute = propertySymbol.GetAttributes()
-            .FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, optionAttributeSymbol));
-
+        var attribute = propertySymbol.FindAttribute(OptionAttributeName);
         if (attribute is null)
         {
             return null;
         }
 
-        var aliases = new List<string>();
-        if (attribute.ConstructorArguments.Length == 1)
-        {
-            var aliasArgument = attribute.ConstructorArguments[0];
-            if (aliasArgument.Kind == TypedConstantKind.Array)
-            {
-                foreach (var aliasConstant in aliasArgument.Values)
-                {
-                    var alias = GetString(aliasConstant);
-                    if (!string.IsNullOrWhiteSpace(alias))
-                    {
-                        aliases.Add(alias);
-                    }
-                }
-            }
-        }
+        // [CliOption(null)] passes a null params array: no aliases, as with [CliOption].
+        var aliases = (attribute.GetArgument<string?[]?>("aliases", null) ?? [])
+            .Where(static alias => !string.IsNullOrWhiteSpace(alias))
+            .Select(static alias => alias!)
+            .ToList();
 
         if (aliases.Count == 0)
         {
             aliases.Add(ToAlias(propertySymbol.Name));
         }
 
-        var description = GetStringArgument(attribute, "Description");
-        var required = GetBoolArgument(attribute, "Required");
-        var hidden = GetBoolArgument(attribute, "Hidden");
-
-        var hasDefaultValue = TryGetNamedArgument(attribute, "DefaultValue", out var defaultConstant) && defaultConstant.Value is not null;
-        var defaultValueExpression = hasDefaultValue ? GetLiteral(defaultConstant) : null;
+        var hasDefaultValue = attribute.TryGetArgument<TypedConstant>("DefaultValue", out var defaultConstant)
+            && defaultConstant.Kind != TypedConstantKind.Error
+            && !defaultConstant.IsNull;
 
         return new CliOptionDefinition
         {
             PropertyName = propertySymbol.Name,
             PropertyType = propertySymbol.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             Aliases = aliases,
-            Description = description,
-            Required = required,
-            Hidden = hidden,
-            DefaultValueExpression = defaultValueExpression,
+            Description = attribute.GetArgument<string?>("Description", null),
+            Required = attribute.GetArgument("Required", false),
+            Hidden = attribute.GetArgument("Hidden", false),
+            DefaultValueExpression = hasDefaultValue ? defaultConstant.ToCSharpString() : null,
             HasDefaultValue = hasDefaultValue,
         };
     }
 
-    private static CliArgumentDefinition? ToArgumentDefinition(IPropertySymbol propertySymbol, INamedTypeSymbol argumentAttributeSymbol)
+    private static CliArgumentDefinition? ToArgumentDefinition(IPropertySymbol propertySymbol)
     {
-        if (propertySymbol.IsStatic)
+        var attribute = propertySymbol.FindAttribute(ArgumentAttributeName);
+        if (attribute is null || !attribute.TryGetArgument<int>("position", out var position))
         {
             return null;
         }
-
-        var attribute = propertySymbol.GetAttributes()
-            .FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, argumentAttributeSymbol));
-
-        if (attribute is null)
-        {
-            return null;
-        }
-
-        if (attribute.ConstructorArguments.Length == 0)
-        {
-            return null;
-        }
-
-        var positionConstant = attribute.ConstructorArguments[0];
-        if (positionConstant.Kind != TypedConstantKind.Primitive || positionConstant.Value is not int position)
-        {
-            return null;
-        }
-
-        var name = GetStringArgument(attribute, "Name") ?? propertySymbol.Name.ToCamelCase();
-        var description = GetStringArgument(attribute, "Description");
-        var required = GetBoolArgument(attribute, "Required", defaultValue: true);
 
         return new CliArgumentDefinition
         {
             PropertyName = propertySymbol.Name,
             PropertyType = propertySymbol.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             Position = position,
-            ArgumentName = name,
-            Description = description,
-            Required = required,
+            ArgumentName = attribute.GetArgument<string?>("Name", null) ?? propertySymbol.Name.ToCamelCase(),
+            Description = attribute.GetArgument<string?>("Description", null),
+            Required = attribute.GetArgument("Required", true),
         };
-    }
-
-    private static string BuildDeclaration(INamedTypeSymbol classSymbol)
-    {
-        var parts = new List<string>();
-        var accessibility = classSymbol.DeclaredAccessibility switch
-        {
-            Accessibility.Public => "public",
-            Accessibility.Internal => "internal",
-            Accessibility.Private => "private",
-            Accessibility.Protected => "protected",
-            Accessibility.ProtectedAndInternal => "protected internal",
-            Accessibility.ProtectedOrInternal => "protected internal",
-            _ => string.Empty,
-        };
-
-        if (!string.IsNullOrWhiteSpace(accessibility))
-        {
-            parts.Add(accessibility);
-        }
-
-        if (classSymbol.IsStatic)
-        {
-            parts.Add("static");
-        }
-        else
-        {
-            if (classSymbol.IsAbstract && !classSymbol.IsSealed)
-            {
-                parts.Add("abstract");
-            }
-
-            if (classSymbol.IsSealed && !classSymbol.IsAbstract)
-            {
-                parts.Add("sealed");
-            }
-        }
-
-        parts.Add("partial");
-        parts.Add("class");
-        parts.Add(classSymbol.Name);
-
-        return string.Join(" ", parts.Where(static part => !string.IsNullOrWhiteSpace(part)));
-    }
-
-    private static bool TryGetNamedArgument(AttributeData attribute, string name, out TypedConstant value)
-    {
-        foreach (var kvp in attribute.NamedArguments)
-        {
-            if (kvp.Key == name)
-            {
-                value = kvp.Value;
-                return true;
-            }
-        }
-
-        value = default;
-        return false;
-    }
-
-    private static string? GetStringArgument(AttributeData attribute, string name)
-    {
-        return TryGetNamedArgument(attribute, name, out var constant) ? GetString(constant) : null;
-    }
-
-    private static bool GetBoolArgument(AttributeData attribute, string name, bool defaultValue = false)
-    {
-        if (TryGetNamedArgument(attribute, name, out var constant) && constant.Value is bool boolValue)
-        {
-            return boolValue;
-        }
-
-        return defaultValue;
-    }
-
-    private static string? GetConstructorArgumentString(AttributeData attribute, int index)
-    {
-        if (index < attribute.ConstructorArguments.Length)
-        {
-            return GetString(attribute.ConstructorArguments[index]);
-        }
-
-        return null;
-    }
-
-    private static string? GetString(TypedConstant constant)
-    {
-        if (constant.Kind == TypedConstantKind.Primitive && constant.Value is string value)
-        {
-            return value;
-        }
-
-        return null;
-    }
-
-    private static string GetLiteral(TypedConstant constant)
-    {
-        return constant.ToCSharpString();
     }
 
     private static string ToAlias(string propertyName)
     {
         return "--" + propertyName.ToKebabCase();
     }
-
-    // Pseudocode plan:
-    // 1. Locate where the source generator emits the code for the Command objects (not shown in the provided code, but likely in a producer or emitter class using CliCommandDefinition).
-    // 2. For each CliCommandDefinition with HasHandler == true, generate code to call SetAction on the generated Command object, wiring it to the Execute or ExecuteAsync method.
-    // 3. The SetAction lambda should instantiate the command class, map arguments/options, and call the handler method, passing the CancellationToken if needed.
-    // 4. Ensure the generated code matches the .NET Standard 2.0 and C# 13.0 constraints.
-
-    // Since the code that emits the source for the Command objects is not shown, here's a representative method to add to your code emitter (e.g., in a class that generates the command registration code):
-    private void EmitSetAction(CliCommandDefinition command, IndentedTextWriter sb)
-    {
-        if (!command.HasHandler || string.IsNullOrEmpty(command.HandlerMethodName))
-            return;
-
-        var commandVar = command.TypeName.ToCamelCase() + "Command";
-        var instanceVar = command.TypeName.ToCamelCase() + "Instance";
-        var handlerMethod = command.HandlerMethodName;
-        var usesCancellationToken = command.HandlerUsesCancellationToken;
-
-        sb.WriteLine($"{commandVar}.SetAction(async context =>");
-        sb.WriteLine("{");
-        sb.Indent++;
-
-        // Instantiate the command class
-        sb.WriteLine($"var {instanceVar} = new {command.TypeName}();");
-
-        // Map options
-        foreach (var option in command.Options)
-        {
-            var property = option.PropertyName;
-            var type = option.PropertyType;
-            var alias = option.Aliases.First();
-            sb.WriteLine($"{instanceVar}.{property} = context.ParseResult.GetValueForOption<{type}>(\"{alias}\");");
-        }
-
-        // Map arguments
-        foreach (var argument in command.Arguments)
-        {
-            var property = argument.PropertyName;
-            var type = argument.PropertyType;
-            var name = argument.ArgumentName;
-            sb.WriteLine($"{instanceVar}.{property} = context.ParseResult.GetValueForArgument<{type}>(\"{name}\");");
-        }
-
-        // Call the handler
-        if (usesCancellationToken)
-        {
-            sb.WriteLine($"return await {instanceVar}.{handlerMethod}(context.GetCancellationToken());");
-        }
-        else
-        {
-            sb.WriteLine($"return await {instanceVar}.{handlerMethod}();");
-        }
-
-        sb.Indent--;
-        sb.WriteLine("});");
-    }
-
-
-    // Usage: In your code generation logic, after creating the Command object, call EmitSetAction for each command definition.
-
-    // Note: You may need to adjust the context variable and method signatures to match your actual codebase.
 }

@@ -42,9 +42,9 @@ public class InterfaceCodeFixProvider : CodeFixProvider
 
         var diagnostic = context.Diagnostics.First();
 
-        // TypeDeclarationSyntax, not ClassDeclarationSyntax: the analyzer gates on TypeKind.Class,
-        // which includes records, and RecordDeclarationSyntax is a SIBLING of ClassDeclarationSyntax
-        // rather than a subtype. FirstOrDefault, not First: a span left stale by an edit has no
+        // TypeDeclarationSyntax, not ClassDeclarationSyntax: the analyzer runs on classes and structs,
+        // records and record structs included, and RecordDeclarationSyntax and StructDeclarationSyntax are
+        // SIBLINGS of ClassDeclarationSyntax rather than subtypes. FirstOrDefault, not First: a span left stale by an edit has no
         // type ancestor, and First() threw "Sequence contains no elements" out of the light-bulb
         // path — which the `is null` check below was written expecting not to happen.
         var typeDecl = root.FindToken(diagnostic.Location.SourceSpan.Start).Parent?
@@ -70,9 +70,10 @@ public class InterfaceCodeFixProvider : CodeFixProvider
             || string.IsNullOrEmpty(memberName))
             return;
 
-        var member = InterfaceMemberCandidates
-            .In(typeSymbol, IgnoreAttributeSymbol(semanticModel.Compilation))
-            .FirstOrDefault(m => m.Name == memberName);
+        // By signature: the name alone picked the first overload, which need not be the one reported (W16).
+        diagnostic.Properties.TryGetValue(InterfaceMemberCandidates.MemberSignatureProperty, out var signature);
+
+        var member = FindMember(typeSymbol, semanticModel.Compilation, memberName!, signature);
 
         if (member is null || CreateInterfaceMember(member) is null)
             return;
@@ -86,7 +87,7 @@ public class InterfaceCodeFixProvider : CodeFixProvider
             context.RegisterCodeFix(
                 CodeAction.Create(
                     title: $"Add '{memberName}' to {target.Name}",
-                    createChangedSolution: ct => AddMemberToInterface(context.Document, typeDecl, target, memberName!, ct),
+                    createChangedSolution: ct => AddMemberToInterface(context.Document, typeDecl, target, memberName!, signature, ct),
                     // Fully qualified, so two same-named interfaces in different namespaces do not
                     // collide and FixAll groups by the interface actually meant.
                     equivalenceKey: $"AddMissingMember:{target.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}"),
@@ -97,11 +98,22 @@ public class InterfaceCodeFixProvider : CodeFixProvider
     private static INamedTypeSymbol? IgnoreAttributeSymbol(Compilation compilation)
         => compilation.GetTypeByMetadataName(typeof(Attributes.NoInterfaceMemberAttribute).FullName);
 
+    /// <summary>
+    /// The candidate the diagnostic is about: the one with its <see cref="InterfaceMemberCandidates.SignatureKey"/>, or,
+    /// for a diagnostic without one, the first of that name.
+    /// </summary>
+    private static ISymbol? FindMember(INamedTypeSymbol typeSymbol, Compilation compilation, string memberName, string? signature)
+        => InterfaceMemberCandidates
+            .In(typeSymbol, IgnoreAttributeSymbol(compilation))
+            .FirstOrDefault(m => m.Name == memberName
+                                 && (string.IsNullOrEmpty(signature) || InterfaceMemberCandidates.SignatureKey(m) == signature));
+
     private async Task<Solution> AddMemberToInterface(
         Document classDocument,
         TypeDeclarationSyntax typeDeclaration,
         INamedTypeSymbol interfaceSymbol,
         string memberName,
+        string? signature,
         CancellationToken cancellationToken)
     {
         var solution = classDocument.Project.Solution;
@@ -116,12 +128,14 @@ public class InterfaceCodeFixProvider : CodeFixProvider
         // Already satisfied through a base interface: the analyzer honours the whole hierarchy, and
         // re-declaring an inherited member on the derived interface is CS0108 member hiding in code
         // the analyzer had deliberately accepted.
-        if (InterfaceMemberCandidates.MembersOf(interfaceSymbol).Any(m => m.Name == memberName))
+        var member = FindMember(typeSymbol, semanticModel.Compilation, memberName, signature);
+        if (member is null)
             return solution;
 
-        var member = InterfaceMemberCandidates
-            .In(typeSymbol, IgnoreAttributeSymbol(semanticModel.Compilation))
-            .FirstOrDefault(m => m.Name == memberName);
+        // By signature, so that an overload of an inherited member is still added.
+        var memberSignature = InterfaceMemberCandidates.SignatureKey(member);
+        if (InterfaceMemberCandidates.MembersOf(interfaceSymbol).Any(m => InterfaceMemberCandidates.SignatureKey(m) == memberSignature))
+            return solution;
 
         if (member is null || CreateInterfaceMember(member) is not { } declaration)
             return solution;
@@ -166,6 +180,11 @@ public class InterfaceCodeFixProvider : CodeFixProvider
     /// </remarks>
     private static MemberDeclarationSyntax? CreateInterfaceMember(ISymbol member)
     {
+        // A signature that mentions a type parameter of the class (`T Get()` in `class G<T>`) cannot be written into
+        // the interface: `T` is undeclared there (CS0246) and the class stops implementing it (CS0738). Decline (W15).
+        if (ReferencesContainingTypeParameter(member))
+            return null;
+
         switch (member)
         {
             case IMethodSymbol methodSymbol:
@@ -207,6 +226,32 @@ public class InterfaceCodeFixProvider : CodeFixProvider
             default:
                 return null;
         }
+    }
+
+    /// <summary>
+    /// Whether the member's signature (return type, parameters, method constraints, property type) uses a type
+    /// parameter of a containing type.
+    /// </summary>
+    private static bool ReferencesContainingTypeParameter(ISymbol member)
+    {
+        return member switch
+        {
+            IMethodSymbol method => Uses(method.ReturnType)
+                || method.Parameters.Any(p => Uses(p.Type))
+                || method.TypeParameters.Any(tp => tp.ConstraintTypes.Any(Uses)),
+            IPropertySymbol property => Uses(property.Type),
+            _ => false,
+        };
+
+        static bool Uses(ITypeSymbol type) => type switch
+        {
+            ITypeParameterSymbol typeParameter => typeParameter.TypeParameterKind == TypeParameterKind.Type,
+            IArrayTypeSymbol array => Uses(array.ElementType),
+            IPointerTypeSymbol pointer => Uses(pointer.PointedAtType),
+            INamedTypeSymbol named => named.TypeArguments.Any(Uses)
+                || (named.ContainingType is { } containing && Uses(containing)),
+            _ => false,
+        };
     }
 
     /// <summary>

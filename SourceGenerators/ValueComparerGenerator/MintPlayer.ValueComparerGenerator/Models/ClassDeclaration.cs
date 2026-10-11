@@ -31,14 +31,8 @@ public sealed class ClassDeclaration : IEquatable<ClassDeclaration>
     /// <summary>The containing namespace, or null for the global namespace.</summary>
     public string? Namespace { get; set; }
 
-    /// <summary>The containing types, outermost first.</summary>
-    public EquatableArray<ContainingTypeDeclaration> Parents { get; set; } = EquatableArray<ContainingTypeDeclaration>.Empty;
-
-    /// <summary><c>class</c>, <c>record</c>, <c>struct</c> or <c>record struct</c>.</summary>
-    public string Keyword { get; set; } = "class";
-
-    /// <summary>The name as it is declared, with type parameters: <c>Box&lt;T&gt;</c>.</summary>
-    public string Name { get; set; } = string.Empty;
+    /// <summary>The containing types and the type itself, re-declared by <c>OpenPathSpec(includeTarget: true)</c>.</summary>
+    public PathSpec Path { get; set; } = new();
 
     /// <summary>The fully qualified name, with type parameters: <c>global::Ns.Box&lt;T&gt;</c>.</summary>
     public string FullName { get; set; } = string.Empty;
@@ -84,9 +78,7 @@ public sealed class ClassDeclaration : IEquatable<ClassDeclaration>
         if (other is null) return false;
         if (ReferenceEquals(this, other)) return true;
         return string.Equals(Namespace, other.Namespace, StringComparison.Ordinal)
-            && Parents.Equals(other.Parents)
-            && string.Equals(Keyword, other.Keyword, StringComparison.Ordinal)
-            && string.Equals(Name, other.Name, StringComparison.Ordinal)
+            && Path.Equals(other.Path)
             && string.Equals(FullName, other.FullName, StringComparison.Ordinal)
             && Shape == other.Shape
             && IsSealed == other.IsSealed
@@ -109,8 +101,7 @@ public sealed class ClassDeclaration : IEquatable<ClassDeclaration>
     {
         var h = 17;
         h = ValueEquality.Combine(h, Namespace is null ? 0 : StringComparer.Ordinal.GetHashCode(Namespace));
-        h = ValueEquality.Combine(h, Parents.GetHashCode());
-        h = ValueEquality.Combine(h, StringComparer.Ordinal.GetHashCode(Keyword));
+        h = ValueEquality.Combine(h, Path.GetHashCode());
         h = ValueEquality.Combine(h, StringComparer.Ordinal.GetHashCode(FullName));
         h = ValueEquality.Combine(h, (int)Shape);
         h = ValueEquality.Combine(h, Properties.GetHashCode());
@@ -121,29 +112,4 @@ public sealed class ClassDeclaration : IEquatable<ClassDeclaration>
     }
 
     public override string ToString() => FullName;
-}
-
-/// <summary>A containing type that the generated file reopens.</summary>
-public sealed class ContainingTypeDeclaration : IEquatable<ContainingTypeDeclaration>
-{
-    /// <summary><c>class</c>, <c>record</c>, <c>struct</c>, <c>record struct</c> or <c>interface</c>.</summary>
-    public string Keyword { get; set; } = "class";
-
-    /// <summary>The name as it is declared, with type parameters.</summary>
-    public string Name { get; set; } = string.Empty;
-
-    public bool Equals(ContainingTypeDeclaration? other)
-    {
-        if (other is null) return false;
-        if (ReferenceEquals(this, other)) return true;
-        return string.Equals(Keyword, other.Keyword, StringComparison.Ordinal)
-            && string.Equals(Name, other.Name, StringComparison.Ordinal);
-    }
-
-    public override bool Equals(object? obj) => Equals(obj as ContainingTypeDeclaration);
-
-    public override int GetHashCode()
-        => ValueEquality.Combine(StringComparer.Ordinal.GetHashCode(Keyword), StringComparer.Ordinal.GetHashCode(Name));
-
-    public override string ToString() => $"{Keyword} {Name}";
 }

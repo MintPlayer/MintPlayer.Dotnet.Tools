@@ -577,6 +577,8 @@ Also noted while reading the rules file, and **not** acted on: `CONFIG005`
 can never fire. `TheConfigRulesAreWellFormed` constructs them, so they even count as covered.
 Removing a public descriptor is an API change and belongs to a deliberate decision, not to this.
 
+> **Update 2026-10 (12.2.0, #193/#194):** CONFIG005 and OPTIONS004 are now reported; OPTIONS002 is removed. See [PRD-TypeKindRobustness.md](PRD-TypeKindRobustness.md).
+
 | | Before (`c7b13b9`) | After (branch head) | |
 |---|---|---|---|
 | Lines | 6,747 / 10,544 = **64.0%** | 9,321 / 11,475 = **81.2%** | **+17.2pp** |

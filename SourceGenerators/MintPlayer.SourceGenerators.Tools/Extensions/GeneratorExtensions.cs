@@ -65,7 +65,126 @@ public static class GeneratorExtensions
 
             context.RegisterSourceOutput(
                 reportersWithWork.Combine(context.CompilationProvider),
-                static (c, p) => c.ReportDiagnostic(p.Left.GetDiagnostics(p.Right)));
+                static (c, p) => ReportSafely(c, p.Left, p.Right));
         }
+    }
+
+    /// <summary>
+    /// Reports every <see cref="DiagnosticInfo"/> in <paramref name="providers"/>, e.g. from
+    /// <see cref="DiscoveryExtensions.Diagnostics{TModel}"/>.
+    /// </summary>
+    /// <param name="context">context parameter from the <see cref="IIncrementalGenerator.Initialize(IncrementalGeneratorInitializationContext)"/> method</param>
+    /// <param name="providers">The diagnostics to report</param>
+    /// <remarks>
+    /// Each diagnostic is combined with the compilation on its own, to map its <see cref="LocationKey"/> back onto the
+    /// compilation's tree (<c>#pragma</c> and <c>.editorconfig</c> severity depend on that). With no diagnostics there
+    /// is nothing to combine, so no step runs on an edit. One diagnostic that cannot be reported never stops the
+    /// others; see <see cref="UnreportableDiagnostic"/>.
+    /// </remarks>
+    public static void ReportDiagnostics(this IncrementalGeneratorInitializationContext context, params IncrementalValuesProvider<DiagnosticInfo>[] providers)
+    {
+        foreach (var provider in providers)
+        {
+            context.RegisterSourceOutput(
+                provider.Combine(context.CompilationProvider),
+                static (c, p) => ReportSafely(c, p.Left, p.Right));
+        }
+    }
+
+    /// <summary>
+    /// Reported instead of a diagnostic that could not be reported, for instance because its location points into a
+    /// tree the compilation doesn't contain, so that it is not lost silently and does not crash the generator
+    /// (CS8785). A warning: the diagnostic it replaces may have been anything.
+    /// </summary>
+    public static readonly DiagnosticDescriptor UnreportableDiagnostic = new(
+        id: "MPSG002",
+        title: "A source generator diagnostic could not be reported",
+        messageFormat: "The source generator could not report diagnostic {0}: {1}: {2}",
+        category: "MintPlayer.SourceGenerators",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    private static void ReportSafely(SourceProductionContext context, DiagnosticInfo? info, Compilation compilation)
+    {
+        if (info is null) return;
+        Diagnostic diagnostic;
+        try
+        {
+            diagnostic = info.ToDiagnostic(compilation);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            ReportUnreportable(context, info.RuleId, ex);
+            return;
+        }
+
+        ReportSafely(context, diagnostic, () => info.ToDiagnostic(null));
+    }
+
+    private static void ReportSafely(SourceProductionContext context, IDiagnosticReporter reporter, Compilation compilation)
+    {
+        IEnumerator<Diagnostic> enumerator;
+        try
+        {
+            enumerator = (reporter.GetDiagnostics(compilation) ?? []).GetEnumerator();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            ReportUnreportable(context, reporter.GetType().Name, ex);
+            return;
+        }
+
+        using (enumerator)
+        {
+            while (true)
+            {
+                try
+                {
+                    if (!enumerator.MoveNext()) return;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // A reporter's lazy enumeration cannot continue after it threw.
+                    ReportUnreportable(context, reporter.GetType().Name, ex);
+                    return;
+                }
+
+                var diagnostic = enumerator.Current;
+                if (diagnostic is not null)
+                    ReportSafely(context, diagnostic, retry: null);
+            }
+        }
+    }
+
+    /// <summary>Reports one diagnostic; when that throws, retries it without a location, then falls back to MPSG002.</summary>
+    private static void ReportSafely(SourceProductionContext context, Diagnostic diagnostic, Func<Diagnostic>? retry)
+    {
+        try
+        {
+            context.ReportDiagnostic(diagnostic);
+            return;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            if (retry is not null)
+            {
+                try
+                {
+                    context.ReportDiagnostic(retry());
+                    return;
+                }
+                catch (Exception retryException) when (retryException is not OperationCanceledException) { }
+            }
+            ReportUnreportable(context, diagnostic.Id, ex);
+        }
+    }
+
+    private static void ReportUnreportable(SourceProductionContext context, string what, Exception ex)
+    {
+        try
+        {
+            context.ReportDiagnostic(Diagnostic.Create(UnreportableDiagnostic, Location.None, what, ex.GetType().Name, ex.Message));
+        }
+        catch (Exception) { }
     }
 }

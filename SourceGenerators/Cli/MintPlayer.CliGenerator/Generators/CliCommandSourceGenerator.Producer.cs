@@ -16,6 +16,8 @@ internal sealed class CliCommandProducer : Producer
         this.commandTrees = commandTrees;
     }
 
+    protected override bool WritePreamble => true;
+
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
     {
         if (commandTrees.IsDefaultOrEmpty || commandTrees.Length == 0)
@@ -23,8 +25,6 @@ internal sealed class CliCommandProducer : Producer
             return;
         }
 
-        writer.WriteLine(Header);
-        writer.WriteLine();
         // Generated code must not depend on the consumer ImplicitUsings setting. Without
         // this, the emitted .Select(...) calls resolved only because a default SDK project
         // implicitly imports System.Linq; a project with ImplicitUsings disabled got CS1061.
@@ -73,8 +73,20 @@ internal sealed class CliCommandProducer : Producer
         WriteAllExtensions(writer, commandTrees, cancellationToken);
     }
 
-    private void WriteAllExtensions(IndentedTextWriter writer, ImmutableArray<CliCommandTree> trees, CancellationToken cancellationToken)
+    private void WriteAllExtensions(IndentedTextWriter writer, ImmutableArray<CliCommandTree> allTrees, CancellationToken cancellationToken)
     {
+        // Every root's extensions class lands in one namespace, named after the root's type. Roots that share a
+        // type name would declare the class twice (CS0101); the generator reports MINTCLI009 for them instead.
+        var trees = allTrees
+            .GroupBy(static tree => tree.Command.TypeName, StringComparer.Ordinal)
+            .Where(static group => group.Count() == 1)
+            .SelectMany(static group => group)
+            .ToArray();
+        if (trees.Length == 0)
+        {
+            return;
+        }
+
         if (!string.IsNullOrWhiteSpace(RootNamespace))
         {
             using (writer.OpenBlock($"namespace {RootNamespace}"))
@@ -114,14 +126,13 @@ internal sealed class CliCommandProducer : Producer
 
     private void WriteCommandNode(IndentedTextWriter writer, CliCommandTree node, bool isRoot)
     {
-        using (writer.OpenPathSpec(node.Command.PathSpec))
+        // The containing types and the command itself, each as `partial <keyword> Name`: the keyword the user
+        // wrote (class or record), and never an accessibility, which C# takes from the user's declaration.
+        using (writer.OpenPathSpec(node.Command.PathSpec, includeTarget: true))
         {
-            using (writer.OpenBlock(node.Command.Declaration))
-            {
-                WriteRegisterMethod(writer, node);
-                writer.WriteLine();
-                WriteBuildMethod(writer, node, isRoot);
-            }
+            WriteRegisterMethod(writer, node);
+            writer.WriteLine();
+            WriteBuildMethod(writer, node, isRoot);
         }
     }
 
@@ -166,33 +177,32 @@ internal sealed class CliCommandProducer : Producer
                 writer.WriteLine($"command.Add({child.Command.FullyQualifiedName}.BuildCliCommand(serviceProvider));");
             }
 
-            if (command.HasHandler)
+            // The (parseResult, cancellationToken) overload: System.CommandLine cancels the token on Ctrl+C or
+            // SIGTERM, and Execute receives it. The one-parameter overload left Execute with CancellationToken.None.
+            using (writer.OpenBlock("command.SetAction(async (parseResult, cancellationToken) =>"))
             {
-                WriteHandler(writer, command, optionBindings, argumentBindings);
-            }
-            else
-            {
-                using (writer.OpenBlock("command.SetAction(async parseResult =>"))
+                writer.WriteLine("using var scope = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.CreateScope(serviceProvider);");
+                writer.WriteLine($"var handler = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<{command.FullyQualifiedName}>(scope.ServiceProvider);");
+
+                // GetValue returns T?: an option or argument that was not given leaves a non-nullable reference
+                // property null, as it always did. The ! says so instead of raising CS8601 in the generated file.
+                foreach (var option in optionBindings)
                 {
-                    writer.WriteLine("using var scope = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.CreateScope(serviceProvider);");
-                    writer.WriteLine($"var handler = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<{command.FullyQualifiedName}>(scope.ServiceProvider);");
-
-                    foreach (var option in optionBindings)
-                    {
-                        var method = option.Required ? "GetRequiredValue" : "GetValue";
-                        writer.WriteLine($"handler.{option.PropertyName} = parseResult.{method}({option.VariableName});");
-                    }
-
-                    foreach (var argument in argumentBindings)
-                    {
-                        var method = argument.Required ? "GetRequiredValue" : "GetValue";
-                        writer.WriteLine($"handler.{argument.PropertyName} = parseResult.{method}({argument.VariableName});");
-                    }
-
-                    writer.WriteLine("return await handler.Execute(global::System.Threading.CancellationToken.None);");
+                    writer.WriteLine(option.Required
+                        ? $"handler.{option.PropertyName} = parseResult.GetRequiredValue({option.VariableName});"
+                        : $"handler.{option.PropertyName} = parseResult.GetValue({option.VariableName})!;");
                 }
-                writer.WriteLine(");");
+
+                foreach (var argument in argumentBindings)
+                {
+                    writer.WriteLine(argument.Required
+                        ? $"handler.{argument.PropertyName} = parseResult.GetRequiredValue({argument.VariableName});"
+                        : $"handler.{argument.PropertyName} = parseResult.GetValue({argument.VariableName})!;");
+                }
+
+                writer.WriteLine("return await handler.Execute(cancellationToken);");
             }
+            writer.WriteLine(");");
 
             writer.WriteLine();
             writer.WriteLine("return command;");
@@ -282,41 +292,6 @@ internal sealed class CliCommandProducer : Producer
         }
 
         return bindings;
-    }
-
-    private void WriteHandler(IndentedTextWriter writer, CliCommandDefinition command, IReadOnlyList<OptionBinding> options, IReadOnlyList<ArgumentBinding> arguments)
-    {
-        using (writer.OpenBlock("command.SetAction(async invocationContext =>"))
-        {
-            writer.WriteLine("using var scope = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.CreateScope(serviceProvider);");
-            writer.WriteLine($"var handler = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<{command.FullyQualifiedName}>(scope.ServiceProvider);");
-
-            foreach (var option in options)
-            {
-                var method = option.Required ? "GetRequiredValue" : "GetValue";
-                writer.WriteLine($"handler.{option.PropertyName} = invocationContext.ParseResult.{method}({option.VariableName});");
-            }
-
-            foreach (var argument in arguments)
-            {
-                var method = argument.Required ? "GetRequiredValue" : "GetValue";
-                writer.WriteLine($"handler.{argument.PropertyName} = invocationContext.ParseResult.{method}({argument.VariableName});");
-            }
-
-            if (command.HandlerUsesCancellationToken)
-            {
-                writer.WriteLine("var cancellationToken = invocationContext.GetCancellationToken();");
-            }
-
-            var handlerMethodName = command.HandlerMethodName ?? "Execute";
-            var invocation = command.HandlerUsesCancellationToken
-                ? $"handler.{handlerMethodName}(cancellationToken)"
-                : $"handler.{handlerMethodName}()";
-
-            writer.WriteLine($"var exitCode = await {invocation};");
-            writer.WriteLine("invocationContext.ExitCode = exitCode;");
-        }
-        writer.WriteLine(");");
     }
 
     private void WriteRootExtensions(IndentedTextWriter writer, CliCommandDefinition command)

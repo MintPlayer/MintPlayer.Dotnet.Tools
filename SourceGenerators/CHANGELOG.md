@@ -3,6 +3,227 @@
 This changelog covers every package under `SourceGenerators/`. They are versioned in lockstep, so one entry applies
 to all of them.
 
+## 12.2.0
+
+Fixes [#193](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/193) and
+[#194](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/194), plus every finding of the same bug classes in
+the other generators: a crash reachable from unrelated or half-typed code, and an assumption that the user's type is a
+`class`. The audit, the spikes and the design are in
+[`docs/PRD-TypeKindRobustness.md`](../docs/PRD-TypeKindRobustness.md). Wherever a generator emits a `partial` of a user
+type, it now works for `class`, `record class`, `record`, `struct` and `record struct`, or reports a diagnostic; it no
+longer does nothing silently.
+
+A minor release: the Attributes package and Tools gain public API, and new diagnostics can turn code that compiled
+silently into warnings or errors. Read **Behaviour changes** before upgrading.
+
+### Behaviour changes
+
+- **GenericMethod: no arity-1 overload any more.** `[GenericMethod]` used to emit `Add<T1>(T1 t1)`, which hijacked a
+  call such as `Add(list)` (it received one element: the list), also from inside the class. Bare `[GenericMethod]`
+  now emits arities 2 to 4; `[GenericMethod(n)]` emits 2 to n. There is no opt-in for arity 1.
+- **INTF001 now runs on structs and record structs.** It reported only on classes. Measured on about 2,400 files
+  (Spark, AspNetCore.Tools, this repository) it added no warnings, but a struct whose public members are missing from
+  its interface now gets one, and the code fix applies to it.
+- **The Warning-severity MINT002 is now MINT008.** "Only one of `Equals(object)` and `GetHashCode()` is declared" was
+  reported as MINT002 with Warning severity, beside the Info-severity MINT002 for an already-declared member. It is
+  MINT008 now; MINT002 is Info only. A `#pragma warning disable MINT002`, `<NoWarn>` or `.editorconfig` entry meant
+  for the warning must move to MINT008.
+- **A `Task`-returning `[PostConstruct]` is an error (INJECT005).** The generated constructor called it without
+  awaiting, so it ran fire-and-forget and its exceptions were lost. Return `void`, and start asynchronous work some
+  other way.
+- **`[Inject]` on a property with a setter is a warning (INJECT008).** The generated constructor assigns fields and
+  get-only or init-only properties; a `{ get; set; }` property was skipped without a word and stayed null. It is still
+  not assigned, but now reported.
+- **CONFIG005 and OPTIONS004 are reported.** Both were declared and shipped but never reported. A `DefaultValue` the
+  field cannot hold (`"3"` or `3.5` for an `int`, `300` for a `byte`, any value for a `DateTime`, `TimeSpan`, `Guid`,
+  POCO or collection) is CONFIG005; it used to produce generated code that did not compile, or a different value (a
+  non-string default on a `string` became `null`). `[Options]` together with `[Config]` is OPTIONS004; the field used to
+  take the `[Config]` path silently.
+- **`[Options]` together with `[ConnectionString]` is an error (OPTIONS005).** It was the one pair of config markers
+  without a diagnostic; the field silently took the `[ConnectionString]` path.
+- **`[Config]` defaults apply on nullable fields too.** `[Config("Retries", DefaultValue = 3)] int? retries` used to be
+  `null` when the key was missing (a `string?` already got its default). A `Uri` field now uses a string default (it
+  was ignored), an enum default works for every underlying type (`Small.B` on a `byte` enum emitted `Small.7`), and
+  a floating-point default is written in the invariant culture (a build under a decimal-comma culture emitted
+  `3,5d`).
+- **Class-level mappers between public types are `public`.** The Mapper emitted every extension method `internal`.
+  It is `internal` only when either type is.
+- **The Mapper's assembly-level method-name prefix is honoured.**
+  `[assembly: GenerateMapper(typeof(A), typeof(ADto), "Convert")]` generates `ConvertADto()` and `ConvertA()`; it used
+  to ignore the prefix and generate `MapToADto()`. Callers of the old names must rename. A nested property of such a
+  type calls the prefixed method.
+- **An open generic `[Register]` on a non-generic class registers the closed interface.**
+  `[Register(typeof(IRepository<>), ServiceLifetime.Scoped)]` on `class PersonRepository : IRepository<string>` used to
+  register nothing, silently. It now registers `IRepository<string>`.
+- **The test harness is strict.** `MintPlayer.SourceGenerators.Testing` fails every `Run*` and `ApplyCodeFixAsync`
+  call with `ComponentCrashedException` when the component crashes: CS8785 (a generator threw), MPSG001 (a Producer
+  caught its own exception), MPSG002 (a diagnostic could not be reported) or AD0001 (an analyzer threw). Before, a
+  crash read as a component with nothing to say. A downstream suite whose fixtures crash silently starts failing; to
+  assert on a crash deliberately, opt out per harness with `.AllowComponentCrashes()`.
+
+### Added
+
+**MintPlayer.SourceGenerators.Attributes**
+- `GenericMethodAttribute` (namespace `MintPlayer.SourceGenerators.Attributes`). It used to live only inside the
+  analyzer assembly, so consumer code could not reference it and `[GenericMethod]` was unusable. Shape:
+  `GenericMethodAttribute(int count = 4)` plus a settable `int Count`, range 2..16.
+
+**MintPlayer.SourceGenerators**
+- GENMETHOD001 (the type, or a type containing it, cannot be extended), GENMETHOD002 (the method is not private),
+  GENMETHOD003 (unsupported method shape), GENMETHOD004 (`Count` out of 2..16).
+- INJECT005 (non-void `[PostConstruct]`), INJECT006 (type or containing type not partial; was CS0260), INJECT007
+  (positional record or primary constructor; was CS8862), INJECT008 (Warning: `[Inject]` on a property with a setter),
+  OPTIONS005 (`[Options]` with `[ConnectionString]`).
+- README sections for the Description and ClassNames generators.
+- REGISTER003 (inaccessible type), REGISTER004 (undefined lifetime), REGISTER005 (inexpressible service type). They
+  replace CS8785/MPSG001 and CS0122, CS0246, CS0305 and CS0311 in the generated code.
+
+**MintPlayer.Mapper**
+- MAPC005 (a mapped type cannot be instantiated), MAPC006 (not accessible from the generated mapper), MAPC007 (a
+  `[MapperConversion]` method cannot be called).
+
+**MintPlayer.CliGenerator**
+- MINTCLI002 (not partial), 003 (generic), 004 (static), 005 (non-partial containing type), 006 (file-local), 007 (root
+  command less accessible than internal), 008 (subcommand inaccessible from its parent), 009 (two root commands with
+  the same type name).
+
+**MintPlayer.ValueComparerGenerator**
+- MINT007 (Error): `[GenerateEquality]` on a ref struct, a static class, a C# 15 union or a file-local type, or a type
+  nested in a union or a file-local type. Before: CS8121, CS0261, a phantom partial, or nothing.
+- MINT008 (Warning): see Behaviour changes.
+
+**MintPlayer.SourceGenerators.Tools**
+- `GetPathSpec`/`OpenPathSpec` extended: `PathSpec.Target`, interface parents, `record`/`record struct`, interface
+  variance, `@`-escaping, `UnsupportedReason`, `includeTarget`, `UniqueTypeParameterName`/`UniqueTypeParameterPrefix`.
+- Attribute helpers: `IsAttribute`, `FindAttribute(s)`, `HasAttribute`, `TryGetArgument`/`GetArgument` (constants,
+  arithmetic, casts, enums, `typeof`).
+- Discovery plumbing: `DiagnosticInfo` (keyed by rule id, holds no Roslyn objects; a second, different descriptor
+  under an id already seen throws), `Discovered<T>`, `ForAttribute`, `Models()`/`Diagnostics()`, a
+  `ReportDiagnostics` overload for `DiagnosticInfo`, `Producer.WritePreamble`/`NullableEnable`, `OpenNamespace`.
+- MPSG002 (Warning): reported instead of a diagnostic that could not be reported, so it is neither lost nor a crash.
+- `StringExtensions.ToSafeNamespace` (see Fixed).
+- Release tracking (`AnalyzerReleases.*.md`) for MPSG001/MPSG002.
+
+**MintPlayer.SourceGenerators.Testing**
+- `GeneratorResult.GeneratorExceptions`, `CrashDiagnostics` and `EnsureNoCrash()`; `CodeFixResult.AnalyzerExceptions`;
+  `RunAnalyzerAsync` keeps AD0001. `AllowComponentCrashes()` opts out of the strict mode.
+
+### Changed
+
+**MintPlayer.SourceGenerators**
+- `[GenericMethod]`: `Count` accepts constants, expressions and casts; overloads return the method's result (`bool`,
+  `Task`, `ValueTask<T>`); works on class, record, struct, record struct and interface, generic, nested and in the
+  global namespace, at any accessibility; `@`-escaped keyword names. Global-namespace types stay in the global
+  namespace (they were wrapped in the root namespace).
+- `[Inject]`/`[Config]`/`[ConnectionString]`/`[Options]`/`[PostConstruct]` work on records, structs and record structs,
+  nested and nested in an interface (a struct's constructor chains `: this()`). A split partial class gets one
+  constructor; a split base is forwarded whole, including its config and options parameters. Nullable `[Inject]`
+  parameters come after the required ones (was CS1737). The constructor is `internal`/`protected` when a dependency is
+  less accessible (was CS0051). `[Config]`/`[ConnectionString]`/`[Options]` accept any constant expression.
+- `[Options("Section")]`: the section is documentation only, as the attribute's XML doc already said; the README and
+  the XML doc now show `BindConfiguration`. OPTIONS002, which was never reported, is removed.
+- `[Register]` works on records; a split partial is registered once; open generics follow the implemented interface's
+  type arguments (reordered, partially closed, renamed); a generic class registered against itself or a non-generic
+  service gets a generic `Add<T>()`.
+- `BaseConstructorParameterAttribute` is `[Obsolete]`; it is removed in 13.0.
+- Attributes are matched by metadata name, so a same-named attribute in another namespace no longer triggers a
+  generator.
+- `Inject.g.cs`, `ServiceMethods.g.cs`, `GenericMethods.g.cs` and the Description and ClassNames files are
+  `#nullable enable` and compile warning-free; `Inject.g.cs` also gets the `<auto-generated>` header.
+
+**MintPlayer.CliGenerator**
+- Commands can be records (`record`/`record class`), and can be nested in a partial class, record, struct, record
+  struct or interface.
+- `Execute` receives the invocation's cancellation token (Ctrl+C) instead of `CancellationToken.None`.
+- The generated file is nullable-enabled and warning-free; attributes are matched by metadata name.
+
+**MintPlayer.Mapper**
+- Mapping to and from a struct or record struct compiles; the null guard is emitted only for reference types; the copy
+  overload `MapToX(input, output)` is not generated for a value-type destination (it wrote into a copy) or when there
+  is nothing to copy (init-only or positional record).
+- Reference create overloads are `[return: NotNullIfNotNull("input")] D? MapToD(this S? input)` (when the attribute
+  exists in the compilation). The generated code is free of nullable warnings and CS0162, list and array properties
+  included.
+
+**MintPlayer.ValueComparerGenerator**
+- MINT003 is one descriptor (same messages). Containing interfaces are re-declared with their `in`/`out` variance.
+  `JoinMethodGenerator` finds `[GenerateJoinMethods]` by metadata name.
+
+**Every generator package**
+- `AnalyzerReleases.Shipped.md` records a 12.1.1 baseline of the rules each package shipped (earlier releases were
+  never tracked), and MINTCLI001 moved to it from Unshipped. The build is free of RS2xxx warnings.
+- **Install the `*.Attributes` package next to the generator.** The Attributes READMEs and the index READMEs said
+  the generator brings its attributes along. It does only for a bare `<PackageReference>`: the generators are
+  development dependencies, so `dotnet add package` and the Visual Studio package manager write an `IncludeAssets` list
+  without `compile`, which also filters the dependency, and the attribute is CS0246. Measured on packed packages; every
+  README now says to install both.
+
+### Fixed
+
+**MintPlayer.SourceGenerators**
+- **#193:** `GenericMethodSourceGenerator` threw `InvalidCastException` on any attributed method in a record, record
+  struct, struct or interface (a `[GeneratedRegex]` method was enough), reported CS8785 and emitted nothing for the
+  whole compilation.
+- **#194:** `[GenericMethod]` works as documented (see Added and Changed), warning-free under `#nullable enable`.
+- `[Inject]` on a record, struct or record struct generated nothing (#193 in Inject).
+- **CONFIG001 named the wrong type and hid INJECT006.** Every type that cannot receive a generated constructor got
+  "Class '{0}' must be partial" on its `[Config]`/`[ConnectionString]`/`[Options]` members, naming the type itself.
+  For a file-local partial type, a partial type nested in a non-partial type and an interface, that was wrong. CONFIG001
+  is now reported only when the type itself is not partial; the other cases get INJECT006, which names the offender
+  and the reason. Its message now reads "Type '{0}' must be partial to use [Config], [ConnectionString] or
+  [Options]", since it also fires for records, structs and the other two markers.
+- **`[Inject]` with a config marker still injected the member.** `[Inject]` together with `[Config]`,
+  `[ConnectionString]` or `[Options]` reported CONFIG008, CONNSTR003 or OPTIONS003 and still added a constructor
+  parameter for the member. Like OPTIONS004 and OPTIONS005, a conflict now emits neither binding; the error stays.
+- Description: generic types and types nested in an interface are correct; a summary on two parts or an explicit
+  `[Description]` no longer gives CS0579; `file` types are skipped.
+- ClassNames: keyword names are `@`-escaped; a class named `ClassNames` gets no constant; a user `ClassNames`/
+  `ClassNameList` in the root namespace suppresses that file.
+- MP001 no longer crashes on type aliases (AD0001); its fix keeps `#nullable`, `#region` and the file header above the
+  first `using`.
+- INTF001 reports an added overload of an interface method, and the fix adds that overload; the fix declines members
+  that use the class's own type parameter.
+
+**MintPlayer.CliGenerator**
+- `[CliOption(null)]` crashed the generator (CS8785).
+- The generated partial repeated the accessibility (CS0262 for `private protected`).
+- README: the example called `AddDemoCommandTree()` and `app.Services.InvokeDemoCommandAsync(args)`; the generated
+  methods are `AddDemoCommand()` and `InvokeDemoCommandAsync(args)` on the `IHost`.
+
+**MintPlayer.Mapper**
+- An erroneous `[GenerateMapper]` broke `MapperEntrypoint.g.cs`; base and derived mapped together gave CS8120; a
+  `[MapperConversion]` in a partial static class was registered once per part.
+- README: the examples used `[MapperAlias]` and non-generic `[MapperState]`/`[MapperConversion]` overloads, which do
+  not exist; they use `[MapTo]`, `[MapperState<TEnum>]` and `[MapperConversion<TEnum>]`.
+
+**MintPlayer.ValueComparerGenerator**
+- MINT001 overflowed the stack (taking down the compiler) on an expanding generic such as
+  `class Foo<T> { Foo<Foo<T>> Next { get; } }`.
+- Models with an unresolved base or property type are skipped instead of generating broken code.
+
+**MintPlayer.SourceGenerators.Tools**
+- **A `RootNamespace` that is not a valid namespace name broke every generator.** The SDK passes the project name
+  through with only spaces replaced, so a project named `My-App` got `namespace My-App` in every generated file
+  (CS0246, CS0102, CS0548). `Settings.RootNamespace` and `Producer.RootNamespace` are now sanitized once, by the new
+  `StringExtensions.ToSafeNamespace`: an invalid character becomes `_`, a segment starting with a digit gets a `_`
+  prefix, and a keyword segment is `@`-escaped (`My-App.1st.class` becomes `My_App._1st.@class`). This fixes ServiceRegistrations, ClassNames, Mapper,
+  CliGenerator and the MintPlayer.Assertions equivalency registration at once.
+- `OpenPathSpec` wrote `record class`, which is CS8773 at C# 9; it writes `record`.
+- `LocationKey.ToLocation` is bounds-checked, and reporting a diagnostic never throws (a stale location used to crash
+  the generator).
+- **Generated files mixed line endings.** `Producer.Header` is a raw string literal, so its line breaks are those of
+  the checkout the package was built from, while the rest of every file uses `Environment.NewLine`. A package built on
+  Linux and used on Windows emitted an LF header above a CRLF body. `Header` now normalizes its line breaks to
+  `Environment.NewLine`, so `writer.WriteLine(Header)` is correct everywhere, including in producers in other
+  packages. It is therefore a `static readonly` field instead of a `const`: code that used it in a constant context
+  no longer compiles, and code compiled against the old constant keeps its inlined copy until rebuilt.
+
+### Other packages in this repository
+- **MintPlayer.Assertions** (`11.0.0-rc.6`): it ships `MintPlayer.SourceGenerators.Tools` inside its analyzer payload,
+  so it picks up two Tools fixes above. Its equivalency registration compiles in a project whose `RootNamespace` is
+  not a valid namespace name (`My-App` gave `namespace My-App`, CS0246/CS0102/CS0548), and both of its generators
+  write the `<auto-generated>` header with the file's own line endings.
+
 ## 12.1.1
 
 Fixes [#191](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/191). The investigation and design are in

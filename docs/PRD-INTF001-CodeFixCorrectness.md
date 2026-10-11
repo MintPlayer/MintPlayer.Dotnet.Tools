@@ -1,5 +1,7 @@
 # PRD: INTF001 code-fix correctness and a multi-project code-fix harness
 
+> **Update 2026-10 (12.2.0, #193/#194):** two decisions below were reversed. INTF001 now runs on structs and record structs (Non-Goal 3), and members are matched by signature, not by name alone (the "Signature-aware membership" paragraph), so an added overload is reported and the fix adds that overload. The fix declines a member whose signature uses the class's own type parameter. See [PRD-TypeKindRobustness.md](PRD-TypeKindRobustness.md).
+
 ## Overview
 
 `InterfaceImplementationAnalyzer` (`INTF001`) reports public members of a class that are absent from an

@@ -408,4 +408,42 @@ public class RoslynTypeInModelAnalyzerTests
     }
 
     #endregion
-}
+
+    /// <summary>
+    /// C6: <c>Foo&lt;T&gt;</c> with a <c>Foo&lt;Foo&lt;T&gt;&gt;</c> property makes a new constructed type at every level, so
+    /// a walk keyed on the constructed type never ended: a stack overflow that took the compiler down. The walk now
+    /// visits each generic definition's properties once. Should it ever recurse without bound again, its depth guard
+    /// throws first, which the strict harness reports as a crash (AD0001) instead of losing the test host.
+    /// </summary>
+    [Fact]
+    public async Task C6_AnExpandingGeneric_TerminatesAndReportsNothing()
+    {
+        var diagnostics = await Run($$"""
+            {{Preamble}}
+
+            public class Foo<T> { public Foo<Foo<T>>? Next => null; public T? Value { get; set; } }
+
+            [GenerateEquality]
+            public partial class Model { public Foo<int>? F { get; set; } }
+            """);
+
+        diagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>C6, without losing anything: a Roslyn type behind the expanding generic is still found.</summary>
+    [Fact]
+    public async Task C6_AnExpandingGeneric_StillFindsARoslynTypeBehindIt()
+    {
+        var diagnostics = await Run($$"""
+            {{Preamble}}
+
+            public class Foo<T> { public Foo<Foo<T>>? Next => null; public SyntaxNode? Node { get; set; } }
+
+            [GenerateEquality]
+            public partial class Model { public Foo<int>? F { get; set; } public Foo<ISymbol>? G { get; set; } }
+            """);
+
+        diagnostics.Should().HaveCount(2).And.AllSatisfy(d => d.Id.Should().Be("MINT001"));
+        diagnostics.Should().Contain(d => d.GetMessage().Contains("SyntaxNode"));
+        diagnostics.Should().Contain(d => d.GetMessage().Contains("ISymbol"));
+    }}

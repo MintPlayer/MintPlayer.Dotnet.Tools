@@ -11,7 +11,7 @@ public static partial class DiagnosticRules
     public static readonly DiagnosticDescriptor ConfigNonPartialClass = new(
         id: "CONFIG001",
         title: "Non-partial class",
-        messageFormat: "Class '{0}' must be partial to use [Config] attribute",
+        messageFormat: "Type '{0}' must be partial to use [Config], [ConnectionString] or [Options]",
         category: ConfigCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -32,10 +32,13 @@ public static partial class DiagnosticRules
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    // Compatible means the generated fallback compiles and is the value written: a constant of the field's type, an
+    // integer that fits a numeric field, an enum member, its name or an integer for an enum field, a string for a Uri.
+    // DateTime, TimeSpan, DateOnly, TimeOnly, Guid, POCO and collection fields have no constant form at all.
     public static readonly DiagnosticDescriptor ConfigDefaultValueTypeMismatch = new(
         id: "CONFIG005",
         title: "Default value type mismatch",
-        messageFormat: "DefaultValue type '{0}' is not compatible with field type '{1}'",
+        messageFormat: "DefaultValue of type '{0}' cannot be used for a field of type '{1}'",
         category: ConfigCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -104,14 +107,6 @@ public static partial class DiagnosticRules
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
-    public static readonly DiagnosticDescriptor OptionsBindingHint = new(
-        id: "OPTIONS002",
-        title: "Options binding hint",
-        messageFormat: "Consider registering options binding: services.Configure<{0}>(configuration.GetSection(\"{1}\"))",
-        category: ConfigCategory,
-        defaultSeverity: DiagnosticSeverity.Info,
-        isEnabledByDefault: false);
-
     public static readonly DiagnosticDescriptor OptionsConflictWithInject = new(
         id: "OPTIONS003",
         title: "Conflicting with Inject",
@@ -124,6 +119,16 @@ public static partial class DiagnosticRules
         id: "OPTIONS004",
         title: "Conflicting with Config",
         messageFormat: "Field '{0}' cannot have both [Options] and [Config] attributes",
+        category: ConfigCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    // Each pair of config markers has its own id (CONFIG006, CONFIG008, CONNSTR003, OPTIONS003, OPTIONS004); this was
+    // the one pair without, and a member with both silently took the [ConnectionString] path.
+    public static readonly DiagnosticDescriptor OptionsConflictWithConnectionString = new(
+        id: "OPTIONS005",
+        title: "Conflicting with ConnectionString",
+        messageFormat: "Field '{0}' cannot have both [Options] and [ConnectionString] attributes",
         category: ConfigCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);

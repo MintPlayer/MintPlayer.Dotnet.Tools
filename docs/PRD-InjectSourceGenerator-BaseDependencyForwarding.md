@@ -1,5 +1,7 @@
 # PRD: InjectSourceGenerator Base Dependency Forwarding
 
+> **Update 2026-10 (12.2.0, #193/#194):** Inject is no longer limited to partial classes: it generates for class, record, struct and record struct (value types chain `: this()`), also nested in any of those or in an interface. A split base is forwarded whole, including its `[Config]`/`[Options]` parameters; nullable `[Inject]` parameters come after the required ones; a type that cannot take the constructor gets INJECT006 (not partial, was CS0260) or INJECT007 (positional record or primary constructor, was CS8862). `BaseConstructorParameterAttribute` is `[Obsolete]` and removed in 13.0. See [PRD-TypeKindRobustness.md](PRD-TypeKindRobustness.md).
+
 ## Problem Statement
 
 The current `InjectSourceGenerator` only generates constructors for classes that have:

@@ -1,5 +1,4 @@
 ﻿using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
 
@@ -8,160 +7,27 @@ namespace MintPlayer.Mapper.Generators;
 [Generator(LanguageNames.CSharp)]
 public class MapperGenerator : IncrementalGenerator
 {
+    private const string GenerateMapperAttribute = "MintPlayer.Mapper.Attributes.GenerateMapperAttribute";
+    private const string MapperConversionAttribute = "MintPlayer.Mapper.Attributes.MapperConversionAttribute";
+    private const string MapperConversionOfTAttribute = "MintPlayer.Mapper.Attributes.MapperConversionAttribute`1";
+    private const string MapperStateAttribute = "MintPlayer.Mapper.Attributes.MapperStateAttribute`1";
+    private const string MapToAttribute = "MintPlayer.Mapper.Attributes.MapToAttribute";
+    private const string IgnoreMapAttribute = "MintPlayer.Mapper.Attributes.IgnoreMapAttribute";
+    private const string NotNullIfNotNullAttribute = "System.Diagnostics.CodeAnalysis.NotNullIfNotNullAttribute";
+    private const string DefaultMethodPrefix = "MapTo";
+
     public override void Initialize(IncrementalGeneratorInitializationContext context, IncrementalValueProvider<Settings> settingsProvider)
     {
-        var typesToMapProvider = context.SyntaxProvider
+        // One target (the assembly) can carry many [GenerateMapper] attributes, so each target gives an array.
+        var typesToMap = context.SyntaxProvider
             .ForAttributeWithMetadataName(
-                "MintPlayer.Mapper.Attributes.GenerateMapperAttribute",
+                GenerateMapperAttribute,
                 static (node, ct) => node is not null,
-                static (ctx, ct) =>
-                {
-                    if (ctx.TargetSymbol is IAssemblySymbol assemblySymbol &&
-                        ctx.Attributes.Where(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute").ToArray() is { Length: > 0 } attributes1)
-                    {
-                        // Applied on assembly
-                        return attributes1.Select(attr1 =>
-                        {
-                            if (attr1.ConstructorArguments.FirstOrDefault().Value is INamedTypeSymbol sourceType &&
-                                attr1.ConstructorArguments.ElementAtOrDefault(1).Value is INamedTypeSymbol destType1 &&
-                                attr1.ConstructorArguments.ElementAtOrDefault(2) is TypedConstant { Kind: TypedConstantKind.Primitive, Type.SpecialType: SpecialType.System_String } methodNamePrefix)
-                            {
-                                var destAttr = destType1.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute");
-                                //var destTypeMethodName = destAttr?.ConstructorArguments.ElementAtOrDefault(1);
-                                var mappingMethodName = destType1.Name.EnsureStartsWith("MapTo");
-                                var declaredMethodName = sourceType.Name.EnsureStartsWith("MapTo");
-                                return new Models.TypeToMap
-                                {
-                                    DestinationNamespace = sourceType.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
-                                    DeclaredType = sourceType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                    DeclaredTypeName = sourceType.Name,
-                                    DeclaredTypeAccessibility = (int)sourceType.DeclaredAccessibility,
-                                    DeclaredTypeHasParameterlessConstructor = HasParameterlessConstructor(sourceType),
-                                    DeclaredTypePrimaryConstructorParameters = GetPrimaryConstructorParameters(sourceType),
-                                    PreferredDeclaredMethodName = declaredMethodName,
+                static (ctx, ct) => new EquatableArray<Discovered<Models.TypeToMap>>(ctx.Attributes.Select(attr => DiscoverTypeToMap(ctx.TargetSymbol, attr, ct))))
+            .SelectMany(static (d, ct) => d);
 
-                                    MappingType = destType1.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                    MappingTypeName = destType1.Name,
-                                    MappingTypeAccessibility = (int)destType1.DeclaredAccessibility,
-                                    MappingTypeHasParameterlessConstructor = HasParameterlessConstructor(destType1),
-                                    MappingTypePrimaryConstructorParameters = GetPrimaryConstructorParameters(destType1),
-                                    PreferredMappingMethodName = mappingMethodName,
-                                    AreBothDecorated = destType1.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute"),
-                                    AppliedOn = Models.EAppliedOn.Assembly,
-                                    HasError = false,
-
-                                    DeclaredProperties = ProcessProperties(sourceType).ToArray(),
-                                    MappingProperties = ProcessProperties(destType1).ToArray(),
-                                    //Symbol = sourceType,
-                                };
-                            }
-                            else
-                            {
-                                return new Models.TypeToMap
-                                {
-                                    AppliedOn = Models.EAppliedOn.Assembly,
-                                    HasError = true,
-                                    // Only a model that reports a diagnostic carries its location. It is
-                                    // line-based, so on a clean model it changed whenever code above the
-                                    // attribute grew, and re-ran both output steps for nothing.
-                                    Location = attr1.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation().AsKey(),
-                                };
-                            }
-                        });
-                    }
-
-
-                    if (ctx.TargetSymbol is INamedTypeSymbol typeSymbol &&
-                        ctx.Attributes.Where(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute").ToArray() is { Length: > 0 } attributes2)
-                    {
-                        // Applied on class or struct
-                        return attributes2.Select(attr2 =>
-                        {
-                            if (attr2.ConstructorArguments.FirstOrDefault().Value is INamedTypeSymbol destType2 &&
-                                attr2.ConstructorArguments.ElementAtOrDefault(1) is TypedConstant { Kind: TypedConstantKind.Primitive, Type.SpecialType: SpecialType.System_String } typeMethodName2)
-                            {
-                                var destAttr = destType2.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute");
-                                var destTypeMethodName = destAttr?.ConstructorArguments.ElementAtOrDefault(1);
-                                var mappingMethodName = destTypeMethodName is null ? destType2.Name.EnsureStartsWith("MapTo") : CreateMethodName((TypedConstant)destTypeMethodName, destType2);
-                                return new Models.TypeToMap
-                                {
-                                    DestinationNamespace = typeSymbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
-                                    DeclaredType = typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                    DeclaredTypeName = typeSymbol.Name,
-                                    DeclaredTypeHasParameterlessConstructor = HasParameterlessConstructor(typeSymbol),
-                                    DeclaredTypePrimaryConstructorParameters = GetPrimaryConstructorParameters(typeSymbol),
-                                    PreferredDeclaredMethodName = CreateMethodName(typeMethodName2, typeSymbol),
-                                    MappingType = destType2.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                                    MappingTypeName = destType2.Name,
-                                    MappingTypeHasParameterlessConstructor = HasParameterlessConstructor(destType2),
-                                    MappingTypePrimaryConstructorParameters = GetPrimaryConstructorParameters(destType2),
-                                    PreferredMappingMethodName = mappingMethodName,
-                                    AreBothDecorated = destType2.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.GenerateMapperAttribute"),
-                                    AppliedOn = Models.EAppliedOn.Class,
-                                    HasError = false,
-
-                                    DeclaredProperties = ProcessProperties(typeSymbol).ToArray(),
-                                    MappingProperties = ProcessProperties(destType2).ToArray(),
-                                };
-                            }
-                            else
-                            {
-                                return new Models.TypeToMap
-                                {
-                                    AppliedOn = Models.EAppliedOn.Class,
-                                    HasError = true,
-                                    Location = attr2.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation().AsKey(),
-                                };
-                            }
-                        });
-                    }
-                    return [];
-                }
-            )
-            .Where(static (i) => i is { })
-            .SelectMany(static (i, ct) => i);
-
-        //var mapperConversionMethodsProvider = context.SyntaxProvider
-        //    .ForAttributeWithMetadataName(
-        //        "MintPlayer.Mapper.Attributes.MapperConversionAttribute",
-        //        static (node, ct) => node is MethodDeclarationSyntax methodDeclaration && methodDeclaration.ParameterList.Parameters.Count == 1 && !methodDeclaration.ReturnType.IsKind(SyntaxKind.VoidKeyword),
-        //        static (ctx, ct) =>
-        //        {
-        //            if (ctx.TargetSymbol is IMethodSymbol methodSymbol &&
-        //                methodSymbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperConversionAttribute") is { } attribute)
-        //            {
-        //                return new Models.ConversionMethod
-        //                {
-        //                    MethodName = methodSymbol.Name,
-        //                };
-        //            }
-        //            return null;
-        //        }
-        //    )
-
-
-        //var mapperConversionMethodsProvider = context.SyntaxProvider
-        //    .CreateSyntaxProvider(
-        //        static (node, ct) => node is MethodDeclarationSyntax methodDeclaration && methodDeclaration.AttributeLists.Count > 0,
-        //        static (context2, ct) =>
-        //        {
-        //            if (context2.Node is MethodDeclarationSyntax methodDeclaration &&
-        //                context2.SemanticModel.GetDeclaredSymbol(methodDeclaration, ct) is IMethodSymbol methodSymbol &&
-        //                methodSymbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapperConversionAttribute") is { } attribute)
-        //            {
-        //                return new
-        //                {
-        //                    Method = methodSymbol,
-        //                    Attribute = attribute,
-        //                };
-        //            }
-        //            return null;
-        //        }
-        //    )
-        //    .Where(static (m) => m is not null)
-        //    .Collect();
-
-        var distinctTypesToMapProvider = typesToMapProvider
+        var distinctTypesToMapProvider = typesToMap
+            .Models()
             .Select(static (i, ct) => new Models.TypeWithMappedProperties
             {
                 TypeToMap = i,
@@ -174,109 +40,237 @@ public class MapperGenerator : IncrementalGenerator
             })
             .Collect();
 
-        var staticClassesProvider = context.SyntaxProvider
-            .CreateSyntaxProvider(
-                static (node, ct) => node is ClassDeclarationSyntax classDeclaration && classDeclaration.Modifiers.Any(SyntaxKind.StaticKeyword),
-                static (context2, ct) =>
-                {
-                    if (context2.Node is ClassDeclarationSyntax classDeclaration &&
-                        context2.SemanticModel.GetDeclaredSymbol(classDeclaration, ct) is INamedTypeSymbol classSymbol)
-                    {
-                        return new Models.ClassDeclaration
-                        {
-                            Namespace = classSymbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                            FullyQualifiedName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
-                            Name = classSymbol.Name,
-                            ConversionMethods = classSymbol.GetMembers()
-                                .OfType<IMethodSymbol>()
-                                .Where(m => !m.IsImplicitlyDeclared && m.IsStatic && m.DeclaredAccessibility == Accessibility.Public && (m.Parameters.Length is 1 or 3) && !m.ReturnsVoid)
-                                .Select(m => new
-                                {
-                                    Method = m,
-                                    Attribute = m.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.None).WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)) == "MintPlayer.Mapper.Attributes.MapperConversionAttribute"),
-                                })
-                                .Where(m => m.Attribute is not null)
-                                .Select(m => new Models.ConversionMethod
-                                {
-                                    MethodName = m.Method.Name,
-                                    MethodParameterCount = m.Method.Parameters.Length,
-                                    SourceType = m.Method.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
-                                    SourceTypeName = m.Method.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
-                                    SourceTypeNullable = m.Method.Parameters[0].NullableAnnotation == NullableAnnotation.Annotated,
-                                    SourceState = m.Attribute!.ConstructorArguments.Length >= 1 && m.Attribute.ConstructorArguments[0].Value is int sourceState ? sourceState : null,
+        // Found through the attribute, one method at a time. This used to visit every static class in the
+        // compilation, and visited a partial static class once per part, so a conversion declared in one of
+        // two parts was registered twice.
+        var plainConversions = context.SyntaxProvider.ForAttribute<Models.ConversionMethod>(
+            MapperConversionAttribute,
+            static (node, ct) => node is MethodDeclarationSyntax,
+            static (ctx, ct) => DiscoverConversionMethod(ctx, ct));
+        var statefulConversions = context.SyntaxProvider.ForAttribute<Models.ConversionMethod>(
+            MapperConversionOfTAttribute,
+            static (node, ct) => node is MethodDeclarationSyntax,
+            static (ctx, ct) => DiscoverConversionMethod(ctx, ct));
 
-                                    DestinationType = m.Method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
-                                    DestinationTypeName = m.Method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
-                                    DestinationState = m.Attribute.ConstructorArguments.Length >= 2 && m.Attribute.ConstructorArguments[1].Value is int destState ? destState : null,
-                                    StateType = m.Attribute.AttributeConstructor?.ContainingType?.TypeArguments.FirstOrDefault()?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included)),
-                                    StateTypeName = m.Attribute.AttributeConstructor?.ContainingType?.TypeArguments.FirstOrDefault()?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+        var conversionMethodsProvider = plainConversions.Models().Collect()
+            .Join(statefulConversions.Models().Collect());
 
-                                    // Only the conversions the state checks below single out keep their
-                                    // location; on any other it is a line number that changes whenever
-                                    // code above the class grows, and would re-run the Mappers.g.cs output.
-                                    AttributeLocation = HasStateMismatch(m.Method, m.Attribute)
-                                        ? (m.Attribute.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation()).AsKey()
-                                        : null,
-                                })
-                                .ToArray(),
-                        };
-                    }
-                    return null;
-                }
-            )
-            .Where(static (m) => m is { ConversionMethods.Length: > 0 })
-            .Collect();
-
-        var conversionMethodsWithMissingStateProvider = staticClassesProvider
-            .SelectMany(static (c, ct) => c.SelectMany(cl => cl is null ? [] : cl.ConversionMethods.Where(m => m.SourceState is null || m.DestinationState is null)))
-            .Where(static (m) => m.SourceType == m.DestinationType);
-
-        var conversionMethodsWithUnnecessaryStateProvider = staticClassesProvider
-            .SelectMany(static (c, ct) => c.SelectMany(cl => cl is null ? [] : cl.ConversionMethods.Where(m => m.SourceState is not null || m.DestinationState is not null)))
-            .Where(static (m) => m.SourceType != m.DestinationType);
-
+        // The attribute is missing on netstandard2.0 and .NET Framework without a polyfill.
+        var hasNotNullIfNotNullProvider = context.CompilationProvider
+            .Select(static (c, ct) => c.GetTypeByMetadataName(NotNullIfNotNullAttribute) is { } attribute
+                && c.IsSymbolAccessibleWithin(attribute, c.Assembly));
 
         var typesToMapSourceProvider = distinctTypesToMapProvider
-            .Join(staticClassesProvider)
+            .Join(conversionMethodsProvider)
+            .Join(hasNotNullIfNotNullProvider)
             .Join(settingsProvider)
-            .Select(static Producer (p, ct) => new MapperProducer(p.Item1, p.Item2, p.Item3.RootNamespace!));
-
-        var typesToMapDiagnosticProvider = distinctTypesToMapProvider
-            .Join(staticClassesProvider)
-            .Join(settingsProvider)
-            .Select(static IDiagnosticReporter (p, ct) => new MapperProducer(p.Item1, p.Item2, p.Item3.RootNamespace!));
+            .Select(static Producer (p, ct) => new MapperProducer(p.Item1, p.Item2.Item1.AddRange(p.Item2.Item2), p.Item3, p.Item4.RootNamespace!));
 
         var mapperEntrypointSourceProvider = distinctTypesToMapProvider
             .Join(settingsProvider)
             .Select(static Producer (p, ct) => new MapperEntrypointProducer(p.Item1, p.Item2.RootNamespace!));
 
-
         context.ProduceCode(typesToMapSourceProvider, mapperEntrypointSourceProvider);
-        context.ReportDiagnostics(typesToMapDiagnosticProvider);
+        context.ReportDiagnostics(typesToMap.Diagnostics(), plainConversions.Diagnostics(), statefulConversions.Diagnostics());
+    }
+
+    private static Discovered<Models.TypeToMap> DiscoverTypeToMap(ISymbol target, AttributeData attribute, CancellationToken ct)
+    {
+        var location = attribute.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation();
+
+        if (target is IAssemblySymbol)
+        {
+            // [assembly: GenerateMapper(typeof(Source), typeof(Target), "Prefix")]
+            if (!attribute.TryGetArgument<TypedConstant>("sourceType", out _) || !attribute.TryGetArgument<TypedConstant>("targetType", out _))
+                return Discovered<Models.TypeToMap>.Fail(DiagnosticInfo.Create(DiagnosticRules.GenerateMapperTwoParameters, location));
+
+            // A typeof that did not bind is already a compiler error.
+            if (!attribute.TryGetArgument<ITypeSymbol>("sourceType", out var sourceType) || !attribute.TryGetArgument<ITypeSymbol>("targetType", out var targetType))
+                return Discovered<Models.TypeToMap>.None;
+
+            var prefix = attribute.GetArgument<string?>("methodName", null) ?? DefaultMethodPrefix;
+            return CreateTypeToMap(
+                sourceType,
+                targetType,
+                declaredMethodName: prefix + sourceType.Name,
+                mappingMethodName: prefix + targetType.Name,
+                location);
+        }
+
+        if (target is INamedTypeSymbol typeSymbol)
+        {
+            // [GenerateMapper(typeof(Target), "MethodName")]
+            if (!attribute.TryGetArgument<TypedConstant>("mapType", out _))
+                return Discovered<Models.TypeToMap>.Fail(DiagnosticInfo.Create(DiagnosticRules.GenerateMapperOneParameter, location));
+
+            if (!attribute.TryGetArgument<ITypeSymbol>("mapType", out var destType))
+                return Discovered<Models.TypeToMap>.None;
+
+            var destTypeMethodName = destType.FindAttribute(GenerateMapperAttribute).GetArgument<string?>("methodName", null);
+            return CreateTypeToMap(
+                typeSymbol,
+                destType,
+                declaredMethodName: CreateMethodName(attribute.GetArgument<string?>("methodName", null), typeSymbol),
+                mappingMethodName: CreateMethodName(destTypeMethodName, destType),
+                location);
+        }
+
+        return Discovered<Models.TypeToMap>.None;
+    }
+
+    private static Discovered<Models.TypeToMap> CreateTypeToMap(ITypeSymbol declared, ITypeSymbol mapping, string declaredMethodName, string mappingMethodName, Location? location)
+    {
+        var diagnostics = new List<DiagnosticInfo>();
+        var types = SymbolEqualityComparer.Default.Equals(declared, mapping) ? new[] { declared } : new[] { declared, mapping };
+        foreach (var type in types)
+        {
+            if (UnsupportedReason(type) is { } reason)
+                diagnostics.Add(DiagnosticInfo.Create(DiagnosticRules.MappedTypeCannotBeInstantiated, location, type, reason));
+            else if (EffectiveAccessibility(type) == Accessibility.Private)
+                diagnostics.Add(DiagnosticInfo.Create(DiagnosticRules.MappedTypeNotAccessible, location, type));
+        }
+
+        if (diagnostics.Count > 0)
+            return new Discovered<Models.TypeToMap>(null, diagnostics.ToArray());
+
+        var declaredType = (INamedTypeSymbol)declared;
+        var mappingType = (INamedTypeSymbol)mapping;
+        return new Discovered<Models.TypeToMap>(new Models.TypeToMap
+        {
+            DestinationNamespace = declaredType.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted)),
+            DeclaredType = declaredType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            DeclaredTypeName = declaredType.Name,
+            DeclaredTypeAccessibility = (int)EffectiveAccessibility(declaredType),
+            DeclaredTypeIsValueType = declaredType.IsValueType,
+            DeclaredTypeDepth = InheritanceDepth(declaredType),
+            DeclaredTypeHasParameterlessConstructor = HasParameterlessConstructor(declaredType),
+            DeclaredTypePrimaryConstructorParameters = GetPrimaryConstructorParameters(declaredType),
+            PreferredDeclaredMethodName = declaredMethodName,
+
+            MappingType = mappingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            MappingTypeName = mappingType.Name,
+            MappingTypeAccessibility = (int)EffectiveAccessibility(mappingType),
+            MappingTypeIsValueType = mappingType.IsValueType,
+            MappingTypeDepth = InheritanceDepth(mappingType),
+            MappingTypeHasParameterlessConstructor = HasParameterlessConstructor(mappingType),
+            MappingTypePrimaryConstructorParameters = GetPrimaryConstructorParameters(mappingType),
+            PreferredMappingMethodName = mappingMethodName,
+            AreBothDecorated = mappingType.HasAttribute(GenerateMapperAttribute),
+
+            DeclaredProperties = ProcessProperties(declaredType).ToArray(),
+            MappingProperties = ProcessProperties(mappingType).ToArray(),
+        });
     }
 
     /// <summary>
-    /// Whether a conversion method is one that <c>conversionMethodsWithMissingStateProvider</c> or
-    /// <c>conversionMethodsWithUnnecessaryStateProvider</c> selects: a same-type conversion without both
-    /// states, or a cross-type conversion with one.
+    /// Why the generated mapper cannot write <c>new T()</c> for <paramref name="type"/>, or null when it can.
     /// </summary>
-    private static bool HasStateMismatch(IMethodSymbol method, AttributeData attribute)
+    private static string? UnsupportedReason(ITypeSymbol type)
     {
-        var format = SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included);
-        var sameType = method.Parameters[0].Type.ToDisplayString(format) == method.ReturnType.ToDisplayString(format);
-        var hasSourceState = attribute.ConstructorArguments.Length >= 1 && attribute.ConstructorArguments[0].Value is int;
-        var hasDestinationState = attribute.ConstructorArguments.Length >= 2 && attribute.ConstructorArguments[1].Value is int;
-
-        return sameType
-            ? !hasSourceState || !hasDestinationState
-            : hasSourceState || hasDestinationState;
+        if (type is not INamedTypeSymbol named) return "it is not a class or struct";
+        if (named.TypeKind == TypeKind.Interface) return "it is an interface";
+        if (named.TypeKind is not (TypeKind.Class or TypeKind.Struct)) return "it is not a class or struct";
+        if (named.IsStatic) return "it is static";
+        if (named.IsAbstract) return "it is abstract";
+        if (named.IsRefLikeType) return "it is a ref struct";
+        if (named.IsUnboundGenericType || ContainsTypeParameter(named)) return "it is an open generic type";
+        return null;
     }
 
-    private static string CreateMethodName(TypedConstant preferred, INamedTypeSymbol type)
+    private static bool ContainsTypeParameter(ITypeSymbol type) => type switch
     {
-        var preferredMappingMethodName = (preferred.Value as string) ?? type.Name;
-        return preferredMappingMethodName.EnsureStartsWith("MapTo");
+        ITypeParameterSymbol => true,
+        IArrayTypeSymbol array => ContainsTypeParameter(array.ElementType),
+        INamedTypeSymbol named => named.TypeArguments.Any(ContainsTypeParameter)
+            || (named.ContainingType is { } containing && ContainsTypeParameter(containing)),
+        _ => false,
+    };
+
+    /// <summary>
+    /// The accessibility of <paramref name="type"/> as seen from the generated top-level <c>MapperExtensions</c>
+    /// class: <see cref="Accessibility.Public"/>, <see cref="Accessibility.Internal"/>, or
+    /// <see cref="Accessibility.Private"/> when the generated code cannot name it at all (a private, protected or
+    /// file-local type, or one nested in such a type).
+    /// </summary>
+    private static Accessibility EffectiveAccessibility(ITypeSymbol type)
+    {
+        switch (type)
+        {
+            case IArrayTypeSymbol array:
+                return EffectiveAccessibility(array.ElementType);
+            case ITypeParameterSymbol:
+                return Accessibility.Private;
+            case INamedTypeSymbol named:
+                var result = Accessibility.Public;
+                for (var current = named; current is not null; current = current.ContainingType)
+                {
+                    if (current.IsFileLocal) return Accessibility.Private;
+                    result = Narrowest(result, current.DeclaredAccessibility switch
+                    {
+                        Accessibility.Public or Accessibility.NotApplicable => Accessibility.Public,
+                        Accessibility.Internal or Accessibility.ProtectedOrInternal => Accessibility.Internal,
+                        _ => Accessibility.Private,
+                    });
+                    foreach (var argument in current.TypeArguments)
+                        result = Narrowest(result, EffectiveAccessibility(argument));
+                }
+                return result;
+            default:
+                return Accessibility.Public;
+        }
+
+        static Accessibility Narrowest(Accessibility a, Accessibility b) => a < b ? a : b;
     }
+
+    private static int InheritanceDepth(INamedTypeSymbol type)
+    {
+        var depth = 0;
+        for (var current = type.BaseType; current is not null; current = current.BaseType)
+            depth++;
+        return depth;
+    }
+
+    private static Discovered<Models.ConversionMethod>? DiscoverConversionMethod(GeneratorAttributeSyntaxContext ctx, CancellationToken ct)
+    {
+        if (ctx.TargetSymbol is not IMethodSymbol method || ctx.Attributes.FirstOrDefault() is not { } attribute)
+            return null;
+
+        // The shapes the generated ConvertProperty can call. Anything else was never picked up, and still isn't.
+        if (method.ContainingType is not { TypeKind: TypeKind.Class, IsStatic: true } containingType
+            || !method.IsStatic
+            || method.DeclaredAccessibility != Accessibility.Public
+            || method.Parameters.Length is not (1 or 3)
+            || method.ReturnsVoid)
+            return null;
+
+        var location = attribute.ApplicationSyntaxReference?.GetSyntax(ct)?.GetLocation();
+        if (ContainsTypeParameter(containingType) || method.IsGenericMethod)
+            return Discovered<Models.ConversionMethod>.Fail(DiagnosticInfo.Create(DiagnosticRules.ConversionMethodCannotBeCalled, location, method, "it is generic, or declared in a generic class"));
+        if (EffectiveAccessibility(containingType) == Accessibility.Private)
+            return Discovered<Models.ConversionMethod>.Fail(DiagnosticInfo.Create(DiagnosticRules.ConversionMethodCannotBeCalled, location, method, "its class is not accessible from the generated MapperExtensions class"));
+
+        var includeGlobal = SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Included);
+        var stateType = attribute.AttributeClass?.TypeArguments.FirstOrDefault();
+        return new Discovered<Models.ConversionMethod>(new Models.ConversionMethod
+        {
+            ContainingType = containingType.ToDisplayString(includeGlobal),
+            MethodName = method.Name,
+            MethodParameterCount = method.Parameters.Length,
+            SourceType = method.Parameters[0].Type.ToDisplayString(includeGlobal),
+            SourceTypeName = method.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
+            SourceTypeNullable = method.Parameters[0].NullableAnnotation == NullableAnnotation.Annotated,
+            SourceState = attribute.GetArgument<int?>("inState", null),
+
+            DestinationType = method.ReturnType.ToDisplayString(includeGlobal),
+            DestinationTypeName = method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)),
+            DestinationState = attribute.GetArgument<int?>("outState", null),
+            StateType = stateType?.ToDisplayString(includeGlobal),
+            StateTypeName = stateType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+        });
+    }
+
+    private static string CreateMethodName(string? preferred, ITypeSymbol type)
+        => (preferred ?? type.Name).EnsureStartsWith(DefaultMethodPrefix);
 
     private static bool HasParameterlessConstructor(INamedTypeSymbol typeSymbol)
     {
@@ -318,7 +312,7 @@ public class MapperGenerator : IncrementalGenerator
     private static IEnumerable<Models.PropertyDeclaration> ProcessProperties(INamedTypeSymbol typeSymbol)
     {
         return typeSymbol.GetAllProperties()
-            .Where(p => !p.IsIndexer && !p.IsImplicitlyDeclared && !p.IsStatic && !p.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.IgnoreMapAttribute"))
+            .Where(p => !p.IsIndexer && !p.IsImplicitlyDeclared && !p.IsStatic && !p.HasAttribute(IgnoreMapAttribute))
             .Select(p => new Models.PropertyDeclaration
             {
                 PropertyName = p.Name,
@@ -327,30 +321,12 @@ public class MapperGenerator : IncrementalGenerator
                     ? namedType.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)
                     : p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat.RemoveMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier)),
 
-                Alias = p.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "MintPlayer.Mapper.Attributes.MapToAttribute")
-                    is { ConstructorArguments.Length: > 0 } aliasAttr
-                    && aliasAttr.ConstructorArguments[0].Value is string aliasName
-                    ? aliasName : p.Name,
-
-                StateName = p.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted).WithGenericsOptions(SymbolDisplayGenericsOptions.None)) == "MintPlayer.Mapper.Attributes.MapperStateAttribute")
-                    is { ConstructorArguments.Length: > 0 } stateAttr
-                    && stateAttr.ConstructorArguments[0] is TypedConstant stateRef
-                    && stateRef.Kind == TypedConstantKind.Enum
-                    && stateRef.Value is int stateValue
-                    ? stateValue : null,
-                //IsNullable = p.NullableAnnotation == NullableAnnotation.Annotated,
-                //IsReadOnly = p.IsReadOnly,
+                Alias = p.FindAttribute(MapToAttribute).GetArgument<string?>("alias", null) ?? p.Name,
+                StateName = p.FindAttribute(MapperStateAttribute).GetArgument<int?>("state", null),
                 IsStatic = p.IsStatic,
                 IsReadOnly = p.SetMethod is null,
                 IsInitOnly = p.SetMethod is { IsInitOnly: true },
-                //IsVirtual = p.IsVirtual,
-                //IsAbstract = p.IsAbstract,
-                //IsOverride = p.IsOverride,
                 IsPrimitive = p.Type.IsValueType || p.Type.SpecialType == SpecialType.System_String,
             });
     }
-
-    //public override void RegisterComparers()
-    //{
-    //}
 }

@@ -79,7 +79,27 @@ diagnostics.Should().ContainSingle().Which.Id.Should().Be("ACME001");
 ```
 
 Filtered to the analyzer's own `SupportedDiagnostics`, so an unrelated compile error in a fixture
-cannot masquerade as a finding.
+cannot masquerade as a finding. AD0001 is the exception: it is kept, so a crash is never filtered away.
+
+### A component that crashes fails the test
+
+The harness is **strict by default**. If the generator throws (CS8785), a MintPlayer `Producer`
+catches its own exception (MPSG001), a diagnostic could not be reported and was lost (MPSG002), or the
+analyzer throws (AD0001), every `Run*` and
+`ApplyCodeFixAsync` call throws `ComponentCrashedException`. Without that a crash is silent: CS8785
+is only a warning, so `Errors` stays empty, and a crashing analyzer returns no diagnostics, exactly
+like a quiet one.
+
+To assert on a crash deliberately, opt out per harness:
+
+```csharp
+var result = Harness.AllowComponentCrashes().RunGenerator("MyGenerator", brokenSource);
+result.GeneratorExceptions.Should().ContainSingle();   // also: result.CrashDiagnostics, result.EnsureNoCrash()
+```
+
+With crashes allowed, `RunAnalyzerAsync` returns AD0001 in its list and `CodeFixResult.AnalyzerExceptions`
+holds what the analyzer threw. A `CodeFixProvider` that throws is never caught: its exception escapes
+as-is in both modes.
 
 ### Code fixes
 

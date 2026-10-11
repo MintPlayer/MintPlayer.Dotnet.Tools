@@ -44,7 +44,10 @@ public class UnusedUsingsCodeFixProvider : CodeFixProvider
             .OfType<UsingDirectiveSyntax>()
             .ToList();
 
-        var newRoot = root.RemoveNodes(usingDirectives, SyntaxRemoveOptions.KeepNoTrivia);
-        return document.WithSyntaxRoot(newRoot);
+        // Keep the leading trivia and the directives. With KeepNoTrivia, a `#nullable enable`, a `#region` or a file
+        // header above the first using belonged to that using and was deleted with it, which silently changed the
+        // file's nullable context (W14).
+        var newRoot = root.RemoveNodes(usingDirectives, SyntaxRemoveOptions.KeepLeadingTrivia | SyntaxRemoveOptions.KeepDirectives);
+        return newRoot is null ? document : document.WithSyntaxRoot(newRoot);
     }
 }

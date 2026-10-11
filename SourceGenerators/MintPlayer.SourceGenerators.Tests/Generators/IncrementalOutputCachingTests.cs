@@ -101,7 +101,7 @@ public class IncrementalOutputCachingTests
     /// <c>__LEAD__</c> marks where the leading class or comment goes: before every declaration the
     /// generator reads. <c>__BODY__</c> is the trailing expression body.
     /// </remarks>
-    public sealed record Case(string Generator, string Assembly, string Fixture, Edit Edit = Edit.Trailing)
+    public sealed record Case(string Generator, string Assembly, string Fixture, Edit Edit = Edit.Trailing, string? Label = null)
     {
         /// <summary>The fixture, then the unrelated file.</summary>
         public string[] Sources => [Render(lead: Edit == Edit.Leading ? LeadBefore : "", body: "1"), OtherFileBefore];
@@ -121,7 +121,7 @@ public class IncrementalOutputCachingTests
         public string Render(string lead, string body) => Fixture.Replace(LeadToken, lead).Replace(BodyToken, body);
 
         // xunit displays the case by ToString; the fixture text is noise.
-        public override string ToString() => $"{Generator} ({Edit})";
+        public override string ToString() => Label is null ? $"{Generator} ({Edit})" : $"{Generator} [{Label}] ({Edit})";
     }
 
     private const string SourceGenerators = "MintPlayer.SourceGenerators";
@@ -189,30 +189,17 @@ public class IncrementalOutputCachingTests
             }
             """),
 
-        // GenericMethodAttribute ships inside the generator assembly, so the fixture declares it
-        // itself under the metadata name the generator looks up (see GenericMethodGenerationTests).
         new("GenericMethodSourceGenerator", SourceGenerators, """
-            namespace MintPlayer.SourceGenerators.Generators
-            {
-                [System.AttributeUsage(System.AttributeTargets.Method)]
-                public sealed class GenericMethodAttribute : System.Attribute
-                {
-                    public GenericMethodAttribute(int count) { }
-                    public uint Count { get; set; } = 1;
-                    public System.Type? Transformer { get; set; }
-                }
-            }
-
             namespace Demo
             {
-                using MintPlayer.SourceGenerators.Generators;
+                using MintPlayer.SourceGenerators.Attributes;
 
                 __LEAD__
 
                 public partial class Builder
                 {
                     [GenericMethod(3)]
-                    private partial void Add<T>(T value);
+                    private void Add(object[] values) { }
 
                     public int Touch() => __BODY__;
                 }
@@ -300,6 +287,127 @@ public class IncrementalOutputCachingTests
                 public int Touch() => __BODY__;
             }
             """),
+
+        // PRD-TypeKindRobustness M8 (S6): the generators moved onto ForAttributeWithMetadataName in this work, each
+        // on a type kind other than class (or the assembly-level form), so the new discovery paths are pinned too.
+        new("GenericMethodSourceGenerator", SourceGenerators, """
+            namespace Demo
+            {
+                using MintPlayer.SourceGenerators.Attributes;
+
+                __LEAD__
+
+                public partial record struct Builder
+                {
+                    [GenericMethod(3)]
+                    private void Add(object[] values) { }
+
+                    public int Touch() => __BODY__;
+                }
+            }
+            """, Label: "record struct"),
+
+        new("InjectSourceGenerator", SourceGenerators, """
+            using MintPlayer.SourceGenerators.Attributes;
+
+            namespace Demo;
+
+            __LEAD__
+
+            public partial record Service
+            {
+                [Inject] private readonly System.IServiceProvider _provider;
+
+                public int Touch() => __BODY__;
+            }
+            """, Label: "record"),
+
+        new("ServiceRegistrationsGenerator", SourceGenerators, """
+            using Microsoft.Extensions.DependencyInjection;
+            using MintPlayer.SourceGenerators.Attributes;
+
+            [assembly: Register(typeof(Demo.IGreeter), typeof(Demo.Greeter), ServiceLifetime.Scoped)]
+
+            namespace Demo;
+
+            __LEAD__
+
+            public interface IGreeter { string Greet(); }
+
+            public record Greeter : IGreeter
+            {
+                public string Greet() => "hi";
+                public int Touch() => __BODY__;
+            }
+            """, Label: "assembly-level, record"),
+
+        new("DescriptionSourceGenerator", SourceGenerators, """
+            namespace Demo;
+
+            __LEAD__
+
+            /// <summary>A widget that does widget things.</summary>
+            public partial record struct Widget
+            {
+                public int Touch() => __BODY__;
+            }
+            """, Label: "record struct"),
+
+        new("MapperGenerator", Mapper, """
+            using MintPlayer.Mapper.Attributes;
+
+            [assembly: GenerateMapper(typeof(Demo.Person), typeof(Demo.PersonDto), "Convert")]
+
+            namespace Demo;
+
+            __LEAD__
+
+            public record struct PersonDto
+            {
+                public int Id { get; set; }
+            }
+
+            public record Person
+            {
+                public int Id { get; set; }
+
+                public int Touch() => __BODY__;
+            }
+            """, Label: "assembly-level, struct"),
+
+        new("CliCommandSourceGenerator", Cli, """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using MintPlayer.CliGenerator.Attributes;
+
+            namespace Demo;
+
+            __LEAD__
+
+            [CliRootCommand("Demo tool")]
+            public partial record RootCommand : ICliCommand
+            {
+                [CliOption("--verbose")] public bool Verbose { get; set; }
+
+                public Task<int> Execute(CancellationToken cancellationToken) => Task.FromResult(__BODY__);
+            }
+            """, Label: "record"),
+
+        new("ValueComparerGenerator", ValueComparers, """
+            using MintPlayer.ValueComparerGenerator.Attributes;
+
+            namespace Demo;
+
+            __LEAD__
+
+            [GenerateEquality]
+            public partial struct Point
+            {
+                public int X { get; set; }
+
+                public int Touch() => __BODY__;
+            }
+            """, Label: "struct"),
     ];
 
     public static TheoryData<Case> AllGenerators()
@@ -408,7 +516,7 @@ public class IncrementalOutputCachingTests
             $"the output step must have re-run to emit the new code. {Describe(run)}");
     }
 
-    private static string Fixture(string generator) => Cases.Single(c => c.Generator == generator).Fixture;
+    private static string Fixture(string generator) => Cases.Single(c => c.Generator == generator && c.Label is null).Fixture;
 
     /// <summary>
     /// A relevant edit that only one producer reads must leave the other producer's output alone.

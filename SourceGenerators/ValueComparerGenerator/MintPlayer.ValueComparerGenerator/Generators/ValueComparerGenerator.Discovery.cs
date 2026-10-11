@@ -6,7 +6,7 @@ using MintPlayer.ValueComparerGenerator.Models;
 
 namespace MintPlayer.ValueComparerGenerator.Generators;
 
-/// <summary>Turns a type symbol into a <see cref="DiscoveredType"/>: the model to generate from, and its diagnostics.</summary>
+/// <summary>Turns a type symbol into a <see cref="Discovered{TModel}"/>: the model to generate from, and its diagnostics.</summary>
 /// <remarks>
 /// Everything that needs a symbol happens here, inside the pipeline's transform. What comes out is plain strings and
 /// flags, so the steps after it compare by value and the producer never sees a symbol.
@@ -15,19 +15,12 @@ internal static class Discovery
 {
     public const string AttributesNamespace = "MintPlayer.ValueComparerGenerator.Attributes";
     public const string GenerateEqualityMetadataName = AttributesNamespace + ".GenerateEqualityAttribute";
-
-    public static bool IsAttribute(INamedTypeSymbol? attributeClass, string name)
-        => attributeClass is not null
-        && attributeClass.Name == name
-        && attributeClass.ContainingNamespace?.ToDisplayString() == AttributesNamespace;
+    public const string EqualityIgnoreMetadataName = AttributesNamespace + ".EqualityIgnoreAttribute";
+    public const string UseEqualityComparerMetadataName = AttributesNamespace + ".UseEqualityComparerAttribute";
+    private const string ComparerTypeParameter = "comparerType";
 
     public static bool HasGenerateEquality(INamedTypeSymbol type)
-    {
-        foreach (var attribute in type.OriginalDefinition.GetAttributes())
-            if (IsAttribute(attribute.AttributeClass, "GenerateEqualityAttribute"))
-                return true;
-        return false;
-    }
+        => type.OriginalDefinition.HasAttribute(GenerateEqualityMetadataName);
 
     /// <summary>The furthest <c>[GenerateEquality]</c> ancestor: the root of the hierarchy, or null when there is none.</summary>
     public static INamedTypeSymbol? FindHierarchyRoot(INamedTypeSymbol type)
@@ -40,14 +33,6 @@ internal static class Discovery
 
     /// <summary>A model is a type with the attribute, or one deriving from such a type: both get generated equality.</summary>
     public static bool IsModel(INamedTypeSymbol type) => HasGenerateEquality(type) || FindHierarchyRoot(type) is not null;
-
-    public static bool IsPartial(INamedTypeSymbol type)
-    {
-        foreach (var reference in type.DeclaringSyntaxReferences)
-            if (reference.GetSyntax() is TypeDeclarationSyntax declaration && declaration.Modifiers.Any(SyntaxKind.PartialKeyword))
-                return true;
-        return false;
-    }
 
     /// <summary>The syntax filter of the derived-types provider: a class or record class with a base list.</summary>
     public static bool IsDerivableDeclaration(SyntaxNode node)
@@ -69,37 +54,24 @@ internal static class Discovery
     private static readonly SymbolDisplayFormat TypeFormat = SymbolDisplayFormat.FullyQualifiedFormat
         .AddMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
 
-    public static DiscoveredType? Build(INamedTypeSymbol type, Compilation compilation, CancellationToken cancellationToken)
+    public static Discovered<ClassDeclaration>? Build(INamedTypeSymbol type, Compilation compilation, CancellationToken cancellationToken)
     {
         var hasAttribute = HasGenerateEquality(type);
         var root = FindHierarchyRoot(type);
         if (!hasAttribute && root is null) return null;
-        if (type.IsStatic || type.IsFileLocal || type.TypeKind is not (TypeKind.Class or TypeKind.Struct)) return null;
+        // An interface or enum with the attribute is already CS0592; nothing to add.
+        if (type.TypeKind is not (TypeKind.Class or TypeKind.Struct)) return null;
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var diagnostics = new List<DiagnosticInfo>();
         var typeLocation = type.Locations.FirstOrDefault(l => l.IsInSource);
+        if (Unsupported(type, root, typeLocation, cancellationToken, out var path) is { } unsupported)
+            return Discovered<ClassDeclaration>.Fail(unsupported);
 
-        if (!IsPartial(type))
-        {
-            diagnostics.Add(root is null
-                ? Diagnostic(nameof(ValueComparerDiagnostics.ModelNotPartial), typeLocation, type.Name)
-                : Diagnostic(nameof(ValueComparerDiagnostics.DerivedTypeNotPartial), typeLocation, type.Name, root.Name));
-            return new DiscoveredType { Diagnostics = diagnostics.ToEquatableArray() };
-        }
+        // W17: the compiler already reports the missing type; generated code against it would only add CS0246/CS0120 noise.
+        if (HasErrorType(type)) return Discovered<ClassDeclaration>.None;
 
-        var parents = new List<ContainingTypeDeclaration>();
-        for (var parent = type.ContainingType; parent is not null; parent = parent.ContainingType)
-        {
-            if (!IsPartial(parent))
-            {
-                diagnostics.Add(Diagnostic(nameof(ValueComparerDiagnostics.ContainingTypeNotPartial), typeLocation, type.Name, parent.Name));
-                return new DiscoveredType { Diagnostics = diagnostics.ToEquatableArray() };
-            }
-            parents.Insert(0, new ContainingTypeDeclaration { Keyword = KeywordOf(parent), Name = DeclaredName(parent) });
-        }
-
+        var diagnostics = new List<DiagnosticInfo>();
         var fullName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         var shape = type switch
         {
@@ -146,9 +118,7 @@ internal static class Discovery
         var model = new ClassDeclaration
         {
             Namespace = type.ContainingNamespace is { IsGlobalNamespace: false } ns ? ns.ToDisplayString() : null,
-            Parents = parents.ToEquatableArray(),
-            Keyword = KeywordOf(type),
-            Name = DeclaredName(type),
+            Path = path,
             FullName = fullName,
             Shape = shape,
             IsSealed = type.IsSealed,
@@ -164,7 +134,63 @@ internal static class Discovery
 
         ApplyUserDeclaredMembers(type, model, diagnostics);
 
-        return new DiscoveredType { Model = model, Diagnostics = diagnostics.ToEquatableArray() };
+        return new Discovered<ClassDeclaration>(model, diagnostics.ToEquatableArray());
+    }
+
+    /// <summary>
+    /// The diagnostic for a type that cannot get generated members, or null. <paramref name="path"/> is the type's
+    /// <see cref="PathSpec"/> either way: its <see cref="PathSpec.UnsupportedReason"/> covers <c>partial</c>,
+    /// <c>file</c> and unions (K7 and S1); a <c>ref struct</c> and a static class are checked here.
+    /// </summary>
+    private static DiagnosticInfo? Unsupported(INamedTypeSymbol type, INamedTypeSymbol? root, Location? typeLocation, CancellationToken cancellationToken, out PathSpec path)
+    {
+        path = type.GetPathSpec(cancellationToken)!;
+
+        // A ref struct cannot be boxed or used as a type argument: `obj is S` is CS8121 and IEquatable<S> needs C# 13.
+        if (type.IsRefLikeType)
+            return Diagnostic(ValueComparerDiagnostics.UnsupportedModel, typeLocation, type.Name, "it is a ref struct, which cannot be boxed into Equals(object)");
+        if (type.IsStatic)
+            return Diagnostic(ValueComparerDiagnostics.UnsupportedModel, typeLocation, type.Name, "it is static, so it has no instances to compare");
+
+        return path.UnsupportedReason switch
+        {
+            EPathSpecUnsupportedReason.None => null,
+            EPathSpecUnsupportedReason.TargetNotPartial => root is null
+                ? Diagnostic(ValueComparerDiagnostics.NotPartial, typeLocation, type.Name, ValueComparerDiagnostics.ModelNotPartialReason)
+                : Diagnostic(ValueComparerDiagnostics.NotPartial, typeLocation, type.Name, ValueComparerDiagnostics.DerivedTypeNotPartialReason(root.Name)),
+            EPathSpecUnsupportedReason.ParentNotPartial
+                => Diagnostic(ValueComparerDiagnostics.ContainingTypeNotPartial, typeLocation, type.Name, path.UnsupportedTypeName),
+            EPathSpecUnsupportedReason.FileLocal => Diagnostic(ValueComparerDiagnostics.UnsupportedModel, typeLocation, type.Name,
+                $"'{path.UnsupportedTypeName}' is file-local, so a partial declared in the generated file would be a different type"),
+            _ => Diagnostic(ValueComparerDiagnostics.UnsupportedModel, typeLocation, type.Name,
+                $"'{path.UnsupportedTypeName}' is not a class, struct or record (a union, for instance), so it cannot be re-declared as a partial"),
+        };
+    }
+
+    /// <summary>W17: a base type, or the type of a property this type compares, that did not bind.</summary>
+    private static bool HasErrorType(INamedTypeSymbol type)
+    {
+        for (INamedTypeSymbol? t = type; t is not null && t.SpecialType != SpecialType.System_Object; t = t.BaseType)
+        {
+            if (t.TypeKind == TypeKind.Error) return true;
+            foreach (var property in t.GetMembers().OfType<IPropertySymbol>())
+                if (IsComparable(property) && ContainsErrorType(property.Type, depth: 0))
+                    return true;
+        }
+        return false;
+    }
+
+    private static bool ContainsErrorType(ITypeSymbol type, int depth)
+    {
+        if (type.TypeKind == TypeKind.Error) return true;
+        if (depth > 32) return false; // type arguments only nest as deep as the user wrote them
+        return type switch
+        {
+            IArrayTypeSymbol array => ContainsErrorType(array.ElementType, depth + 1),
+            IPointerTypeSymbol pointer => ContainsErrorType(pointer.PointedAtType, depth + 1),
+            INamedTypeSymbol named => named.TypeArguments.Any(a => ContainsErrorType(a, depth + 1)),
+            _ => false,
+        };
     }
 
     private static bool IsComparable(IPropertySymbol p)
@@ -200,7 +226,7 @@ internal static class Discovery
         void Skipped(IMethodSymbol? member, string text)
         {
             if (member is not null)
-                diagnostics.Add(Diagnostic(nameof(ValueComparerDiagnostics.UserDeclaredMember), member.Locations.FirstOrDefault(l => l.IsInSource), type.Name, text, string.Empty));
+                diagnostics.Add(Diagnostic(ValueComparerDiagnostics.UserDeclaredMember, member.Locations.FirstOrDefault(l => l.IsInSource), type.Name, text, string.Empty));
         }
 
         Skipped(equalsT, $"Equals({type.Name})");
@@ -223,25 +249,9 @@ internal static class Discovery
         }
     }
 
-    public static DiagnosticInfo Diagnostic(string rule, Location? location, params string[] args)
-        => new() { Rule = rule, Location = DiagnosticLocation.From(location), MessageArgs = args.ToEquatableArray() };
-
-    private static string KeywordOf(INamedTypeSymbol type) => type switch
-    {
-        { IsRecord: true, IsValueType: true } => "record struct",
-        { IsRecord: true } => "record",
-        { TypeKind: TypeKind.Struct } => "struct",
-        { TypeKind: TypeKind.Interface } => "interface",
-        _ => "class",
-    };
-
-    private static string DeclaredName(INamedTypeSymbol type)
-        => type.TypeParameters.Length == 0
-            ? Identifier(type.Name)
-            : $"{Identifier(type.Name)}<{string.Join(", ", type.TypeParameters.Select(t => Identifier(t.Name)))}>";
-
-    public static string Identifier(string name)
-        => SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None ? "@" + name : name;
+    /// <summary>A diagnostic at <paramref name="location"/> when it is in source, else without one.</summary>
+    private static DiagnosticInfo Diagnostic(DiagnosticDescriptor rule, Location? location, params string?[] args)
+        => DiagnosticInfo.Create(rule, location is { IsInSource: true } ? location : null, args);
 
     /// <summary>Chooses each property's comparison from its type symbol (the D1 table), and collects the comparer fields nesting needs.</summary>
     private sealed class EqualityPlanner(Compilation compilation)
@@ -263,16 +273,16 @@ internal static class Discovery
 
         public PropertyDeclaration PlanProperty(INamedTypeSymbol owner, IPropertySymbol property, List<DiagnosticInfo> diagnostics)
         {
-            var result = new PropertyDeclaration { Name = Identifier(property.Name) };
+            var result = new PropertyDeclaration { Name = SymbolExtensions.EscapeIdentifier(property.Name) };
             var attributes = property.GetAttributes();
 
-            if (attributes.Any(a => IsAttribute(a.AttributeClass, "EqualityIgnoreAttribute")))
+            if (attributes.Any(a => a.AttributeClass.IsAttribute(EqualityIgnoreMetadataName)))
             {
                 result.HasEqualityIgnore = true;
                 return result;
             }
 
-            var useComparer = attributes.FirstOrDefault(a => IsAttribute(a.AttributeClass, "UseEqualityComparerAttribute"));
+            var useComparer = attributes.FirstOrDefault(a => a.AttributeClass.IsAttribute(UseEqualityComparerMetadataName));
             if (useComparer is not null)
             {
                 if (TryUseComparer(property, useComparer, out var equals, out var hash, out var error))
@@ -282,8 +292,8 @@ internal static class Discovery
                     return result;
                 }
 
-                var comparerName = useComparer.ConstructorArguments.FirstOrDefault().Value is ITypeSymbol c ? c.ToDisplayString() : "?";
-                diagnostics.Add(Diagnostic(nameof(ValueComparerDiagnostics.InvalidEqualityComparer),
+                var comparerName = useComparer.GetArgument<TypedConstant>(ComparerTypeParameter, default).Value is ITypeSymbol c ? c.ToDisplayString() : "?";
+                diagnostics.Add(Diagnostic(ValueComparerDiagnostics.InvalidEqualityComparer,
                     useComparer.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? property.Locations.FirstOrDefault(),
                     comparerName, property.Name, property.Type.ToDisplayString(), error));
                 // Falls back to the comparison the type would get, so the rest of the file still compiles.
@@ -296,7 +306,7 @@ internal static class Discovery
 
             if (referenceOnly is { Count: > 0 })
                 foreach (var offender in referenceOnly.Distinct<ITypeSymbol>(SymbolEqualityComparer.Default))
-                    diagnostics.Add(Diagnostic(nameof(ValueComparerDiagnostics.ReferenceEqualityOnly),
+                    diagnostics.Add(Diagnostic(ValueComparerDiagnostics.ReferenceEqualityOnly,
                         property.Locations.FirstOrDefault(l => l.IsInSource), property.Name, owner.Name, offender.WithNullableAnnotation(NullableAnnotation.None).ToDisplayString()));
 
             return result;
@@ -305,7 +315,7 @@ internal static class Discovery
         private bool TryUseComparer(IPropertySymbol property, AttributeData attribute, out string equals, out string hash, out string error)
         {
             equals = hash = error = string.Empty;
-            if (attribute.ConstructorArguments.Length != 1 || attribute.ConstructorArguments[0].Value is not INamedTypeSymbol comparer || comparer.TypeKind == TypeKind.Error)
+            if (!attribute.TryGetArgument<INamedTypeSymbol>(ComparerTypeParameter, out var comparer))
             {
                 error = "the comparer type could not be resolved";
                 return false;

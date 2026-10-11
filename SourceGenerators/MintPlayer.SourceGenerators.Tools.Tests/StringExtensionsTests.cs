@@ -162,4 +162,48 @@ public class StringExtensionsTests
     }
 
     #endregion
+
+    #region ToSafeNamespace
+
+    /// <summary>
+    /// The SDK passes the project name through as RootNamespace with only spaces replaced, so a project named
+    /// <c>My-App</c> made every generator emit <c>namespace My-App</c> (CS0246, CS0102, CS0548).
+    /// </summary>
+    [Theory]
+    [InlineData("My-App", "My_App")]
+    [InlineData("My-App.1st.class", "My_App._1st.@class")]
+    [InlineData("Company.Product", "Company.Product")]
+    [InlineData("1App", "_1App")]
+    [InlineData("event", "@event")]
+    [InlineData("@event", "@event")]
+    [InlineData("My App+Tools", "My_App_Tools")]
+    [InlineData("A..B", "A._.B")]
+    [InlineData("Été.Ünïcode", "Été.Ünïcode")]
+    [InlineData("_private", "_private")]
+    [InlineData("async.record.var", "async.record.var")]
+    public void ToSafeNamespace_MakesAValidNamespaceName(string input, string expected)
+        => input.ToSafeNamespace().Should().Be(expected);
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ToSafeNamespace_OnBlankInput_IsNull(string? input)
+        => input.ToSafeNamespace().Should().BeNull();
+
+    [Theory]
+    [InlineData("My-App.1st.class")]
+    [InlineData("a b.c-d.0.int.@string")]
+    [InlineData("x..y.")]
+    public void ToSafeNamespace_ProducesANamespaceRoslynParsesWithoutErrors_AndIsIdempotent(string input)
+    {
+        var safe = input.ToSafeNamespace()!;
+
+        var tree = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText($"namespace {safe} {{ class C {{ }} }}");
+
+        tree.GetDiagnostics().Should().BeEmpty();
+        safe.ToSafeNamespace().Should().Be(safe);
+    }
+
+    #endregion
 }

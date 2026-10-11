@@ -45,8 +45,145 @@ public class EqualityCompileMatrixTests
             .ToList();
         problems.Should().BeEmpty(string.Join(Environment.NewLine, problems));
 
-        // The generator's own diagnostics: only the user-declared shape reports anything, and only MINT002.
-        generatorDiagnostics.Where(d => d.Id != "MINT002").Should().BeEmpty();
+        // The generator's own diagnostics: only the user-declared shape reports anything, and only MINT002/MINT008.
+        generatorDiagnostics.Where(d => d.Id is not ("MINT002" or "MINT008")).Should().BeEmpty();
+    }
+
+    /// <summary>The five kinds a model can be declared as, with the keyword the generated part re-declares it with.</summary>
+    private static readonly (string Declared, string Generated)[] Kinds =
+    [
+        ("class", "class"), ("record class", "record"), ("record", "record"), ("struct", "struct"), ("record struct", "record struct"),
+    ];
+
+    /// <summary>Where the model sits: at top level, or nested in a parent of each kind or an interface.</summary>
+    private static readonly (string Declared, string Generated)[] Containers =
+    [
+        ("", ""), .. Kinds, ("interface", "interface"),
+    ];
+
+    public static TheoryData<string, string> KindsAndContainers()
+    {
+        var data = new TheoryData<string, string>();
+        foreach (var kind in Kinds)
+            foreach (var container in Containers)
+                data.Add(kind.Declared, container.Declared);
+        return data;
+    }
+
+    /// <summary>
+    /// The five-kind matrix (PRD-TypeKindRobustness test plan 1 and 7): every kind, at top level and nested in each kind
+    /// and in an interface, generates with the user's keyword and compiles without a single warning under nullable.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(KindsAndContainers))]
+    public void EveryKind_AtTopLevelAndNestedInEveryKind_CompilesWithoutAWarning(string kind, string container)
+    {
+        var model = $$"""
+            [GenerateEquality]
+            public partial {{kind}} Model
+            {
+                public int Count { get; set; }
+                public string? Name { get; set; }
+            }
+            """;
+        var body = container.Length == 0 ? model : $$"""
+            public partial {{container}} {{(container == "interface" ? "IContainer" : "Container")}}
+            {
+            {{model}}
+            }
+            """;
+        var source = $$"""
+            using MintPlayer.ValueComparerGenerator.Attributes;
+
+            namespace Demo
+            {
+            {{body}}
+            }
+            """;
+
+        var (compilation, generatorDiagnostics, generated) = Run(source, LanguageVersion.Latest);
+
+        generatorDiagnostics.Should().BeEmpty();
+        var problems = compilation.GetDiagnostics().Where(d => d.Severity >= DiagnosticSeverity.Warning).Select(d => d.ToString()).ToList();
+        problems.Should().BeEmpty(string.Join(Environment.NewLine, problems));
+
+        var file = generated.Should().ContainSingle().Which;
+        file.Should().MatchRegex($@"partial {Kinds.Single(k => k.Declared == kind).Generated} Model( :|\r?\n)");
+        if (container.Length > 0)
+            file.Should().MatchRegex($@"partial {Containers.Single(c => c.Declared == container).Generated} {(container == "interface" ? "IContainer" : "Container")}\r?\n");
+    }
+
+    /// <summary>K7: a ref struct cannot be boxed, so <c>obj is S</c> was CS8121. Now it is MINT007, and nothing is generated.</summary>
+    [Fact]
+    public void ARefStruct_IsMINT007_AndGeneratesNothing()
+    {
+        var (compilation, generatorDiagnostics, generated) = Run(EqualityShapes.RefStruct, LanguageVersion.Latest);
+
+        generated.Should().BeEmpty();
+        var error = generatorDiagnostics.Should().ContainSingle().Which;
+        error.Id.Should().Be("MINT007");
+        error.Severity.Should().Be(DiagnosticSeverity.Error);
+        error.GetMessage().Should().Contain("'Cursor'").And.Contain("ref struct");
+        compilation.GetDiagnostics().Where(d => d.Severity >= DiagnosticSeverity.Warning).Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// S1: a C# 15 union binds as a struct, and Equality used to emit <c>partial struct U</c> for it (CS0261). It is
+    /// MINT007 now. The fixture's own compile errors (if the runtime lacks union support) don't matter here.
+    /// </summary>
+    [Fact]
+    public void AUnion_IsMINT007_AndGeneratesNothing()
+    {
+        var (_, generatorDiagnostics, generated) = Run("""
+            using MintPlayer.ValueComparerGenerator.Attributes;
+
+            namespace Demo
+            {
+                [GenerateEquality]
+                public partial union Shape(int, string);
+            }
+            """, LanguageVersion.Preview);
+
+        generated.Should().BeEmpty();
+        var error = generatorDiagnostics.Should().ContainSingle().Which;
+        error.Id.Should().Be("MINT007");
+        error.GetMessage().Should().Contain("'Shape' is not a class, struct or record");
+    }
+
+    /// <summary>
+    /// The #193 case: unrelated partial code (a <c>[GeneratedRegex]</c> partial method in a record, a record struct, a
+    /// struct and an interface) next to one model. Nothing crashes, and the model still generates.
+    /// </summary>
+    [Fact]
+    public void UnrelatedPartialCode_InEveryKind_LeavesTheModelAlone()
+    {
+        var source = """
+            using System.Text.RegularExpressions;
+            using MintPlayer.ValueComparerGenerator.Attributes;
+
+            namespace Demo
+            {
+                public partial record R { [GeneratedRegex("a")] private static partial Regex A(); }
+                public partial record struct RS { [GeneratedRegex("b")] private static partial Regex B(); }
+                public partial struct S { [GeneratedRegex("c")] private static partial Regex C(); }
+                public partial interface I { [GeneratedRegex("d")] private static partial Regex D(); }
+
+                [GenerateEquality]
+                public sealed partial class Model
+                {
+                    public int Count { get; set; }
+                }
+            }
+            """;
+
+        var (compilation, generatorDiagnostics, generated) = Run(source, LanguageVersion.Latest);
+
+        generatorDiagnostics.Should().BeEmpty();
+        generated.Should().ContainSingle().Which.Should().Contain("partial class Model : global::System.IEquatable<global::Demo.Model>");
+        // The regex methods have no implementation (the regex generator does not run here); the generated file is clean.
+        compilation.GetDiagnostics()
+            .Where(d => d.Severity >= DiagnosticSeverity.Warning && d.Location.SourceTree?.FilePath.EndsWith(".g.cs", StringComparison.Ordinal) == true)
+            .Should().BeEmpty();
     }
 
     [Fact]
