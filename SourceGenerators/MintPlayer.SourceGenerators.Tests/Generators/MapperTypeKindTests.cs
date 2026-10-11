@@ -94,7 +94,7 @@ public class MapperTypeKindTests
             """);
 
         run.Errors.Should().BeEmpty(run.ErrorText);
-        AssertNoWarningsInGeneratedCode(run);
+        run.GeneratedWarningsUnderNullable().Should().BeEmpty();
 
         var assembly = run.Emit();
         var result = (string)assembly.GetGeneratedType("Demo.Probe").GetMethod("Run")!.Invoke(null, null)!;
@@ -134,7 +134,7 @@ public class MapperTypeKindTests
             """);
 
         run.Errors.Should().BeEmpty(run.ErrorText);
-        AssertNoWarningsInGeneratedCode(run);
+        run.GeneratedWarningsUnderNullable().Should().BeEmpty();
         run.Emit().GetGeneratedType("Demo.Probe").GetMethod("Run")!.Invoke(null, null).Should().Be(7);
     }
 
@@ -146,16 +146,10 @@ public class MapperTypeKindTests
     [Fact]
     public void UnrelatedCode_DoesNotDisturbAValidUse()
     {
-        var run = Run("""
-            using System.Text.RegularExpressions;
+        var run = Run(GeneratedCodeChecks.UnrelatedPartials, """
             using MintPlayer.Mapper.Attributes;
 
             namespace Demo;
-
-            public partial record R { [GeneratedRegex("a")] private static partial Regex Rx(); }
-            public partial record struct RS { [GeneratedRegex("a")] private static partial Regex Rx(); }
-            public partial struct S { [GeneratedRegex("a")] private static partial Regex Rx(); }
-            public partial interface I { [GeneratedRegex("a")] private static partial Regex Rx(); }
 
             public static partial class Conversions { [MapperConversion] public static string IntToString(int x) => x.ToString(); }
             public static partial class Conversions { [MapperConversion] public static int StringToInt(string x) => int.Parse(x); }
@@ -167,7 +161,7 @@ public class MapperTypeKindTests
             """);
 
         run.CrashDiagnostics.Should().BeEmpty();
-        GeneratedErrors(run).Should().BeEmpty();
+        run.GeneratedErrors().Should().BeEmpty();
         run.AllSources.Should().Contain("MapToPersonDto");
         CountOf(run.SourceFor("Mappers.g.cs")!, "Conversions.IntToString(").Should().Be(1);
         CountOf(run.SourceFor("Mappers.g.cs")!, "Conversions.StringToInt(").Should().Be(1);
@@ -214,7 +208,7 @@ public class MapperTypeKindTests
             """);
 
         run.CrashDiagnostics.Should().BeEmpty();
-        GeneratedErrors(run).Should().BeEmpty();
+        run.GeneratedErrors().Should().BeEmpty();
         run.AllSources.Should().NotContain("Missing").And.NotContain("Pers)");
     }
 
@@ -250,7 +244,7 @@ public class MapperTypeKindTests
             """);
 
         run.Errors.Should().BeEmpty(run.ErrorText);
-        AssertNoWarningsInGeneratedCode(run);
+        run.GeneratedWarningsUnderNullable().Should().BeEmpty();
         run.Emit().GetGeneratedType("Demo.Probe").GetMethod("Run")!.Invoke(null, null).Should().Be("7|3");
     }
 
@@ -472,7 +466,7 @@ public class MapperTypeKindTests
             """);
 
         run.Errors.Should().BeEmpty(run.ErrorText);
-        AssertNoWarningsInGeneratedCode(run);
+        run.GeneratedWarningsUnderNullable().Should().BeEmpty();
         run.UpdatedCompilation.GetDiagnostics()
             .Where(d => d.Severity == DiagnosticSeverity.Warning && d.Id.StartsWith("CS86", StringComparison.Ordinal))
             .Should().BeEmpty("a non-null input maps to a non-null output, and a nullable input is accepted");
@@ -493,7 +487,7 @@ public class MapperTypeKindTests
             """);
 
         run.Errors.Should().BeEmpty(run.ErrorText);
-        AssertNoWarningsInGeneratedCode(run);
+        run.GeneratedWarningsUnderNullable().Should().BeEmpty();
     }
 
     private static int CopyOverloads(Assembly assembly, string methodName)
@@ -503,24 +497,4 @@ public class MapperTypeKindTests
 
     private static int CountOf(string text, string value)
         => (text.Length - text.Replace(value, string.Empty).Length) / value.Length;
-
-    private static IEnumerable<Diagnostic> GeneratedErrors(GeneratorRun run)
-        => run.UpdatedCompilation.GetDiagnostics()
-            .Where(d => d.Severity == DiagnosticSeverity.Error && IsGenerated(d));
-
-    private static bool IsGenerated(Diagnostic d)
-        => d.Location.SourceTree?.FilePath.EndsWith(".g.cs", StringComparison.Ordinal) == true;
-
-    /// <summary>The generated files, recompiled with nullable enabled project-wide, carry no warning at all.</summary>
-    private static void AssertNoWarningsInGeneratedCode(GeneratorRun run)
-    {
-        var compilation = run.UpdatedCompilation.WithOptions(
-            ((CSharpCompilationOptions)run.UpdatedCompilation.Options).WithNullableContextOptions(NullableContextOptions.Enable));
-
-        var warnings = compilation.GetDiagnostics()
-            .Where(d => d.Severity == DiagnosticSeverity.Warning && IsGenerated(d))
-            .ToList();
-
-        warnings.Should().BeEmpty(string.Join(Environment.NewLine, warnings.Select(d => d.ToString())));
-    }
 }

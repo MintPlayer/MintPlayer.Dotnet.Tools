@@ -85,19 +85,14 @@ public class InjectTypeKindTests
     [Fact]
     public void UnrelatedPartialCode_IsLeftAlone()
     {
-        var run = Run(Dependencies + """
-            public partial record R { [System.Text.RegularExpressions.GeneratedRegex("a")] private static partial System.Text.RegularExpressions.Regex Rx(); }
-            public partial record struct RS { [System.Text.RegularExpressions.GeneratedRegex("a")] private static partial System.Text.RegularExpressions.Regex Rx(); }
-            public partial struct S { [System.Text.RegularExpressions.GeneratedRegex("a")] private static partial System.Text.RegularExpressions.Regex Rx(); }
-            public partial interface I { [System.Text.RegularExpressions.GeneratedRegex("a")] private static partial System.Text.RegularExpressions.Regex Rx(); }
-
+        var run = Run(GeneratedCodeChecks.UnrelatedPartials, Dependencies + """
             public partial class Valid
             {
                 [Inject] private readonly IDep dep;
             }
             """);
 
-        run.Errors.Where(e => e.Location.SourceTree?.FilePath.EndsWith(".g.cs") == true).Should().BeEmpty(run.ErrorText);
+        run.GeneratedErrors().Should().BeEmpty(run.ErrorText);
         run.Diagnostics.Where(d => d.Id.StartsWith("INJECT")).Should().BeEmpty();
         var output = run.SourceFor("Inject.g.cs");
         output.Should().Contain("public Valid(global::Demo.IDep dep)");
@@ -145,13 +140,7 @@ public class InjectTypeKindTests
 
         run.Errors.Should().BeEmpty(run.ErrorText);
 
-        var nullable = run.UpdatedCompilation.WithOptions(
-            ((CSharpCompilationOptions)run.UpdatedCompilation.Options).WithNullableContextOptions(NullableContextOptions.Enable));
-        var warnings = nullable.GetDiagnostics()
-            .Where(d => d.Severity == DiagnosticSeverity.Warning)
-            .Where(d => d.Location.SourceTree?.FilePath.EndsWith(".g.cs") == true)
-            .ToList();
-        warnings.Should().BeEmpty(string.Join(Environment.NewLine, warnings.Select(w => w.ToString())));
+        run.GeneratedWarningsUnderNullable().Should().BeEmpty();
     }
 
     #endregion

@@ -359,15 +359,8 @@ public class CliCommandTypeKindTests
     [Fact]
     public void UnrelatedPartialCode_DoesNotDisturbTheGenerator()
     {
-        var run = Run(Usings + $$"""
-            using System.Text.RegularExpressions;
-
+        var run = Run(GeneratedCodeChecks.UnrelatedPartials, Usings + $$"""
             namespace Demo;
-
-            public partial record R { [GeneratedRegex("a")] private static partial Regex Rx(); }
-            public partial record struct RS { [GeneratedRegex("a")] private static partial Regex Rx(); }
-            public partial struct S { [GeneratedRegex("a")] private static partial Regex Rx(); }
-            public partial interface I { [GeneratedRegex("a")] private static partial Regex Rx(); }
 
             [CliRootCommand(Name = "demo")]
             public partial class RootCommand : ICliCommand
@@ -404,12 +397,6 @@ public class CliCommandTypeKindTests
         run.Diagnostics.Should().BeEmpty();
         CompilerErrors(run).Should().BeEmpty(run.ErrorText);
 
-        var compilation = run.UpdatedCompilation.WithOptions(
-            ((CSharpCompilationOptions)run.UpdatedCompilation.Options).WithNullableContextOptions(NullableContextOptions.Enable));
-        var warnings = compilation.GetDiagnostics()
-            .Where(d => d.Severity == DiagnosticSeverity.Warning && d.Location.SourceTree?.FilePath.EndsWith(".g.cs") == true)
-            .Select(d => d.ToString())
-            .ToArray();
-        warnings.Should().BeEmpty();
+        run.GeneratedWarningsUnderNullable().Should().BeEmpty();
     }
 }

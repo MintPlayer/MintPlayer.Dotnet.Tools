@@ -569,13 +569,7 @@ public class GenericMethodRobustnessTests
 
         run.Errors.Should().BeEmpty(run.ErrorText);
 
-        var options = ((CSharpCompilationOptions)run.UpdatedCompilation.Options).WithNullableContextOptions(NullableContextOptions.Enable);
-        var warnings = run.UpdatedCompilation.WithOptions(options).GetDiagnostics()
-            .Where(d => d.Severity >= DiagnosticSeverity.Warning)
-            .Where(d => d.Location.SourceTree?.FilePath.EndsWith(".g.cs") == true)
-            .Select(d => d.ToString())
-            .ToList();
-        warnings.Should().BeEmpty(string.Join(Environment.NewLine, warnings));
+        run.GeneratedWarningsUnderNullable().Should().BeEmpty();
     }
 
     /// <summary>G0: the attribute ships in the attributes package, with a default of 4.</summary>
