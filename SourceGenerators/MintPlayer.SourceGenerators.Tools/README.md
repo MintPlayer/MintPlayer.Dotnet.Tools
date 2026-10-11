@@ -133,6 +133,50 @@ var registrations = classesProvider
 
 `LocationKey`, `PathSpec`, `PathSpecElement` and `Settings` implement `IEquatable<T>`, so a model can hold them.
 
+## Discovery, attributes and re-declaring a type (12.2.0)
+Helpers so that a generator handles every type kind (class, record, struct, record struct, interface) without
+hand-written keyword logic. All are additive.
+
+- **Finding attributes:** `symbol.FindAttribute("N.MyAttribute")`, `FindAttributes(...)`, `HasAttribute(...)` and
+  `attributeClass.IsAttribute("N.MyAttribute")` compare the full metadata name (`+` for nested types, `` `1 `` for
+  generic ones), so a same-named attribute in another namespace never matches.
+- **Reading arguments:** `attribute.GetArgument("count", fallback)` and `TryGetArgument<T>(name, out value)` look the
+  name up as a named argument or a constructor parameter (ignoring case) and read the compiler's constant, so `const`
+  references, arithmetic, casts and optional-parameter defaults all work. `T` can be a primitive, `string`, an enum,
+  `INamedTypeSymbol`/`ITypeSymbol` (`typeof`), `ImmutableArray<TypedConstant>` or `U[]`. An unbound attribute or
+  `typeof`, a missing argument or a value that does not convert gives the fallback.
+- **Discovery:** `context.SyntaxProvider.ForAttribute<TModel>(metadataName, predicate, transform)` wraps
+  `ForAttributeWithMetadataName` with a transform that returns `Discovered<TModel>(model, diagnostics)`. Split it with
+  `.Models(trackingName)` and `.Diagnostics()`, then `context.ReportDiagnostics(discovered.Diagnostics())`.
+  `DiagnosticInfo.Create(rule, location, args...)` holds a diagnostic by value (descriptor, `LocationKey`, string
+  arguments). Reporting never throws: a stale location is reported without one, and a diagnostic that cannot be
+  reported becomes `MPSG002`.
+- **Re-declaring a type:** `GetPathSpec()` now also describes the type itself (`Target`), interface parents, and why a
+  type cannot be re-declared (`UnsupportedReason`: not partial, `file`, or an unsupported kind).
+  `writer.OpenPathSpec(spec, includeTarget: true)` opens every parent and the type with the right keyword, type
+  parameters and variance, and never repeats accessibility, modifiers or constraints. `UniqueTypeParameterName` and
+  `UniqueTypeParameterPrefix` avoid shadowing the type parameters in scope.
+- **File preamble:** override `WritePreamble => true` in a `Producer` to have `Header` and `#nullable enable`
+  (`NullableEnable`) written for you; `writer.OpenNamespace(ns)` opens a namespace block, or nothing for the global
+  namespace.
+
+```csharp
+var discovered = context.SyntaxProvider.ForAttribute(
+    "N.MyAttribute",
+    static (node, ct) => node is TypeDeclarationSyntax,
+    static (ctx, ct) =>
+    {
+        var type = (INamedTypeSymbol)ctx.TargetSymbol;
+        var spec = type.GetPathSpec(ct)!;
+        return spec.IsSupported
+            ? new Discovered<MyModel>(new MyModel(spec))
+            : Discovered<MyModel>.Fail(DiagnosticInfo.Create(Rules.NotPartial, type.Locations.FirstOrDefault(), type.Name));
+    });
+// One file for all models: a hint name derived from a type name can outgrow the path limit.
+context.ProduceCode(discovered.Models().Collect().Select(static Producer (m, ct) => new MyProducer(m.ToEquatableArray())));
+context.ReportDiagnostics(discovered.Diagnostics());
+```
+
 ## Staying incremental
 A generator that emits the same output on every keystroke is still doing the work on every keystroke. The pieces above are built so that an edit your generator does not care about stops at an equal model:
 

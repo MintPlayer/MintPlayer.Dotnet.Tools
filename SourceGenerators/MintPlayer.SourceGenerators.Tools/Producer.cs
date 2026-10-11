@@ -40,6 +40,29 @@ public abstract class Producer
     public string RootNamespace { get; }
     public string Filename { get; }
 
+    /// <summary>
+    /// When true, <see cref="Produce(SourceProductionContext)"/> writes the file preamble (<see cref="Header"/>, then
+    /// <c>#nullable enable</c> when <see cref="NullableEnable"/> is true) before calling <see cref="ProduceSource"/>,
+    /// and <see cref="ProduceSource"/> must not write <see cref="Header"/> itself.
+    /// </summary>
+    /// <remarks>
+    /// Off by default, because existing producers (in this repository and in other packages built on this one)
+    /// write <see cref="Header"/> themselves, and turning it on for them would write it twice. A producer opts in
+    /// by overriding this to return true and deleting its own <c>writer.WriteLine(Header)</c>.
+    /// When <see cref="ProduceSource"/> writes nothing, no file is added: the preamble alone is not a file.
+    /// </remarks>
+    protected virtual bool WritePreamble => false;
+
+    /// <summary>
+    /// Whether the preamble ends with <c>#nullable enable</c>. Only read when <see cref="WritePreamble"/> is true.
+    /// </summary>
+    /// <remarks>
+    /// Generated code is compiled in the consumer's nullable context, which may be anything. Enabling it explicitly
+    /// makes <c>?</c> annotations in the output mean the same everywhere and keeps CS8669 away. Override to return
+    /// false only for output that is not nullable-correct yet.
+    /// </remarks>
+    protected virtual bool NullableEnable => true;
+
     protected abstract void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken);
 
     /// <summary>Kept for source compatibility. The compilation was never used.</summary>
@@ -56,10 +79,25 @@ public abstract class Producer
 
         try
         {
+            var preambleLength = 0;
+            if (WritePreamble)
+            {
+                writer.WriteLine(Header);
+                writer.WriteLine();
+                if (NullableEnable)
+                {
+                    writer.WriteLine("#nullable enable");
+                    writer.WriteLine();
+                }
+                writer.Flush();
+                preambleLength = textWriter.GetStringBuilder().Length;
+            }
+
             ProduceSource(writer, context.CancellationToken);
 
+            writer.Flush();
             var code = textWriter.ToString();
-            if (!string.IsNullOrEmpty(code))
+            if (code.Length > preambleLength)
                 context.AddSource(Filename, SourceText.From(code, Encoding.UTF8));
         }
         catch (OperationCanceledException)

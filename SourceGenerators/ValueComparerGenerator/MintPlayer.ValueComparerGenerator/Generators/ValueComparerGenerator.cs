@@ -2,6 +2,8 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using MintPlayer.SourceGenerators.Tools;
 using MintPlayer.ValueComparerGenerator.Models;
+// Tools has its own DiagnosticInfo now (PRD-TypeKindRobustness D0.3); this generator keeps its own until it migrates.
+using DiagnosticInfo = MintPlayer.ValueComparerGenerator.Models.DiagnosticInfo;
 
 namespace MintPlayer.ValueComparerGenerator.Generators;
 

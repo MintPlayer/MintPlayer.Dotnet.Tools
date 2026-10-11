@@ -38,41 +38,85 @@ public static class SymbolExtensions
     /// name="typeSymbol"/>; or <see langword="null"/> if the path specification cannot be determined.</returns>
     public static PathSpec? GetPathSpec(this INamedTypeSymbol typeSymbol, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // Parents are stored innermost first (the historical order); OpenPathSpec reverses them.
         var parents = new List<PathSpecElement>();
-        var ns = string.Empty;
-        while (typeSymbol is { })
+        for (var parent = typeSymbol.ContainingType; parent is not null; parent = parent.ContainingType)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            parents.Add(CreateElement(parent, cancellationToken));
+        }
 
-            ns = typeSymbol.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted));
-            if (typeSymbol.ContainingSymbol is INamedTypeSymbol namedTypeSymbol && new[] { TypeKind.Class, TypeKind.Struct }.Contains(namedTypeSymbol.TypeKind))
+        var target = CreateElement(typeSymbol, cancellationToken);
+        var ns = typeSymbol.ContainingNamespace is { IsGlobalNamespace: false } containing
+            ? containing.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted))
+            : string.Empty;
+
+        // The first reason wins, in the order a user fixes them: the type itself, then its parents inside out.
+        var reason = EPathSpecUnsupportedReason.None;
+        string? offender = null;
+        foreach (var (element, isTarget) in new[] { (target, true) }.Concat(parents.Select(p => (p, false))))
+        {
+            var r = element.KindUnsupported ? EPathSpecUnsupportedReason.UnsupportedKind
+                : element.IsFileLocal ? EPathSpecUnsupportedReason.FileLocal
+                : !element.IsPartial ? (isTarget ? EPathSpecUnsupportedReason.TargetNotPartial : EPathSpecUnsupportedReason.ParentNotPartial)
+                : EPathSpecUnsupportedReason.None;
+            if (r != EPathSpecUnsupportedReason.None)
             {
-                parents.Add(new PathSpecElement
-                {
-                    Name = namedTypeSymbol.Name,
-                    GenericTypeParameters = GetGenericTypeParametersFromSymbol(namedTypeSymbol),
-                    IsPartial = namedTypeSymbol.DeclaringSyntaxReferences.Select(r => r.GetSyntax(cancellationToken)).All(s => s switch
-                    {
-                        ClassDeclarationSyntax cds => cds.Modifiers.Any(m => m.IsKind(SyntaxKind.PartialKeyword)),
-                        StructDeclarationSyntax sds => sds.Modifiers.Any(m => m.IsKind(SyntaxKind.PartialKeyword)),
-                        RecordDeclarationSyntax rds => rds.Modifiers.Any(m => m.IsKind(SyntaxKind.PartialKeyword)),
-                        _ => false
-                    }),
-                    Type = namedTypeSymbol.IsRecord
-                        ? (namedTypeSymbol.TypeKind == TypeKind.Struct ? EPathSpecType.RecordStruct : EPathSpecType.Record)
-                        : (namedTypeSymbol.TypeKind == TypeKind.Class ? EPathSpecType.Class : EPathSpecType.Struct),
-                });
+                reason = r;
+                offender = element.Name?.TrimStart('@'); // for messages: the name as the user reads it
+                break;
             }
-
-            typeSymbol = typeSymbol.ContainingType;
         }
 
         return new PathSpec
         {
             ContainingNamespace = ns,
             Parents = parents.ToArray(),
+            Target = target,
+            UnsupportedReason = reason,
+            UnsupportedTypeName = offender,
         };
     }
+
+    private static PathSpecElement CreateElement(INamedTypeSymbol type, CancellationToken cancellationToken)
+    {
+        var declarations = type.DeclaringSyntaxReferences
+            .Select(r => r.GetSyntax(cancellationToken))
+            .OfType<TypeDeclarationSyntax>()
+            .ToArray();
+
+        // A C# 15 `union` binds to TypeKind.Struct; only its syntax tells it apart (ITypeSymbol.IsUnion is experimental).
+        var isUnion = declarations.Any(d => d.Keyword.ValueText == "union");
+        var kind = type switch
+        {
+            _ when isUnion => (EPathSpecType?)null,
+            { IsRecord: true, IsValueType: true } => EPathSpecType.RecordStruct,
+            { IsRecord: true } => EPathSpecType.Record,
+            { TypeKind: TypeKind.Struct } => EPathSpecType.Struct,
+            { TypeKind: TypeKind.Interface } => EPathSpecType.Interface,
+            { TypeKind: TypeKind.Class } => EPathSpecType.Class,
+            _ => null, // enum, delegate, union: nothing to re-declare as a partial
+        };
+
+        return new PathSpecElement
+        {
+            Name = EscapeIdentifier(type.Name),
+            Type = kind ?? EPathSpecType.Class,
+            KindUnsupported = kind is null,
+            // C# requires `partial` on every part; one part without it is already CS0260 in the user's code, so
+            // "any part" avoids a second report for the same mistake and matches Equality's IsPartial.
+            IsPartial = declarations.Any(d => d.Modifiers.Any(SyntaxKind.PartialKeyword)),
+            IsFileLocal = type.IsFileLocal,
+            GenericTypeParameters = GetGenericTypeParametersFromSymbol(type),
+            TypeParameterNames = type.TypeParameters.Select(tp => tp.Name).ToEquatableArray(),
+        };
+    }
+
+    /// <summary><paramref name="name"/> prefixed with <c>@</c> when it is a C# keyword, e.g. <c>@event</c>.</summary>
+    public static string EscapeIdentifier(string name)
+        => SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None ? "@" + name : name;
 
     /// <summary>
     /// Transforms a <see cref="TypeKind"/> to its c# plain counterpart.
@@ -102,7 +146,13 @@ public static class SymbolExtensions
         if (typeSymbol.TypeParameters.Length == 0)
             return null;
 
-        var typeParams = string.Join(", ", typeSymbol.TypeParameters.Select(tp => tp.Name));
+        // Variance must be repeated on every part of an interface (CS1067); constraints need not (see S1).
+        var typeParams = string.Join(", ", typeSymbol.TypeParameters.Select(tp => tp.Variance switch
+        {
+            VarianceKind.In => "in ",
+            VarianceKind.Out => "out ",
+            _ => string.Empty,
+        } + EscapeIdentifier(tp.Name)));
         return $"<{typeParams}>";
     }
 
@@ -112,26 +162,71 @@ public static class SymbolExtensions
     /// <param name="writer">Indented text writer</param>
     /// <param name="pathSpec">The result of <see cref="SymbolExtensions.GetPathSpec(INamedTypeSymbol, CancellationToken)"/></param>
     /// <returns>An object that closes code-blocks when it's being disposed.</returns>
-    public static IDisposablePathSpecStack OpenPathSpec(this IndentedTextWriter writer, PathSpec? pathSpec)
+    /// <param name="includeTarget">Also open the type itself, as the innermost block. Off by default so that existing
+    /// callers, which write the type's own header, keep their output.</param>
+    /// <param name="baseList">Appended to the type's own header, e.g. <c>" : global::System.IEquatable&lt;X&gt;"</c>.</param>
+    /// <param name="targetLeadingLines">Lines written directly before the type's own header, e.g. an attribute.</param>
+    public static IDisposablePathSpecStack OpenPathSpec(this IndentedTextWriter writer, PathSpec? pathSpec, bool includeTarget = false, string? baseList = null, IEnumerable<string>? targetLeadingLines = null)
     {
         var stack = new Stack<IDisposableWriterIndent>();
-        if (pathSpec?.Parents is not { Length: > 0 })
+        if (pathSpec is null)
             return new PathSpecStack(stack);
 
         foreach (var parent in pathSpec.Parents.Where(p => !string.IsNullOrWhiteSpace(p.Name)).Reverse())
+            stack.Push(writer.OpenBlock(parent.Header));
+
+        if (includeTarget && pathSpec.Target is { } target)
         {
-            var keyword = parent.Type switch
-            {
-                EPathSpecType.Struct => "struct",
-                EPathSpecType.Record => "record class",
-                EPathSpecType.RecordStruct => "record struct",
-                _ => "class",
-            };
-            var genericParams = parent.GenericTypeParameters ?? string.Empty;
-            stack.Push(writer.OpenBlock($"partial {keyword} {parent.Name}{genericParams}"));
+            foreach (var line in targetLeadingLines ?? [])
+                writer.WriteLine(line);
+            stack.Push(writer.OpenBlock(target.Header + baseList));
         }
 
         return new PathSpecStack(stack);
+    }
+
+    /// <summary>
+    /// <paramref name="preferred"/>, or <c>preferred1</c>, <c>preferred2</c>, ... when the type or a containing type
+    /// already declares a type parameter of that name (a generated generic member would shadow it: CS0693).
+    /// </summary>
+    /// <remarks>
+    /// For ONE name. Do not append an index to the result to build a numbered series: for <c>T1</c> in scope this
+    /// returns <c>T11</c>, and a series <c>T11</c>, <c>T12</c>, ... would collide again. Use
+    /// <see cref="UniqueTypeParameterPrefix"/> for that.
+    /// </remarks>
+    public static string UniqueTypeParameterName(this PathSpec pathSpec, string preferred)
+    {
+        var inScope = new HashSet<string>(pathSpec.TypeParameterNamesInScope, StringComparer.Ordinal);
+        if (!inScope.Contains(preferred)) return preferred;
+        for (var i = 1; ; i++)
+            if (!inScope.Contains(preferred + i)) return preferred + i;
+    }
+
+    /// <summary>
+    /// A prefix for a numbered series of type parameters (<c>{prefix}1</c>, <c>{prefix}2</c>, ...) such that
+    /// <c>{prefix}{n}</c> is free for EVERY n: no type parameter in scope (the type's own or a containing type's) is
+    /// the prefix followed by digits only.
+    /// </summary>
+    /// <param name="pathSpec">The result of <see cref="GetPathSpec"/> for the type that gets the generic member.</param>
+    /// <param name="preferred">The prefix to use when it is free, e.g. <c>"T"</c> or <c>"TArg"</c>.</param>
+    /// <returns><paramref name="preferred"/>, or <paramref name="preferred"/> followed by one or more underscores.</returns>
+    /// <remarks>
+    /// The prefix itself (without digits) is not checked; it is never used as a name on its own.
+    /// </remarks>
+    public static string UniqueTypeParameterPrefix(this PathSpec pathSpec, string preferred)
+    {
+        var inScope = pathSpec.TypeParameterNamesInScope.ToArray();
+        for (var prefix = preferred; ; prefix += "_")
+            if (!inScope.Any(name => IsPrefixWithDigits(name, prefix)))
+                return prefix;
+    }
+
+    private static bool IsPrefixWithDigits(string name, string prefix)
+    {
+        if (name.Length <= prefix.Length || !name.StartsWith(prefix, StringComparison.Ordinal)) return false;
+        for (var i = prefix.Length; i < name.Length; i++)
+            if (name[i] is < '0' or > '9') return false;
+        return true;
     }
 
     /// <summary>
@@ -206,10 +301,25 @@ public class PathSpec : IEquatable<PathSpec>
         set
         {
             field = value;
-            AllPartial = Parents.All(p => !new[] { EPathSpecType.Class, EPathSpecType.Struct, EPathSpecType.Record, EPathSpecType.RecordStruct }.Contains(p.Type) || p.IsPartial);
+            AllPartial = Parents.All(p => p.IsPartial);
         }
     } = [];
     public bool AllPartial { get; private set; }
+
+    /// <summary>The type itself: re-declared as the innermost block by <c>OpenPathSpec(includeTarget: true)</c>.</summary>
+    public PathSpecElement? Target { get; set; }
+
+    /// <summary>Why the type cannot be re-declared as a partial, or <see cref="EPathSpecUnsupportedReason.None"/>.</summary>
+    public EPathSpecUnsupportedReason UnsupportedReason { get; set; }
+
+    /// <summary>The unescaped name of the type <see cref="UnsupportedReason"/> is about: the target or one parent.</summary>
+    public string? UnsupportedTypeName { get; set; }
+
+    public bool IsSupported => UnsupportedReason == EPathSpecUnsupportedReason.None;
+
+    /// <summary>Every type-parameter name declared by the type and its containing types.</summary>
+    public IEnumerable<string> TypeParameterNamesInScope
+        => Parents.SelectMany(p => p.TypeParameterNames).Concat(Target?.TypeParameterNames ?? EquatableArray<string>.Empty);
 
     public bool Equals(PathSpec? other)
     {
@@ -218,7 +328,10 @@ public class PathSpec : IEquatable<PathSpec>
         return other.GetType() == GetType()
             && string.Equals(ContainingNamespace, other.ContainingNamespace, StringComparison.Ordinal)
             && ValueEquality.Array(Parents, other.Parents)
-            && AllPartial == other.AllPartial;
+            && AllPartial == other.AllPartial
+            && Equals(Target, other.Target)
+            && UnsupportedReason == other.UnsupportedReason
+            && string.Equals(UnsupportedTypeName, other.UnsupportedTypeName, StringComparison.Ordinal);
     }
 
     public override bool Equals(object? obj) => Equals(obj as PathSpec);
@@ -229,8 +342,24 @@ public class PathSpec : IEquatable<PathSpec>
         h = ValueEquality.Combine(h, ContainingNamespace is null ? 0 : StringComparer.Ordinal.GetHashCode(ContainingNamespace));
         h = ValueEquality.Combine(h, ValueEquality.ArrayHash(Parents));
         h = ValueEquality.Combine(h, AllPartial ? 1 : 0);
+        h = ValueEquality.Combine(h, Target?.GetHashCode() ?? 0);
+        h = ValueEquality.Combine(h, (int)UnsupportedReason);
+        h = ValueEquality.Combine(h, UnsupportedTypeName is null ? 0 : StringComparer.Ordinal.GetHashCode(UnsupportedTypeName));
         return h;
     }
+}
+
+public enum EPathSpecUnsupportedReason
+{
+    None,
+    /// <summary>The type itself lacks <c>partial</c>.</summary>
+    TargetNotPartial,
+    /// <summary>A containing type lacks <c>partial</c>; <see cref="PathSpec.UnsupportedTypeName"/> names it.</summary>
+    ParentNotPartial,
+    /// <summary>The type or a containing type is <c>file</c>-local: a partial in a generated file is a different type.</summary>
+    FileLocal,
+    /// <summary>An enum, delegate or union: nothing a generator can re-declare as a partial of this kind.</summary>
+    UnsupportedKind,
 }
 
 /// <summary>One containing type of a <see cref="PathSpec"/>. Compares by value.</summary>
@@ -245,6 +374,30 @@ public class PathSpecElement : IEquatable<PathSpecElement>
     /// </summary>
     public string? GenericTypeParameters { get; set; }
 
+    /// <summary>The type-parameter names, unescaped and without variance.</summary>
+    public EquatableArray<string> TypeParameterNames { get; set; }
+
+    public bool IsFileLocal { get; set; }
+
+    /// <summary>An enum, delegate or union: <see cref="Type"/> is meaningless.</summary>
+    public bool KindUnsupported { get; set; }
+
+    /// <summary>
+    /// The keyword to re-declare this type with. A reference record is always <c>record</c>: it is the only spelling
+    /// at C# 9, and from C# 10 it combines with parts the user spelled <c>record class</c>.
+    /// </summary>
+    public string Keyword => Type switch
+    {
+        EPathSpecType.Struct => "struct",
+        EPathSpecType.Record => "record",
+        EPathSpecType.RecordStruct => "record struct",
+        EPathSpecType.Interface => "interface",
+        _ => "class",
+    };
+
+    /// <summary><c>partial record struct Name&lt;T&gt;</c>: no accessibility, no other modifiers, no constraints.</summary>
+    public string Header => $"partial {Keyword} {Name}{GenericTypeParameters}";
+
     public bool Equals(PathSpecElement? other)
     {
         if (other is null) return false;
@@ -253,7 +406,10 @@ public class PathSpecElement : IEquatable<PathSpecElement>
             && string.Equals(Name, other.Name, StringComparison.Ordinal)
             && Type == other.Type
             && IsPartial == other.IsPartial
-            && string.Equals(GenericTypeParameters, other.GenericTypeParameters, StringComparison.Ordinal);
+            && string.Equals(GenericTypeParameters, other.GenericTypeParameters, StringComparison.Ordinal)
+            && TypeParameterNames.Equals(other.TypeParameterNames)
+            && IsFileLocal == other.IsFileLocal
+            && KindUnsupported == other.KindUnsupported;
     }
 
     public override bool Equals(object? obj) => Equals(obj as PathSpecElement);
@@ -265,6 +421,9 @@ public class PathSpecElement : IEquatable<PathSpecElement>
         h = ValueEquality.Combine(h, (int)Type);
         h = ValueEquality.Combine(h, IsPartial ? 1 : 0);
         h = ValueEquality.Combine(h, GenericTypeParameters is null ? 0 : StringComparer.Ordinal.GetHashCode(GenericTypeParameters));
+        h = ValueEquality.Combine(h, TypeParameterNames.GetHashCode());
+        h = ValueEquality.Combine(h, IsFileLocal ? 1 : 0);
+        h = ValueEquality.Combine(h, KindUnsupported ? 1 : 0);
         return h;
     }
 }
@@ -275,6 +434,5 @@ public enum EPathSpecType
     Struct,
     Record,
     RecordStruct,
-
-    // TODO: interface, enum
+    Interface,
 }
