@@ -6,35 +6,38 @@ using System.Collections.Immutable;
 
 namespace MintPlayer.Mapper.Generators;
 
-public sealed class MapperProducer : Producer, IConditionalDiagnosticReporter
+public sealed class MapperProducer : Producer
 {
     private readonly IEnumerable<TypeWithMappedProperties> typesToMap;
-    private readonly IEnumerable<ClassDeclaration> staticClasses;
-    public MapperProducer(IEnumerable<TypeWithMappedProperties> typesToMap, IEnumerable<ClassDeclaration> staticClasses, string rootNamespace) : base(rootNamespace, "Mappers.g.cs")
+    private readonly IEnumerable<ConversionMethod> conversionMethods;
+    private readonly bool hasNotNullIfNotNull;
+
+    /// <summary>
+    /// Appended to a call of a generated create overload whose result must not be null. Without
+    /// <c>[NotNullIfNotNull]</c> in the compilation, such a call returns <c>D?</c> even for a non-null input.
+    /// </summary>
+    private readonly string notNullSuffix;
+
+    public MapperProducer(IEnumerable<TypeWithMappedProperties> typesToMap, IEnumerable<ConversionMethod> conversionMethods, bool hasNotNullIfNotNull, string rootNamespace) : base(rootNamespace, "Mappers.g.cs")
     {
         this.typesToMap = typesToMap;
-        this.staticClasses = staticClasses;
+        this.conversionMethods = conversionMethods;
+        this.hasNotNullIfNotNull = hasNotNullIfNotNull;
+        notNullSuffix = hasNotNullIfNotNull ? string.Empty : "!";
     }
 
-    public bool HasDiagnostics => typesToMap.Any(t => t.TypeToMap.HasError);
+    protected override bool WritePreamble => true;
 
-    public IEnumerable<Diagnostic> GetDiagnostics(Compilation compilation)
-    {
-        return typesToMap.Where(t => t.TypeToMap.HasError)
-            .Select(type => type.TypeToMap.AppliedOn switch
-            {
-                EAppliedOn.Class => DiagnosticRules.GenerateMapperOneParameter.Create(type.TypeToMap.Location?.ToLocation(compilation)),
-                EAppliedOn.Assembly => DiagnosticRules.GenerateMapperTwoParameters.Create(type.TypeToMap.Location?.ToLocation(compilation)),
-                _ => null,
-            })
-            .NotNull();
-    }
+    /// <summary>
+    /// Whether the copy overload <c>Map(this S input, D output)</c> exists: <paramref name="properties"/> are the
+    /// (written, read) pairs. A value-type output is a copy, so writing into it would change nothing, and an output
+    /// whose mapped properties are all read-only or init-only has nothing to copy.
+    /// </summary>
+    internal static bool HasCopyOverload(bool outputIsValueType, IEnumerable<(PropertyDeclaration Written, PropertyDeclaration Read)> properties)
+        => !outputIsValueType && properties.Any(p => !p.Written.IsReadOnly && !p.Written.IsInitOnly);
 
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
     {
-        writer.WriteLine("#nullable enable");
-        writer.WriteLine(Header);
-        writer.WriteLine();
         // Generated code must not depend on the consumer ImplicitUsings setting. Without
         // this, the emitted .Select(...) calls resolved only because a default SDK project
         // implicitly imports System.Linq; a project with ImplicitUsings disabled got CS1061.
@@ -59,21 +62,26 @@ public sealed class MapperProducer : Producer, IConditionalDiagnosticReporter
                     using (writer.OpenBlock("if (source is null)", false))
                         writer.WriteLine("return default;");
 
-                    writer.WriteLine("object? result;");
-                    using (writer.OpenBlock($"switch ((typeof(TSource), typeof(TDest)))"))
+                    if (!conversionMethods.Any())
                     {
-                        foreach (var staticClass in staticClasses)
+                        // A switch with only a throwing default made the return after it unreachable (CS0162).
+                        writer.WriteLine("throw new global::System.NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
+                    }
+                    else
+                    {
+                        writer.WriteLine("object? result;");
+                        using (writer.OpenBlock($"switch ((typeof(TSource), typeof(TDest)))"))
                         {
-                            foreach (var method in staticClass.ConversionMethods)
+                            foreach (var method in conversionMethods)
                             {
                                 if (method.SourceState is not null && method.DestinationState is not null)
                                 {
                                     using (writer.OpenBlock($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({method.SourceType}) && destType == typeof({method.DestinationType}) && sourceState == {method.SourceState} && destState == {method.DestinationState}:", false))
                                     {
                                         if (method.MethodParameterCount == 3)
-                                            writer.WriteLine($"result = {staticClass.FullyQualifiedName}.{method.MethodName}(({method.SourceType})(object)source, ({method.StateType})sourceState, ({method.StateType})destState);");
+                                            writer.WriteLine($"result = {method.ContainingType}.{method.MethodName}(({method.SourceType})(object)source, ({method.StateType})sourceState, ({method.StateType})destState);");
                                         else
-                                            writer.WriteLine($"result = {staticClass.FullyQualifiedName}.{method.MethodName}(({method.SourceType})(object)source);");
+                                            writer.WriteLine($"result = {method.ContainingType}.{method.MethodName}(({method.SourceType})(object)source);");
                                         writer.WriteLine("break;");
                                     }
                                 }
@@ -81,94 +89,115 @@ public sealed class MapperProducer : Producer, IConditionalDiagnosticReporter
                                 {
                                     using (writer.OpenBlock($"case (global::System.Type sourceType, global::System.Type destType) when sourceType == typeof({method.SourceType}) && destType == typeof({method.DestinationType}):", false))
                                     {
-                                        writer.WriteLine($"result = {staticClass.FullyQualifiedName}.{method.MethodName}(({method.SourceType})(object)source);");
+                                        writer.WriteLine($"result = {method.ContainingType}.{method.MethodName}(({method.SourceType})(object)source);");
                                         writer.WriteLine("break;");
                                     }
                                 }
                             }
+
+                            using (writer.OpenBlock("default:"))
+                                writer.WriteLine("throw new global::System.NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
                         }
 
-                        using (writer.OpenBlock("default:"))
-                            writer.WriteLine("throw new global::System.NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
+                        writer.WriteLine("return (TDest?)result;");
                     }
-
-                    writer.WriteLine("return (TDest?)result;");
                 }
 
-                foreach (var type in typesToMap.Where(t => !t.TypeToMap.HasError))
+                foreach (var type in typesToMap)
                 {
-                    var accessModifier = Math.Min(type.TypeToMap.DeclaredTypeAccessibility, type.TypeToMap.MappingTypeAccessibility) < 6 ? "internal" : "public";
-                    var declaredDoc = DocType(type.TypeToMap.DeclaredType);
-                    var mappingDoc = DocType(type.TypeToMap.MappingType);
+                    var t = type.TypeToMap;
+                    var accessModifier = Math.Min(t.DeclaredTypeAccessibility, t.MappingTypeAccessibility) < 6 ? "internal" : "public";
 
-                    WriteCopyDoc(writer, mappingDoc, declaredDoc);
-                    using (writer.OpenBlock($"{accessModifier} static void {type.TypeToMap.PreferredDeclaredMethodName}(this {type.TypeToMap.MappingType} input, {type.TypeToMap.DeclaredType} output)"))
+                    // Mapping type -> declared type: the pairs are (declared property, mapping property).
+                    WriteDirection(writer, accessModifier, t.PreferredDeclaredMethodName,
+                        t.MappingType, t.MappingTypeIsValueType,
+                        t.DeclaredType, t.DeclaredTypeIsValueType, t.DeclaredTypeHasParameterlessConstructor, t.DeclaredTypePrimaryConstructorParameters,
+                        type.MappedProperties);
+
+                    if (!t.AreBothDecorated)
                     {
-                        using (writer.OpenBlock("if ((input is { } inValue) && (output is { }))"))
-                        {
-                            foreach (var (source, destination) in type.MappedProperties)
-                            {
-                                HandleProperty(writer, source, destination, EWriteType.Assignment);
-                            }
-                        }
+                        WriteDirection(writer, accessModifier, t.PreferredMappingMethodName,
+                            t.DeclaredType, t.DeclaredTypeIsValueType,
+                            t.MappingType, t.MappingTypeIsValueType, t.MappingTypeHasParameterlessConstructor, t.MappingTypePrimaryConstructorParameters,
+                            type.MappedProperties.Select(p => (p.Destination, p.Source)).ToArray());
                     }
 
-                    WriteCreateDoc(writer, mappingDoc, declaredDoc);
-                    using (writer.OpenBlock($"{accessModifier} static {type.TypeToMap.DeclaredType} {type.TypeToMap.PreferredDeclaredMethodName}(this {type.TypeToMap.MappingType} input)"))
+                    WriteSequence(writer, accessModifier, t.PreferredDeclaredMethodName, t.MappingType, t.MappingTypeIsValueType, t.DeclaredType, t.DeclaredTypeIsValueType);
+
+                    if (!t.AreBothDecorated)
+                        WriteSequence(writer, accessModifier, t.PreferredMappingMethodName, t.DeclaredType, t.DeclaredTypeIsValueType, t.MappingType, t.MappingTypeIsValueType);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// The copy overload (when there is something to copy into a reference type) and the create overload from
+    /// <paramref name="inputType"/> to <paramref name="outputType"/>. <paramref name="properties"/> are the
+    /// (written output property, read input property) pairs.
+    /// </summary>
+    private void WriteDirection(
+        IndentedTextWriter writer,
+        string accessModifier,
+        string methodName,
+        string inputType,
+        bool inputIsValueType,
+        string outputType,
+        bool outputIsValueType,
+        bool outputHasParameterlessConstructor,
+        ConstructorParameterInfo[] outputPrimaryConstructorParameters,
+        (PropertyDeclaration Source, PropertyDeclaration Destination)[] properties)
+    {
+        var inputDoc = DocType(inputType);
+        var outputDoc = DocType(outputType);
+
+        // A reference-type input may be null; a value-type one keeps its exact type, because S? would be Nullable<S>.
+        var input = inputIsValueType ? inputType : $"{inputType}?";
+
+        if (HasCopyOverload(outputIsValueType, properties))
+        {
+            WriteCopyDoc(writer, inputDoc, outputDoc);
+            using (writer.OpenBlock($"{accessModifier} static void {methodName}(this {input} input, {outputType} output)"))
+            {
+                using (writer.OpenBlock("if ((input is { } inValue) && (output is { }))"))
+                {
+                    foreach (var (source, destination) in properties)
                     {
-                        writer.WriteLine("if (input is null) return default;");
-                        writer.WriteLine();
-
-                        WriteNewInstance(
-                            writer,
-                            type.TypeToMap.DeclaredType,
-                            type.TypeToMap.DeclaredTypeHasParameterlessConstructor,
-                            type.TypeToMap.DeclaredTypePrimaryConstructorParameters,
-                            type.MappedProperties);
-                    }
-
-                    if (!type.TypeToMap.AreBothDecorated)
-                    {
-                        WriteCopyDoc(writer, declaredDoc, mappingDoc);
-                        using (writer.OpenBlock($"{accessModifier} static void {type.TypeToMap.PreferredMappingMethodName}(this {type.TypeToMap.DeclaredType} input, {type.TypeToMap.MappingType} output)"))
-                        {
-                            using (writer.OpenBlock("if ((input is { } inValue) && (output is { }))"))
-                            {
-                                foreach (var (source, destination) in type.MappedProperties)
-                                {
-                                    HandleProperty(writer, destination, source, EWriteType.Assignment);
-                                }
-                            }
-                        }
-
-                        WriteCreateDoc(writer, declaredDoc, mappingDoc);
-                        using (writer.OpenBlock($"{accessModifier} static {type.TypeToMap.MappingType} {type.TypeToMap.PreferredMappingMethodName}(this {type.TypeToMap.DeclaredType} input)"))
-                        {
-                            writer.WriteLine("if (input is null) return default;");
-                            writer.WriteLine();
-
-                            WriteNewInstance(
-                                writer,
-                                type.TypeToMap.MappingType,
-                                type.TypeToMap.MappingTypeHasParameterlessConstructor,
-                                type.TypeToMap.MappingTypePrimaryConstructorParameters,
-                                type.MappedProperties.Select(p => (p.Destination, p.Source)));
-                        }
-                    }
-
-                    WriteSequenceDoc(writer, mappingDoc, declaredDoc);
-                    using (writer.OpenBlock($"{accessModifier} static global::System.Collections.Generic.IEnumerable<{type.TypeToMap.DeclaredType}> {type.TypeToMap.PreferredDeclaredMethodName}(this global::System.Collections.Generic.IEnumerable<{type.TypeToMap.MappingType}> input)"))
-                        writer.WriteLine($"return input.Select(x => x.{type.TypeToMap.PreferredDeclaredMethodName}());");
-
-                    if (!type.TypeToMap.AreBothDecorated)
-                    {
-                        WriteSequenceDoc(writer, declaredDoc, mappingDoc);
-                        using (writer.OpenBlock($"{accessModifier} static global::System.Collections.Generic.IEnumerable<{type.TypeToMap.MappingType}> {type.TypeToMap.PreferredMappingMethodName}(this global::System.Collections.Generic.IEnumerable<{type.TypeToMap.DeclaredType}> input)"))
-                            writer.WriteLine($"return input.Select(x => x.{type.TypeToMap.PreferredMappingMethodName}());");
+                        HandleProperty(writer, source, destination, EWriteType.Assignment);
                     }
                 }
             }
         }
+
+        // Null in, null out, and the compiler knows it: [NotNullIfNotNull] makes a call with a non-null input
+        // non-null, so neither the generated code nor its callers get a nullable warning.
+        var returnsNull = !inputIsValueType && !outputIsValueType;
+        WriteCreateDoc(writer, inputDoc, outputDoc);
+        if (returnsNull && hasNotNullIfNotNull)
+            writer.WriteLine("[return: global::System.Diagnostics.CodeAnalysis.NotNullIfNotNull(\"input\")]");
+        using (writer.OpenBlock($"{accessModifier} static {outputType}{(returnsNull ? "?" : string.Empty)} {methodName}(this {input} input)"))
+        {
+            if (!inputIsValueType)
+            {
+                writer.WriteLine(returnsNull ? "if (input is null) return null;" : "if (input is null) return default;");
+                writer.WriteLine();
+            }
+
+            WriteNewInstance(
+                writer,
+                outputType,
+                outputHasParameterlessConstructor,
+                outputPrimaryConstructorParameters,
+                properties);
+        }
+    }
+
+    private void WriteSequence(IndentedTextWriter writer, string accessModifier, string methodName, string inputType, bool inputIsValueType, string outputType, bool outputIsValueType)
+    {
+        var suffix = !inputIsValueType && !outputIsValueType ? notNullSuffix : string.Empty;
+        WriteSequenceDoc(writer, DocType(inputType), DocType(outputType));
+        using (writer.OpenBlock($"{accessModifier} static global::System.Collections.Generic.IEnumerable<{outputType}> {methodName}(this global::System.Collections.Generic.IEnumerable<{inputType}> input)"))
+            writer.WriteLine($"return input.Select(x => x.{methodName}(){suffix});");
     }
 
     // XML doc comments for the emitted mapping methods. Type names go in <c> rather than a cref:
@@ -272,15 +301,15 @@ public sealed class MapperProducer : Producer, IConditionalDiagnosticReporter
         return collectionType;
     }
 
-    private static string GetPropertyValueExpression(PropertyDeclaration source, PropertyDeclaration destination)
+    private string GetPropertyValueExpression(PropertyDeclaration source, PropertyDeclaration destination)
     {
         // Handle primitive types
         if (source.IsPrimitive && destination.IsPrimitive)
         {
             if (source.PropertyType != destination.PropertyType)
-                return $"ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName})";
+                return $"ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName})!";
             else if (source.StateName is not null && destination.StateName is not null)
-                return $"ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}, {source.StateName}, {destination.StateName})";
+                return $"ConvertProperty<{destination.PropertyType}, {source.PropertyType}>(input.{destination.PropertyName}, {source.StateName}, {destination.StateName})!";
             else
                 return $"input.{destination.PropertyName}";
         }
@@ -293,7 +322,7 @@ public sealed class MapperProducer : Producer, IConditionalDiagnosticReporter
             else
             {
                 var shortName = elementType.WithoutGlobal().Split('.').Last();
-                return $"input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToArray()";
+                return $"input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}(){notNullSuffix}).ToArray()";
             }
         }
         // Handle List<T>
@@ -305,7 +334,7 @@ public sealed class MapperProducer : Producer, IConditionalDiagnosticReporter
             else
             {
                 var shortName = elementType.WithoutGlobal().Split('.').Last();
-                return $"input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToList()";
+                return $"input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}(){notNullSuffix}).ToList()";
             }
         }
         // Handle ICollection<T>
@@ -317,7 +346,7 @@ public sealed class MapperProducer : Producer, IConditionalDiagnosticReporter
             else
             {
                 var shortName = elementType.WithoutGlobal().Split('.').Last();
-                return $"input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}()).ToList()";
+                return $"input.{destination.PropertyName} == null ? null : input.{destination.PropertyName}.Select(x => x.MapTo{shortName}(){notNullSuffix}).ToList()";
             }
         }
         // Handle nullable reference types
@@ -328,11 +357,11 @@ public sealed class MapperProducer : Producer, IConditionalDiagnosticReporter
         // Handle complex types
         else
         {
-            return $"input.{destination.PropertyName}.MapTo{source.PropertyTypeName}()";
+            return $"input.{destination.PropertyName}.MapTo{source.PropertyTypeName}(){notNullSuffix}";
         }
     }
 
-    private static void HandleProperty(IndentedTextWriter writer, PropertyDeclaration source, PropertyDeclaration destination, EWriteType writeType)
+    private void HandleProperty(IndentedTextWriter writer, PropertyDeclaration source, PropertyDeclaration destination, EWriteType writeType)
     {
         if (source.IsReadOnly) return;
         if (source.IsInitOnly && writeType == EWriteType.Assignment) return;
@@ -358,7 +387,7 @@ public sealed class MapperProducer : Producer, IConditionalDiagnosticReporter
     /// Writes a return statement that creates a new instance of the target type,
     /// using constructor arguments when the type has no parameterless constructor.
     /// </summary>
-    private static void WriteNewInstance(
+    private void WriteNewInstance(
         IndentedTextWriter writer,
         string targetType,
         bool hasParameterlessConstructor,
@@ -447,26 +476,47 @@ public sealed class MapperEntrypointProducer : Producer
         this.properties = properties;
     }
 
+    private const string NotSupported = "throw new global::System.NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");";
+
+    protected override bool WritePreamble => true;
+
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
     {
-        var propsInBothDirections = properties
+        var directions = properties
             .Select(p => new
             {
                 InType = p.TypeToMap.DeclaredType,
+                InDepth = p.TypeToMap.DeclaredTypeDepth,
                 OutType = p.TypeToMap.MappingType,
+                OutDepth = p.TypeToMap.MappingTypeDepth,
                 Method = p.TypeToMap.PreferredMappingMethodName,
+                HasCopyOverload = MapperProducer.HasCopyOverload(p.TypeToMap.MappingTypeIsValueType, p.MappedProperties.Select(m => (m.Destination, m.Source))),
             })
             .Concat(properties.Select(p => new
             {
                 InType = p.TypeToMap.MappingType,
+                InDepth = p.TypeToMap.MappingTypeDepth,
                 OutType = p.TypeToMap.DeclaredType,
+                OutDepth = p.TypeToMap.DeclaredTypeDepth,
                 Method = p.TypeToMap.PreferredDeclaredMethodName,
+                HasCopyOverload = MapperProducer.HasCopyOverload(p.TypeToMap.DeclaredTypeIsValueType, p.MappedProperties),
             }))
-            .GroupBy(p => p.InType);
+            .ToArray();
 
-        writer.WriteLine("#nullable enable");
-        writer.WriteLine(Header);
-        writer.WriteLine();
+        // A type pattern for a base type before one for a derived type makes the derived case unreachable
+        // (CS8120), so the switches test the deepest types first. OrderBy is stable: equal depths keep their order.
+        var propsInBothDirections = directions
+            .GroupBy(p => p.InType)
+            .OrderByDescending(g => g.First().InDepth)
+            .ToArray();
+
+        // The copy dispatch only targets the copy overloads that exist.
+        var copyDirections = directions
+            .Where(p => p.HasCopyOverload)
+            .GroupBy(p => p.InType)
+            .OrderByDescending(g => g.First().InDepth)
+            .ToArray();
+
         // Generated code must not depend on the consumer ImplicitUsings setting. Without
         // this, the emitted .Select(...) calls resolved only because a default SDK project
         // implicitly imports System.Linq; a project with ImplicitUsings disabled got CS1061.
@@ -504,39 +554,47 @@ public sealed class MapperEntrypointProducer : Producer
                         writer.WriteLine("return default;");
 
                     writer.WriteLine();
-                    writer.WriteLine("object? result;");
-                    using (writer.OpenBlock($"switch (source)"))
+                    if (propsInBothDirections.Length == 0)
                     {
-                        foreach (var mappedClassGrouping in propsInBothDirections)
+                        // A switch with only a throwing default made the return after it unreachable (CS0162).
+                        writer.WriteLine(NotSupported);
+                    }
+                    else
+                    {
+                        writer.WriteLine("object? result;");
+                        using (writer.OpenBlock($"switch (source)"))
                         {
-                            using (writer.OpenBlock($"case {mappedClassGrouping.Key} sourceValue:", false))
+                            foreach (var mappedClassGrouping in propsInBothDirections)
                             {
-                                using (writer.OpenBlock($"switch (typeof(TDest))"))
+                                using (writer.OpenBlock($"case {mappedClassGrouping.Key} sourceValue:", false))
                                 {
-                                    foreach (var mappedClass in mappedClassGrouping.GroupBy(mc => mc.OutType, StringComparer.Ordinal).Select(g => g.First()))
+                                    using (writer.OpenBlock($"switch (typeof(TDest))"))
                                     {
-                                        // mappedClass.OutType must be unique here !!!
-                                        using (writer.OpenBlock($"case global::System.Type destType when destType == typeof({mappedClass.OutType}):", false))
+                                        foreach (var mappedClass in mappedClassGrouping.GroupBy(mc => mc.OutType, StringComparer.Ordinal).Select(g => g.First()))
                                         {
-                                            writer.WriteLine($"result = global::{RootNamespace}.MapperExtensions.{mappedClass.Method}(sourceValue);");
-                                            writer.WriteLine("break;");
+                                            // mappedClass.OutType must be unique here !!!
+                                            using (writer.OpenBlock($"case global::System.Type destType when destType == typeof({mappedClass.OutType}):", false))
+                                            {
+                                                writer.WriteLine($"result = global::{RootNamespace}.MapperExtensions.{mappedClass.Method}(sourceValue);");
+                                                writer.WriteLine("break;");
+                                            }
                                         }
+
+                                        using (writer.OpenBlock("default:", false))
+                                            writer.WriteLine(NotSupported);
                                     }
 
-                                    using (writer.OpenBlock("default:", false))
-                                        writer.WriteLine("throw new global::System.NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
+                                    writer.WriteLine("break;");
                                 }
-
-                                writer.WriteLine("break;");
                             }
+
+                            using (writer.OpenBlock("default:", false))
+                                writer.WriteLine(NotSupported);
                         }
 
-                        using (writer.OpenBlock("default:", false))
-                            writer.WriteLine("throw new global::System.NotSupportedException($\"Conversion from {typeof(TSource)} to {typeof(TDest)} is not supported.\");");
+                        writer.WriteLine();
+                        writer.WriteLine("return (TDest?)result;");
                     }
-
-                    writer.WriteLine();
-                    writer.WriteLine("return (TDest?)result;");
                 }
 
                 writer.WriteLine("/// <inheritdoc/>");
@@ -545,14 +603,13 @@ public sealed class MapperEntrypointProducer : Producer
                     writer.WriteLine("if (source is null) return;");
                     using (writer.OpenBlock($"switch (source)"))
                     {
-                        /*** Nieuw */
-                        foreach (var mappedClassGrouping in propsInBothDirections)
+                        foreach (var mappedClassGrouping in copyDirections)
                         {
                             using (writer.OpenBlock($"case {mappedClassGrouping.Key} sourceValue:", false))
                             {
                                 using (writer.OpenBlock($"switch (destination)"))
                                 {
-                                    foreach (var mappedClass in mappedClassGrouping.GroupBy(mc => mc.OutType, StringComparer.Ordinal).Select(g => g.First()))
+                                    foreach (var mappedClass in mappedClassGrouping.GroupBy(mc => mc.OutType, StringComparer.Ordinal).Select(g => g.First()).OrderByDescending(mc => mc.OutDepth))
                                     {
                                         // mappedClass.OutType must be unique here !!!
                                         using (writer.OpenBlock($"case {mappedClass.OutType} dest:", false))
@@ -583,4 +640,4 @@ public enum EWriteType
 {
     Initializer,
     Assignment,
-}
+}
