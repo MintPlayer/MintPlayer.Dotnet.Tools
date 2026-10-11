@@ -1,5 +1,39 @@
 # PRD: Generators and analyzers survive every type kind (#193, #194 and the same bug classes elsewhere)
 
+## Status
+
+**Implemented (M0–M9), shipping as 12.2.0.** Every finding below is fixed except G12 (one hint name per type), which
+was rejected by design (see the G table). The CHANGELOG entry is in `SourceGenerators/CHANGELOG.md`; all 11 csproj
+under `SourceGenerators/` are at 12.2.0.
+
+Deviations from the design as written:
+- **MINT008.** The Warning-severity MINT002 ("only one of `Equals(object)`/`GetHashCode()` declared") became its own
+  id, MINT008, so one id has one severity. MINT002 is Info only. Suppressions of the warning must move to MINT008.
+- **Description skips `file` types without a diagnostic.** A summary on a file-local type has no partial to land in;
+  the generator emits nothing for it rather than reporting.
+- **Inject generates for value types.** S3 suggested rejecting structs; the five-kind requirement won. Value types
+  chain `: this()`; the README covers `default(S)`, `with` and record equality.
+- **EqualityProducer keeps its own preamble** (header after `#nullable`) instead of `Producer.WritePreamble`, so the
+  equality snapshots stay byte-identical.
+- **Release tracking.** Releases before 12.1.1 were never tracked, so each package's `AnalyzerReleases.Shipped.md`
+  records a 12.1.1 baseline of the rules actually in the published 12.1.1 nupkg. OPTIONS002 shipped there, so its
+  removal is a "Removed Rules" entry; MINTCLI001 (shipped since 10.1.0) moved to Shipped; Tools got tracking for
+  MPSG001/MPSG002.
+- Found in M8 and fixed: a nested property of a type mapped with an assembly-level prefix called `MapTo{Type}()`,
+  which no longer exists once the prefix is honoured (P19).
+
+Final test sweep (the E2E-category packaging tests ran as a separate invocation):
+
+| Project | Passed | Failed | Skipped |
+|---|---|---|---|
+| MintPlayer.SourceGenerators.Tests (excluding E2E) | 1012 | 0 | 0 |
+| MintPlayer.SourceGenerators.Tests, E2E (`PackagingTests`) | 17 | 0 | 0 |
+| MintPlayer.SourceGenerators.Tools.Tests | 290 | 0 | 0 |
+| MintPlayer.Assertions.SourceGenerator.Tests | 81 | 0 | 0 |
+| MintPlayer.ValueComparers.NewtonsoftJson.Tests | 15 | 0 | 0 |
+
+The six projects under `SourceGenerators/TestProjects` build.
+
 ## Overview
 
 This PRD covers two issues and two rounds of investigation:
