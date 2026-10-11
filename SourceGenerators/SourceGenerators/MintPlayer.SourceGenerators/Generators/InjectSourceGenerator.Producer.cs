@@ -52,22 +52,13 @@ internal class InjectProducer : Producer
 
         using (writer.OpenBlock(string.Empty))
         {
-            // [Inject] field assignments
-            foreach (var dep in classInfo.InjectFields)
+            // [Inject] and [Options] member assignments
+            foreach (var assignment in classInfo.Assignments)
             {
-                writer.WriteLine($"this.{dep.Name} = {dep.Name};");
+                writer.WriteLine($"this.{assignment.Member} = {assignment.Parameter};");
             }
 
-            // [Options] field assignments
-            foreach (var opt in classInfo.OptionsFields)
-            {
-                writer.WriteLine($"this.{opt.Name} = {opt.Name};");
-            }
-
-            // Determine the configuration variable name
-            var configVar = classInfo.HasExplicitIConfiguration
-                ? classInfo.ExplicitIConfigurationName!
-                : "__configuration";
+            var configVar = classInfo.ConfigurationParameterName ?? "__configuration";
 
             // [Config] field assignments
             foreach (var cfg in classInfo.ConfigFields)

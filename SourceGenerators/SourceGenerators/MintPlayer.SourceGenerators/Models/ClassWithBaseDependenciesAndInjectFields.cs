@@ -35,23 +35,30 @@ public partial class ClassWithBaseDependenciesAndInjectFields
     /// </summary>
     public IList<InjectField> Parameters { get; set; } = [];
 
-    /// <summary>The argument names passed to <c>base(...)</c>, in the base constructor's order. Empty: no base call.</summary>
+    /// <summary>
+    /// The parameter passed to each slot of the base constructor, in the base constructor's order, matched by type.
+    /// One parameter can fill several slots. Empty: no base call.
+    /// </summary>
     public IList<string> BaseConstructorArguments { get; set; } = [];
 
-    public IList<InjectField> InjectFields { get; set; } = [];
+    /// <summary>Each [Inject] and [Options] member with the parameter it is assigned from (several members can share one).</summary>
+    public IList<MemberAssignment> Assignments { get; set; } = [];
+
     public IList<ConfigField> ConfigFields { get; set; } = [];
     public IList<ConnectionStringField> ConnectionStringFields { get; set; } = [];
-    public IList<OptionsField> OptionsFields { get; set; } = [];
     public string? PostConstructMethodName { get; set; }
 
     /// <summary>
-    /// Whether the class has an explicit [Inject] IConfiguration field.
-    /// If true, the generator reuses that field; if false, it adds __configuration as a parameter.
+    /// The IConfiguration parameter [Config] and [ConnectionString] members read from: an explicit [Inject]
+    /// IConfiguration member's, a base's, or the auto-injected <c>__configuration</c>. Null without config members.
     /// </summary>
-    public bool HasExplicitIConfiguration { get; set; }
+    public string? ConfigurationParameterName { get; set; }
+}
 
-    /// <summary>
-    /// The name of the IConfiguration field/property if explicitly injected, otherwise null.
-    /// </summary>
-    public string? ExplicitIConfigurationName { get; set; }
+/// <summary><c>this.{Member} = {Parameter};</c> in the generated constructor.</summary>
+[GenerateEquality]
+public partial class MemberAssignment
+{
+    public string Member { get; set; } = string.Empty;
+    public string Parameter { get; set; } = string.Empty;
 }

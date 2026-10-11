@@ -150,7 +150,8 @@ public class InjectSourceGenerator : IncrementalGenerator
             return Result(null, diagnostics, members.HasMarkers);
         }
 
-        var (parameters, baseParameters) = ComputeParameters(type, members, depth: 0, ct);
+        var computed = ComputeParameters(type, members, depth: 0, ct);
+        var (parameters, baseParameters) = (computed.Parameters, computed.BaseParameters);
 
         var hasConfigWork = members.ConfigFields.Count > 0 || members.ConnectionStringFields.Count > 0;
         var hasDependencies = parameters.Count > 0 || hasConfigWork;
@@ -175,14 +176,15 @@ public class InjectSourceGenerator : IncrementalGenerator
             IsValueType = type.IsValueType,
             ConstructorAccessibility = GetConstructorAccessibility(type, parameters),
             Parameters = parameters.Select(p => new Models.InjectField { Type = p.Type, Name = p.Name, IsNullable = p.IsOptional }).ToList(),
-            BaseConstructorArguments = baseParameters.Select(p => p.Name).Distinct().ToList(),
-            InjectFields = members.InjectFields.Select(f => f.Field).ToList(),
+            BaseConstructorArguments = computed.BaseArguments,
+            Assignments = computed.Assignments,
             ConfigFields = members.ConfigFields,
             ConnectionStringFields = members.ConnectionStringFields,
-            OptionsFields = members.OptionsFields.Select(f => f.Field).ToList(),
             PostConstructMethodName = postConstructMethodName,
-            HasExplicitIConfiguration = members.ExplicitIConfigurationName is not null,
-            ExplicitIConfigurationName = members.ExplicitIConfigurationName,
+            // The IConfiguration parameter, whichever member or base it was merged from.
+            ConfigurationParameterName = hasConfigWork
+                ? parameters.FirstOrDefault(p => p.MatchType == IConfigurationType)?.Name
+                : null,
         };
 
         return new Discovered<Models.ClassWithBaseDependenciesAndInjectFields>(model, diagnostics.ToEquatableArray());
@@ -376,48 +378,108 @@ public class InjectSourceGenerator : IncrementalGenerator
     /// <summary>One constructor parameter during discovery. Never stored in a model: it holds a symbol.</summary>
     /// <param name="Type">As written in the constructor.</param>
     /// <param name="MatchType">As <see cref="SymbolExtensions.HasMatchingConstructor"/> compares it.</param>
-    /// <param name="Symbol">For the accessibility check; null for the auto-injected IConfiguration.</param>
-    private sealed class Parameter(string Type, string MatchType, string Name, bool IsOptional, ITypeSymbol? Symbol)
+    /// <param name="Stem">The member or parameter name a clash suffix is appended to (<c>dep</c> → <c>dep2</c>).</param>
+    /// <param name="Symbol">The service type; null for the auto-injected IConfiguration.</param>
+    private sealed class Parameter(string Type, string MatchType, string Stem, bool IsOptional, ITypeSymbol? Symbol)
     {
-        public string Type { get; } = Type;
+        public string Type { get; set; } = Type;
         public string MatchType { get; } = MatchType;
-        public string Name { get; } = Name;
-        public bool IsOptional { get; } = IsOptional;
+        public string Stem { get; } = Stem;
+        public string Name { get; set; } = Stem;
+        public bool IsOptional { get; set; } = IsOptional;
         public ITypeSymbol? Symbol { get; } = Symbol;
+        public bool IsAnnotated => Symbol?.NullableAnnotation == NullableAnnotation.Annotated;
+
+        /// <summary>
+        /// The same service: a dependency is identified by its type alone (#196), never by its name. Nullability is
+        /// ignored, so <c>IDep?</c> and <c>IDep</c> are one service; <c>int?</c> is <c>Nullable&lt;int&gt;</c>, another type.
+        /// </summary>
+        public bool IsSameService(Parameter other)
+            => Symbol is not null && other.Symbol is not null
+                ? SymbolEqualityComparer.Default.Equals(Symbol.WithNullableAnnotation(NullableAnnotation.None), other.Symbol.WithNullableAnnotation(NullableAnnotation.None))
+                // The auto-injected IConfiguration has no symbol at hand; its type name is unambiguous.
+                : MatchType == other.MatchType;
+    }
+
+    /// <summary>The constructor computed for a type: see <see cref="ComputeParameters"/>.</summary>
+    /// <param name="Parameters">In emitted order.</param>
+    /// <param name="BaseParameters">The base constructor's parameters, in its order (the base's own names).</param>
+    /// <param name="BaseArguments">For each base parameter, the name of the parameter passed to it.</param>
+    /// <param name="Assignments">Each [Inject] and [Options] member, with the parameter it is assigned from.</param>
+    private sealed class ComputedConstructor(
+        List<Parameter> Parameters,
+        List<Parameter> BaseParameters,
+        List<string> BaseArguments,
+        List<Models.MemberAssignment> Assignments)
+    {
+        public List<Parameter> Parameters { get; } = Parameters;
+        public List<Parameter> BaseParameters { get; } = BaseParameters;
+        public List<string> BaseArguments { get; } = BaseArguments;
+        public List<Models.MemberAssignment> Assignments { get; } = Assignments;
     }
 
     /// <summary>
-    /// The parameters of the constructor generated for <paramref name="type"/>, in emitted order, and the subset
-    /// passed on to the base constructor (in the base constructor's order).
+    /// The constructor generated for <paramref name="type"/>: one parameter per service type, wherever in the
+    /// hierarchy the service is needed, and the <c>base(...)</c> arguments mapped to the base signature by type.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// Parameters are collected in order (the auto-injected IConfiguration, the type's own [Inject] and [Options]
+    /// members, then the base constructor's parameters) and merged by type. A merged parameter is required when any
+    /// occurrence is, and keeps the name it first appeared with; a different service whose name is taken gets a
+    /// numeric suffix. Optional parameters go last (CS1737).
+    /// </para>
+    /// <para>
     /// A base class in source gets its own generated constructor, which the compilation cannot see yet. Its
     /// parameters are therefore computed with this same method, so the derived class's <c>base(...)</c> call
     /// matches what the base class's constructor will be.
+    /// </para>
     /// </remarks>
-    private static (List<Parameter> Parameters, List<Parameter> BaseParameters) ComputeParameters(INamedTypeSymbol type, Members members, int depth, CancellationToken ct)
+    private static ComputedConstructor ComputeParameters(INamedTypeSymbol type, Members members, int depth, CancellationToken ct)
     {
         var parameters = new List<Parameter>();
 
-        if (members.NeedsConfiguration)
-            parameters.Add(new Parameter(IConfigurationType, IConfigurationType, "__configuration", false, null));
+        Parameter Add(Parameter candidate)
+        {
+            if (parameters.FirstOrDefault(p => p.IsSameService(candidate)) is { } existing)
+            {
+                // Required wins: a non-null argument satisfies a nullable member as well.
+                existing.IsOptional &= candidate.IsOptional;
+                if (existing.IsAnnotated && !candidate.IsAnnotated)
+                    existing.Type = candidate.Type;
+                return existing;
+            }
 
+            var added = new Parameter(candidate.Type, candidate.MatchType, candidate.Stem, candidate.IsOptional, candidate.Symbol);
+            for (var suffix = 2; parameters.Any(p => p.Name == added.Name); suffix++)
+                added.Name = candidate.Stem + suffix;
+            parameters.Add(added);
+            return added;
+        }
+
+        if (members.NeedsConfiguration)
+            Add(new Parameter(IConfigurationType, IConfigurationType, "__configuration", false, null));
+
+        var assignments = new List<Models.MemberAssignment>();
         foreach (var (field, fieldType) in members.InjectFields)
-            parameters.Add(new Parameter(field.Type!, fieldType.ToDisplayString(MatchTypeFormat), field.Name!, field.IsNullable, fieldType));
+        {
+            var parameter = Add(new Parameter(field.Type!, fieldType.ToDisplayString(MatchTypeFormat), field.Name!, field.IsNullable, fieldType));
+            assignments.Add(new Models.MemberAssignment { Member = field.Name!, Parameter = parameter.Name });
+        }
 
         foreach (var (field, fieldType) in members.OptionsFields)
-            parameters.Add(new Parameter(field.Type, fieldType.ToDisplayString(MatchTypeFormat), field.Name, false, fieldType));
+        {
+            var parameter = Add(new Parameter(field.Type, fieldType.ToDisplayString(MatchTypeFormat), field.Name, false, fieldType));
+            assignments.Add(new Models.MemberAssignment { Member = field.Name, Parameter = parameter.Name });
+        }
 
         var baseParameters = GetBaseParameters(type.BaseType, depth + 1, ct);
-        foreach (var parameter in baseParameters)
-        {
-            if (!parameters.Any(p => p.Type == parameter.Type && p.Name == parameter.Name))
-                parameters.Add(parameter);
-        }
+        // Each base slot gets the parameter of its type, in the base constructor's order: never swapped.
+        var baseArguments = baseParameters.Select(p => Add(p).Name).ToList();
 
         // Optional parameters last (CS1737); otherwise the declaration order stays.
         var ordered = parameters.Where(p => !p.IsOptional).Concat(parameters.Where(p => p.IsOptional)).ToList();
-        return (ordered, baseParameters);
+        return new ComputedConstructor(ordered, baseParameters, baseArguments, assignments);
     }
 
     /// <summary>The parameters of the constructor <paramref name="baseType"/> is constructed through.</summary>
@@ -428,8 +490,13 @@ public class InjectSourceGenerator : IncrementalGenerator
             || baseType.TypeKind == TypeKind.Error)
             return [];
 
-        var inSource = baseType.DeclaringSyntaxReferences.Length > 0;
-        if (inSource)
+        // Only a base that passes the same gates as Discover gets a generated constructor. Any other base is called
+        // through the constructor it really has: a non-partial base with [Inject] members gets INJECT006, not a
+        // constructor, and calling the one it would have had breaks the derived class too.
+        var generatesConstructor = baseType.DeclaringSyntaxReferences.Length > 0
+            && GetUnsupportedReason(baseType, baseType.GetPathSpec(ct)) is null
+            && !HasParameterList(baseType, ct);
+        if (generatesConstructor)
         {
             // Every partial part counts, not just the first declaration (W4).
             var members = CollectMembers(baseType, diagnostics: null, Extensibility.Extensible, ct);
@@ -451,13 +518,14 @@ public class InjectSourceGenerator : IncrementalGenerator
                     p.Type.ToDisplayString(ParameterTypeFormat),
                     p.Type.ToDisplayString(MatchTypeFormat),
                     SymbolExtensions.EscapeIdentifier(p.Name),
-                    false,
+                    // Optional only when the default is null/default, which is what the forwarded "= default" passes.
+                    p.HasExplicitDefaultValue && p.ExplicitDefaultValue is null,
                     p.Type))
                 .ToList();
         }
 
         // A base in source without dependencies of its own gets a constructor forwarding its own base's.
-        return inSource ? GetBaseParameters(baseType.BaseType, depth + 1, ct) : [];
+        return generatesConstructor ? GetBaseParameters(baseType.BaseType, depth + 1, ct) : [];
     }
 
     /// <summary>
@@ -871,7 +939,9 @@ public class InjectSourceGenerator : IncrementalGenerator
         }
 
         // Check for DateTime types
-        var fullName = underlyingType.ToDisplayString();
+        // Without the annotation: the default format writes "System.Uri?" for a nullable reference type, which
+        // matched nothing below, so a [Config] Uri? was bound as a complex type.
+        var fullName = underlyingType.WithNullableAnnotation(NullableAnnotation.None).ToDisplayString();
         if (fullName == "System.DateTime" || fullName == "global::System.DateTime")
             return (ConfigFieldTypeCategory.DateTime, isNullable, false, false, false, null);
 
