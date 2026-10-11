@@ -13,3 +13,7 @@ INJECT003  | MintPlayer.SourceGenerators   | Error    | PostConstruct method can
 INJECT004  | MintPlayer.SourceGenerators   | Warning  | PostConstruct in class without [Inject] members
 REGISTER001| MintPlayer.SourceGenerators   | Error    | Assembly-level [Register] requires at least the implementation type
 REGISTER002| MintPlayer.SourceGenerators   | Error    | Class-level [Register] should not specify implementation type
+GENMETHOD001| MintPlayer.SourceGenerators   | Error    | [GenericMethod] requires a partial containing type
+GENMETHOD002| MintPlayer.SourceGenerators   | Error    | [GenericMethod] method must be private
+GENMETHOD003| MintPlayer.SourceGenerators   | Error    | [GenericMethod] method has an unsupported shape
+GENMETHOD004| MintPlayer.SourceGenerators   | Error    | [GenericMethod] Count out of range

@@ -144,38 +144,21 @@ public class XmlDocumentationTests
 }
 
 /// <summary>
-/// <c>GenericMethodSourceGenerator</c>, which fans a method out into N arity-specific overloads.
+/// <c>GenericMethodSourceGenerator</c>, which fans a method out into arity-specific overloads.
 /// </summary>
 /// <remarks>
-/// The fixtures declare <c>GenericMethodAttribute</c> themselves, in the namespace the generator
-/// looks it up by metadata name (<c>MintPlayer.SourceGenerators.Generators</c>). The attribute
-/// ships inside the generator assembly rather than the attributes package, so a test compilation
-/// has no other way to reference it — and the generator matches on the metadata name, so a
-/// locally-declared one reaches exactly the same path.
+/// The fixtures use the shipped <c>MintPlayer.SourceGenerators.Attributes.GenericMethodAttribute</c>, never a copy of
+/// their own: a copy once tested a positional <c>(int count)</c> constructor that the real attribute lacked (G0).
+/// <see cref="GenericMethodRobustnessTests"/> holds the five-kind and #194 matrices.
 /// </remarks>
 public class GenericMethodGenerationTests
 {
     private const string Generator = "GenericMethodSourceGenerator";
 
-    private const string AttributeDeclaration = """
-        namespace MintPlayer.SourceGenerators.Generators
-        {
-            [System.AttributeUsage(System.AttributeTargets.Method)]
-            public sealed class GenericMethodAttribute : System.Attribute
-            {
-                public GenericMethodAttribute(int count) { }
-                public uint Count { get; set; } = 1;
-                public System.Type? Transformer { get; set; }
-            }
-        }
-        """;
-
     private static GeneratorRun Run(string body) => GeneratorHarness.Run(Generator, [$$"""
-        {{AttributeDeclaration}}
-
         namespace Demo
         {
-            using MintPlayer.SourceGenerators.Generators;
+            using MintPlayer.SourceGenerators.Attributes;
 
         {{body}}
         }
@@ -188,12 +171,13 @@ public class GenericMethodGenerationTests
                 public partial class Builder
                 {
                     [GenericMethod(3)]
-                    private partial void Add<T>(T value);
+                    private void Add(object[] values) { }
                 }
             """);
 
-        run.GeneratedSources.Should().NotBeEmpty();
-        run.AllSources.Should().Contain("Add");
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        run.AllSources.Should().Contain("Add<T1, T2>(");
+        run.AllSources.Should().Contain("Add<T1, T2, T3>(");
     }
 
     [Fact]
@@ -203,23 +187,21 @@ public class GenericMethodGenerationTests
                 public partial class Builder
                 {
                     [GenericMethod(4)]
-                    private partial void Add<T>(T value);
+                    private void Add(object[] values) { }
                 }
             """);
 
-        run.GeneratedSources.Should().NotBeEmpty();
+        run.Errors.Should().BeEmpty(run.ErrorText);
 
-        // A four-way fan-out has to reach a fourth type parameter.
+        // A four-way fan-out has to reach a fourth type parameter, and stop there.
         run.AllSources.Should().Contain("T4");
+        run.AllSources.Should().NotContain("T5");
     }
 
     /// <summary>
     /// The shape the producer is built for: each overload forwards its arguments as a collection
     /// expression (<c>this.Add([t1, t2])</c>) to the decorated private method, so that method takes
-    /// a collection and the generator never implements it. The fixtures above, a generic
-    /// <c>private partial void Add&lt;T&gt;(T value)</c> with no body, are not valid input and do
-    /// not compile: C# requires a body for a partial method with an accessibility modifier, and
-    /// <c>[t1]</c> cannot infer <c>T</c>.
+    /// a collection and the generator never implements it.
     /// </summary>
     [Theory]
     [InlineData("private void Add(object[] values) { }")]
@@ -241,8 +223,7 @@ public class GenericMethodGenerationTests
     /// <summary>
     /// A decorated partial method, declared and implemented by the user. The overloads have other
     /// signatures, so they can never be its implementing half; copying <c>partial</c> onto them
-    /// made each one an implementation with no definition (CS0759), or, for the one-parameter
-    /// overload of a generic method, a second implementation with the wrong accessibility.
+    /// made each one an implementation with no definition (CS0759).
     /// </summary>
     [Fact]
     public void ItEmitsCompilableOverloadsForAPartialMethod()
@@ -267,31 +248,32 @@ public class GenericMethodGenerationTests
         var run = Run("""
                 public partial class Builder
                 {
-                    private partial void Add<T>(T value);
+                    private void Add(object[] values) { }
                 }
             """);
 
-        run.AllSources.Should().NotContain("T4");
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        run.GeneratedSources.Should().BeEmpty();
     }
 
     /// <summary>
-    /// The count is read off the attribute's first argument as an integer literal. A non-numeric
-    /// argument has to be skipped rather than crashing the generator, which would take the whole
-    /// consumer build down.
+    /// The named form. This test was called <c>ItSkipsANonNumericCount</c>, but <c>Count = 3</c> is numeric and was
+    /// never skipped: it generates overloads up to arity 3.
     /// </summary>
     [Fact]
-    public void ItSkipsANonNumericCount()
+    public void ItReadsANamedCount()
     {
         var run = Run("""
                 public partial class Builder
                 {
                     [GenericMethod(Count = 3)]
-                    private partial void Add<T>(T value);
+                    private void Add(object[] values) { }
                 }
             """);
 
-        run.Diagnostics.Where(d => d.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
-            .Should().BeEmpty();
+        run.Errors.Should().BeEmpty(run.ErrorText);
+        run.AllSources.Should().Contain("Add<T1, T2, T3>(");
+        run.AllSources.Should().NotContain("T4");
     }
 
     [Fact]

@@ -258,3 +258,54 @@ internal class CustomerService : ICustomerService {
 
 This also works when the interface resides in an abstractions-library and the class resides in an implementation-library. Which is why this analyzer is so powerful.
 
+## Generic Method Overloads
+
+`[GenericMethod]` turns a private method that takes one collection of `object` into public generic overloads, one per
+arity, each passing its arguments to the method as one collection expression and returning its result:
+
+```csharp
+using MintPlayer.SourceGenerators.Attributes;
+
+public partial class QueryBuilder
+{
+    [GenericMethod(3)]
+    private QueryBuilder Where(object[] values) { /* ... */ return this; }
+}
+
+// Generated:
+// public QueryBuilder Where<T1, T2>(T1 t1, T2 t2) { return this.Where([t1, t2]); }
+// public QueryBuilder Where<T1, T2, T3>(T1 t1, T2 t2, T3 t3) { return this.Where([t1, t2, t3]); }
+```
+
+- **Count** (constructor argument or `Count = n`) is the highest arity, from 2 to 16. The default is 4. Constants,
+  arithmetic and casts all work: `[GenericMethod(Count = MaxArity)]`.
+- **The method** must be `private` (or have no accessibility modifier), must not be generic, and must take exactly one
+  by-value parameter that a collection expression can build from `object` elements: `object[]`, `params object[]`,
+  `IEnumerable<object>`, `IReadOnlyList<object>`, `List<object>`, `ReadOnlySpan<object>`, `ImmutableArray<object>`, ...
+  It may be static, and may return anything (`void`, a value, `Task`, `ValueTask<T>`): the overloads return its result.
+- **The type** may be a class, record, struct, record struct or interface, generic or not, nested or not, with any
+  accessibility; it and every containing type must be `partial`. When a type parameter in scope is already called
+  `T1`, the overloads use `TArg1`, `TArg2`, ... instead.
+- **Nullable:** when the collection's elements are non-nullable `object`, each type parameter gets `where T1 : notnull`.
+  Declare the elements as `object?` to accept null arguments.
+
+There is no one-argument overload. `Where<T1>(T1 t1)` would also bind a call that passes a whole collection,
+`Where(list)`, and wrap the list in a one-element collection.
+
+### When to prefer `params` collections
+
+Since C# 13, `params` works on any collection type, `params ReadOnlySpan<object>` included, without an array
+allocation. If the method's callers need nothing more than "any number of arguments", a public
+`Where(params ReadOnlySpan<object> values)` is simpler and needs no generator. `[GenericMethod]` is worth it when the
+overloads have to be generic, for instance so that every argument keeps its static type at the call site (overload
+resolution and analyzers see `T1`, `T2`, ... rather than `object`), or when the project targets a language version
+before C# 13. Either way the arguments end up in one collection of `object`, so value types are boxed.
+
+### Generic Method Diagnostics
+
+| Rule ID | Severity | Description |
+|---------|----------|-------------|
+| GENMETHOD001 | Error | The type or a containing type is not partial (or is `file`-local) |
+| GENMETHOD002 | Error | The method is not private |
+| GENMETHOD003 | Error | The method's shape is unsupported: not exactly one parameter, not a collection of `object`, generic, `ref` |
+| GENMETHOD004 | Error | `Count` is outside 2..16 |
