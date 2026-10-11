@@ -104,14 +104,6 @@ public static partial class DiagnosticRules
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
-    public static readonly DiagnosticDescriptor OptionsBindingHint = new(
-        id: "OPTIONS002",
-        title: "Options binding hint",
-        messageFormat: "Consider registering options binding: services.Configure<{0}>(configuration.GetSection(\"{1}\"))",
-        category: ConfigCategory,
-        defaultSeverity: DiagnosticSeverity.Info,
-        isEnabledByDefault: false);
-
     public static readonly DiagnosticDescriptor OptionsConflictWithInject = new(
         id: "OPTIONS003",
         title: "Conflicting with Inject",

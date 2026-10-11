@@ -1,131 +1,54 @@
-﻿using Microsoft.CodeAnalysis;
-using MintPlayer.SourceGenerators.Models;
+﻿using MintPlayer.SourceGenerators.Models;
 using MintPlayer.SourceGenerators.Tools;
 using System.CodeDom.Compiler;
 
 namespace MintPlayer.SourceGenerators.Generators;
 
-internal class InjectProducer : Producer, IConditionalDiagnosticReporter
+internal class InjectProducer : Producer
 {
     private readonly IEnumerable<Models.ClassWithBaseDependenciesAndInjectFields> classInfos;
     public InjectProducer(IEnumerable<Models.ClassWithBaseDependenciesAndInjectFields> classInfos, string rootNamespace) : base(rootNamespace, $"Inject.g.cs")
     {
         this.classInfos = classInfos;
     }
-    public InjectProducer(IEnumerable<Models.ClassWithBaseDependenciesAndInjectFields> classInfos, string rootNamespace, string filename) : base(rootNamespace, filename)
-    {
-        this.classInfos = classInfos;
-    }
 
-    public bool HasDiagnostics => classInfos.Any(ci => ci.Diagnostics.Count > 0 || ci.ConfigDiagnostics.Count > 0);
-
-    public IEnumerable<Diagnostic> GetDiagnostics(Compilation compilation)
-    {
-        var postConstructDiagnostics = classInfos
-            .SelectMany(ci => ci.Diagnostics)
-            .Select(d => d.Rule.Create(d.Location?.ToLocation(compilation), d.MessageArgs));
-
-        var configDiagnostics = classInfos
-            .SelectMany(ci => ci.ConfigDiagnostics)
-            .Select(d => d.Rule.Create(d.Location?.ToLocation(compilation), d.MessageArgs));
-
-        return postConstructDiagnostics.Concat(configDiagnostics);
-    }
+    protected override bool WritePreamble => true;
 
     protected override void ProduceSource(IndentedTextWriter writer, CancellationToken cancellationToken)
     {
-        foreach (var classInfoNamespace in classInfos.GroupBy(ci => ci.PathSpec?.ContainingNamespace ?? ci.ClassNamespace ?? RootNamespace))
+        foreach (var classInfoNamespace in classInfos.GroupBy(ci => ci.PathSpec?.ContainingNamespace ?? string.Empty))
         {
-            IDisposableWriterIndent? namespaceBlock = string.IsNullOrEmpty(classInfoNamespace.Key) ? null : writer.OpenBlock($"namespace {classInfoNamespace.Key}");
-
-            foreach (var classInfo in classInfoNamespace)
+            using (writer.OpenNamespace(classInfoNamespace.Key))
             {
-                // Determine if we need IConfiguration (for [Config] or [ConnectionString] fields)
-                var needsIConfiguration = (classInfo.ConfigFields.Count > 0 || classInfo.ConnectionStringFields.Count > 0)
-                                          && !classInfo.HasExplicitIConfiguration;
-
-                // Build constructor parameters
-                var constructorParams = new List<string>();
-
-                // Add auto-injected IConfiguration if needed
-                if (needsIConfiguration)
+                foreach (var classInfo in classInfoNamespace)
                 {
-                    constructorParams.Add("global::Microsoft.Extensions.Configuration.IConfiguration __configuration");
-                }
-
-                // Add [Inject] fields
-                foreach (var dep in classInfo.InjectFields)
-                {
-                    constructorParams.Add(dep.IsNullable
-                        ? $"{dep.Type} {dep.Name} = null"
-                        : $"{dep.Type} {dep.Name}");
-                }
-
-                // Add [Options] fields (injected as constructor params)
-                foreach (var opt in classInfo.OptionsFields)
-                {
-                    constructorParams.Add($"{opt.Type} {opt.Name}");
-                }
-
-                // Add base dependencies
-                foreach (var dep in classInfo.BaseDependencies)
-                {
-                    var paramStr = $"{dep.Type} {dep.Name}";
-                    if (!constructorParams.Contains(paramStr))
-                        constructorParams.Add(paramStr);
-                }
-
-                // Skip if no constructor params at all
-                var hasConfigWork = classInfo.ConfigFields.Count > 0 || classInfo.ConnectionStringFields.Count > 0;
-                if (!constructorParams.Any() && !hasConfigWork) continue;
-
-                var baseConstructorArgs = classInfo.BaseDependencies.Select(dep => dep.Name).Distinct().ToList();
-
-                using (writer.OpenPathSpec(classInfo.PathSpec))
-                {
-                    // Build class declaration with generic type parameters
-                    var classDeclaration = $"partial class {classInfo.ClassName}{classInfo.GenericTypeParameters ?? string.Empty}";
-
-                    // Handle generic constraints if present
-                    if (!string.IsNullOrEmpty(classInfo.GenericConstraints))
+                    // The path spec re-declares every containing type and the type itself, with the keyword the
+                    // user wrote (class, record, struct, record struct), so every kind gets its constructor.
+                    using (writer.OpenPathSpec(classInfo.PathSpec, includeTarget: true))
                     {
-                        writer.WriteLine(classDeclaration);
-                        writer.IndentSingleLine(classInfo.GenericConstraints);
-                        using (writer.OpenBlock(string.Empty))
-                        {
-                            WriteConstructorBody(writer, classInfo, constructorParams, baseConstructorArgs, needsIConfiguration);
-                        }
-                    }
-                    else
-                    {
-                        using (writer.OpenBlock(classDeclaration))
-                        {
-                            WriteConstructorBody(writer, classInfo, constructorParams, baseConstructorArgs, needsIConfiguration);
-                        }
+                        WriteConstructor(writer, classInfo);
                     }
                 }
             }
-
-            namespaceBlock?.Dispose();
         }
     }
 
-    private static void WriteConstructorBody(
-        IndentedTextWriter writer,
-        Models.ClassWithBaseDependenciesAndInjectFields classInfo,
-        List<string> constructorParams,
-        List<string> baseConstructorArgs,
-        bool needsIConfiguration)
+    private static void WriteConstructor(IndentedTextWriter writer, Models.ClassWithBaseDependenciesAndInjectFields classInfo)
     {
-        // A cref to a generic type needs its type parameters in braces (Foo{T}); the syntax-derived parameter list can
-        // carry attributes, so a generic type is named in <c> instead of risking an unresolvable cref (CS1574).
-        var typeReference = string.IsNullOrEmpty(classInfo.GenericTypeParameters)
-            ? $"<see cref=\"{classInfo.ClassName}\"/>"
-            : $"<c>{classInfo.ClassName}</c>";
+        // A cref to a generic type needs its type parameters in braces (Foo{T}), so a generic type is named in <c>
+        // instead of risking an unresolvable cref (CS1574).
+        var typeReference = classInfo.IsGeneric
+            ? $"<c>{classInfo.ClassName}</c>"
+            : $"<see cref=\"{classInfo.ClassName}\"/>";
+        var parameters = classInfo.Parameters.Select(p => p.IsNullable ? $"{p.Type} {p.Name} = default" : $"{p.Type} {p.Name}");
+
         writer.WriteLine($"/// <summary>Initializes a new instance of {typeReference} with its injected dependencies.</summary>");
-        writer.WriteLine($"public {classInfo.ClassName}({string.Join(", ", constructorParams)})");
-        if (baseConstructorArgs.Any())
-            writer.IndentSingleLine($": base({string.Join(", ", baseConstructorArgs)})");
+        writer.WriteLine($"{classInfo.ConstructorAccessibility} {classInfo.ClassName}({string.Join(", ", parameters)})");
+        if (classInfo.BaseConstructorArguments.Any())
+            writer.IndentSingleLine($": base({string.Join(", ", classInfo.BaseConstructorArguments)})");
+        else if (classInfo.IsValueType)
+            // Every field of a struct must be assigned before the constructor returns (CS0171 before C# 11).
+            writer.IndentSingleLine(": this()");
 
         using (writer.OpenBlock(string.Empty))
         {

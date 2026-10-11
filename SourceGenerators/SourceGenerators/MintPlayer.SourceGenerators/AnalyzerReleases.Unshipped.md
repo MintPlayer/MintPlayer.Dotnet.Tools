@@ -17,3 +17,6 @@ GENMETHOD001| MintPlayer.SourceGenerators   | Error    | [GenericMethod] require
 GENMETHOD002| MintPlayer.SourceGenerators   | Error    | [GenericMethod] method must be private
 GENMETHOD003| MintPlayer.SourceGenerators   | Error    | [GenericMethod] method has an unsupported shape
 GENMETHOD004| MintPlayer.SourceGenerators   | Error    | [GenericMethod] Count out of range
+INJECT005  | MintPlayer.SourceGenerators   | Error    | PostConstruct method must return void
+INJECT006  | MintPlayer.SourceGenerators   | Error    | Type must be partial to receive a generated constructor
+INJECT007  | MintPlayer.SourceGenerators   | Error    | Type with a parameter list cannot receive a generated constructor

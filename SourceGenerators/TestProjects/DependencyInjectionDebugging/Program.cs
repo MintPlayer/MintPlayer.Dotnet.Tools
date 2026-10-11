@@ -19,9 +19,10 @@ public static class Program
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(configuration);
 
-        // Register options
-        services.Configure<EmailSettings>(configuration.GetSection("Email:Settings"));
-        services.Configure<CustomerConfig>(configuration.GetSection("Customer"));
+        // Register options. The generator never binds them: the section in [Options("...")] is documentation,
+        // and it is this registration that decides which section an options type is bound to.
+        services.AddOptions<EmailSettings>().BindConfiguration("Email:Settings");
+        services.AddOptions<CustomerConfig>().BindConfiguration("Customer");
 
         // Register our config-based services
         services.AddTransient<SimpleConfigService>();
@@ -298,7 +299,8 @@ public partial class EmailService
 // C5: Options pattern
 public partial class OptionsService
 {
-    [Options("Email")]
+    // Names the section EmailSettings is registered with in Main.
+    [Options("Email:Settings")]
     private readonly IOptions<EmailSettings> emailOptions;
 
     [Options("Customer")]

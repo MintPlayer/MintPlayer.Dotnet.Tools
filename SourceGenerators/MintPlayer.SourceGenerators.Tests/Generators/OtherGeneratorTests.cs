@@ -73,14 +73,13 @@ public class InjectSourceGeneratorTests
     }
 
     /// <summary>
-    /// Characterization, and a defect recorded in docs/PRD-TestCoverage.md rather than fixed:
-    /// the generator emits a partial declaration for a class that is not declared partial, so
-    /// the consumer gets CS0260 ("Missing partial modifier") pointing at their own class with
-    /// no explanation. A diagnostic naming the [Inject] field would be far better, but adding
-    /// one is a feature decision about the generator contract, not a coverage change.
+    /// This used to pin a defect: the generator emitted a partial declaration for a class that is
+    /// not declared partial, so the consumer got CS0260 ("Missing partial modifier") pointing at
+    /// their own class with no explanation. Since P7 (docs/PRD-TypeKindRobustness.md) the
+    /// generator emits nothing for it and reports INJECT006 instead.
     /// </summary>
     [Fact]
-    public void ANonPartialClass_EmitsAPartialAnywayAndBreaksTheConsumerBuild()
+    public void ANonPartialClass_IsReportedInsteadOfBreakingTheConsumerBuild()
     {
         var run = Run("""
             using MintPlayer.SourceGenerators.Attributes;
@@ -95,7 +94,8 @@ public class InjectSourceGeneratorTests
             }
             """);
 
-        run.Errors.Should().Contain(d => d.Id == "CS0260");
+        run.Errors.Should().NotContain(d => d.Id == "CS0260");
+        run.Of("INJECT006").Should().ContainSingle();
     }
 
     [Fact]
