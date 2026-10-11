@@ -3,6 +3,55 @@
 This changelog covers every package under `SourceGenerators/`. They are versioned in lockstep, so one entry applies
 to all of them.
 
+## 13.0.0
+
+Fixes [#196](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/196). Design and decisions:
+[`docs/PRD-InjectSourceGenerator-BaseMergeDedup.md`](../docs/PRD-InjectSourceGenerator-BaseMergeDedup.md).
+
+The `[Inject]` constructor now has **one parameter per service type**. A dependency is identified by its type
+(compared as a symbol, nullability ignored), never by its member name, both within a class and across the base chain.
+The `base(...)` call maps each slot of the base constructor's signature to the parameter of that slot's type, so a
+base that declares its dependencies in another order never gets them swapped.
+
+A major release, because a generated constructor signature can change for code that compiled on 12.2.0. Read
+**Breaking changes** before upgrading.
+
+### Breaking changes
+
+- **Members of the same type share one parameter.** Two `[Inject]` members of one type, in one class or in a base and
+  a derived class (`IDep dep` in the base, `IDep dep2` in the derived), used to get a parameter each; they now get one.
+  A hand-written `new X(a, b)` or `: base(a, b)` against such a constructor has an argument too many: drop it.
+- **Members of the same type share one instance.** Following from the above: with a **transient** registration, the
+  members used to receive separate instances and now receive the same one. If a member needs its own instance,
+  inject a factory (`Func<T>`, `IServiceProvider`) instead.
+- **A name clash between different types renames the later parameter.** `IDep dep` in the base and `IOther dep` in the
+  derived class used to be CS0100; the base's parameter is now called `dep2` (the smallest free numeric suffix). Only a
+  caller that uses named arguments notices.
+
+### Fixed
+
+- **CS0100 when a base and a derived class inject the same service with different nullability** (#196):
+  `IHttpContextAccessor? httpContextAccessor` in the base and `IHttpContextAccessor httpContextAccessor` in the derived
+  class gave `(IHttpContextAccessor httpContextAccessor, IHttpContextAccessor? httpContextAccessor = default)`. They
+  are one parameter now, required because one side requires it.
+- **A base that gets no generated constructor was called as if it had one.** A base with `[Inject]` members that is
+  not `partial` (INJECT006) or has a primary constructor (INJECT007) gets no constructor, yet the derived class called
+  `base(...)` with the arguments that constructor would have taken: a second, misleading error. The derived class now
+  calls the base's real constructor.
+- **A compiled base's optional parameter became required.** A base constructor from a referenced assembly with a
+  parameter defaulting to `null`/`default` was forwarded as a required parameter, so the container had to resolve
+  it. It stays optional (`= default`).
+- **`[Config] Uri?` was bound as a complex type** (`GetSection(...).Get<Uri>()`) instead of `new Uri(...)`, because the
+  nullable annotation was part of the type name being compared.
+
+### Note on 12.2.0
+
+12.2.0 changed the order of the generated constructor's parameters: an auto-injected `IConfiguration` first, then the
+members in declaration order, then the base's parameters, optional parameters last. A positional `: base(...)` or
+`new X(...)` written against 12.1.x can need reordering (in MintPlayer.Spark, `SparkSubscriptionWorker<T>` went from
+`(ILoggerFactory, IDocumentStore)` to `(IDocumentStore, ILoggerFactory)`). With one parameter per type, a call with
+its arguments in the wrong order no longer compiles silently: the types do not match.
+
 ## 12.2.0
 
 Fixes [#193](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/193) and
