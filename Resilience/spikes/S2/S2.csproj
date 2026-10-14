@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Spike S2 (issue #189): throwaway. Deleted before the PR is finalized. Not in the .sln. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <LangVersion>15</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <Optimize>true</Optimize>
+    <TieredPGO>true</TieredPGO>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\S1\Primitives.cs" Link="S1\Primitives.cs" />
+    <Compile Include="..\S1\Flat.cs" Link="S1\Flat.cs" />
+  </ItemGroup>
+
+</Project>

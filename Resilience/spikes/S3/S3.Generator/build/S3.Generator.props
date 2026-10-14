@@ -1,0 +1,6 @@
+<Project>
+  <!-- Package-style build/<PackageId>.props: evaluated BEFORE the consuming project's body. -->
+  <PropertyGroup>
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Spike.S3.Generated</InterceptorsNamespaces>
+  </PropertyGroup>
+</Project>
