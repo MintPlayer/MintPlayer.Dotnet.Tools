@@ -9,7 +9,7 @@
 		<OutputType>Library</OutputType>
 
 		<IsPackable>true</IsPackable>
-		<Version>1.0.0</Version>
+		<Version>0.0.0-PLACEHOLDER</Version>
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>Generic MSBuild token replacement. Declare TokenReplaceFile/TokenReplaceValue items to replace $token$ placeholders in content files at build time, including resolved NuGet package versions. Ships buildTransitive targets so package authors can stamp their own package version into shipped assets.</Description>
