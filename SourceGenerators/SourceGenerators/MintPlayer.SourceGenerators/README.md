@@ -358,6 +358,56 @@ internal class CustomerService : ICustomerService {
 
 This also works when the interface resides in an abstractions-library and the class resides in an implementation-library. Which is why this analyzer is so powerful.
 
+When a public property belongs to a class that uses `[ImplementInterface]`, INTF001 also offers **Move to interface**: the property is added to the interface and removed from the class, and the generator implements it from then on.
+
+## Implementing interfaces with `[ImplementInterface]`
+
+Interfaces that are mostly read/write properties (a database context exposing its collections, a settings bag) can be implemented by the generator. Mark the type `partial`:
+
+```csharp
+public interface ICustomerManagement { IRavenQueryable<Customer> Customers { get; set; } }
+public interface IWarehouseManagement { IRavenQueryable<Part> Parts { get; set; } }
+
+[ImplementInterface(typeof(ICustomerManagement), typeof(IWarehouseManagement))]
+public partial class CarDealerContext { }
+```
+
+generates
+
+```csharp
+partial class CarDealerContext : ICustomerManagement, IWarehouseManagement
+{
+    public IRavenQueryable<Customer> Customers { get; set; } = default!;
+    public IRavenQueryable<Part> Parts { get; set; } = default!;
+}
+```
+
+- **Inherited interfaces** are implemented too, each member once, however often it is reached.
+- **Members you write yourself win**, in any partial part or a base class. So do interfaces already in the base list.
+- **`init` is mirrored** (a `set` cannot implement an `init`), and **static abstract** read/write properties become static auto-properties.
+- **Non-nullable reference types get `= default!`**, so the type compiles without CS8618. Set `InitializeNonNullable = false` to initialise them yourself. Structs never get an initializer.
+- **`Explicit = true`** implements that attribute's interfaces explicitly. Use several attributes to mix the two forms. When two interfaces declare the same property name with different types, the first listed keeps the public property and the other is implemented explicitly. A property whose type is less accessible than the class is implemented explicitly as well.
+- **The generic form** `[ImplementInterface<IFoo>]` works the same way. Attributes on different partial parts are merged.
+- **Abstract classes** get `public abstract` declarations for everything else: methods (including generic ones, with their constraints), get-only and set-only properties, indexers and events. Read/write properties stay concrete.
+
+On a concrete type, only read/write properties are generated. Implement anything else by hand. The generator reports an error until you do, and it still emits what it can, so the rest of your code keeps compiling.
+
+### Diagnostics and code fixes
+
+| Id | Severity | Meaning | Code fix |
+|---|---|---|---|
+| IMPLINTF001 | Error | The type, or a type containing it, is not `partial` | Make partial |
+| IMPLINTF002 | Error | The argument is not an interface, or is an open generic | |
+| IMPLINTF003 | Error | A method, event, indexer or static member the generator cannot implement | |
+| IMPLINTF004 | Error | A get-only, set-only, ref-returning or accessor-restricted property on a concrete type | |
+| IMPLINTF005 | Error | Two interfaces declare members the generator cannot both implement | |
+| IMPLINTF006 | Error | The target is an interface, a static class, or file-local | |
+| IMPLINTF007 | Warning | The same interface is listed twice | |
+| IMPLINTF008 | Info | A hand-written property is exactly what the generator would emit | Remove it |
+| IMPLINTF009 | Error | A hand-written member has the interface member's name but does not implement it | Delete it |
+
+For a class that lists an interface but does not implement it (CS0535), a code fix offers **Implement with [ImplementInterface]** when the attribute would help.
+
 ## Generic Method Overloads
 
 `[GenericMethod]` turns a private method that takes one collection of `object` into public generic overloads, one per

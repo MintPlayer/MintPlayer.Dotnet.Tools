@@ -162,14 +162,16 @@ public sealed class ImplementInterfaceAttribute<TInterface> : Attribute
   generated source as nullable-disabled whatever `<Nullable>` the project sets. Types are written fully
   qualified (`global::`) with their annotations. Properties whose interface type is nullable-*oblivious*
   (from an assembly or project with nullable disabled) are emitted inside
-  `#nullable disable annotations` / `#nullable restore`, so the generated property never claims more
-  than the interface does.
+  `#nullable disable annotations` / `#nullable enable annotations`, so the generated property never
+  claims more than the interface does. (`restore` would return to the generated file's default, which is
+  disabled, not to the `#nullable enable` at its top.)
 - **Initializer.** If `InitializeNonNullable` is true (the default), a non-nullable reference-type
   property gets `= default!;`. Value types, nullable types, and oblivious types get no initializer.
-  On struct targets the initializer form depends on spike S1 (CS8983).
+  Instance properties on struct targets never get one: a struct with an instance initializer and no
+  constructor is CS8983, and structs raise no CS8618 anyway (S1). Static struct properties do get one.
 - Never emit `required`. It breaks every existing `new X()`.
 - If the property type is less accessible than the target (CS0053), use an explicit implementation.
-  Spike S5 confirms this.
+  S5 confirmed that this compiles.
 
 ### R4 — Targets
 
@@ -291,6 +293,44 @@ here, and it does not ship.
 | **S4 — Error UX** | With an unsupported member, is "emit anyway, plus IMPLINTF003" better than "skip the base list"? Compare the error lists from the IDE and `dotnet build` | R5 |
 | **S5 — Accessibility** | Public target, internal interface, internal property type: CS0053 vs CS0050. Does the explicit fallback compile? | R3 |
 | **S6 — Code fix for a compiler id** | Does a `CodeFixProvider` with `CS0535` in `FixableDiagnosticIds`, shipped from `analyzers/`, get offered in VS and Rider? | R7 |
+
+### Spike outcomes (2026-10-26)
+
+- **S1** (compiled in a scratch project):
+  - `set` cannot implement `init` (CS8854).
+  - `= default!` is fine with primary constructors on classes, records and record structs.
+  - A struct with an instance auto-property initializer and no constructor is CS8983, so structs get no instance
+    initializer. Structs raise no CS8618, so nothing is lost.
+  - An abstract implementation of a generic interface method must repeat its constraints (CS0425), so they are
+    emitted.
+  - Abstract events, indexers, get-only, set-only and ref-returning properties compile.
+  - An explicit implementation cannot be abstract (CS0106/CS0071), so `Explicit = true` on an abstract class reports
+    IMPLINTF003/004 for non-read/write members.
+  - `#nullable disable annotations` raises no warnings.
+- **S2** (reasoned, then covered by tests): `FindImplementationForInterfaceMember` returns null for an interface that
+  is not yet in the base list, and the attribute's interfaces are not, until the generator adds them. So the generator
+  does its own lookup: the type and its base types are searched for a public member with the same name, signature and
+  type, and hand-written explicit implementations count too. A same-named member that does not match is IMPLINTF009.
+  Members from other generators' output stay invisible, as documented.
+- **S3**: `ForAttribute` fires once per attributed partial part, and separately for each attribute form. Only the call
+  that owns the type's first attribute (in `GetAttributes()` order) builds the model and reports diagnostics; the
+  others return nothing. The merge therefore happens in `Discover`, and the cached model is one per type.
+- **S4**: emit anyway. The base list and every supported member are generated beside the IMPLINTF003/004/005 error,
+  so code that uses the interfaces keeps compiling, and the build still fails on the one real error.
+- **S5**: a public class implementing an internal property type publicly is CS0053, and the explicit implementation
+  compiles. The fallback is implemented and tested.
+- **S6**: the provider is registered for CS0535 and tested by invoking it directly against a compiler diagnostic. It
+  has not been checked by hand in VS and Rider.
+
+### Implementation notes
+
+- The pipeline model holds pre-rendered member declarations (strings) and the base list, not a member tree. Every
+  decision (collision fallback, initializer, abstract shape) is made in `Discover`, so the cached value is plain text
+  and compares cheaply.
+- IMPLINTF009's message names the mismatch: "'{member}' does not implement '{interface member}': it is {what}. Fix
+  it, or delete '{member}' and let [ImplementInterface] implement it."
+- A hand-written property that implements the first interface's same-named property forces the explicit fallback for
+  the second interface, instead of reporting IMPLINTF009.
 
 ## Milestones
 

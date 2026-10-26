@@ -93,6 +93,70 @@ public class InterfaceCodeFixProvider : CodeFixProvider
                     equivalenceKey: $"AddMissingMember:{target.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}"),
                 diagnostic);
         }
+
+        // A bare auto-property on a type that implements the interface through [ImplementInterface] can MOVE instead:
+        // once declared on the interface the generator produces it, and the hand-written copy would only be redundant
+        // (IMPLINTF008). Offered for the interfaces the attribute implements publicly, with the same strict rule.
+        if (member is IPropertySymbol { IsStatic: false, IsIndexer: false, DeclaringSyntaxReferences.Length: 1 } property
+            && await property.DeclaringSyntaxReferences[0].GetSyntaxAsync(context.CancellationToken).ConfigureAwait(false) is PropertyDeclarationSyntax propertySyntax
+            && ImplementInterfaceSupport.IsBareAutoProperty(propertySyntax))
+        {
+            foreach (var (iface, _) in ImplementInterfaceSupport.RequestedInterfaces(typeSymbol).Where(r => !r.Explicit))
+            {
+                if (!iface.Locations.Any(l => l.IsInSource)) continue;
+                var target = iface;
+                context.RegisterCodeFix(
+                    CodeAction.Create(
+                        title: $"Move '{memberName}' to {target.Name}; [ImplementInterface] generates it",
+                        createChangedSolution: ct => MoveMemberToInterface(context.Document, typeDecl, target, memberName!, signature, ct),
+                        equivalenceKey: $"MoveMemberToInterface:{target.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}"),
+                    diagnostic);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Declares the property on the interface and deletes it from the class, in one solution edit. The class and the
+    /// interface may share a document, so the nodes are tracked across the first edit.
+    /// </summary>
+    private static async Task<Solution> MoveMemberToInterface(
+        Document classDocument,
+        TypeDeclarationSyntax typeDeclaration,
+        INamedTypeSymbol interfaceSymbol,
+        string memberName,
+        string? signature,
+        CancellationToken cancellationToken)
+    {
+        var solution = classDocument.Project.Solution;
+        var semanticModel = await classDocument.GetSemanticModelAsync(cancellationToken).ConfigureAwait(false);
+        if (semanticModel?.GetDeclaredSymbol(typeDeclaration, cancellationToken) is not { } typeSymbol) return solution;
+        if (FindMember(typeSymbol, semanticModel.Compilation, memberName, signature) is not { } member) return solution;
+        if (CreateInterfaceMember(member) is not { } declaration) return solution;
+
+        var memberReference = member.DeclaringSyntaxReferences[0];
+        var interfaceReference = interfaceSymbol.DeclaringSyntaxReferences
+            .FirstOrDefault(r => solution.GetDocumentId(r.SyntaxTree) is not null && r.GetSyntax(cancellationToken) is InterfaceDeclarationSyntax);
+        if (interfaceReference is null) return solution;
+        if (solution.GetDocumentId(memberReference.SyntaxTree) is not { } memberDocumentId) return solution;
+        var interfaceDocumentId = solution.GetDocumentId(interfaceReference.SyntaxTree)!;
+
+        var memberNode = await memberReference.GetSyntaxAsync(cancellationToken).ConfigureAwait(false);
+        var interfaceNode = (InterfaceDeclarationSyntax)await interfaceReference.GetSyntaxAsync(cancellationToken).ConfigureAwait(false);
+
+        if (memberDocumentId == interfaceDocumentId)
+        {
+            var root = (await memberReference.SyntaxTree.GetRootAsync(cancellationToken).ConfigureAwait(false)).TrackNodes(memberNode, interfaceNode);
+            root = root.RemoveNode(root.GetCurrentNode(memberNode)!, SyntaxRemoveOptions.KeepNoTrivia)!;
+            var currentInterface = root.GetCurrentNode(interfaceNode)!;
+            root = root.ReplaceNode(currentInterface, currentInterface.AddMembers(declaration));
+            return solution.WithDocumentSyntaxRoot(memberDocumentId, root);
+        }
+
+        var memberRoot = await memberReference.SyntaxTree.GetRootAsync(cancellationToken).ConfigureAwait(false);
+        var interfaceRoot = await interfaceReference.SyntaxTree.GetRootAsync(cancellationToken).ConfigureAwait(false);
+        return solution
+            .WithDocumentSyntaxRoot(memberDocumentId, memberRoot.RemoveNode(memberNode, SyntaxRemoveOptions.KeepNoTrivia)!)
+            .WithDocumentSyntaxRoot(interfaceDocumentId, interfaceRoot.ReplaceNode(interfaceNode, interfaceNode.AddMembers(declaration)));
     }
 
     private static INamedTypeSymbol? IgnoreAttributeSymbol(Compilation compilation)

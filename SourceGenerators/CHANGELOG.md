@@ -3,6 +3,26 @@
 This changelog covers every package under `SourceGenerators/`. They are versioned in lockstep, so one entry applies
 to all of them.
 
+## 13.1.0
+
+Design and decisions: [`docs/PRD-ImplementInterfaceAttribute.md`](../docs/PRD-ImplementInterfaceAttribute.md).
+
+### Added
+
+- **`[ImplementInterface(typeof(IA), typeof(IB), ...)]`** and **`[ImplementInterface<IA>]`** on a `partial` class,
+  struct or record. They add the interfaces to the base list and generate their read/write properties, including
+  inherited interfaces. Members written by hand, or inherited from a base class, win.
+  - `init` accessors and static abstract read/write properties are mirrored.
+  - Non-nullable reference types get `= default!`. `InitializeNonNullable = false` turns that off.
+  - `Explicit = true` implements the interfaces explicitly. A name clash between interfaces, or a property type less
+    accessible than the class, falls back to an explicit implementation.
+  - An abstract class gets `public abstract` declarations for methods, events, indexers, and get-only or set-only
+    properties.
+- Diagnostics IMPLINTF001–009, with code fixes for 001 (make partial), 008 (remove a redundant property) and 009
+  (delete a mismatched member).
+- **CS0535**: a code fix that implements the interface with `[ImplementInterface]`.
+- **INTF001**: a "Move to interface" action, for a property on a class that uses `[ImplementInterface]`.
+
 ## 13.0.0
 
 Fixes [#196](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/issues/196). Design and decisions:

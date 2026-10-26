@@ -206,6 +206,23 @@ public class IncrementalOutputCachingTests
             }
             """),
 
+        new("ImplementInterfaceSourceGenerator", SourceGenerators, """
+            namespace Demo
+            {
+                using MintPlayer.SourceGenerators.Attributes;
+
+                __LEAD__
+
+                public interface IThing { string Name { get; set; } }
+
+                [ImplementInterface(typeof(IThing))]
+                public partial class Thing
+                {
+                    public int Touch() => __BODY__;
+                }
+            }
+            """),
+
         new("MapperGenerator", Mapper, """
             using MintPlayer.Mapper.Attributes;
 
