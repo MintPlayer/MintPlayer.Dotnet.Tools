@@ -1,4 +1,4 @@
-# MintPlayer.SourceGenerators.Testing
+# MintPlayer.SourceGenerators.TestHarness
 
 Test Roslyn source generators, analyzers and code fixes **in-process**, so your coverage collector
 actually attributes the component's own code.
@@ -26,7 +26,7 @@ That is what this package does.
 ## Setup
 
 ```xml
-<PackageReference Include="MintPlayer.SourceGenerators.Testing" Version="10.0.0" />
+<PackageReference Include="MintPlayer.SourceGenerators.TestHarness" Version="10.0.0" />
 
 <ItemGroup>
   <!-- Build ordering only: keeps the netstandard2.0 component out of the compile graph, where

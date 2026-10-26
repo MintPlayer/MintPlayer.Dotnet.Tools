@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 
-namespace MintPlayer.SourceGenerators.Testing;
+namespace MintPlayer.SourceGenerators.TestHarness;
 
 /// <summary>
 /// The named component is not in the assembly the harness loaded.

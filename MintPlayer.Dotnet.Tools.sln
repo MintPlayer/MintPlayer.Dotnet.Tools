@@ -231,7 +231,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Solve.Tests", "Solve\Solve.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.Assertions.SourceGenerator.Tests", "Assertions\MintPlayer.Assertions.SourceGenerator.Tests\MintPlayer.Assertions.SourceGenerator.Tests.csproj", "{2E4E909A-BCF2-49A9-9848-B26C0E02CF57}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.SourceGenerators.Testing", "SourceGenerators\MintPlayer.SourceGenerators.Testing\MintPlayer.SourceGenerators.Testing.csproj", "{36D15152-4B67-4182-8F56-8883827DEAFB}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MintPlayer.SourceGenerators.TestHarness", "SourceGenerators\MintPlayer.SourceGenerators.TestHarness\MintPlayer.SourceGenerators.TestHarness.csproj", "{36D15152-4B67-4182-8F56-8883827DEAFB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

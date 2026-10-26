@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
-using MintPlayer.SourceGenerators.Testing;
+using MintPlayer.SourceGenerators.TestHarness;
 using MintPlayer.SourceGenerators.Tools;
 
 namespace MintPlayer.SourceGenerators.Tests.Harness;
@@ -21,7 +21,7 @@ namespace MintPlayer.SourceGenerators.Tests.Harness;
 /// <para>
 /// The components below crash on purpose, so these tests pin the harness itself rather than any
 /// shipped generator. They live in this assembly and are loaded through
-/// <see cref="Testing.GeneratorHarness.ForAssembly"/> like any other component.
+/// <see cref="TestHarness.GeneratorHarness.ForAssembly"/> like any other component.
 /// </para>
 /// </remarks>
 public class CrashDetectionTests
@@ -32,10 +32,10 @@ public class CrashDetectionTests
         public class Thing { }
         """;
 
-    private static readonly Testing.GeneratorHarness Strict =
-        Testing.GeneratorHarness.ForAssembly(typeof(CrashDetectionTests).Assembly.GetName().Name!);
+    private static readonly TestHarness.GeneratorHarness Strict =
+        TestHarness.GeneratorHarness.ForAssembly(typeof(CrashDetectionTests).Assembly.GetName().Name!);
 
-    private static readonly Testing.GeneratorHarness Lenient = Strict.AllowComponentCrashes();
+    private static readonly TestHarness.GeneratorHarness Lenient = Strict.AllowComponentCrashes();
 
     #region Generators
 

@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
 
-namespace MintPlayer.SourceGenerators.Testing;
+namespace MintPlayer.SourceGenerators.TestHarness;
 
 /// <summary>
 /// Runs a source generator, analyzer or code-fix provider against in-memory C# and hands back what
@@ -669,7 +669,7 @@ public sealed class GeneratorHarness
                         $"there for coverage to attribute; reference the component project with " +
                         $"ReferenceOutputAssembly=\"false\" and list it in @(ComponentUnderTest) so this " +
                         $"package's CopyComponentUnderTest target copies the DLL and PDB into $(OutputPath). " +
-                        $"See the MintPlayer.SourceGenerators.Testing README.", ex);
+                        $"See the MintPlayer.SourceGenerators.TestHarness README.", ex);
                 }
             }
         }

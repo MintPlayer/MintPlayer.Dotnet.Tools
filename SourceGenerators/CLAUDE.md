@@ -160,7 +160,7 @@ Never condition an analyzer payload on `$(Configuration)`. A plain `dotnet pack`
 - **An `OutputItemType="Analyzer"` reference contributes ZERO coverage.** Roslyn loads it via
   `AnalyzerFileReference` from the generator's own `bin/`, which the collector never instrumented.
   So does `MSBuildWorkspace`, and so does building a fixture project.
-- Use **`MintPlayer.SourceGenerators.Testing`** (in this folder). It copies the component into the
+- Use **`MintPlayer.SourceGenerators.TestHarness`** (in this folder). It copies the component into the
   test bin **root** and `Assembly.Load`s it into the **default** ALC, which is the instrumented
   copy. `LoadFrom` or a custom `AssemblyLoadContext` runs the code and measures nothing.
 - Lambdas *are* covered — they compile to ordinary methods. Do not exclude
@@ -192,7 +192,7 @@ Learned in #193/#194 (`docs/PRD-TypeKindRobustness.md`).
 - **One diagnostic id, one descriptor.** `DiagnosticInfo` registers each descriptor under its id and throws when a
   different descriptor arrives with an id already seen. Descriptors are `static readonly` fields; put a varying
   part of the message in the arguments, never in a per-call descriptor.
-- **The test harness is strict by default.** `MintPlayer.SourceGenerators.Testing` throws
+- **The test harness is strict by default.** `MintPlayer.SourceGenerators.TestHarness` throws
   `ComponentCrashedException` on CS8785, MPSG001, MPSG002 or AD0001 from every `Run*` and `ApplyCodeFixAsync`. Before,
   a crashing generator read as one with nothing to say (CS8785 is only a warning). Use `.AllowComponentCrashes()` only
   in a test that asserts on the crash.

@@ -188,7 +188,7 @@ A generator that emits the same output on every keystroke is still doing the wor
 
 Rules of thumb for your models: no `ISymbol`, `SyntaxNode`, `SyntaxTokenList`, `Location`, `Compilation` or `DiagnosticDescriptor` (use strings, `LocationKey` and `DiagnosticInfo`; `MINT001` enforces it on `[GenerateEquality]` models); return `EquatableArray<T>` from every step that builds a collection; and carry a `LocationKey` only on a model that will actually report a diagnostic, so that typing above a declaration does not invalidate it.
 
-To prove it, `MintPlayer.SourceGenerators.Testing` runs a generator twice and reports the run reason of every output step.
+To prove it, `MintPlayer.SourceGenerators.TestHarness` runs a generator twice and reports the run reason of every output step.
 
 ## Breaking changes in 12.0.0
 The full list, with a migration guide, is in the [changelog](https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/blob/master/SourceGenerators/CHANGELOG.md).

@@ -1,4 +1,4 @@
-using MintPlayer.SourceGenerators.Testing;
+using MintPlayer.SourceGenerators.TestHarness;
 
 namespace MintPlayer.SourceGenerators.Tests._Infrastructure;
 
@@ -6,7 +6,7 @@ namespace MintPlayer.SourceGenerators.Tests._Infrastructure;
 /// Analyzer-plus-code-fix runs for this solution folder's four components.
 /// </summary>
 /// <remarks>
-/// A thin adapter over MintPlayer.SourceGenerators.Testing, kept so the existing tests keep their
+/// A thin adapter over MintPlayer.SourceGenerators.TestHarness, kept so the existing tests keep their
 /// call shape. The workspace plumbing, the single-diagnostic rule Roslyn enforces on
 /// <c>CodeFixContext</c>, and the decision to avoid Microsoft.CodeAnalysis.Testing all live in the
 /// package now.
@@ -46,9 +46,9 @@ internal static class CodeFixHarness
     /// these tests lives in MintPlayer.SourceGenerators, and a caller with something else passes
     /// the assembly name explicitly.
     /// </remarks>
-    private static Testing.GeneratorHarness Harness(string? assemblyName, IEnumerable<Type>? referenceTypes)
+    private static TestHarness.GeneratorHarness Harness(string? assemblyName, IEnumerable<Type>? referenceTypes)
     {
-        var harness = Testing.GeneratorHarness
+        var harness = TestHarness.GeneratorHarness
             .ForAssembly(assemblyName ?? "MintPlayer.SourceGenerators")
             .AddReferences(
                 typeof(System.ComponentModel.DescriptionAttribute),

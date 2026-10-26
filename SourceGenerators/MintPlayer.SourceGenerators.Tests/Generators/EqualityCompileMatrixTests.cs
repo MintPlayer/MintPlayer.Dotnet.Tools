@@ -223,7 +223,7 @@ public class EqualityCompileMatrixTests
             References(),
             options);
 
-        var generatorType = Testing.GeneratorHarness.ForAssembly("MintPlayer.ValueComparerGenerator")
+        var generatorType = TestHarness.GeneratorHarness.ForAssembly("MintPlayer.ValueComparerGenerator")
             .GeneratorTypes()
             .Single(t => t.Name == "ValueComparerGenerator");
         var generator = (IIncrementalGenerator)Activator.CreateInstance(generatorType)!;
