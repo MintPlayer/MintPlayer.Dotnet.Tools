@@ -20,6 +20,10 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v5
+      # Full history with tags: MintPlayer.Versioning.MSBuild reads every package version from its <id>/v<version> tag,
+      # and a shallow clone has none, so the assemblies were built at 0.0.0.0 (MPV001).
+      with:
+        fetch-depth: 0
 
     - name: Setup .NET Core
       uses: actions/setup-dotnet@v5
