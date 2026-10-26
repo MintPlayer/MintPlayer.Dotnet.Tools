@@ -10,3 +10,15 @@ versioning:
 #       packages: [Acme.Core, Acme.Core.*]
 #   packages:
 #     Acme.Generators: { anchor: free }   # free, or the framework package whose major it follows
+
+# The merge queue. Read from the DEFAULT branch only, so a pull request cannot widen it for itself. Trust settings
+# (approval floor, check exclusions) live on the organization/repository pages. Nothing here is generated, so there
+# is no regenerate workflow: a conflict in CHANGELOG.md, a csproj or a .json file keeps both sides (keepBothDefaults,
+# on by default) and any other conflict evicts the pull request.
+mergeQueue:
+  enabled: true
+  branches: [master]
+  mergeMethod: squash
+  enqueue:
+    label: merge-queue
+  postRebaseWhen: never
