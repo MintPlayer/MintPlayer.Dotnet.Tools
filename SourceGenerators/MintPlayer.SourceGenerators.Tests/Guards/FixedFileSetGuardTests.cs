@@ -92,6 +92,13 @@ public class FixedFileSetGuardTests
             }
             """),
 
+        new("ImplementInterfaceSourceGenerator", SourceGenerators, "using MintPlayer.SourceGenerators.Attributes;", """
+            public interface IItem{i} { int Value { get; set; } }
+
+            [ImplementInterface(typeof(IItem{i}))]
+            public partial class Item{i} { }
+            """),
+
         new("MapperGenerator", Mapper, "using MintPlayer.Mapper.Attributes;", """
             public class Item{i}Dto
             {
