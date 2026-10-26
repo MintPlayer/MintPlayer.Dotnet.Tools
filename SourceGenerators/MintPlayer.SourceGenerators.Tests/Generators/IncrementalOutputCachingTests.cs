@@ -2,7 +2,7 @@ using System.Collections;
 using System.Runtime.CompilerServices;
 using Microsoft.CodeAnalysis;
 using MintPlayer.SourceGenerators.Tests._Infrastructure;
-using IncrementalGeneratorResult = MintPlayer.SourceGenerators.Testing.IncrementalGeneratorResult;
+using IncrementalGeneratorResult = MintPlayer.SourceGenerators.TestHarness.IncrementalGeneratorResult;
 
 namespace MintPlayer.SourceGenerators.Tests.Generators;
 

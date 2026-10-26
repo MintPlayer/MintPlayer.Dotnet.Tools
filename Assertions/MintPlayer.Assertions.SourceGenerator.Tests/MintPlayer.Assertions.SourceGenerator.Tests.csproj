@@ -31,7 +31,7 @@
 		Referenced as a project rather than a package because it lives in this repo; consumers
 		elsewhere take the PackageReference and get the copy target automatically from build/.
 		-->
-		<ProjectReference Include="..\..\SourceGenerators\MintPlayer.SourceGenerators.Testing\MintPlayer.SourceGenerators.Testing.csproj" />
+		<ProjectReference Include="..\..\SourceGenerators\MintPlayer.SourceGenerators.TestHarness\MintPlayer.SourceGenerators.TestHarness.csproj" />
 	</ItemGroup>
 
 	<!--
@@ -68,12 +68,12 @@
 	<ItemGroup>
 		<Using Include="Xunit" />
 		<Using Include="MintPlayer.Assertions" />
-		<Using Include="MintPlayer.SourceGenerators.Testing" />
+		<Using Include="MintPlayer.SourceGenerators.TestHarness" />
 	</ItemGroup>
 
 	<!--
 	In-repo stand-in for the build/ targets a PackageReference would bring automatically.
 	-->
-	<Import Project="..\..\SourceGenerators\MintPlayer.SourceGenerators.Testing\Targets\sourcegenerator_testing.targets" />
+	<Import Project="..\..\SourceGenerators\MintPlayer.SourceGenerators.TestHarness\Targets\sourcegenerator_testing.targets" />
 
 </Project>

@@ -88,7 +88,7 @@
 
 	⚠️ Anything that reflects over this assembly with GetTypes() at runtime WITHOUT Workspaces
 	present throws ReflectionTypeLoadException for the whole assembly, not just the fix types. The
-	test project and MintPlayer.SourceGenerators.Testing both carry a real Workspaces reference for
+	test project and MintPlayer.SourceGenerators.TestHarness both carry a real Workspaces reference for
 	exactly this reason; see their csproj comments before removing either.
 	-->
 	<ItemGroup>

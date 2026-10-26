@@ -1,16 +1,16 @@
 using Microsoft.CodeAnalysis;
-using MintPlayer.SourceGenerators.Testing;
+using MintPlayer.SourceGenerators.TestHarness;
 
 namespace MintPlayer.SourceGenerators.Tests._Infrastructure;
 
 /// <summary>
 /// This solution folder's four generators, wired up for
-/// <see cref="MintPlayer.SourceGenerators.Testing.GeneratorHarness"/>.
+/// <see cref="MintPlayer.SourceGenerators.TestHarness.GeneratorHarness"/>.
 /// </summary>
 /// <remarks>
 /// The mechanics — loading the component from the test output directory so coverage attributes,
 /// the stub analyzer-config options, tolerating a partial type load — now live in the
-/// MintPlayer.SourceGenerators.Testing package. What stays here is only what is specific to this
+/// MintPlayer.SourceGenerators.TestHarness package. What stays here is only what is specific to this
 /// repo: which assemblies to probe, and which libraries the fixtures compile against.
 ///
 /// The probing exists because tests name a generator by type name alone and the four generators
@@ -59,10 +59,10 @@ internal static class GeneratorHarness
         typeof(ValueComparerGenerator.Attributes.GenerateEqualityAttribute),
     ];
 
-    private static readonly Dictionary<string, Testing.GeneratorHarness> _harnesses =
+    private static readonly Dictionary<string, TestHarness.GeneratorHarness> _harnesses =
         KnownGeneratorAssemblies.ToDictionary(
             name => name,
-            name => Testing.GeneratorHarness.ForAssembly(name).AddReferences(FixtureReferences),
+            name => TestHarness.GeneratorHarness.ForAssembly(name).AddReferences(FixtureReferences),
             StringComparer.Ordinal);
 
     public static GeneratorRun Run(
@@ -91,7 +91,7 @@ internal static class GeneratorHarness
             h => h.RunGeneratorTwice(generatorTypeName, initialSources.ToArray(), modifiedSources.ToArray()));
 
     /// <summary>
-    /// <see cref="Testing.GeneratorHarness.RunKeystroke"/> with this project's probing and references:
+    /// <see cref="TestHarness.GeneratorHarness.RunKeystroke"/> with this project's probing and references:
     /// the second run replaces only the edited tree, as an IDE does.
     /// </summary>
     public static IncrementalGeneratorResult RunKeystroke(
@@ -141,7 +141,7 @@ internal static class GeneratorHarness
         string? assemblyName,
         string? rootNamespace,
         IEnumerable<Type>? referenceTypes,
-        Func<Testing.GeneratorHarness, T> action)
+        Func<TestHarness.GeneratorHarness, T> action)
     {
         var candidates = Candidates(assemblyName, rootNamespace, referenceTypes);
 
@@ -157,7 +157,7 @@ internal static class GeneratorHarness
     private static async Task<T> ProbeAsync<T>(
         string? assemblyName,
         IEnumerable<Type>? referenceTypes,
-        Func<Testing.GeneratorHarness, Task<T>> action)
+        Func<TestHarness.GeneratorHarness, Task<T>> action)
     {
         var candidates = Candidates(assemblyName, rootNamespace: "TestRoot", referenceTypes);
 
@@ -170,7 +170,7 @@ internal static class GeneratorHarness
         throw new InvalidOperationException("No candidate analyzer assemblies configured.");
     }
 
-    private static IReadOnlyList<Testing.GeneratorHarness> Candidates(
+    private static IReadOnlyList<TestHarness.GeneratorHarness> Candidates(
         string? assemblyName,
         string? rootNamespace,
         IEnumerable<Type>? referenceTypes)
@@ -181,7 +181,7 @@ internal static class GeneratorHarness
         return names
             .Select(n => _harnesses.TryGetValue(n, out var h)
                 ? h
-                : Testing.GeneratorHarness.ForAssembly(n).AddReferences(FixtureReferences))
+                : TestHarness.GeneratorHarness.ForAssembly(n).AddReferences(FixtureReferences))
             .Select(h => extra.Length == 0 ? h : h.AddReferences(extra))
             .Select(h => h.WithRootNamespace(rootNamespace))
             .ToList();

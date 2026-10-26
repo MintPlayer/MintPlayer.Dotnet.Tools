@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 
-namespace MintPlayer.SourceGenerators.Testing;
+namespace MintPlayer.SourceGenerators.TestHarness;
 
 /// <summary>
 /// Supplies the MSBuild-derived options a generator reads, standing in for the ones the real

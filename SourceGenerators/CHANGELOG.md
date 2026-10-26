@@ -1,7 +1,7 @@
 # Changelog — source generators
 
 This changelog covers every package under `SourceGenerators/`. They are versioned in lockstep, so one entry applies
-to all of them.
+to all of them, except `MintPlayer.SourceGenerators.TestHarness`, which follows its own version line (see 13.1.0).
 
 ## 13.1.0
 
@@ -22,6 +22,13 @@ Design and decisions: [`docs/PRD-ImplementInterfaceAttribute.md`](../docs/PRD-Im
   (delete a mismatched member).
 - **CS0535**: a code fix that implements the interface with `[ImplementInterface]`.
 - **INTF001**: a "Move to interface" action, for a property on a class that uses `[ImplementInterface]`.
+
+### Renamed
+
+- **`MintPlayer.SourceGenerators.Testing` is now `MintPlayer.SourceGenerators.TestHarness`**, and its namespace with it.
+  The old package is deprecated and gets no new versions. Replace the `PackageReference` and the `using`; the API is
+  unchanged. As a new package id it starts its own version line, following its .NET 11 target, instead of the
+  13.x of the packages above.
 
 ## 13.0.0
 

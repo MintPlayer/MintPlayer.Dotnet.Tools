@@ -27,10 +27,10 @@
 		<Authors>Pieterjan De Clippel</Authors>
 		<Company>MintPlayer</Company>
 		<Description>Test source generators, analyzers and code fixes in-process, so a coverage collector actually attributes the generator's own code. Loads the component from the test host's output directory rather than through Roslyn's analyzer path, where instrumentation never reaches it.</Description>
-		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/SourceGenerators/MintPlayer.SourceGenerators.Testing</PackageProjectUrl>
+		<PackageProjectUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools/SourceGenerators/MintPlayer.SourceGenerators.TestHarness</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/MintPlayer/MintPlayer.Dotnet.Tools</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
-		<PackageId>MintPlayer.SourceGenerators.Testing</PackageId>
+		<PackageId>MintPlayer.SourceGenerators.TestHarness</PackageId>
 		<PackageTags>SourceGenerators;Roslyn;Testing;Analyzers;CodeCoverage</PackageTags>
 		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
 		<PackageReadmeFile>README.md</PackageReadmeFile>

@@ -54,7 +54,7 @@
 	-->
 	<ItemGroup>
 		<!-- The harness. Brings Microsoft.CodeAnalysis.CSharp and .Workspaces with it. -->
-		<ProjectReference Include="..\MintPlayer.SourceGenerators.Testing\MintPlayer.SourceGenerators.Testing.csproj" />
+		<ProjectReference Include="..\MintPlayer.SourceGenerators.TestHarness\MintPlayer.SourceGenerators.TestHarness.csproj" />
 
 		<ProjectReference Include="..\SourceGenerators\MintPlayer.SourceGenerators\MintPlayer.SourceGenerators.csproj"
 		                  ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />

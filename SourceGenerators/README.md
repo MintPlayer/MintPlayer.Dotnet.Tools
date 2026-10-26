@@ -11,7 +11,7 @@ to NuGet.
 | [MintPlayer.CliGenerator](Cli/MintPlayer.CliGenerator/README.md) | Builds a `System.CommandLine` command tree from your classes, with dependency-injection wiring. |
 | [MintPlayer.ValueComparers.NewtonsoftJson](ValueComparers/MintPlayer.ValueComparers.NewtonsoftJson/README.md) | A ready-made comparer for `JObject`, which otherwise compares by reference and defeats caching. |
 | [MintPlayer.SourceGenerators.Tools](MintPlayer.SourceGenerators.Tools/README.md) | The toolkit the generators above are built on: an incremental-generator base class, emission helpers, and `ValueEquality`/`EquatableArray<T>` for value-equal models. Use it to write your own. |
-| [MintPlayer.SourceGenerators.Testing](MintPlayer.SourceGenerators.Testing/README.md) | Tests generators, analyzers and code fixes in-process, so coverage is measured; a component that crashes fails the test. |
+| [MintPlayer.SourceGenerators.TestHarness](MintPlayer.SourceGenerators.TestHarness/README.md) | Tests generators, analyzers and code fixes in-process, so coverage is measured; a component that crashes fails the test. |
 
 Each generator also publishes a `*.Attributes` companion holding just the attributes you decorate
 with. Install it next to the generator: the generators are development dependencies, so the reference
