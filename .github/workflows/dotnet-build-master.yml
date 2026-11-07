@@ -91,8 +91,17 @@ jobs:
       shell: pwsh
       run: ./eng/Assert-PackageVersions.ps1 -Path .
 
+    # Trusted publishing: the job's GitHub OIDC token (id-token: write) is exchanged for a short-lived
+    # nuget.org API key. The policy lives on nuget.org (owner MintPlayer, workflow dotnet-build-master.yml);
+    # a package outside its patterns is refused. `user` is the nuget.org profile that owns the policy.
+    - name: NuGet login (trusted publishing)
+      id: nuget-login
+      uses: NuGet/login@v1
+      with:
+        user: Pieterjan
+
     - name: PushNuget
-      run: dotnet nuget push **/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.PUBLISH_TO_NUGET_ORG }} --skip-duplicate
+      run: dotnet nuget push **/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --skip-duplicate
 
     - name: PushGithub
       # Explicit source: GitHub Packages is deliberately NOT a restore source on CI (#200).
