@@ -76,18 +76,57 @@ jobs:
 
     - name: Version the packages
       id: versioning
-      uses: MintPlayer/MintPlayer.Spark/apps/CodeCoverage/versioning-action@1ab0c4002b5506f5f38fd1ab746cce831b113317 # versioning-v1
+      uses: MintPlayer/MintPlayer.Spark/apps/CodeCoverage/versioning-action@versioning-v1
+
+    # With release lines on, the default branch tags nothing: a package with no tag yet would fail its
+    # pack (MPV005). The release lines pack and publish; the default branch only when it released.
+    - name: Decide whether this run publishes
+      id: publishes
+      env:
+        RELEASED: ${{ steps.versioning.outputs.released }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      run: |
+        if [ "$GITHUB_REF_NAME" = "$DEFAULT_BRANCH" ] && { [ -z "$RELEASED" ] || [ "$RELEASED" = "[]" ]; }; then
+          echo "The default branch released nothing (release lines on, or no change): no pack, no publish."
+          echo "value=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "value=true" >> "$GITHUB_OUTPUT"
+        fi
 
     # No --no-build: the versions are decided after the tests, so pack builds again to stamp them into the
     # assemblies (--no-build also skips restore, which leaves the nuspec's dependency versions stale).
     - name: Pack
+      if: steps.publishes.outputs.value == 'true'
       run: dotnet pack --configuration Release /p:ContinuousIntegrationBuild=true
+
+    - name: Check the packages carry the released versions
+      if: steps.publishes.outputs.value == 'true'
+      id: packed-versions
+      shell: bash
+      env:
+        VERSIONS: ${{ steps.versioning.outputs.versions }}
+        DIST_TAGS: ${{ steps.versioning.outputs.dist-tags }}
+      run: |
+        # --skip-duplicate turns a pack at another version into "already exists" and a green run that published
+        # nothing (#638): every released NuGet package must have been packed at the version it was released as.
+        versions="${VERSIONS:-}"; [ -n "$versions" ] || versions='{}'
+        npm="${DIST_TAGS:-}"; [ -n "$npm" ] || npm='{}'
+        status=0
+        while IFS=$'\t' read -r id version; do
+          version="${version%$'\r'}"; [ -n "$id" ] || continue
+          if [ -z "$(find . -iname "$id.$version.nupkg" -not -path '*/node_modules/*' -print -quit)" ]; then
+            echo "::error::$id was released as $version, but no $id.$version.nupkg was packed."
+            status=1
+          fi
+        done < <(jq -r --argjson npm "$npm" 'to_entries[] | select(.key as $k | $npm | has($k) | not) | "\(.key)\t\(.value)"' <<< "$versions")
+        exit $status
 
     # The SourceGenerators releases 10.20.2-12.0.1 and MintPlayer.Assertions 1.0.1-11.0.0-rc.4
     # shipped assemblies versioned 99.9.9.0, because the
     # packaging tests rebuilt bin/Release with their test version before this --no-build pack
     # (#187). Check what is inside the packages before anything is pushed.
     - name: Assert package versions
+      if: steps.publishes.outputs.value == 'true'
       shell: pwsh
       run: ./eng/Assert-PackageVersions.ps1 -Path .
 
@@ -95,15 +134,18 @@ jobs:
     # nuget.org API key. The policy lives on nuget.org (owner MintPlayer, workflow dotnet-build-master.yml);
     # a package outside its patterns is refused. `user` is the nuget.org profile that owns the policy.
     - name: NuGet login (trusted publishing)
+      if: steps.publishes.outputs.value == 'true'
       id: nuget-login
       uses: NuGet/login@v1
       with:
         user: Pieterjan
 
     - name: PushNuget
+      if: steps.publishes.outputs.value == 'true'
       run: dotnet nuget push **/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --skip-duplicate
 
     - name: PushGithub
+      if: steps.publishes.outputs.value == 'true'
       # Explicit source: GitHub Packages is deliberately NOT a restore source on CI (#200).
       # A restore source answering 403 for a package this repo's token may not read fails the
       # whole restore, even when nuget.org has the package.

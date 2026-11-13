@@ -61,7 +61,7 @@ jobs:
         run: corepack enable
 
       - id: apply
-        uses: MintPlayer/MintPlayer.Spark/apps/CodeCoverage/dependency-action@5c992693d01ba9e70eb355df3f2c4979057b4108 # dependency-update-v1
+        uses: MintPlayer/MintPlayer.Spark/apps/CodeCoverage/dependency-action@dependency-update-v1
         with:
           mode: apply
           expected-sha: ${{ inputs.expected_sha }}
