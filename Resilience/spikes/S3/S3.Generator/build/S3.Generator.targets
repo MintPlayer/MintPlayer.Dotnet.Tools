@@ -1,0 +1,10 @@
+<Project>
+  <!--
+    Package-style build/<PackageId>.targets: evaluated AFTER the consuming project's body, so a user's
+    plain assignment cannot clobber it. The .NET SDK appends its own interceptor namespaces the same way
+    (Microsoft.NET.Sdk.FrameworkReferenceResolution.targets).
+  -->
+  <PropertyGroup>
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Spike.S3.Generated</InterceptorsNamespaces>
+  </PropertyGroup>
+</Project>
