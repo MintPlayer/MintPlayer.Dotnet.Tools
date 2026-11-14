@@ -10,13 +10,13 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="coverlet.collector" Version="10.0.1">
+		<PackageReference Include="coverlet.collector" Version="10.1.0">
 		  <PrivateAssets>all</PrivateAssets>
 		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.2" />
 		<PackageReference Include="xunit" Version="2.9.3" />
-		<PackageReference Include="xunit.runner.visualstudio" Version="4.0.0">
+		<PackageReference Include="xunit.runner.visualstudio" Version="4.0.1">
 		  <PrivateAssets>all</PrivateAssets>
 		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
@@ -31,12 +31,12 @@
 		-->
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" />
 		<!-- ServiceRegistrationsGenerator returns nothing unless this is in the reference set. -->
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.5" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="11.0.0" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0" />
 		<!-- The CLI generator emits code against System.CommandLine. -->
-		<PackageReference Include="System.CommandLine" Version="2.0.5" />
+		<PackageReference Include="System.CommandLine" Version="2.0.15" />
 		<!-- The CLI generator emits a host builder against Microsoft.Extensions.Hosting. -->
-		<PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.5" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="11.0.0" />
 	</ItemGroup>
 
 	<!--
