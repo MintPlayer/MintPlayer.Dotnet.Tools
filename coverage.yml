@@ -28,6 +28,10 @@ versioning:
 #       packages: [Acme.Core, Acme.Core.*]
 #   packages:
 #     Acme.Generators: { anchor: free }   # free, or the framework package whose major it follows
+  packages:
+    # Octokit.GraphQL has never shipped stable, so `prerelease: upstream` would label this package beta (#211).
+    # It has always shipped stable regardless (8.0.0-10.0.0); NuGet's NU5104 warning is expected.
+    MintPlayer.GraphQL: { prerelease: stable }
 
 # The merge queue. Read from the DEFAULT branch only, so a pull request cannot widen it for itself. Trust settings
 # (approval floor, check exclusions) live on the organization/repository pages. Nothing here is generated, so there
