@@ -34,7 +34,7 @@
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.5" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
 		<!-- The CLI generator emits code against System.CommandLine. -->
-		<PackageReference Include="System.CommandLine" Version="2.0.5" />
+		<PackageReference Include="System.CommandLine" Version="2.0.15" />
 		<!-- The CLI generator emits a host builder against Microsoft.Extensions.Hosting. -->
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.5" />
 	</ItemGroup>
