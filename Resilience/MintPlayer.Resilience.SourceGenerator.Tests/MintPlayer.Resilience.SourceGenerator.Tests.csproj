@@ -1,0 +1,73 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net11.0</TargetFramework>
+		<LangVersion>15</LangVersion>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<IsPackable>false</IsPackable>
+		<IsTestProject>true</IsTestProject>
+
+		<!--
+		The generated file of this project's own sample pipelines (Samples/) is written to obj/Generated, which is
+		where Snapshots/ResiliencePipelines.g.cs is refreshed from (see SnapshotTests).
+		-->
+		<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+		<CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)Generated</CompilerGeneratedFilesOutputPath>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="coverlet.collector" Version="10.0.1">
+		  <PrivateAssets>all</PrivateAssets>
+		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="9.0.0" />
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
+		<PackageReference Include="xunit" Version="2.9.3" />
+		<PackageReference Include="xunit.runner.visualstudio" Version="4.0.0">
+		  <PrivateAssets>all</PrivateAssets>
+		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- The harness (brings Microsoft.CodeAnalysis.CSharp and .Workspaces). -->
+		<ProjectReference Include="..\..\SourceGenerators\MintPlayer.SourceGenerators.Testing\MintPlayer.SourceGenerators.Testing.csproj" />
+
+		<!-- The generator derives from MintPlayer.SourceGenerators.Tools' IncrementalGenerator, so Tools must resolve when the harness reflects over it. -->
+		<ProjectReference Include="..\..\SourceGenerators\MintPlayer.SourceGenerators.Tools\MintPlayer.SourceGenerators.Tools.csproj" />
+
+		<ProjectReference Include="..\..\Assertions\MintPlayer.Assertions\MintPlayer.Assertions.csproj" />
+
+		<!-- Referenced normally: fixtures and samples are compiled against the runtime and its attributes. -->
+		<ProjectReference Include="..\MintPlayer.Resilience\MintPlayer.Resilience.csproj" />
+
+		<!--
+		Runs the generator on this project's own Samples/ (the compile check: the PRD §2.1 CatalogPipeline and the
+		DI-form OrdersPipeline, plus the pipelines the parity and allocation tests execute). The core package's own
+		Analyzer reference is PrivateAssets="all", so it does not flow here. Also orders the build, so the DLL exists
+		for CopyComponentUnderTest.
+		-->
+		<ProjectReference Include="..\MintPlayer.Resilience.SourceGenerator\MintPlayer.Resilience.SourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+
+		<!-- Copied into the bin ROOT with its PDB by CopyComponentUnderTest, so the harness loads (and coverage attributes) it. -->
+		<ComponentUnderTest Include="..\MintPlayer.Resilience.SourceGenerator\bin\$(Configuration)\netstandard2.0\MintPlayer.Resilience.SourceGenerator.dll" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- The sample sources and the snapshot, embedded so the snapshot test replays the generator over the same input. -->
+		<EmbeddedResource Include="Samples\*.cs" LogicalName="Samples.%(Filename)%(Extension)" />
+		<EmbeddedResource Include="Snapshots\*.g.cs" LogicalName="Snapshots.%(Filename)%(Extension)" />
+		<Compile Remove="Snapshots\**" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Using Include="Xunit" />
+		<Using Include="MintPlayer.Assertions" />
+		<Using Include="MintPlayer.SourceGenerators.Testing" />
+	</ItemGroup>
+
+	<!-- In-repo stand-in for the build/ targets a PackageReference would bring automatically. -->
+	<Import Project="..\..\SourceGenerators\MintPlayer.SourceGenerators.Testing\Targets\sourcegenerator_testing.targets" />
+
+</Project>

@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<!-- Ships inside the MintPlayer.Resilience package (analyzers/dotnet/roslyn5.9/cs); not packed standalone -->
+		<IsPackable>false</IsPackable>
+		<Version>11.0.0</Version>
+		<Authors>Pieterjan De Clippel</Authors>
+		<Company>MintPlayer</Company>
+		<Description>Compiler extensions for MintPlayer.Resilience: the source generator that compiles [ResiliencePipeline] classes into flat, allocation-free pipelines, and (M4b/M5) its analyzers.</Description>
+	</PropertyGroup>
+
+	<Import Project="..\..\SourceGenerators\eng\sourcegenerator.targets" />
+
+	<!--
+	The pipeline models (Models\*.cs) are [GenerateEquality] types. This brings the attribute
+	assembly (copied into bin\...\netstandard2.0, where MintPlayer.Resilience' pack picks it up)
+	and the generator that writes their Equals/GetHashCode. This project is not packable, so the
+	pack target the file also adds never runs here; MintPlayer.Resilience.csproj ships the DLL.
+	-->
+	<Import Project="..\..\SourceGenerators\eng\valuecomparergenerator.targets" />
+
+	<ItemGroup>
+		<!--
+		The Microsoft.CodeAnalysis meta-package brings Microsoft.CodeAnalysis.Workspaces, which a generator must not
+		reference (RS1038: it is not provided in command-line builds). Keep it that way: CodeFixProviders live in the
+		separate MintPlayer.Resilience.CodeFixes assembly (plan M4 part B), packed next to this generator.
+		-->
+		<PackageReference Remove="Microsoft.CodeAnalysis" />
+		<PackageReference Update="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" />
+		<PackageReference Update="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+	</ItemGroup>
+</Project>

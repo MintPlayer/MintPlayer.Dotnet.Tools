@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Where InterceptorsNamespaces comes from: -p:S3NsVia=csproj (default) | props | targets.
+    The props/targets imports sit where NuGet puts build/<PackageId>.props (top, before the project body)
+    and build/<PackageId>.targets (bottom, after it).
+  -->
+  <Import Project="..\S3.Generator\build\S3.Generator.props" Condition="'$(S3NsVia)' == 'props'" />
+
+  <!-- Spike S3 (issue #189): throwaway. Deleted before the PR is finalized. Not in the .sln. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- -p:S3Tfms=net10.0 to build with a .NET 10 SDK (cannot target net11.0). -->
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <TargetFrameworks Condition="'$(S3Tfms)' != ''">$(S3Tfms)</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <Optimize>true</Optimize>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <S3NsVia Condition="'$(S3NsVia)' == ''">csproj</S3NsVia>
+    <!-- Lets the generator see the probe switch (build_property.S3MismatchProbe). -->
+    <S3MismatchProbe Condition="'$(S3MismatchProbe)' == ''">false</S3MismatchProbe>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(S3NsVia)' == 'csproj'">
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Spike.S3.Generated</InterceptorsNamespaces>
+  </PropertyGroup>
+
+  <!-- Simulates a user project that assigns the property without appending (clobbers a .props value). -->
+  <PropertyGroup Condition="'$(S3UserClobbers)' == 'true'">
+    <InterceptorsNamespaces>Some.User.Namespace</InterceptorsNamespaces>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <CompilerVisibleProperty Include="S3MismatchProbe" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\S3.Generator\S3.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <!-- Shapes the compiler rejects; included only to record the error codes (-p:S3NonCompiling=true). -->
+  <ItemGroup Condition="'$(S3NonCompiling)' != 'true'">
+    <Compile Remove="NonCompiling.cs" />
+  </ItemGroup>
+
+  <Import Project="..\S3.Generator\build\S3.Generator.targets" Condition="'$(S3NsVia)' == 'targets'" />
+
+</Project>
